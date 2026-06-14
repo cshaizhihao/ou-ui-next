@@ -320,6 +320,48 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
+  it('retries failed Telegram deliveries inline from compact evidence rows', async () => {
+    const user = userEvent.setup();
+    const onRetryDelivery = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[
+          createDelivery({ id: 'telegram-delivery-failed', status: 'failed' }),
+          createDelivery({ id: 'telegram-delivery-delivered', status: 'delivered' })
+        ]}
+        language="en"
+        onRetryDelivery={onRetryDelivery}
+        policies={[createPolicy()]}
+        settings={{
+          ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+          enabled: true,
+          botTokenSet: true,
+          adminChatIds: ['999000111']
+        }}
+      />
+    );
+
+    const deliveryEvidence = screen.getByRole('region', { name: 'Delivery Evidence' });
+    const failedRow = within(deliveryEvidence).getByRole('article', { name: 'quota.exceeded failed' });
+    const deliveredRow = within(deliveryEvidence).getByRole('article', { name: 'quota.exceeded delivered' });
+    const retryButton = within(failedRow).getByRole('button', { name: 'Retry Delivery' });
+
+    expect(retryButton).toHaveClass('telegram-delivery-retry-action');
+    expect(retryButton).toHaveClass('min-h-8');
+    expect(retryButton).toHaveClass('px-3');
+    expect(retryButton).not.toHaveClass('p-4', 'p-5', 'rounded-xl');
+    expect(within(deliveredRow).queryByRole('button', { name: 'Retry Delivery' })).not.toBeInTheDocument();
+
+    await user.click(retryButton);
+
+    expect(onRetryDelivery).toHaveBeenCalledWith('telegram-delivery-failed');
+    expect(await within(failedRow).findByRole('status', { name: 'Delivery retry status' })).toHaveTextContent(
+      'Retry queued'
+    );
+  });
+
   it('uses the fauvist control-plane palette across the Telegram notification workspace', () => {
     render(
       <TelegramNotificationSettingsPage

@@ -93,6 +93,11 @@ const copy = {
     saving: '保存中',
     saved: '已保存',
     failed: '保存失败，请重试',
+    retryDelivery: '重试投递',
+    retryingDelivery: '重试中',
+    retryQueued: '重试已排队',
+    retryFailed: '重试失败',
+    deliveryRetryStatus: '投递重试状态',
     telegramOperationsCockpit: 'Telegram 运营 cockpit',
     telegramControlRail: 'Telegram 控制轨',
     notificationDeliveryWorkspace: '通知投递工作区',
@@ -152,6 +157,11 @@ const copy = {
     saving: 'Saving',
     saved: 'Saved',
     failed: 'Save failed. Try again',
+    retryDelivery: 'Retry Delivery',
+    retryingDelivery: 'Retrying',
+    retryQueued: 'Retry queued',
+    retryFailed: 'Retry failed',
+    deliveryRetryStatus: 'Delivery retry status',
     telegramOperationsCockpit: 'Telegram operations cockpit',
     telegramControlRail: 'Telegram control rail',
     notificationDeliveryWorkspace: 'Notification delivery workspace',
@@ -263,6 +273,7 @@ export function TelegramNotificationSettingsPage({
   mutationBusy = false,
   policies,
   settings,
+  onRetryDelivery,
   onUpdateSettings
 }: TelegramNotificationSettingsPageProps) {
   const t = copy[language];
@@ -520,7 +531,13 @@ export function TelegramNotificationSettingsPage({
                     {sortedDeliveries.length > 0 ? (
                       <div className="mt-3 space-y-2">
                         {sortedDeliveries.slice(0, 3).map((delivery) => (
-                          <DeliveryRow delivery={delivery} key={delivery.id} language={language} />
+                          <DeliveryRow
+                            delivery={delivery}
+                            key={delivery.id}
+                            language={language}
+                            onRetryDelivery={onRetryDelivery}
+                            t={t}
+                          />
                         ))}
                       </div>
                     ) : (
@@ -719,12 +736,33 @@ function PolicyBindingRow({ label, value }: { label: string; value: string }) {
 
 function DeliveryRow({
   delivery,
-  language
+  language,
+  onRetryDelivery,
+  t
 }: {
   delivery: TelegramNotificationDelivery;
   language: AppLanguage;
+  onRetryDelivery?: (deliveryId: string) => void | Promise<void>;
+  t: (typeof copy)[AppLanguage];
 }) {
   const risky = delivery.status === 'failed' || delivery.status === 'dead_letter';
+  const retryable = risky && Boolean(onRetryDelivery);
+  const [retryState, setRetryState] = useState<'idle' | 'busy' | 'queued' | 'failed'>('idle');
+
+  async function retryDelivery() {
+    if (!onRetryDelivery || retryState === 'busy') {
+      return;
+    }
+
+    setRetryState('busy');
+
+    try {
+      await onRetryDelivery(delivery.id);
+      setRetryState('queued');
+    } catch {
+      setRetryState('failed');
+    }
+  }
 
   return (
     <article
@@ -741,7 +779,41 @@ function DeliveryRow({
           {delivery.renderedPreviewRedacted ?? delivery.templateId}
         </p>
       </div>
-      <p className="font-mono text-[11px] font-bold text-[#35405A] dark:text-white/45">{formatDateTime(delivery.updatedAt, language)}</p>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <p className="font-mono text-[11px] font-bold text-[#35405A] dark:text-white/45">
+          {formatDateTime(delivery.updatedAt, language)}
+        </p>
+        {retryable ? (
+          <button
+            aria-label={t.retryDelivery}
+            className="telegram-delivery-retry-action inline-flex min-h-8 items-center justify-center gap-2 border border-[#FF3D18] bg-[#FFD8C6]/72 px-3 text-[11px] font-black text-[#B93C17] transition hover:-translate-y-0.5 hover:bg-[#FFD8C6] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 motion-reduce:transition-none dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]"
+            disabled={retryState === 'busy'}
+            onClick={() => void retryDelivery()}
+            type="button"
+          >
+            {retryState === 'busy' ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {retryState === 'busy' ? t.retryingDelivery : t.retryDelivery}
+          </button>
+        ) : null}
+        {retryState === 'queued' ? (
+          <span
+            aria-label={t.deliveryRetryStatus}
+            className="inline-flex min-h-8 items-center border border-[#00A878] bg-[#FFFDF5] px-3 text-[11px] font-black text-[#007D5E] dark:border-[#35E68E]/20 dark:bg-[#101827] dark:text-[#9EF4C4]"
+            role="status"
+          >
+            {t.retryQueued}
+          </span>
+        ) : null}
+        {retryState === 'failed' ? (
+          <span
+            aria-label={t.deliveryRetryStatus}
+            className="inline-flex min-h-8 items-center border border-[#FF3D18] bg-[#FFD8C6] px-3 text-[11px] font-black text-[#B93C17] dark:border-[#FF6A3A]/20 dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]"
+            role="alert"
+          >
+            {t.retryFailed}
+          </span>
+        ) : null}
+      </div>
     </article>
   );
 }
