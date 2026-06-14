@@ -505,6 +505,23 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
+  it('finds executable quick actions by command kind terms and shows action counts', async () => {
+    const user = userEvent.setup();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'copy');
+
+    const result = await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ });
+    const resultRow = result.closest('[role="listitem"]') as HTMLElement;
+
+    expect(result).toBeInTheDocument();
+    expect(resultRow).not.toBeNull();
+    expect(within(resultRow).getByText(/\d+ 个动作/)).toBeInTheDocument();
+    expect(within(resultRow).getByRole('button', { name: /复制链接 Acme 香港 Premium 订阅/ })).toBeInTheDocument();
+  });
+
   it('opens global quick actions with Ctrl+K and closes it with Escape', async () => {
     const user = userEvent.setup();
 

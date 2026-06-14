@@ -64,7 +64,8 @@ const copy = {
       objects: '可搜索对象',
       commands: '可执行命令',
       matches: '当前匹配'
-    }
+    },
+    actionCount: (count: number) => `${count} 个动作`
   },
   en: {
     title: 'Control Plane Search',
@@ -79,7 +80,8 @@ const copy = {
       objects: 'Searchable Objects',
       commands: 'Executable Commands',
       matches: 'Current Matches'
-    }
+    },
+    actionCount: (count: number) => `${count} ${count === 1 ? 'action' : 'actions'}`
   }
 } as const;
 
@@ -96,7 +98,7 @@ function getItemCommands(item: QuickActionItem) {
 }
 
 function getCommandSearchTerms(command: QuickActionCommand) {
-  return [command.label, ...(command.aliases ?? [])];
+  return [command.label, command.kind, ...(command.aliases ?? [])];
 }
 
 function itemMatches(item: QuickActionItem, query: string) {
@@ -373,6 +375,11 @@ export function QuickActionPalette({
                         {item.badge ? (
                           <span className="rounded-full bg-[#D9FF00]/[0.28] px-2.5 py-1 text-[10px] font-semibold text-[#07111F] dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
                             {item.badge}
+                          </span>
+                        ) : null}
+                        {commands.length > 0 ? (
+                          <span className="rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[10px] font-semibold text-[#35405A] dark:border-white/10 dark:bg-white/5 dark:text-white/64">
+                            {t.actionCount(commands.length)}
                           </span>
                         ) : null}
                       </span>

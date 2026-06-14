@@ -121,6 +121,50 @@ describe('command surfaces fauvist palette', () => {
     expect(scope).toHaveTextContent('2');
   });
 
+  it('surfaces executable command counts on each quick action result', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="zh"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const firstResult = document.getElementById('quick-action-result-forwarding-acme') as HTMLElement;
+    const secondResult = document.getElementById('quick-action-result-subscription-acme') as HTMLElement;
+
+    expect(within(firstResult).getByText('1 个动作')).toBeInTheDocument();
+    expect(within(secondResult).getByText('1 个动作')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), {
+      target: { value: 'copy' }
+    });
+
+    const filteredResult = document.getElementById('quick-action-result-subscription-acme') as HTMLElement;
+    expect(filteredResult).not.toBeNull();
+    expect(within(filteredResult).getByText('1 个动作')).toBeInTheDocument();
+  });
+
+  it('localizes quick action result command counts in English', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const firstResult = document.getElementById('quick-action-result-forwarding-acme') as HTMLElement;
+
+    expect(within(firstResult).getByText('1 action')).toBeInTheDocument();
+  });
+
   it('uses fauvist colors for quick action empty state after filtering', () => {
     render(
       <QuickActionPalette
