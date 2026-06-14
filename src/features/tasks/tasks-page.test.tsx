@@ -265,6 +265,45 @@ describe('TasksPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('surfaces execution release gates on the control rail', () => {
+    render(
+      <TasksPage
+        tasks={[
+          { ...task, id: 'task-running', status: 'running' },
+          {
+            ...task,
+            id: 'task-failed',
+            status: 'failed',
+            failureReason: 'runtime reload health check failed'
+          },
+          { ...task, id: 'task-rollback', status: 'succeeded', rollbackAvailable: true }
+        ]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Execution release cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Execution control rail' });
+    const gates = within(rail).getByRole('region', { name: 'Execution Release Gates' });
+
+    expect(gates).toHaveClass('tasks-release-gate-panel');
+    expect(gates.outerHTML).toContain('#1E3AFF');
+    expect(gates.outerHTML).toContain('#FF3D18');
+    expect(gates.outerHTML).toContain('#D9FF00');
+    expect(gates.outerHTML).toContain('#00A878');
+    expect(within(gates).getByRole('group', { name: 'Execution Queue' })).toHaveTextContent('Waiting');
+    expect(within(gates).getByRole('group', { name: 'Failure Handling' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Release Artifacts' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Rollback Boundary' })).toHaveTextContent('Ready');
+  });
+
   it('opens task details with metadata, release artifacts, related logs, and copyable context', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

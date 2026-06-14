@@ -56,6 +56,14 @@ type TaskRemediationPlan = {
 type TaskStatusFilter = 'all' | DeployTask['status'];
 type TaskOperationFilter = 'all' | DeployTask['operation'];
 type AgentLogStreamFilter = 'all' | AgentLogChunk['stream'];
+type ExecutionReleaseGateState = 'ready' | 'issues' | 'waiting';
+
+type ExecutionReleaseGate = {
+  label: string;
+  detail: string;
+  state: ExecutionReleaseGateState;
+  value: string;
+};
 
 const taskStatuses: DeployTask['status'][] = ['queued', 'running', 'succeeded', 'failed', 'retrying', 'rolled_back', 'canceled'];
 const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent', 'runtime'];
@@ -79,6 +87,33 @@ const copy = {
     pathAgent: 'Agent',
     pathEvidence: 'Evidence',
     pathRollback: 'Rollback',
+    executionReleaseGates: '执行发布门禁',
+    executionReleaseGatesHint: '把队列、失败处置、发布产物和回滚边界收敛到同一条放行线。',
+    executionQueueGate: '执行队列',
+    executionQueueGateDetail: (activeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(activeCount, language)} 进行中 / ${formatNumber(totalCount, language)} 总执行`,
+    failureHandlingGate: '失败处置',
+    failureHandlingGateDetail: (failureCount: number, language: AppLanguage) =>
+      `${formatNumber(failureCount, language)} 个任务需要处置证据`,
+    releaseArtifactsGate: '发布产物',
+    releaseArtifactsGateDetail: (
+      configCount: number,
+      preflightCount: number,
+      snapshotCount: number,
+      language: AppLanguage
+    ) =>
+      `配置 ${formatNumber(configCount, language)} / 预检 ${formatNumber(preflightCount, language)} / 快照 ${formatNumber(
+        snapshotCount,
+        language
+      )}`,
+    rollbackBoundaryGate: '回滚边界',
+    rollbackBoundaryGateDetail: (readyCount: number, taskCount: number, language: AppLanguage) =>
+      `${formatNumber(readyCount, language)} 可回滚 / ${formatNumber(taskCount, language)} 总执行`,
+    gateStateLabel: {
+      ready: '就绪',
+      issues: '异常',
+      waiting: '等待'
+    },
     releaseEvidence: '发布证据',
     releaseEvidenceSummary: (
       configCount: number,
@@ -292,6 +327,33 @@ const copy = {
     pathAgent: 'Agent',
     pathEvidence: 'Evidence',
     pathRollback: 'Rollback',
+    executionReleaseGates: 'Execution Release Gates',
+    executionReleaseGatesHint: 'Keep queue, failure handling, release artifacts, and rollback boundaries on one approval line.',
+    executionQueueGate: 'Execution Queue',
+    executionQueueGateDetail: (activeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(activeCount, language)} active / ${formatNumber(totalCount, language)} total`,
+    failureHandlingGate: 'Failure Handling',
+    failureHandlingGateDetail: (failureCount: number, language: AppLanguage) =>
+      `${formatNumber(failureCount, language)} tasks need evidence handling`,
+    releaseArtifactsGate: 'Release Artifacts',
+    releaseArtifactsGateDetail: (
+      configCount: number,
+      preflightCount: number,
+      snapshotCount: number,
+      language: AppLanguage
+    ) =>
+      `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(
+        preflightCount,
+        language
+      )} / Snapshot ${formatNumber(snapshotCount, language)}`,
+    rollbackBoundaryGate: 'Rollback Boundary',
+    rollbackBoundaryGateDetail: (readyCount: number, taskCount: number, language: AppLanguage) =>
+      `${formatNumber(readyCount, language)} rollback ready / ${formatNumber(taskCount, language)} total`,
+    gateStateLabel: {
+      ready: 'Ready',
+      issues: 'Issues',
+      waiting: 'Waiting'
+    },
     releaseEvidence: 'Release Evidence',
     releaseEvidenceSummary: (
       configCount: number,
@@ -967,6 +1029,57 @@ function createReleaseBundles(
   });
 }
 
+function createExecutionReleaseGates({
+  activeTaskCount,
+  configRevisions,
+  failureTaskCount,
+  language,
+  preflightPlans,
+  rollbackReadyCount,
+  runtimeSnapshots,
+  taskCount,
+  t
+}: {
+  activeTaskCount: number;
+  configRevisions: RuntimeConfigRevision[];
+  failureTaskCount: number;
+  language: AppLanguage;
+  preflightPlans: RuntimePreflightPlan[];
+  rollbackReadyCount: number;
+  runtimeSnapshots: RuntimeSnapshot[];
+  taskCount: number;
+  t: (typeof copy)[AppLanguage];
+}): ExecutionReleaseGate[] {
+  const artifactCount = configRevisions.length + preflightPlans.length + runtimeSnapshots.length;
+
+  return [
+    {
+      label: t.executionQueueGate,
+      detail: t.executionQueueGateDetail(activeTaskCount, taskCount, language),
+      state: activeTaskCount > 0 ? 'waiting' : taskCount > 0 ? 'ready' : 'waiting',
+      value: activeTaskCount > 0 ? t.gateStateLabel.waiting : taskCount > 0 ? t.gateStateLabel.ready : t.gateStateLabel.waiting
+    },
+    {
+      label: t.failureHandlingGate,
+      detail: t.failureHandlingGateDetail(failureTaskCount, language),
+      state: failureTaskCount > 0 ? 'issues' : taskCount > 0 ? 'ready' : 'waiting',
+      value: failureTaskCount > 0 ? t.gateStateLabel.issues : taskCount > 0 ? t.gateStateLabel.ready : t.gateStateLabel.waiting
+    },
+    {
+      label: t.releaseArtifactsGate,
+      detail: t.releaseArtifactsGateDetail(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language),
+      state: artifactCount > 0 ? 'ready' : 'waiting',
+      value: artifactCount > 0 ? t.gateStateLabel.ready : t.gateStateLabel.waiting
+    },
+    {
+      label: t.rollbackBoundaryGate,
+      detail: t.rollbackBoundaryGateDetail(rollbackReadyCount, taskCount, language),
+      state: rollbackReadyCount > 0 ? 'ready' : taskCount > 0 ? 'issues' : 'waiting',
+      value: rollbackReadyCount > 0 ? t.gateStateLabel.ready : taskCount > 0 ? t.gateStateLabel.issues : t.gateStateLabel.waiting
+    }
+  ];
+}
+
 function getStatusPillClass(status?: string) {
   if (!status) {
     return 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/50';
@@ -1051,6 +1164,62 @@ function EvidenceSummaryTile({ label, value }: { label: string; value: string })
     <article aria-label={label} className="rounded-xl border border-slate-200 bg-white/55 p-4 dark:border-white/10 dark:bg-black/10">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-2 text-base font-black text-slate-900 dark:text-white">{value}</p>
+    </article>
+  );
+}
+
+function ExecutionReleaseGatePanel({
+  gates,
+  t
+}: {
+  gates: ExecutionReleaseGate[];
+  t: (typeof copy)[AppLanguage];
+}) {
+  return (
+    <section
+      aria-label={t.executionReleaseGates}
+      className="tasks-release-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.executionReleaseGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.executionReleaseGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <ExecutionReleaseGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ExecutionReleaseGateRow({ gate }: { gate: ExecutionReleaseGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<ExecutionReleaseGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
     </article>
   );
 }
@@ -1993,6 +2162,34 @@ export function TasksPage({
   );
   const agentEvidenceSummary = t.agentEvidenceSummary(agentLogChunks.length, agentLogArchives.length, language);
   const latestExecutionStatus = latestTask ? t.status[latestTask.status] : t.status.not_generated;
+  const activeTaskCount = tasks.filter((item) => ['queued', 'running', 'retrying'].includes(item.status)).length;
+  const failureTaskCount = tasks.filter((item) => hasTaskFailureEvidence(item)).length;
+  const rollbackReadyCount = tasks.filter((item) => item.rollbackAvailable && item.status === 'succeeded').length;
+  const executionReleaseGates = useMemo(
+    () =>
+      createExecutionReleaseGates({
+        activeTaskCount,
+        configRevisions,
+        failureTaskCount,
+        language,
+        preflightPlans,
+        rollbackReadyCount,
+        runtimeSnapshots,
+        taskCount: tasks.length,
+        t
+      }),
+    [
+      activeTaskCount,
+      configRevisions,
+      failureTaskCount,
+      language,
+      preflightPlans,
+      rollbackReadyCount,
+      runtimeSnapshots,
+      tasks.length,
+      t
+    ]
+  );
   const overviewMetrics = useMemo<ExecutionMetric[]>(
     () => [
       {
@@ -2003,27 +2200,30 @@ export function TasksPage({
       },
       {
         label: t.activeExecutions,
-        value: tasks.filter((item) => ['queued', 'running', 'retrying'].includes(item.status)).length,
+        value: activeTaskCount,
         detail: t.activeExecutionsDetail,
         language
       },
       {
         label: t.needsAttention,
-        value: tasks.filter((item) => hasTaskFailureEvidence(item)).length,
+        value: failureTaskCount,
         detail: t.needsAttentionDetail,
         language,
         tone: 'signal'
       },
       {
         label: t.rollbackReady,
-        value: tasks.filter((item) => item.rollbackAvailable && item.status === 'succeeded').length,
+        value: rollbackReadyCount,
         detail: t.rollbackReadyDetail,
         language,
         tone: 'signal'
       }
     ],
     [
+      activeTaskCount,
+      failureTaskCount,
       language,
+      rollbackReadyCount,
       t.activeExecutions,
       t.activeExecutionsDetail,
       t.needsAttention,
@@ -2154,6 +2354,8 @@ export function TasksPage({
                   {t.operationalOverviewHint}
                 </p>
               </div>
+
+              <ExecutionReleaseGatePanel gates={executionReleaseGates} t={t} />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 {overviewMetrics.map((metric) => (
