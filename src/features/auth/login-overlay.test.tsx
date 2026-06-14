@@ -103,6 +103,27 @@ describe('LoginOverlay', () => {
     expect(passwordField).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('locks the login overlay to the viewport center instead of drifting to a corner', () => {
+    render(
+      <LoginOverlay
+        authenticated={false}
+        language="zh"
+        onAuthenticated={vi.fn()}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    const overlay = document.getElementById('login-overlay');
+    const loginBox = document.querySelector('.login-box-centered');
+
+    expect(overlay).toHaveClass('login-overlay-centered');
+    expect(loginBox).not.toBeNull();
+    expect(loginBox).toHaveClass('login-box-centered');
+
+    expect(overlay).toHaveClass('grid', 'place-items-center');
+    expect(loginBox).toHaveClass('justify-self-center', 'self-center');
+  });
+
   it('reuses an existing server-side operator session in HTTP mode', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(

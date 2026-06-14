@@ -1245,7 +1245,7 @@ export function ForwardingPage({
       <WorkspaceCockpit aria-label={t.forwardingCockpit} className="forwarding-ops-cockpit stagger-2">
         <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside
-          className="forwarding-control-rail forwarding-ops-rail border-b border-[#07111F]/20 bg-[#FDFFF1] p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+          className="forwarding-control-rail forwarding-ops-rail min-h-0 overflow-y-auto overscroll-contain border-b border-[#07111F]/20 bg-[#FDFFF1] p-3 dark:border-white/10 dark:bg-white/[0.02] xl:max-h-[calc(100dvh-12rem)] xl:border-b-0 xl:border-r"
           aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
           role="complementary"
         >
@@ -1319,7 +1319,7 @@ export function ForwardingPage({
           aria-label={t.forwardingRulesWorkspace}
           className="forwarding-ops-workspace min-h-0"
         >
-          <div className="forwarding-workspace-shell p-3">
+          <div className="forwarding-workspace-shell min-h-0 p-3">
         <section
           className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-hidden"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}

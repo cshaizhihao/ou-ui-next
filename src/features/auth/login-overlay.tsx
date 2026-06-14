@@ -182,8 +182,8 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   }
 
   return (
-    <div id="login-overlay" className="login-overlay-centered">
-      <div className={cn('login-box login-box-centered', hasError && 'login-box-shake')}>
+    <div id="login-overlay" className="login-overlay-centered grid place-items-center">
+      <div className={cn('login-box login-box-centered justify-self-center self-center', hasError && 'login-box-shake')}>
         <form className="login-content flex flex-col bg-transparent p-8" onSubmit={handleSubmit}>
           <LanguageSwitch
             ariaLabel={t.languageSwitcher}

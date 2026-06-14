@@ -54,6 +54,8 @@
   inset: 0;
   z-index: 80;
   display: grid;
+  align-items: center;
+  justify-items: center;
   min-height: 100dvh;
   place-items: center;
   overflow-y: auto;
@@ -61,6 +63,8 @@
 }
 
 .login-box-centered {
+  align-self: center;
+  justify-self: center;
   width: min(100%, 25rem);
   margin: auto;
 }

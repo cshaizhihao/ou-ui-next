@@ -472,6 +472,35 @@ describe('ForwardingPage', () => {
     expect(cockpit.outerHTML).not.toContain('col-span');
   });
 
+  it('keeps forwarding workspace content reachable on short screens without clipping the lower-left rail', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Forwarding control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Forwarding rules workspace' });
+    const shellGrid = cockpit.querySelector('.forwarding-cockpit-grid');
+    const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
+
+    expect(cockpit).toHaveClass('min-h-0');
+    expect(shellGrid).toHaveClass('min-h-0');
+    expect(rail).toHaveClass('overflow-y-auto', 'overscroll-contain');
+    expect(workspace).toHaveClass('min-h-0');
+    expect(workspaceShell).toHaveClass('min-h-0');
+    expect(cockpit.outerHTML).not.toContain('h-screen');
+    expect(rail.className).not.toContain('overflow-hidden');
+    expect(workspace.className).not.toContain('overflow-hidden');
+    expect((workspaceShell as HTMLElement).className).not.toContain('overflow-hidden');
+  });
+
   it('keeps the forwarding empty rule panel compact without an oversized blank card', () => {
     render(
       <ForwardingPage

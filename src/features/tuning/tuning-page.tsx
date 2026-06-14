@@ -62,9 +62,9 @@ const defaults = {
 const copy = {
   zh: {
     title: '系统调优',
-    subtitle: '基于 Agent 探测状态选择 BBR 与 TCP 调优预设，并通过可审计任务下发。',
+    subtitle: 'BBR 探测 / TCP 状态 / 预设下发',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先确认调优 profile、目标 Agent、风险等级和审计任务，再下发内核或网络参数。',
+    operationalOverviewHint: '',
     tuningPath: '调优链路',
     pathProfile: 'Profile',
     pathAgent: 'Agent',
@@ -88,7 +88,7 @@ const copy = {
     kernelVersion: '内核版本',
     tuningPreset: '调优预设',
     tuningPresetPanel: '调优预设面板',
-    tuningPresetHint: '管理员选择预设后下发，避免在前端盲填 TCP buffer。',
+    tuningPresetHint: '',
     dispatchTuningPreset: '下发调优预设',
     presetNames: {
       'bbr-fq': 'BBR + FQ 预设',
@@ -96,9 +96,9 @@ const copy = {
       'tcp-high-throughput': 'TCP 高吞吐预设'
     },
     presetDescriptions: {
-      'bbr-fq': '启用 BBR 与 fq 队列，适合常规入口主机。',
-      'tcp-balanced': '保持中等缓冲与连接队列，适合混合客户节点。',
-      'tcp-high-throughput': '提高 TCP buffer 上限，适合高吞吐转发和节点承载。'
+      'bbr-fq': '',
+      'tcp-balanced': '',
+      'tcp-high-throughput': ''
     },
     somaxconn: '连接队列',
     tcpMaxSynBacklog: 'SYN 队列',
@@ -118,7 +118,7 @@ const copy = {
     tuningControlRail: '调优控制轨',
     tuningExecutionWorkspace: '调优执行工作区',
     systemTuningReleaseGates: '系统调优发布门禁',
-    systemTuningReleaseGatesHint: '把 Agent 目标、TCP Profile、自定义 sysctl、执行健康和下发准备度压缩到同一条放行线。',
+    systemTuningReleaseGatesHint: '',
     agentTargetGate: 'Agent 目标',
     agentTargetGateDetail: (agentLabel: string, status: string) => `${agentLabel} / ${status}`,
     tcpProfileGate: 'TCP Profile',
@@ -130,7 +130,7 @@ const copy = {
     executionHealthGate: '执行健康',
     executionHealthGateDetail: (statusLabel: string) => `最近执行状态：${statusLabel}`,
     dispatchReadinessGate: '下发准备度',
-    dispatchReadinessGateDetail: '调优任务可进入执行队列，并保留审计回执',
+    dispatchReadinessGateDetail: '可下发',
     gateStateLabel: {
       ready: '就绪',
       issues: '异常',
@@ -149,9 +149,9 @@ const copy = {
   },
   en: {
     title: 'System Tuning',
-    subtitle: 'Dispatch audited BBR and TCP tuning presets from the Agent detection state.',
+    subtitle: 'BBR probe / TCP state / preset dispatch',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint: 'Check tuning profiles, target Agent, risk levels, and audit task state before dispatching kernel or network parameters.',
+    operationalOverviewHint: '',
     tuningPath: 'Tuning path',
     pathProfile: 'Profile',
     pathAgent: 'Agent',
@@ -175,7 +175,7 @@ const copy = {
     kernelVersion: 'Kernel Version',
     tuningPreset: 'Tuning Preset',
     tuningPresetPanel: 'Tuning Preset Panel',
-    tuningPresetHint: 'Choose an operator preset for dispatch instead of blind TCP buffer entry.',
+    tuningPresetHint: '',
     dispatchTuningPreset: 'Dispatch Tuning Preset',
     presetNames: {
       'bbr-fq': 'BBR + FQ Preset',
@@ -183,9 +183,9 @@ const copy = {
       'tcp-high-throughput': 'TCP High Throughput Preset'
     },
     presetDescriptions: {
-      'bbr-fq': 'Enable BBR with fq queueing for ordinary edge hosts.',
-      'tcp-balanced': 'Use moderate buffers and backlog limits for mixed customer nodes.',
-      'tcp-high-throughput': 'Raise TCP buffer ceilings for high-throughput forwarding and node hosting.'
+      'bbr-fq': '',
+      'tcp-balanced': '',
+      'tcp-high-throughput': ''
     },
     somaxconn: 'Connection backlog',
     tcpMaxSynBacklog: 'SYN backlog',
@@ -205,7 +205,7 @@ const copy = {
     tuningControlRail: 'Tuning control rail',
     tuningExecutionWorkspace: 'Tuning execution workspace',
     systemTuningReleaseGates: 'System Tuning Release Gates',
-    systemTuningReleaseGatesHint: 'Collapse Agent target, TCP profile, custom sysctl, execution health, and dispatch readiness into one release line.',
+    systemTuningReleaseGatesHint: '',
     agentTargetGate: 'Agent Target',
     agentTargetGateDetail: (agentLabel: string, status: string) => `${agentLabel} / ${status}`,
     tcpProfileGate: 'TCP Profile',
@@ -217,7 +217,7 @@ const copy = {
     executionHealthGate: 'Execution Health',
     executionHealthGateDetail: (statusLabel: string) => `Latest execution state: ${statusLabel}`,
     dispatchReadinessGate: 'Dispatch Readiness',
-    dispatchReadinessGateDetail: 'Tuning task can enter execution queue and preserve audit acknowledgement',
+    dispatchReadinessGateDetail: 'Ready to dispatch',
     gateStateLabel: {
       ready: 'Ready',
       issues: 'Issues',
@@ -528,9 +528,11 @@ export function TuningPage({
               <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.tuningPath}</p>
             </div>
             <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
-            <p className="mt-2 max-w-3xl text-xs leading-6 text-[#35405A] dark:text-white/50">
-              {t.operationalOverviewHint}
-            </p>
+            {t.operationalOverviewHint ? (
+              <p className="mt-2 max-w-3xl text-xs leading-6 text-[#35405A] dark:text-white/50">
+                {t.operationalOverviewHint}
+              </p>
+            ) : null}
           </div>
 
           <div className="tuning-summary-grid grid min-w-0 gap-2 sm:grid-cols-2 xl:w-[28rem] xl:grid-cols-2">
@@ -826,7 +828,9 @@ function TuningPresetCard({
         <Network className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
         <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.tuningPresetPanel}</h4>
       </div>
-      <p className="mt-2 text-xs leading-5 text-[#35405A] dark:text-white/50">{t.tuningPresetHint}</p>
+      {t.tuningPresetHint ? (
+        <p className="mt-2 text-xs leading-5 text-[#35405A] dark:text-white/50">{t.tuningPresetHint}</p>
+      ) : null}
       <label className="mt-3 block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
         <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
           {t.tuningPreset}
@@ -844,9 +848,11 @@ function TuningPresetCard({
           ))}
         </select>
       </label>
-      <p className="mt-2 text-[11px] leading-5 text-[#35405A] dark:text-white/45">
-        {t.presetDescriptions[selectedPreset.id]}
-      </p>
+      {t.presetDescriptions[selectedPreset.id] ? (
+        <p className="mt-2 text-[11px] leading-5 text-[#35405A] dark:text-white/45">
+          {t.presetDescriptions[selectedPreset.id]}
+        </p>
+      ) : null}
       <div className="mt-3 grid gap-1.5">
         {selectedPreset.parameters.map((parameter) => (
           <code
@@ -874,7 +880,9 @@ function TuningReleaseGatePanel({ gates, t }: { gates: TuningReleaseGate[]; t: T
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.systemTuningReleaseGates}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.systemTuningReleaseGatesHint}</p>
+        {t.systemTuningReleaseGatesHint ? (
+          <p className="mt-1 text-[11px] leading-5 text-white/82">{t.systemTuningReleaseGatesHint}</p>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {gates.map((gate) => (

@@ -404,6 +404,25 @@ describe('TuningPage', () => {
     expect(screen.queryByRole('searchbox', { name: 'Search Profiles' })).not.toBeInTheDocument();
   });
 
+  it('keeps tuning focused on host probe state and administrator presets without explanatory filler', () => {
+    render(<TuningPage agents={agents} language="zh" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: '系统调优 cockpit' });
+
+    expect(cockpit).toHaveTextContent('主机调优探测');
+    expect(cockpit).toHaveTextContent('BBR 未确认');
+    expect(cockpit).toHaveTextContent('TCP 状态');
+    expect(cockpit).toHaveTextContent('调优预设');
+    expect(cockpit).toHaveTextContent('下发调优预设');
+    expect(cockpit).not.toHaveTextContent('先确认调优 profile');
+    expect(cockpit).not.toHaveTextContent('避免在前端盲填');
+    expect(cockpit).not.toHaveTextContent('适合常规入口主机');
+    expect(cockpit).not.toHaveTextContent('适合混合客户节点');
+    expect(cockpit).not.toHaveTextContent('把 Agent 目标');
+    expect(screen.queryByLabelText('TCP 接收缓冲')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('TCP 发送缓冲')).not.toBeInTheDocument();
+  });
+
   it('dispatches the selected TCP preset to the selected Agent', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();

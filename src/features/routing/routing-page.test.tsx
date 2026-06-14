@@ -152,6 +152,25 @@ describe('RoutingPage', () => {
     expect(screen.queryByText('将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。')).not.toBeInTheDocument();
   });
 
+  it('does not pad routing operations with explanatory filler or generic workflow chips', () => {
+    render(<RoutingPage language="zh" policies={policies} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: '分流策略 cockpit' });
+
+    expect(cockpit).toHaveTextContent('手写分流规则');
+    expect(cockpit).toHaveTextContent('生成主机');
+    expect(cockpit).toHaveTextContent('访问域名');
+    expect(cockpit).toHaveTextContent('出站协议');
+    expect(cockpit).toHaveTextContent('出站标签');
+    expect(cockpit).not.toHaveTextContent('先看策略规模');
+    expect(cockpit).not.toHaveTextContent('V1.0');
+    expect(cockpit).not.toHaveTextContent('等待 Agent 回执');
+    expect(cockpit).not.toHaveTextContent('基于已选分流策略');
+    expect(cockpit).not.toHaveTextContent('审阅规则集');
+    expect(cockpit).not.toHaveTextContent('筛选范围');
+    expect(cockpit).not.toHaveTextContent('评估风险');
+  });
+
   it('keeps the routing policy cockpit compact without masonry or oversized cards', () => {
     render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
 

@@ -24,10 +24,8 @@ type RoutingCompileGateState = 'ready' | 'issues' | 'waiting';
 const copy = {
   zh: {
     title: '分流策略',
-    subtitle: '按主机、访问域名和出站协议手写 Xray 分流规则。',
+    subtitle: '主机节点 / 访问域名 / 出站协议',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先看策略规模、可见范围和高风险规则，再编译或复制当前策略计划。',
-    workflowSteps: ['审阅规则集', '筛选范围', '评估风险', '编译策略'],
     overviewTotalPolicies: '总策略',
     overviewVisiblePolicies: '可见策略',
     overviewRiskyPolicies: '高风险策略',
@@ -37,8 +35,7 @@ const copy = {
     targetGroup: '目标组',
     hits: '命中',
     submitTitle: '策略提交',
-    submitDescription:
-      'V1.0 会先记录策略变更并等待 Agent 回执。真实内核路由、Xray route 编译和热重载必须由后端 Agent 回报结果后才能标记成功。',
+    submitDescription: '策略变更任务',
     policyCount: '策略数量',
     highRiskRules: '高风险规则',
     highRiskFilter: '高风险',
@@ -66,7 +63,7 @@ const copy = {
     manualNodeSuffix: '生成的节点',
     confirmRiskyCompile: (count: string) => `确认编译 ${count} 条高风险或拒绝策略？`,
     compileImpactPreflight: '路由编译影响预检',
-    compileImpactHint: '基于已选分流策略的目标组、动作分布、命中量和高风险拒绝规则预估编译影响。',
+    compileImpactHint: '',
     compileImpactTargets: '目标组',
     compileImpactDirect: '直连策略',
     compileImpactProxy: '代理策略',
@@ -92,7 +89,7 @@ const copy = {
     routingPolicyWorkspace: '分流策略工作区',
     compileScope: '编译范围',
     policyCompileGates: '策略编译门禁',
-    policyCompileGatesHint: '把可见范围、风险复核、目标组、选择范围和下发准备度收敛到同一条编译放行线。',
+    policyCompileGatesHint: '',
     visibleScopeGate: '可见范围',
     visibleScopeGateDetail: (visibleCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(visibleCount, language)} 可见 / ${formatNumber(totalCount, language)} 总策略`,
@@ -106,7 +103,7 @@ const copy = {
     selectionScopeGateDetail: (selectedCount: number, language: AppLanguage) =>
       selectedCount > 0 ? `${formatNumber(selectedCount, language)} 条策略已选择` : '未选择单独策略，将使用当前可见范围',
     dispatchReadinessGate: '下发准备度',
-    dispatchReadinessGateDetail: '编译任务可进入执行队列，并等待 Agent 回执',
+    dispatchReadinessGateDetail: '可下发',
     gateStateLabel: {
       ready: '就绪',
       issues: '异常',
@@ -115,10 +112,8 @@ const copy = {
   },
   en: {
     title: 'Routing Policy',
-    subtitle: 'Author Xray routing rules by host-generated node, accessed domain, and outbound protocol.',
+    subtitle: 'Host node / accessed domain / outbound protocol',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint: 'Review policy volume, visible scope, and high-risk rules before compiling or copying the current plan.',
-    workflowSteps: ['Review rule set', 'Filter scope', 'Assess risk', 'Compile policies'],
     overviewTotalPolicies: 'Total Policies',
     overviewVisiblePolicies: 'Visible Policies',
     overviewRiskyPolicies: 'High-Risk Policies',
@@ -128,8 +123,7 @@ const copy = {
     targetGroup: 'Target Group',
     hits: 'Hits',
     submitTitle: 'Policy Submission',
-    submitDescription:
-      'V1.0 records policy changes and waits for Agent acknowledgement. Kernel routes, Xray route compilation, and hot reloads are marked successful only after the backend receives an Agent result.',
+    submitDescription: 'Policy change task',
     policyCount: 'Policy Count',
     highRiskRules: 'High Risk Rules',
     highRiskFilter: 'High Risk',
@@ -158,8 +152,7 @@ const copy = {
     confirmRiskyCompile: (count: string) =>
       `Compile ${count} high-risk or reject polic${count === '1' ? 'y' : 'ies'}?`,
     compileImpactPreflight: 'Routing Compile Impact Preflight',
-    compileImpactHint:
-      'Estimate compile impact from selected routing policies, target groups, action distribution, hits, and risky reject rules.',
+    compileImpactHint: '',
     compileImpactTargets: 'Target Groups',
     compileImpactDirect: 'Direct Policies',
     compileImpactProxy: 'Proxy Policies',
@@ -185,7 +178,7 @@ const copy = {
     routingPolicyWorkspace: 'Routing policy workspace',
     compileScope: 'Compile Scope',
     policyCompileGates: 'Policy Compile Gates',
-    policyCompileGatesHint: 'Keep visible scope, risk review, target groups, selection scope, and dispatch readiness on one compile line.',
+    policyCompileGatesHint: '',
     visibleScopeGate: 'Visible Scope',
     visibleScopeGateDetail: (visibleCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(visibleCount, language)} visible / ${formatNumber(totalCount, language)} total policies`,
@@ -199,7 +192,7 @@ const copy = {
     selectionScopeGateDetail: (selectedCount: number, language: AppLanguage) =>
       selectedCount > 0 ? `${formatNumber(selectedCount, language)} policies selected` : 'No explicit selection, visible scope will be used',
     dispatchReadinessGate: 'Dispatch Readiness',
-    dispatchReadinessGateDetail: 'Compile task can enter execution queue and wait for Agent acknowledgement',
+    dispatchReadinessGateDetail: 'Ready to dispatch',
     gateStateLabel: {
       ready: 'Ready',
       issues: 'Issues',
@@ -500,16 +493,6 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
             </p>
             <h3 className="mt-2 text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
             <p className="mt-1 max-w-4xl text-xs leading-5 text-[#35405A] dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-[#35405A] dark:text-white/70">
-              {t.workflowSteps.map((step, index) => (
-                <span
-                  className="shrink-0 rounded-full border border-[#07111F]/18 bg-white/80 px-2.5 py-1 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
-                  key={step}
-                >
-                  {index + 1}. {step}
-                </span>
-              ))}
-            </div>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-[#35405A] dark:text-white/65">
               <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewTotalPolicies} {formatNumber(policies.length, language)}
@@ -586,7 +569,6 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                   <Metric icon={Search} label={t.matchingPolicies} value={`${formatNumber(filteredPolicies.length, language)} / ${formatNumber(policies.length, language)}`} />
                   <Metric icon={ShieldCheck} label={t.selectedPolicies} value={formatNumber(selectedPolicies.length, language)} />
                 </div>
-                <p className="mt-3 text-xs leading-5 text-[#35405A] dark:text-white/45">{t.operationalOverviewHint}</p>
               </div>
             </div>
           </aside>
@@ -905,7 +887,9 @@ function RoutingCompileGatePanel({ gates, t }: { gates: RoutingCompileGate[]; t:
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.policyCompileGates}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.policyCompileGatesHint}</p>
+        {t.policyCompileGatesHint ? (
+          <p className="mt-1 text-[11px] leading-5 text-white/82">{t.policyCompileGatesHint}</p>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {gates.map((gate) => (
@@ -967,9 +951,11 @@ function RoutingCompileImpactPreflight({
           <p className="text-xs font-black uppercase tracking-widest text-[#B93C17] dark:text-[#FFB197]">
             {t.compileImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/55">
-            {t.compileImpactHint}
-          </p>
+          {t.compileImpactHint ? (
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/55">
+              {t.compileImpactHint}
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.targetGroupLabels.slice(0, 4).map((label) => (
               <span
