@@ -458,6 +458,28 @@ describe('TasksPage', () => {
     });
   });
 
+  it('uses the shared primary button vocabulary for Agent log retention saving', () => {
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogRetentionPolicy={{
+          maxAgeMs: 3 * 24 * 60 * 60 * 1000,
+          maxAgeDays: 3,
+          maxEventsPerAgent: 120,
+          source: 'control-plane'
+        }}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        onUpdateAgentLogRetentionPolicy={vi.fn()}
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: '保存策略' })).toHaveClass('btn-glow');
+  });
+
   it('requests retained Agent log export from the execution workspace', async () => {
     const user = userEvent.setup();
     const onExport = vi.fn();

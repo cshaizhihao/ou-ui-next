@@ -240,7 +240,7 @@ describe('ForwardingPage', () => {
     expect(within(rulePanel).getByRole('table')).toBeInTheDocument();
   });
 
-  it('uses the primary blue and signal orange control-plane palette in the forwarding cockpit', () => {
+  it('uses the Fauvist control-plane palette in the forwarding cockpit', () => {
     const { container } = render(
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
@@ -252,8 +252,9 @@ describe('ForwardingPage', () => {
       />
     );
 
-    expect(container.outerHTML).toContain('blue-');
-    expect(container.outerHTML).toContain('orange-');
+    expect(container.outerHTML).toContain('#1E3AFF');
+    expect(container.outerHTML).toContain('#FF3D18');
+    expect(container.outerHTML).toContain('#D9FF00');
     expect(container.outerHTML).not.toContain('sky-');
     expect(container.outerHTML).not.toContain('indigo-');
     expect(container.outerHTML).not.toContain('cyan-');
@@ -292,8 +293,9 @@ describe('ForwardingPage', () => {
     expect(overviewPanel).toHaveClass('forwarding-ops-overview-panel');
     expect(rulePanel).toHaveClass('forwarding-ops-rule-panel');
     expect(ruleRow).toHaveClass('forwarding-ops-rule-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#D9FF00');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
@@ -405,6 +407,105 @@ describe('ForwardingPage', () => {
     expect(screen.getByText('Both 1 · Out 1')).toBeInTheDocument();
     expect(screen.getByText('Bi-directional / Both')).toBeInTheDocument();
     expect(screen.getByText('One-way / Egress')).toBeInTheDocument();
+  });
+
+  it('frames the forwarding bulk impact preflight and bulk migrate action as a Fauvist control surface', async () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({
+            id: 'forward-b',
+            enabled: false,
+            quotaExceeded: true,
+            bindingCount: 2,
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-hkg-01.service']
+              },
+              {
+                agentId: 'agent-lax-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-lax-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Select Visible Rules' }));
+
+    const impactTitle = screen.getByText('Forwarding Bulk Impact Preflight');
+    const impact = impactTitle.closest('section');
+
+    expect(impact).not.toBeNull();
+    expect(impact).toHaveClass('border-[#1E3AFF]', 'bg-[#D9FF00]/[0.18]');
+    expect(within(impact as HTMLElement).getByText('Entry Hosts')).toBeInTheDocument();
+    expect(within(impact as HTMLElement).getByText('HKG Entry')).toBeInTheDocument();
+    expect(within(impact as HTMLElement).getByText('HKG Entry')).toHaveClass('border-[#1E3AFF]', 'bg-[#FFFDF5]', 'text-[#07111F]');
+    expect(screen.getByRole('button', { name: 'Bulk Migrate Entry' })).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
+  });
+
+  it('renders a scan-friendly runtime path for each forwarding rule', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[
+          createRule({
+            id: 'forward-runtime-path',
+            name: 'HKG Runtime Path',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            targetAddress: '172.20.8.10',
+            targetPort: 9443,
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 2443,
+                targetAddress: '172.20.8.10',
+                targetPort: 9443,
+                protocol: 'tcp+udp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-runtime-path-agent-hkg-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const runtimePath = screen.getByRole('group', { name: 'Runtime Path HKG Runtime Path' });
+
+    expect(within(runtimePath).getByText('Entry')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('HKG Entry')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('0.0.0.0:2443')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('Target')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('172.20.8.10:9443')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('Runtime Service')).toBeInTheDocument();
+    expect(within(runtimePath).getByText('ou-forward-forward-runtime-path-agent-hkg-01.service')).toBeInTheDocument();
   });
 
   it('filters forwarding rules before selecting visible rows for bulk pause actions', async () => {
@@ -546,7 +647,9 @@ describe('ForwardingPage', () => {
     expect(within(bindingPreview as HTMLElement).getByText(/LAX Entry/)).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/forward_rule_quota_exceeded/)).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/forward_rule_disabled_by_policy/)).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#1E3AFF');
+    expect(preflight.outerHTML).toContain('#D9FF00');
+    expect(preflight.outerHTML).toContain('#FF3D18');
     expect(preflight.outerHTML).not.toContain('amber-');
     expect(preflight.outerHTML).not.toContain('rose-');
   });
@@ -749,8 +852,8 @@ describe('ForwardingPage', () => {
     expect(within(evidence).getByText('Guardrail forward_rule_quota_exceeded')).toBeInTheDocument();
     expect(within(evidence).getByText('ou-forward-acme-hkg.service')).toBeInTheDocument();
     expect(within(evidence).getByText('ou-forward-acme-lax.service')).toBeInTheDocument();
-    expect(evidence.outerHTML).toContain('blue-');
-    expect(evidence.outerHTML).toContain('orange-');
+    expect(evidence.outerHTML).toContain('#1E3AFF');
+    expect(evidence.outerHTML).toContain('#FF3D18');
     expect(evidence.outerHTML).not.toContain('purple-');
     expect(evidence.outerHTML).not.toContain('indigo-');
   });

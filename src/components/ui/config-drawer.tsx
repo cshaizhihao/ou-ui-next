@@ -196,7 +196,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4', open && 'open')}
+      className={cn('overlay fixed inset-0 z-50 flex items-center justify-center bg-black/42 p-4', open && 'open')}
       ref={overlayRef}
       onClick={onClose}
     >
@@ -205,24 +205,24 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
         aria-label={title}
         role="dialog"
         className={cn(
-          'modal-panel ou-surface flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/96 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/94 max-md:max-h-[92vh]',
+          'modal-panel ou-surface flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden border border-black/15 bg-white/96 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-black/90 max-md:max-h-[92vh]',
           open && 'open'
         )}
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-slate-200 p-6 dark:border-white/10">
+        <div className="border-b border-black/15 p-6 dark:border-white/10">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">{title}</h3>
+              <h3 className="text-base font-semibold text-black dark:text-white">{title}</h3>
               {description ? (
-                <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">{description}</p>
+                <p className="mt-2 text-xs leading-6 text-black/60 dark:text-white/50">{description}</p>
               ) : null}
             </div>
             <button
               aria-label="Close"
-              className="ou-mini-button rounded-full bg-slate-100 p-2 text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-blue-400"
+              className="ou-mini-button rounded-full bg-black/[0.04] p-2 text-black/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:bg-white/5 dark:text-white/60 dark:focus-visible:ring-primary/55"
               onClick={onClose}
               ref={closeButtonRef}
               type="button"
@@ -235,7 +235,7 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
         <div className="min-h-0 flex-1 overflow-y-auto p-6">{children}</div>
 
         {footer ? (
-          <div className="border-t border-slate-200 p-4 dark:border-white/10">{footer}</div>
+          <div className="border-t border-black/15 p-4 dark:border-white/10">{footer}</div>
         ) : null}
       </section>
     </div>

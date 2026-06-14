@@ -58,8 +58,8 @@ describe('LoginOverlay', () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText('用户名'), 'operator');
-    await user.type(screen.getByPlaceholderText('密码'), 'local-password');
+    await user.type(screen.getByPlaceholderText('用户名'), 'admin');
+    await user.type(screen.getByPlaceholderText('密码'), 'admin');
     await user.click(screen.getByRole('button', { name: '安全登录' }));
 
     expect(onAuthenticated).toHaveBeenCalledWith({

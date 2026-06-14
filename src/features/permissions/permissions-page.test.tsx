@@ -260,15 +260,17 @@ describe('PermissionsPage', () => {
     expect(sessionRow).toHaveClass('permissions-safety-session-row');
     expect(credentialRow).toHaveClass('permissions-safety-credential-row');
     expect(quotaRow).toHaveClass('permissions-safety-quota-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
+    const markup = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
+    expect(markup).toContain('#1E3AFF');
+    expect(markup).toContain('#FF3D18');
+    expect(markup).toContain('#D9FF00');
+    expect(markup).not.toContain('sky-');
+    expect(markup).not.toContain('indigo-');
+    expect(markup).not.toContain('cyan-');
+    expect(markup).not.toContain('purple-');
+    expect(markup).not.toContain('violet-');
+    expect(markup).not.toContain('amber-');
+    expect(markup).not.toContain('background-clip:text');
   });
 
   it('renders an operational overview band with workflow cues and rollups', () => {
@@ -292,6 +294,41 @@ describe('PermissionsPage', () => {
     expect(within(overview).getByText(/Rotate credentials/)).toBeInTheDocument();
     expect(within(overview).getByText('Operator Sessions')).toBeInTheDocument();
     expect(within(overview).getByText('2/3')).toBeInTheDocument();
+  });
+
+  it('uses the Fauvist control palette on the permissions control surfaces', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId={undefined}
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('region', { name: 'Operational Overview' })).toHaveClass('border-[#07111F]');
+    expect(screen.getByRole('region', { name: 'Operational Overview' })).toHaveClass('bg-[#FFFDF5]');
+    expect(screen.getByRole('region', { name: 'Operational Overview' })).toHaveClass(
+      'shadow-[0_18px_55px_rgba(7,17,31,0.08)]'
+    );
+
+    screen.getAllByRole('region', { name: 'Quota Reset Impact Preflight' }).forEach((region) => {
+      expect(region).toHaveClass('border-[#D9FF00]');
+      expect(region).toHaveClass('bg-[#D9FF00]/10');
+    });
+
+    expect(screen.getByRole('region', { name: 'Agent Credential Operation Preflight' })).toHaveClass(
+      'border-[#FF3D18]'
+    );
+    expect(screen.getByRole('region', { name: 'Agent Credential Operation Preflight' })).toHaveClass('bg-[#FF3D18]/10');
   });
 
   it('renders live quota policies and filters them by scope', async () => {
@@ -362,7 +399,7 @@ describe('PermissionsPage', () => {
     expect(within(preflight).getByText('Reset Window Monthly · Day 9')).toBeInTheDocument();
     expect(within(preflight).getByText('Current State Disabled')).toBeInTheDocument();
     expect(within(preflight).getByText('Guardrail xray_client_monthly_quota_exceeded')).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#D9FF00');
     expect(preflight.outerHTML).not.toContain('amber-');
 
     const impactPreview = within(preflight).getByText('Impact Preview').closest('div');
@@ -448,7 +485,7 @@ describe('PermissionsPage', () => {
     expect(within(preflight).getByText('Capabilities 3')).toBeInTheDocument();
     expect(within(preflight).getByText('Token Prefix oat_7f1c2a')).toBeInTheDocument();
     expect(within(preflight).getByText('Request Evidence req-agent-runtime-credential-001')).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#FF3D18');
     expect(preflight.outerHTML).not.toContain('amber-');
 
     const capabilityPreview = within(preflight).getByText('Capability Preview').closest('div');
@@ -563,7 +600,8 @@ describe('PermissionsPage', () => {
     expect(within(preflight).getByText('Client Fingerprints 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Request Evidence 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Expired/Soon 1')).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#1E3AFF');
+    expect(preflight.outerHTML).toContain('#B93C17');
     expect(preflight.outerHTML).not.toContain('amber-');
 
     const operatorPreview = within(preflight).getByText('Operator Preview').closest('div');
@@ -608,9 +646,9 @@ describe('PermissionsPage', () => {
 
     expect(quotaRow).not.toBeNull();
     expect(credentialRow).not.toBeNull();
-    expect((quotaRow as HTMLElement).outerHTML).toContain('orange-');
+    expect((quotaRow as HTMLElement).outerHTML).toContain('#D9FF00');
     expect((quotaRow as HTMLElement).outerHTML).not.toContain('amber-');
-    expect((credentialRow as HTMLElement).outerHTML).toContain('orange-');
+    expect((credentialRow as HTMLElement).outerHTML).toContain('#D9FF00');
     expect((credentialRow as HTMLElement).outerHTML).not.toContain('amber-');
   });
 

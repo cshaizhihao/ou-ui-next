@@ -82,9 +82,11 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(pathPanel).toHaveClass('telegram-ops-path-panel');
     expect(evidencePanel).toHaveClass('telegram-ops-delivery-panel');
     expect(failedRow).toHaveClass('telegram-ops-delivery-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
-    expect(within(pathPanel).getByRole('article', { name: 'Delivery Evidence' }).outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#DCE1FF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#FFD8C6');
+    expect(within(pathPanel).getByRole('article', { name: 'Delivery Evidence' }).outerHTML).toContain('#FF3D18');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
@@ -133,6 +135,26 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(screen.getByLabelText('Bot Token')).toBeInTheDocument();
     expect(screen.getByLabelText('Chat ID')).toHaveValue('999000111');
     expect(container.querySelectorAll('input, textarea, select')).toHaveLength(2);
+  });
+
+  it('marks the Bot Token field as write-only credential material', () => {
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[]}
+        deliveries={[]}
+        language="en"
+        policies={[]}
+        settings={{
+          ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+          enabled: true,
+          botTokenSet: true,
+          adminChatIds: ['999000111']
+        }}
+      />
+    );
+
+    expect(screen.getByLabelText('Bot Token')).toHaveAttribute('type', 'password');
+    expect(screen.getByText('Saved tokens are write-only. Enter a new token only when rotating credentials.')).toBeInTheDocument();
   });
 
   it('saves Bot Token and Chat ID immediately with inline success feedback', async () => {
@@ -184,6 +206,37 @@ describe('TelegramNotificationSettingsPage', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('uses the fauvist control-plane palette across the Telegram notification workspace', () => {
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[createDelivery()]}
+        language="zh"
+        policies={[createPolicy()]}
+        settings={{
+          ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+          enabled: true,
+          botTokenSet: true,
+          adminChatIds: ['999000111']
+        }}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    const notificationPath = within(overview).getByRole('list');
+    const deliveryEvidence = screen.getByRole('region', { name: '投递证据' });
+    const botPanel = screen.getByRole('button', { name: '保存' }).closest('form')?.parentElement;
+    const botTokenField = screen.getByLabelText('Bot Token').closest('label');
+    const chatIdField = screen.getByLabelText('Chat ID').closest('label');
+
+    expect(overview).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(notificationPath).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]/55');
+    expect(deliveryEvidence).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+    expect(botPanel).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(botTokenField).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+    expect(chatIdField).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
   });
 });
 

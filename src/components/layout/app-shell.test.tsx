@@ -188,6 +188,19 @@ async function getRollbackAction() {
   return document.querySelector<HTMLButtonElement>('button[data-task-action="rollback"]')!;
 }
 
+function stubMobileViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(max-width: 767px)' || query === '(pointer: coarse)',
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn()
+  })));
+}
+
 describe('AppShell', () => {
   it('applies the taste v2 experimental cinematic shell instead of the legacy grid-only chrome', async () => {
     renderShell(createMockApi({ seedInventory: true }));
@@ -336,7 +349,7 @@ describe('AppShell', () => {
     expect(backup.schemaVersion).toBe(1);
     expect(backup.generatedBy).toEqual(
       expect.objectContaining({
-        loginUsername: 'operator',
+        loginUsername: 'admin',
         controlPlaneMode: 'mock',
         operatorGroupId: 'owner',
         resourceGroupId: 'group-premium'
@@ -639,16 +652,25 @@ describe('AppShell', () => {
 
   it('keeps mobile quick action controls large enough for touch and text entry', async () => {
     const user = userEvent.setup();
+    stubMobileViewport();
 
     renderShell(createMockApi({ seedInventory: true }));
 
-    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
-    expect(quickActionButton).toHaveClass('touch-manipulation', 'max-sm:h-11', 'max-sm:min-w-11');
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    await waitFor(() => {
+      expect(document.querySelector('.ou-action-card')).not.toBeNull();
+    });
+
+    const quickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+    expect(quickActionButton).toHaveClass('touch-manipulation', 'min-h-11');
 
     await user.click(quickActionButton);
     const dialog = await screen.findByRole('dialog', { name: '控制面搜索' });
     const searchbox = await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' });
-    await user.type(searchbox, 'Acme');
+    fireEvent.change(searchbox, { target: { value: 'Acme 香港 Premium' } });
+    await waitFor(() => {
+      expect(searchbox).toHaveValue('Acme 香港 Premium');
+    });
 
     expect(dialog.closest('[data-quick-action-overlay="true"]')).toHaveClass('overscroll-contain');
     expect(searchbox).toHaveClass('max-sm:text-base');
@@ -661,6 +683,48 @@ describe('AppShell', () => {
       'touch-manipulation',
       'max-sm:min-h-11'
     );
+  });
+
+  it('opens global quick actions from the mobile bottom bar and restores focus there', async () => {
+    const user = userEvent.setup();
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    const mobileQuickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+
+    expect(mobileQuickActionButton).toHaveClass('touch-manipulation', 'min-h-11');
+
+    await user.click(mobileQuickActionButton);
+
+    expect(await screen.findByRole('dialog', { name: '控制面搜索' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
+      expect(mobileQuickActionButton).toHaveFocus();
+    });
+  });
+
+  it('keeps the mobile bottom bar as the only visible quick action entry point on mobile', async () => {
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    await waitFor(() => {
+      expect(document.querySelector('.ou-action-card')).not.toBeNull();
+    });
+
+    const mobileQuickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
+    const topbarQuickActionButton = screen.getByRole('button', { name: '打开控制面搜索' });
+    const launchpadQuickActionButton = screen.getByRole('button', { name: '搜索 / 执行动作' });
+
+    expect(mobileQuickActionButton).not.toHaveClass('max-md:hidden');
+    expect(topbarQuickActionButton).toHaveClass('max-md:hidden');
+    expect(launchpadQuickActionButton).toHaveClass('max-md:hidden');
   });
 
   it('exposes quick action results as a list without nesting buttons inside options', async () => {
@@ -1622,7 +1686,7 @@ describe('AppShell', () => {
       expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
         seedSubscriptionSources[0].id,
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'admin',
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync.manual')
@@ -1659,7 +1723,7 @@ describe('AppShell', () => {
       expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
         seedSubscriptionSources[0].id,
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'admin',
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync.manual')
@@ -2321,7 +2385,7 @@ describe('AppShell', () => {
       expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
         expect.stringMatching(/^source-/),
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'admin',
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync')
@@ -2360,7 +2424,7 @@ describe('AppShell', () => {
       expect(api.syncSubscriptionSource).toHaveBeenCalledWith(
         seedSubscriptionSources[0].id,
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'admin',
           operatorGroupId: 'owner',
           resourceGroupId: 'group-premium',
           requestId: expect.stringContaining('subscription.sync.manual')
@@ -2799,7 +2863,7 @@ describe('AppShell', () => {
           reason: '操作员更新主机代理日志留存策略'
         },
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'admin',
           requestId: expect.stringContaining('agent.log_retention.update')
         })
       );
@@ -2892,7 +2956,7 @@ describe('AppShell', () => {
           reason: 'operator initiated session revocation'
         },
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'admin',
           requestId: expect.stringContaining('ui:operator.session.revoke:operator-session-remote-002')
         })
       );

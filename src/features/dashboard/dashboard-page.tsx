@@ -489,28 +489,28 @@ export function DashboardPage({
       value: `${onlineAgents}/${agents.length}`,
       detail: language === 'zh' ? '在线 Agent' : 'online agents',
       icon: Activity,
-      tone: 'from-blue-700 to-blue-500'
+      tone: 'from-[#1E3AFF] to-[#FF3D18]'
     },
     {
       label: language === 'zh' ? '客户节点' : 'Customer Nodes',
       value: `${healthyNodes}/${nodes.length}`,
       detail: language === 'zh' ? '健康节点' : 'healthy nodes',
       icon: RadioTower,
-      tone: 'from-emerald-500 to-blue-400'
+      tone: 'from-[#00A878] to-[#1E3AFF]'
     },
     {
       label: language === 'zh' ? '端口转发' : 'Forwarding',
       value: formatNumber(activeForwarding, language),
       detail: language === 'zh' ? '启用规则' : 'active rules',
       icon: Network,
-      tone: 'from-blue-600 to-orange-400'
+      tone: 'from-[#D9FF00] to-[#FF3D18]'
     },
     {
       label: language === 'zh' ? '订阅交付' : 'Subscriptions',
       value: formatNumber(subscriptions.length, language),
       detail: language === 'zh' ? '订阅包' : 'bundles',
       icon: Archive,
-      tone: 'from-orange-500 to-orange-400'
+      tone: 'from-[#07111F] to-[#1E3AFF]'
     }
   ];
 
@@ -522,31 +522,30 @@ export function DashboardPage({
         compactOnMobile={false}
       >
         <section aria-label={t.controlSurfaceRegion} className="grid min-w-0 gap-4">
-          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[30rem] overflow-hidden !border-white/[.12] !bg-slate-950 p-0 !shadow-2xl !shadow-blue-950/25">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_12%,rgba(37,99,235,0.28),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(249,115,22,0.16),transparent_30%),linear-gradient(135deg,rgba(2,6,23,0.16),rgba(15,23,42,0.84))]" aria-hidden="true" />
-            <div className="absolute -bottom-24 -right-20 h-72 w-72 rounded-full bg-blue-500/[.18] blur-3xl" aria-hidden="true" />
-            <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-7 p-7 max-md:p-5">
+          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-[34rem] self-start overflow-hidden !border-[#07111F] !bg-[#FFFDF5] p-0 !shadow-2xl !shadow-slate-950/10 dark:!border-[#6B7CFF]/25 dark:!bg-[#07111F] dark:!shadow-black/40">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.26)_0%,rgba(30,58,255,0.26)_25%,transparent_25%),linear-gradient(225deg,rgba(255,61,24,0.2)_0%,rgba(255,61,24,0.2)_22%,transparent_22%),linear-gradient(315deg,rgba(217,255,0,0.22)_0%,rgba(217,255,0,0.22)_18%,transparent_18%),linear-gradient(180deg,#FFFDF5_0%,#FDFFF1_100%)] dark:bg-[linear-gradient(135deg,rgba(107,124,255,0.2)_0%,rgba(107,124,255,0.2)_25%,transparent_25%),linear-gradient(225deg,rgba(255,106,58,0.18)_0%,rgba(255,106,58,0.18)_22%,transparent_22%),linear-gradient(315deg,rgba(234,255,90,0.16)_0%,rgba(234,255,90,0.16)_18%,transparent_18%),linear-gradient(180deg,#07111F_0%,#101827_100%)]" aria-hidden="true" />
+            <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-8 p-7 max-md:p-5">
               <div className="max-w-3xl">
-                <p className="text-sm font-black tracking-[0.01em] text-blue-100">
+                <p className="text-sm font-black tracking-[0.01em] text-[#1E3AFF] dark:text-[#6B7CFF]">
                   {t.controlPlaneLabel}
                 </p>
-                <h3 className="mt-4 max-w-5xl text-balance text-[clamp(2.6rem,4.8vw,5.1rem)] font-black leading-[0.94] tracking-[-0.04em] text-white">
+                <h3 className="mt-4 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.04em] text-[#07111F] md:text-6xl dark:text-[#F4F8FF]">
                   {language === 'zh' ? '运营态势' : 'Operations Overview'}
                 </h3>
-                <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-white/[.62]">
+                <p className="mt-5 max-w-[56ch] text-sm font-semibold leading-6 text-[#35405A] dark:text-[#D8E0FF]/82">
                   {language === 'zh'
                     ? '实时查看核心资源、交付链路与服务状态。'
                     : 'Monitor core resources, delivery paths, and service readiness in real time.'}
                 </p>
-                <p className="mt-4 text-xs font-bold text-blue-100/70">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
+                <p className="mt-4 text-xs font-bold text-[#536078] dark:text-[#B8C2E6]/75">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-white/[.12] bg-slate-950 shadow-2xl shadow-blue-950/30">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_28%,rgba(37,99,235,0.34),transparent_32%),radial-gradient(circle_at_82%_22%,rgba(249,115,22,0.2),transparent_28%),linear-gradient(120deg,rgba(2,6,23,0.18),rgba(2,6,23,0.82))]" aria-hidden="true" />
+                <div className="dashboard-control-plane-media relative min-h-48 overflow-hidden rounded-[1.5rem] border border-[#07111F] bg-[#07111F] shadow-2xl shadow-black/30 dark:border-[#6B7CFF]/30">
+                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.52)_0%,rgba(30,58,255,0.52)_30%,transparent_30%),linear-gradient(225deg,rgba(255,61,24,0.48)_0%,rgba(255,61,24,0.48)_24%,transparent_24%),linear-gradient(315deg,rgba(0,168,120,0.38)_0%,rgba(0,168,120,0.38)_20%,transparent_20%),linear-gradient(120deg,rgba(7,17,31,0.12),rgba(7,17,31,0.92))]" aria-hidden="true" />
                   <div className="relative z-10 grid grid-cols-2 gap-1.5 p-3 sm:grid-cols-3 lg:grid-cols-6">
                     {t.controlPlanePath.map((label) => (
-                      <span key={label} className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1.5 text-center text-[10px] font-black text-white/[.72]">
+                      <span key={label} className="rounded-lg border border-[#F4F8FF]/18 bg-white/[0.04] px-2 py-1.5 text-center text-[10px] font-black text-[#F4F8FF]/84">
                         {label}
                       </span>
                     ))}
@@ -554,18 +553,18 @@ export function DashboardPage({
                   <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
-                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#2563eb" />
-                        <stop className="svg-flow-stop-2" offset="58%" stopColor="#2563eb" />
-                        <stop className="svg-flow-stop-3" offset="100%" stopColor="#f97316" />
+                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#6B7CFF" />
+                        <stop className="svg-flow-stop-2" offset="58%" stopColor="#D9FF00" />
+                        <stop className="svg-flow-stop-3" offset="100%" stopColor="#FF3D18" />
                       </linearGradient>
                     </defs>
                     <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
-                    {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.18" />)}
-                    {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#dbeafe" />)}
-                    <text x="54" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyMaster}</text>
-                    <text x="282" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyManagedHosts}</text>
-                    <text x="510" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{t.topologyForwarding}</text>
-                    <text x="668" y="132" textAnchor="middle" className="fill-white/[.65] text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
+                    {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.16" />)}
+                    {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#F4F8FF" />)}
+                    <text x="54" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{t.topologyMaster}</text>
+                    <text x="282" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{t.topologyManagedHosts}</text>
+                    <text x="510" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{t.topologyForwarding}</text>
+                    <text x="668" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
                   </svg>
                 </div>
 
@@ -583,21 +582,21 @@ export function DashboardPage({
                 <div
                   key={card.label}
                   className={cn(
-                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-950/10 transition duration-300 hover:-translate-y-1 hover:bg-white dark:border-white/10 dark:bg-white/[0.055] dark:shadow-slate-950/20 dark:hover:bg-white/[0.08]',
+                    'group relative min-h-36 overflow-hidden rounded-[1.35rem] border border-[#07111F] bg-[#FFFDF5] p-4 shadow-xl shadow-slate-950/10 transition duration-300 hover:-translate-y-1 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]',
                     index === 0 ? 'col-span-2 row-span-2 max-md:col-span-1' : 'col-span-2 max-md:col-span-1'
                   )}
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
                   <div className="flex h-full flex-col justify-between gap-5">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{card.label}</p>
-                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-white shadow-lg shadow-blue-500/15 transition duration-300 group-hover:scale-105`}>
+                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">{card.label}</p>
+                      <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br ${card.tone} text-[#F4F8FF] shadow-lg shadow-black/20 transition duration-300 group-hover:scale-105`}>
                         <Icon className="h-5 w-5" />
                       </span>
                     </div>
                     <div>
-                      <p className={cn('font-black tracking-[-0.04em] text-slate-950 dark:text-white', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
-                      <p className="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{card.detail}</p>
+                      <p className={cn('font-black tracking-[-0.04em] text-[#07111F] dark:text-[#F4F8FF]', index === 0 ? 'text-5xl' : 'text-3xl')}>{card.value}</p>
+                      <p className="mt-1 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{card.detail}</p>
                     </div>
                   </div>
                 </div>
@@ -608,11 +607,11 @@ export function DashboardPage({
 
         <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-4">
           <section aria-label={t.hostTelemetryRegion} className="min-w-0">
-            <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden p-4">
+            <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h4 className="text-sm font-black text-white">{t.hostProbeTitle}</h4>
-                  <p className="mt-1 truncate text-xs font-semibold text-white/[.45]">{t.hostProbeSubtitle}</p>
+                  <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.hostProbeTitle}</h4>
+                  <p className="mt-1 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/72">{t.hostProbeSubtitle}</p>
                 </div>
                 {onOpenHostWorkspace ? (
                   <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
@@ -632,15 +631,15 @@ export function DashboardPage({
           </section>
 
           <section aria-label={t.releaseEvidenceRegion} className="min-w-0">
-            <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4">
+            <GlassCard className="flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.releaseEvidence}</p>
-                  <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/72">{t.releaseEvidence}</p>
+                  <p className="mt-1 text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">
                     {t.releaseEvidenceSummary(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language)}
                   </p>
                 </div>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/[.52]">
+                <span className="rounded-full border border-[#07111F]/25 bg-[#DCE1FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
                   {latestTask ? latestTask.status : t.latestExecutionEmpty}
                 </span>
               </div>
@@ -661,17 +660,17 @@ export function DashboardPage({
           </section>
 
           <section aria-label={t.auditAlertRegion} className="min-w-0">
-            <GlassCard className="flex min-h-0 flex-col overflow-hidden p-4">
+            <GlassCard className="flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{t.auditAlertEvidence}</p>
-                  <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">{t.auditAlertEvidence}</p>
+                  <p className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
                 </div>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/[.52]">
+                <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.22] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/20 dark:bg-[#EAFF5A]/10 dark:text-[#F4FFC5]">
                   {activeAlerts > 0 ? formatNumber(activeAlerts, language) : '0'}
                 </span>
               </div>
-              <p className="mt-4 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">{auditLogs[0]?.message ?? t.auditEmpty}</p>
+              <p className="mt-4 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{auditLogs[0]?.message ?? t.auditEmpty}</p>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <EvidenceChip label="Audit" value={formatNumber(auditLogs.length, language)} />
                 <EvidenceChip label="Alerts" value={formatNumber(activeAlerts, language)} />
@@ -691,24 +690,24 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
   const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
   const statusTone =
     agent.status === 'online'
-      ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.75)]'
+      ? 'bg-[#00A878] shadow-[0_0_12px_rgba(0,168,120,0.65)]'
       : agent.status === 'degraded'
-        ? 'bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
-        : 'bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.7)]';
+        ? 'bg-[#D9FF00] shadow-[0_0_12px_rgba(217,255,0,0.65)]'
+        : 'bg-[#536078] shadow-[0_0_12px_rgba(83,96,120,0.6)]';
 
   return (
-    <article className="group min-h-0 rounded-2xl border border-slate-200/80 bg-white/75 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-white/[0.08] dark:bg-white/[0.04]">
+    <article className="group min-h-0 rounded-2xl border border-[#07111F] bg-[#FFFDF5] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl dark:border-[#6B7CFF]/20 dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={cn('h-2.5 w-2.5 flex-shrink-0 rounded-full', statusTone)} />
           <div className="min-w-0">
-            <h5 className="truncate text-sm font-black text-slate-950 dark:text-white">{agent.name}</h5>
-            <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">
+            <h5 className="truncate text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{agent.name}</h5>
+            <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">
               {telemetryReported ? formatDateTime(agent.telemetry.reportedAt!, language) : t.waitingTelemetry}
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-blue-700 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-200">
+        <span className="rounded-full border border-[#07111F] bg-[#1E3AFF] px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#F4F8FF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF] dark:text-[#07111F]">
           {t.statusLabels[agent.status]}
         </span>
       </div>
@@ -723,13 +722,13 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
 
 function CompactProbeBar({ label, percent, value }: { label: string; percent: number; value: string }) {
   return (
-    <div className="min-w-0 rounded-xl bg-slate-50 p-2 dark:bg-white/[0.04]">
+    <div className="min-w-0 rounded-xl bg-[#EAF3D1]/70 p-2 dark:bg-white/[0.04]">
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-        <p className="truncate text-[10px] font-black text-slate-800 dark:text-white/80">{value}</p>
+        <p className="truncate text-[9px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
+        <p className="truncate text-[10px] font-black text-[#07111F] dark:text-[#F4F8FF]/86">{value}</p>
       </div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-blue-700 to-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.35)]" style={{ width: `${percent}%` }} />
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#BBC5FF]/60 dark:bg-white/10">
+        <div className="h-full rounded-full bg-gradient-to-r from-[#1E3AFF] via-[#00A878] to-[#FF3D18] shadow-[0_0_10px_rgba(30,58,255,0.32)]" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
@@ -737,7 +736,7 @@ function CompactProbeBar({ label, percent, value }: { label: string; percent: nu
 
 function EmptySignal({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
+    <div className="rounded-lg border border-dashed border-[#07111F] bg-[#FFFDF5]/78 p-4 text-xs font-semibold text-[#536078] dark:border-[#6B7CFF]/18 dark:bg-white/[0.03] dark:text-[#B8C2E6]/68">
       {label}
     </div>
   );

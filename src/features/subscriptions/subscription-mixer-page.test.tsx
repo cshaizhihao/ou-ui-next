@@ -311,8 +311,10 @@ describe('SubscriptionMixerPage', () => {
 
     const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
 
-    expect(cockpit.outerHTML).toContain('blue-');
-    expect(cockpit.outerHTML).toContain('orange-');
+    expect(cockpit.outerHTML).toContain('#1E3AFF');
+    expect(cockpit.outerHTML).toContain('#DCE1FF');
+    expect(cockpit.outerHTML).toContain('#FF3D18');
+    expect(cockpit.outerHTML).toContain('#FFD8C6');
     expect(cockpit.outerHTML).not.toContain('sky-');
     expect(cockpit.outerHTML).not.toContain('indigo-');
     expect(cockpit.outerHTML).not.toContain('cyan-');
@@ -376,8 +378,10 @@ describe('SubscriptionMixerPage', () => {
     expect(quickLinks).toHaveClass('subscription-ops-links-panel');
     expect(readiness).toHaveClass('subscription-ops-readiness-panel');
     expect(clientRow).toHaveClass('subscription-ops-client-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#DCE1FF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FFD8C6');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('sky-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
@@ -535,6 +539,81 @@ describe('SubscriptionMixerPage', () => {
     expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
   });
 
+  it('frames subscription pipeline readiness and bulk impact preflight as a blue control surface with orange risk cues', async () => {
+    const user = userEvent.setup();
+    const warningSource: SubscriptionSource = {
+      ...backupSource,
+      status: 'warning',
+      syncWarnings: ['subscription_source.cross_source_duplicates:2']
+    };
+
+    renderPage({
+      subscriptionSources: [source, warningSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, riskySubscriptionClient],
+      proxyProviders: [
+        {
+          id: 'provider-source-hk-premium',
+          name: '香港 Premium Provider',
+          externalSubscriptionId: source.id,
+          filter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          geoIpFilter: 'CN,HK,SG,JP,US,EU',
+          processMode: 'server',
+          overrideRule: 'source:source-hk-premium;dedupe:server-port'
+        },
+        {
+          id: 'provider-source-sg-backup',
+          name: '新加坡 Backup Provider',
+          externalSubscriptionId: warningSource.id,
+          filter: 'backup|standard',
+          excludeFilter: 'expired|trial',
+          geoIpFilter: 'SG,JP',
+          processMode: 'client',
+          overrideRule: 'source:source-sg-backup;dedupe:name'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt,
+          accessTokenPreview: subscriptionClient.accessTokenPreview
+        }
+      ]
+    });
+
+    const readiness = screen.getByRole('region', { name: '订阅链路就绪' });
+    expect(readiness).toHaveClass('border-[#1E3AFF]/35', 'bg-[#DCE1FF]/45');
+    expect(within(readiness).getByText('订阅链路就绪')).toHaveClass('text-[#1E3AFF]', 'dark:text-[#9EACFF]');
+    expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '订阅身份' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择 Acme 香港 Premium 订阅' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择 Risky 新加坡 Guardrail 订阅' }));
+
+    const preflight = screen.getByRole('region', { name: '批量影响预检' });
+    expect(preflight).toHaveClass('border-[#FF3D18]/45', 'bg-[#FFD8C6]/45');
+    expect(within(preflight).getByText('批量影响预检')).toHaveClass('text-[#C92810]', 'dark:text-[#FFB299]');
+    expect(within(preflight).getByText('受影响客户 2')).toBeInTheDocument();
+    expect(within(preflight).getByText('守护风险 1')).toBeInTheDocument();
+
+    const riskPreview = within(preflight).getByText('风险提示').closest('div');
+    expect(riskPreview).not.toBeNull();
+    const riskItems = within(riskPreview as HTMLElement).getByText(/subscription_user_quota_exceeded/).closest('div');
+    expect(riskItems).not.toBeNull();
+    expect(riskItems).toHaveClass('mt-2', 'space-y-1', 'text-[#C92810]', 'dark:text-[#FFB299]');
+  });
+
   it('makes dense subscription tables keyboard-scrollable and exposes visible focus states on bulk actions', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
@@ -667,7 +746,8 @@ describe('SubscriptionMixerPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('HK Premium VLESS 01')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('SG Backup VMess 01')).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/subscription_user_quota_exceeded/)).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#FF3D18');
+    expect(preflight.outerHTML).toContain('#FFD8C6');
     expect(preflight.outerHTML).not.toContain('amber-');
     expect(preflight.outerHTML).not.toContain('rose-');
   });
@@ -868,7 +948,8 @@ describe('SubscriptionMixerPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('香港 Premium 源 · 2')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('新加坡 Backup 源 · 1')).toBeInTheDocument();
     expect(within(warningPreview as HTMLElement).getByText('新加坡 Backup 源: 跨源重复节点 2 个')).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#FF3D18');
+    expect(preflight.outerHTML).toContain('#FFD8C6');
     expect(preflight.outerHTML).not.toContain('amber-');
     expect(preflight.outerHTML).not.toContain('rose-');
   });

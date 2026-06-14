@@ -111,16 +111,29 @@ describe('AuditPage', () => {
     expect(workspace).toHaveClass('audit-evidence-workspace');
     expect(ledger).toHaveClass('audit-evidence-ledger');
     expect(deniedRow).toHaveClass('audit-evidence-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
-    expect(within(rail).getByRole('group', { name: 'Critical audit records' }).outerHTML).toContain('orange-');
-    expect(within(rail).getByRole('group', { name: 'Denied audit records' }).outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#FF3D18');
+    expect(within(rail).getByRole('group', { name: 'Critical audit records' }).outerHTML).toContain('#FF3D18');
+    expect(within(rail).getByRole('group', { name: 'Denied audit records' }).outerHTML).toContain('#FF3D18');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
+  });
+
+  it('renders the operational overview as a restrained evidence panel', () => {
+    const { container } = render(<AuditPage auditLogs={[deniedAuditLog, succeededAuditLog]} language="en" />);
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+
+    expect(overview).toHaveClass('rounded-xl');
+    expect(overview).not.toHaveClass('rounded-[1.5rem]');
+    expect(overview.outerHTML).toContain('#1E3AFF');
+    expect(overview.outerHTML).toContain('#FF3D18');
+    expect(overview).not.toHaveClass('backdrop-blur-2xl');
+    expect(container.querySelector('[aria-label="Operational Overview"]')).toBe(overview);
   });
 
   it('filters audit logs and opens copyable evidence for a denied change', async () => {

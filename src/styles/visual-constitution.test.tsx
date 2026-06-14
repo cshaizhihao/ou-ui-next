@@ -27,19 +27,38 @@ function collectProductionUiFiles(directory: string): string[] {
 
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
-    expect(visualTokens.colors.primary).toBe('#2563EB');
-    expect(visualTokens.colors.secondary).toBe('#F97316');
-    expect(visualTokens.colors.accent).toBe('#F97316');
-    expect(visualTokens.colors.lightBackground).toBe('#f8fafc');
-    expect(visualTokens.colors.lightSurface).toBe('#ffffff');
-    expect(visualTokens.colors.lightSurfaceMuted).toBe('#f1f5f9');
-    expect(visualTokens.colors.border).toBe('#e2e8f0');
-    expect(visualTokens.colors.textStrong).toBe('#0f172a');
-    expect(visualTokens.colors.textMuted).toBe('#475569');
-    expect(visualTokens.colors.darkBackground).toBe('#07111f');
-    expect(visualTokens.colors.darkSurface).toBe('#0b1323');
+    expect(visualTokens.colors.primary).toBe('#1E3AFF');
+    expect(visualTokens.colors.secondary).toBe('#07111F');
+    expect(visualTokens.colors.accent).toBe('#FF3D18');
+    expect(visualTokens.colors.lightBackground).toBe('#FDFFF1');
+    expect(visualTokens.colors.lightSurface).toBe('#FFFDF5');
+    expect(visualTokens.colors.lightSurfaceMuted).toBe('#EAF3D1');
+    expect(visualTokens.colors.border).toBe('#07111F');
+    expect(visualTokens.colors.textStrong).toBe('#07111F');
+    expect(visualTokens.colors.textMuted).toBe('#35405A');
+    expect(visualTokens.colors.darkBackground).toBe('#07111F');
+    expect(visualTokens.colors.darkSurface).toBe('#101827');
+    expect(visualTokens.visualDialect).toBe('fauvist-control-plane');
     expect(visualTokens.darkModeStrategy).toBe('class');
     expect(visualTokens.fontFamilySans).toContain('Geist');
+  });
+
+  it('uses a high-contrast fauvist control palette instead of the muted cobalt deck', () => {
+    const sharedThemeSources = [
+      'tailwind.config.ts',
+      'src/styles/visual-constitution.ts',
+      'src/styles/globals.css',
+      'src/styles/glass.css',
+      'src/styles/animations.css'
+    ].map((filePath) => readFileSync(join(process.cwd(), filePath), 'utf8').toLowerCase());
+
+    const sharedTheme = sharedThemeSources.join('\n');
+
+    expect(sharedTheme).toMatch(/#1e3aff/);
+    expect(sharedTheme).toMatch(/#ff3d18/);
+    expect(sharedTheme).toMatch(/#00a878/);
+    expect(sharedTheme).toMatch(/#d9ff00/);
+    expect(sharedTheme).not.toMatch(/#2563eb|#1d4ed8|#60a5fa|#f97316|#fb923c|#2f55ff|#f15a24|#14b7aa|#f4b400/);
   });
 
   it('exports every class that must survive the React migration', () => {

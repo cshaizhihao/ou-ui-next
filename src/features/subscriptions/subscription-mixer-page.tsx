@@ -4769,18 +4769,18 @@ function PipelineReadinessPanel({
   return (
     <section
       aria-label={t.pipelineReadiness}
-      className="subscription-ops-readiness-panel mt-4 rounded-xl border border-blue-200 bg-blue-50/45 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.04]"
+      className="subscription-ops-readiness-panel mt-4 rounded-xl border border-[#1E3AFF]/35 bg-[#DCE1FF]/45 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">{t.pipelineReadiness}</p>
+          <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{t.pipelineReadiness}</p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.pipelineReadinessHint}</p>
           <p className="mt-3 text-xs font-bold text-slate-700 dark:text-white/70">{stageSummary}</p>
           {summary.exportLabels.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {summary.exportLabels.map((label) => (
                 <span
-                  className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                  className="rounded-full border border-[#1E3AFF]/35 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04] dark:text-white/70"
                   key={label}
                 >
                   {label}
@@ -4820,25 +4820,25 @@ function BulkClientImpactPreflight({
   return (
     <section
       aria-label={t.bulkImpactPreflight}
-      className="border-b border-orange-200 bg-orange-50/60 px-4 py-4 dark:border-orange-300/20 dark:bg-orange-400/[0.045]"
+      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-4 py-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
+          <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.bulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.bulkImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.customerLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#FF3D18]/45 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.customerLabels.length > 4 ? (
-              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#FF3D18]/45 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#536078] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.customerLabels.length - 4, language)}
               </span>
             ) : null}
@@ -4884,25 +4884,25 @@ function SourceImpactPreflight({
   return (
     <section
       aria-label={t.sourceImpactPreflight}
-      className="border-b border-orange-200 bg-orange-50/60 px-4 py-4 dark:border-orange-300/20 dark:bg-orange-400/[0.045]"
+      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-4 py-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
+          <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.sourceImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.sourceImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.sourceLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#FF3D18]/45 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.sourceLabels.length > 4 ? (
-              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#FF3D18]/45 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#536078] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.sourceLabels.length - 4, language)}
               </span>
             ) : null}
@@ -4941,7 +4941,7 @@ function ExportGenerationImpactPreflight({
   return (
     <section
       aria-label={t.exportImpactPreflight}
-      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
+      className="border-b border-[#1E3AFF]/35 bg-[#DCE1FF]/45 px-4 py-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
@@ -4993,7 +4993,7 @@ function ProviderGenerationImpactPreflight({
   return (
     <section
       aria-label={t.providerImpactPreflight}
-      className="border-b border-slate-200 bg-blue-50/45 px-4 py-4 dark:border-white/10 dark:bg-blue-400/[0.04]"
+      className="border-b border-[#1E3AFF]/35 bg-[#DCE1FF]/45 px-4 py-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
@@ -5036,17 +5036,17 @@ function ProviderGenerationImpactPreflight({
 function BulkImpactMetric({ label, tone, value }: { label: string; tone?: 'signal'; value: string }) {
   const metricClass =
     tone === 'signal'
-      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
-      : 'border-blue-200 bg-white/80 dark:border-blue-300/15 dark:bg-white/[0.035]';
+      ? 'border-[#FF3D18]/40 bg-[#FFD8C6]/55 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10'
+      : 'border-[#1E3AFF]/30 bg-[#FFFDF5]/85 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]';
   const labelClass =
     tone === 'signal'
-      ? 'text-orange-700 dark:text-orange-200'
-      : 'text-slate-500 dark:text-white/40';
+      ? 'text-[#C92810] dark:text-[#FFB299]'
+      : 'text-[#35405A] dark:text-white/40';
 
   return (
     <div className={`min-w-0 rounded-lg border px-3 py-2 ${metricClass}`}>
       <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-white">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -5055,10 +5055,14 @@ function BulkImpactMetric({ label, tone, value }: { label: string; tone?: 'signa
 }
 
 function BulkImpactPreview({ title, values, warning = false }: { title: string; values: string[]; warning?: boolean }) {
+  const previewClass = warning
+    ? 'border-[#FF3D18]/35 bg-[#FFD8C6]/35 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10'
+    : 'border-[#1E3AFF]/25 bg-[#FFFDF5]/75 dark:border-[#6B7CFF]/20 dark:bg-white/[0.025]';
+
   return (
-    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+    <div className={`min-w-0 rounded-lg border p-3 ${previewClass}`}>
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-[#C92810] dark:text-[#FFB299]' : 'mt-2 space-y-1 text-[#35405A] dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}

@@ -267,9 +267,10 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
     expect(screen.getByText('Audit & Alerts')).toBeInTheDocument();
     expect(screen.getByText('Audit 1 / Alerts 1')).toBeInTheDocument();
-    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-slate-950');
-    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-white/[.62]');
-    expect(screen.getByText('Release Evidence')).toHaveClass('text-slate-500');
+    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-[#FFFDF5]');
+    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('dark:!bg-[#07111F]');
+    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-[#35405A]');
+    expect(screen.getByText('Release Evidence')).toHaveClass('text-[#35405A]');
     expect(document.querySelector('.dashboard-control-plane-media')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-bento')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-hosts')).not.toBeNull();
@@ -300,19 +301,20 @@ describe('DashboardPage', () => {
 
     const cockpit = document.querySelector('.dashboard-control-plane');
     expect(cockpit).not.toBeNull();
-    expect((cockpit as HTMLElement).outerHTML).toContain('blue-');
+    expect((cockpit as HTMLElement).outerHTML).toContain('#1E3AFF');
     expect((cockpit as HTMLElement).outerHTML).not.toContain('cyan-');
   });
 
-  it('keeps the dashboard cockpit on the blue and orange operational palette without sky or indigo drift', () => {
+  it('keeps the dashboard cockpit on the fauvist operational palette without sky or indigo drift', () => {
     renderPage();
 
     const cockpit = document.querySelector('.dashboard-control-plane');
     expect(cockpit).not.toBeNull();
 
     const markup = (cockpit as HTMLElement).outerHTML;
-    expect(markup).toContain('blue-');
-    expect(markup).toContain('orange-');
+    expect(markup).toContain('#1E3AFF');
+    expect(markup).toContain('#FF3D18');
+    expect(markup).toContain('#D9FF00');
     expect(markup).not.toContain('sky-');
     expect(markup).not.toContain('indigo-');
     expect(markup).not.toContain('cyan-');
@@ -323,7 +325,7 @@ describe('DashboardPage', () => {
     expect(markup).not.toContain('background-clip:text');
   });
 
-  it('uses orange signal tone for degraded host probes without amber drift', () => {
+  it('uses acid chartreuse signal tone for degraded host probes without amber drift', () => {
     renderPage({
       agents: [
         {
@@ -334,7 +336,7 @@ describe('DashboardPage', () => {
     });
 
     const hostTelemetry = screen.getByRole('region', { name: '主机遥测' });
-    expect(hostTelemetry.outerHTML).toContain('orange-');
+    expect(hostTelemetry.outerHTML).toContain('#D9FF00');
     expect(hostTelemetry.outerHTML).not.toContain('amber-');
   });
 
@@ -385,5 +387,53 @@ describe('DashboardPage', () => {
     expect(releaseEvidence).toHaveTextContent('passed');
     expect(releaseEvidence).toHaveTextContent('snapshot-dashboard-001');
     expect(releaseEvidence).toHaveTextContent('captured');
+  });
+
+  it('uses a fauvist control surface without dashboard decorative orb layers', () => {
+    renderPage();
+
+    const surface = document.querySelector('.dashboard-control-plane-surface');
+    const decorativeOrb = document.querySelector('.dashboard-control-plane-surface .blur-3xl.rounded-full');
+
+    expect(surface).toHaveClass('self-start');
+    expect(surface).toHaveClass('!bg-[#FFFDF5]');
+    expect(surface).toHaveClass('dark:!bg-[#07111F]');
+    expect(surface).not.toHaveClass('!bg-[#F4F4F0]');
+    expect(decorativeOrb).toBeNull();
+  });
+
+  it('keeps host probe panel copy readable on the fauvist surface', () => {
+    renderPage();
+
+    expect(screen.getByText('主机探针')).toHaveClass('text-[#07111F]');
+    expect(screen.getByText('主机探针')).toHaveClass('dark:text-[#F4F8FF]');
+    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('text-[#536078]');
+    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('dark:text-[#B8C2E6]/72');
+  });
+
+  it('uses a fixed responsive title scale instead of clamp sizing in the dashboard hero', () => {
+    renderPage();
+
+    const heroHeading = screen.getByRole('heading', { name: '运营态势' });
+
+    expect(heroHeading.className).not.toContain('clamp(');
+    expect(heroHeading).toHaveClass('text-5xl');
+    expect(heroHeading).toHaveClass('md:text-6xl');
+  });
+
+  it('uses the fauvist palette instead of the previous industrial red black scheme', () => {
+    renderPage();
+
+    const hero = document.querySelector('.dashboard-control-plane-surface');
+    const media = document.querySelector('.dashboard-control-plane-media');
+
+    expect(hero).toHaveClass('!bg-[#FFFDF5]');
+    expect(hero).toHaveClass('dark:!bg-[#07111F]');
+    expect(media).toHaveClass('bg-[#07111F]');
+    expect(document.querySelector('.svg-flow-stop-1')).toHaveAttribute('stop-color', '#6B7CFF');
+    expect(document.querySelector('.svg-flow-stop-2')).toHaveAttribute('stop-color', '#D9FF00');
+    expect(document.querySelector('.svg-flow-stop-3')).toHaveAttribute('stop-color', '#FF3D18');
+    expect(document.querySelector('[stop-color="#e61919"]')).toBeNull();
+    expect(document.querySelector('[fill="#e0f2fe"]')).toBeNull();
   });
 });

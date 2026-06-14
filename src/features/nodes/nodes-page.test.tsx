@@ -376,6 +376,33 @@ describe('NodesPage', () => {
     expect(within(detail).getByText('1 异常 / 2')).toBeInTheDocument();
   });
 
+  it('renders managed host cards as light-first control surfaces instead of dark gradient shells', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user);
+
+    const hostCard = screen.getByRole('heading', { name: 'Metered Host' }).closest('article');
+
+    expect(hostCard).not.toBeNull();
+    expect(hostCard).toHaveClass('island-card');
+    expect(hostCard).not.toHaveClass('bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)]');
+    expect(hostCard).not.toHaveClass('text-white/85');
+  });
+
   it('switches the detail pane when an operator chooses a host from the resource rail', async () => {
     const user = userEvent.setup();
 
@@ -479,7 +506,7 @@ describe('NodesPage', () => {
     expect(selectedDetail).toHaveClass('nodes-current-host-hero');
   });
 
-  it('uses the primary blue control-plane palette instead of cyan in the advanced host cockpit', async () => {
+  it('uses the fauvist control-plane palette instead of cyan in the advanced host cockpit', async () => {
     const user = userEvent.setup();
 
     render(
@@ -516,8 +543,9 @@ describe('NodesPage', () => {
     expect(hostCard).not.toBeNull();
     const hostCockpitMarkup = (hostCard as HTMLElement).outerHTML;
 
-    expect(hostCockpitMarkup).toContain('blue-');
-    expect(hostCockpitMarkup).toContain('orange-');
+    expect(hostCockpitMarkup).toContain('#1E3AFF');
+    expect(hostCockpitMarkup).toContain('#FF3D18');
+    expect(hostCockpitMarkup).toContain('#D9FF00');
     expect(hostCockpitMarkup).not.toContain('sky-');
     expect(hostCockpitMarkup).not.toContain('indigo-');
     expect(hostCockpitMarkup).not.toContain('cyan-');
@@ -526,7 +554,7 @@ describe('NodesPage', () => {
     expect(hostCockpitMarkup).not.toContain('background-clip:text');
   });
 
-  it('uses signal orange instead of amber for managed host runtime caution states', async () => {
+  it('uses acid chartreuse instead of amber for managed host runtime caution states', async () => {
     const user = userEvent.setup();
 
     render(
@@ -586,7 +614,7 @@ describe('NodesPage', () => {
 
     expect(within(hostCard as HTMLElement).getByText('Degraded')).toBeInTheDocument();
     expect(within(hostCard as HTMLElement).getByText('Missing')).toBeInTheDocument();
-    expect(hostCockpitMarkup).toContain('orange-');
+    expect(hostCockpitMarkup).toContain('#D9FF00');
     expect(hostCockpitMarkup).not.toContain('amber-');
   });
 
@@ -611,6 +639,51 @@ describe('NodesPage', () => {
     expect(screen.getByRole('button', { name: '生成安装命令' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: '主机资源' })).toHaveClass('nodes-cockpit-rail');
     expect(screen.getByRole('region', { name: '当前主机' })).toBeInTheDocument();
+  });
+
+  it('uses the fauvist control-plane palette across the host cockpit workspace', () => {
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            status: 'degraded'
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const hostRail = screen.getByRole('complementary', { name: '主机资源' });
+    const selectedHost = within(hostRail).getByRole('button', { name: '选择主机 Metered Host' });
+    const searchFilter = screen.getByLabelText('搜索主机').closest('label');
+    const selectedDetail = screen.getByRole('region', { name: '当前主机' });
+    const selectedStatus = within(selectedDetail).getByText('在线', { selector: 'span' });
+    const otherHosts = screen.getByRole('region', { name: '其他主机' });
+    const otherHost = within(otherHosts).getByRole('button', { name: '切换到其他主机 Secondary Host' });
+    const advancedDetails = screen.getByRole('group', { name: '高级详情' });
+    const advancedToggle = screen.getByRole('button', { name: '展开高级详情' });
+
+    expect(hostRail).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(searchFilter).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+    expect(selectedHost).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]', 'text-[#07111F]');
+    expect(selectedDetail).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]/70');
+    expect(selectedStatus).toHaveClass('border-[#00A878]', 'text-[#007D5E]');
+    expect(otherHosts).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(otherHost).toHaveClass('hover:bg-[#DCE1FF]/55');
+    expect(advancedDetails).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(advancedToggle).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.22]', 'text-[#07111F]');
   });
 
   it('collapses the full managed host card stack into advanced details by default', async () => {
@@ -905,7 +978,7 @@ describe('NodesPage', () => {
     const recoveryPanel = within(hostCard as HTMLElement).getByText('Agent Recovery').closest('.space-y-2');
 
     expect(recoveryPanel).not.toBeNull();
-    expect((recoveryPanel as HTMLElement).outerHTML).toContain('orange-');
+    expect((recoveryPanel as HTMLElement).outerHTML).toContain('#D9FF00');
     expect((recoveryPanel as HTMLElement).outerHTML).not.toContain('amber-');
     expect(screen.getAllByText('Gap 5.0min').length).toBeGreaterThan(0);
   });
@@ -1005,6 +1078,14 @@ describe('NodesPage', () => {
     expect(screen.getByText('Xray')).toBeInTheDocument();
     expect(screen.getByText('Forwarding')).toBeInTheDocument();
     expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getByText('Missing').closest('div')).toHaveClass(
+      'border-[#D9FF00]',
+      'bg-[#D9FF00]/[0.18]',
+      'text-[#07111F]',
+      'dark:border-[#E9FF6A]/25',
+      'dark:bg-[#E9FF6A]/10',
+      'dark:text-[#F4FFC5]'
+    );
 
     await user.click(screen.getByText('Metered Host'));
 
@@ -1284,8 +1365,9 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('checkbox', { name: '选择 Beta VLESS Edge' }));
 
     const preflight = screen.getByRole('region', { name: '客户节点批量影响预检' });
-    expect(preflight.outerHTML).toContain('blue-');
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#1E3AFF');
+    expect(preflight.outerHTML).toContain('#FF3D18');
+    expect(preflight.outerHTML).toContain('#D9FF00');
     expect(preflight.outerHTML).not.toContain('sky-');
     expect(preflight.outerHTML).not.toContain('indigo-');
     expect(preflight.outerHTML).not.toContain('cyan-');
@@ -1312,7 +1394,7 @@ describe('NodesPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('Acme Premium VLESS')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('Beta VLESS Edge')).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/Beta VLESS Edge/)).toBeInTheDocument();
-    expect((riskPreview as HTMLElement).outerHTML).toContain('orange-');
+    expect((riskPreview as HTMLElement).outerHTML).toContain('#FF3D18');
     expect((riskPreview as HTMLElement).outerHTML).not.toContain('amber-');
     expect((riskPreview as HTMLElement).outerHTML).not.toContain('rose-');
   });
@@ -1339,8 +1421,8 @@ describe('NodesPage', () => {
 
     const resetUsedTrafficButton = screen.getByRole('button', { name: 'Bulk Reset Used Traffic' });
     expect(resetUsedTrafficButton.outerHTML).not.toContain('cyan-');
-    expect(resetUsedTrafficButton).toHaveClass('border-blue-200');
-    expect(resetUsedTrafficButton).toHaveClass('text-blue-700');
+    expect(resetUsedTrafficButton).toHaveClass('border-[#1E3AFF]/35');
+    expect(resetUsedTrafficButton).toHaveClass('text-[#1E3AFF]');
   });
 
   it('confirms before bulk resetting selected customer node traffic policies from the filtered inbound table', async () => {
@@ -1414,7 +1496,7 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
     const bulkDisableButton = screen.getByRole('button', { name: 'Bulk Disable' });
 
-    expect(bulkDisableButton.outerHTML).toContain('orange-');
+    expect(bulkDisableButton.outerHTML).toContain('#FF3D18');
     expect(bulkDisableButton.outerHTML).not.toContain('amber-');
     expect(bulkDisableButton.outerHTML).not.toContain('rose-');
     await user.click(bulkDisableButton);

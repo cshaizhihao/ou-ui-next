@@ -6,8 +6,8 @@ describe('resolveAppRuntimeConfig', () => {
       assetBase: '/',
       controlPlaneMode: 'mock',
       disableInAppLogin: false,
-      loginUsername: 'operator',
-      loginPassword: 'local-password',
+      loginUsername: 'admin',
+      loginPassword: 'admin',
       operatorGroupId: 'owner',
       resourceGroupId: 'group-premium'
     });
@@ -30,7 +30,7 @@ describe('resolveAppRuntimeConfig', () => {
       controlPlaneBaseUrl: '/secure-panel',
       disableInAppLogin: true,
       loginUsername: 'operator_001',
-      loginPassword: 'local-password',
+      loginPassword: 'admin',
       operatorGroupId: 'ops',
       resourceGroupId: 'group-alpha'
     });

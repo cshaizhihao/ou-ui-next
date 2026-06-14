@@ -2490,18 +2490,18 @@ function findRuntimeService(agent: Agent, kind: RuntimeServiceBadgeKind) {
 
 function runtimeServiceBadgeTone(status: NonNullable<Agent['telemetry']['runtimeServices']>[number]['status'] | 'waiting') {
   if (status === 'active') {
-    return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200';
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200';
   }
 
   if (status === 'waiting' || status === 'unknown') {
-    return 'border-white/10 bg-white/[0.04] text-white/45';
+    return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55';
   }
 
   if (status === 'inactive' || status === 'missing') {
-    return 'border-orange-300/25 bg-orange-400/10 text-orange-200';
+    return 'border-[#D9FF00] bg-[#D9FF00]/[0.18] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]';
   }
 
-  return 'border-red-300/25 bg-red-400/10 text-red-200';
+  return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200';
 }
 
 function formatTelemetryTimestamp(agent: Agent, language: AppLanguage) {
@@ -3556,7 +3556,7 @@ export function NodesPage({
         <section className="stagger-3 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <ServerCog className="h-4 w-4 text-blue-500 dark:text-primary" />
+              <ServerCog className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
               <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.hostTableTitle}</h4>
             </div>
           </div>
@@ -3566,30 +3566,30 @@ export function NodesPage({
             </section>
           ) : (
             <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
-              <aside className="nodes-cockpit-rail island-card p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
+              <aside className="nodes-cockpit-rail island-card border-[#07111F] bg-[#FFFDF5] p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                       {language === 'zh' ? '资源列表' : 'Resource Rail'}
                     </p>
                     <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
                       {language === 'zh' ? '主机资源' : 'Host Resources'}
                     </h5>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-600 dark:bg-primary/15 dark:text-primary">
+                  <span className="rounded-full border border-[#1E3AFF] bg-[#DCE1FF] px-2.5 py-1 text-xs font-black text-[#1E3AFF] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]">
                     {filteredHostAgents.length}/{visibleAgents.length}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.searchHosts}
                     </span>
                     <div className="mt-1 flex min-h-7 items-center gap-2">
-                      <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                      <Search className="h-3.5 w-3.5 shrink-0 text-[#1E3AFF] dark:text-white/35" />
                       <input
                         aria-label={t.searchHosts}
-                        className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                        className="w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/72 dark:text-white dark:placeholder:text-white/35"
                         onChange={(event) => setHostSearch(event.target.value)}
                         placeholder={t.searchHostsPlaceholder}
                         type="search"
@@ -3597,13 +3597,13 @@ export function NodesPage({
                       />
                     </div>
                   </label>
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostStatusFilter}
                     </span>
                     <select
                       aria-label={t.hostStatusFilter}
-                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setHostStatusFilter(event.target.value as HostStatusFilter)}
                       value={hostStatusFilter}
                     >
@@ -3615,13 +3615,13 @@ export function NodesPage({
                       ))}
                     </select>
                   </label>
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostCapabilityFilter}
                     </span>
                     <select
                       aria-label={t.hostCapabilityFilter}
-                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setHostCapabilityFilter(event.target.value as HostCapabilityFilter)}
                       value={hostCapabilityFilter}
                     >
@@ -3633,13 +3633,13 @@ export function NodesPage({
                       ))}
                     </select>
                   </label>
-                  <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostRuntimeHealthFilter}
                     </span>
                     <select
                       aria-label={t.hostRuntimeHealthFilter}
-                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setHostRuntimeHealthFilter(event.target.value as HostRuntimeHealthFilter)}
                       value={hostRuntimeHealthFilter}
                     >
@@ -3662,8 +3662,8 @@ export function NodesPage({
                         className={cn(
                           'nodes-host-pill w-full rounded-xl border px-3 py-2 text-left transition duration-200 active:translate-y-px',
                           active
-                            ? 'nodes-host-pill-active border-blue-300 bg-blue-50 text-blue-950 dark:border-primary/35 dark:bg-primary/12 dark:text-white'
-                            : 'border-transparent bg-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:text-white/70 dark:hover:border-white/10 dark:hover:bg-white/[0.04]'
+                            ? 'nodes-host-pill-active border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-white'
+                            : 'border-transparent bg-transparent text-[#35405A] hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 dark:text-white/70 dark:hover:border-[#6B7CFF]/25 dark:hover:bg-[#6B7CFF]/10'
                         )}
                         key={agent.id}
                         onClick={() => setSelectedHostPreviewId(agent.id)}
@@ -3671,9 +3671,9 @@ export function NodesPage({
                       >
                         <span className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs font-black">{agent.publicAddress}</span>
-                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'degraded' ? 'bg-orange-500' : 'bg-slate-400')} />
+                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-[#00A878]' : agent.status === 'degraded' ? 'bg-[#FF3D18]' : 'bg-[#07111F] dark:bg-[#F4F8FF]')} />
                         </span>
-                        <span className="mt-1 block truncate font-mono text-[11px] font-semibold opacity-65">{t.statusLabels[agent.status]}</span>
+                        <span className="mt-1 block truncate font-mono text-[11px] font-semibold opacity-70">{t.statusLabels[agent.status]}</span>
                       </button>
                     );
                   })}
@@ -3684,11 +3684,11 @@ export function NodesPage({
                 {selectedHostPreview && selectedHostPreviewEdit ? (
                   <section
                     aria-label={language === 'zh' ? '当前主机' : 'Selected host'}
-                    className="nodes-current-host-hero island-card overflow-hidden border-blue-200/80 bg-blue-50/45 p-4 dark:border-primary/20 dark:bg-primary/[0.06]"
+                    className="nodes-current-host-hero island-card overflow-hidden border-[#1E3AFF] bg-[#DCE1FF]/70 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                        <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
                           {language === 'zh' ? '当前主机' : 'Selected Host'}
                         </p>
                         <h5 className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">
@@ -3698,7 +3698,7 @@ export function NodesPage({
                           {selectedHostPreview.publicAddress}
                         </p>
                       </div>
-                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-black text-emerald-700 dark:border-emerald-400/25 dark:bg-white/[0.06] dark:text-emerald-100">
+                      <span className="rounded-full border border-[#00A878] bg-[#FFFDF5] px-3 py-1 text-xs font-black text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#101827] dark:text-[#9EF4C4]">
                         {t.statusLabels[selectedHostPreview.status]}
                       </span>
                     </div>
@@ -3731,7 +3731,7 @@ export function NodesPage({
                     <div className="mt-4 flex flex-wrap justify-end gap-2">
                       <button
                         aria-label={language === 'zh' ? '编辑当前主机' : 'Edit selected host'}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70 dark:hover:text-primary"
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 text-xs font-bold text-[#35405A] transition hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/70 dark:hover:text-[#DDE3FF]"
                         onClick={() => setDrawer({ type: 'editHost', agentId: selectedHostPreview.id })}
                         type="button"
                       >
@@ -3752,7 +3752,7 @@ export function NodesPage({
                 {filteredHostAgents.length > 1 ? (
                   <section
                     aria-label={language === 'zh' ? '其他主机' : 'Other hosts'}
-                    className="island-card divide-y divide-slate-200/80 overflow-hidden dark:divide-white/10"
+                    className="island-card divide-y divide-[#07111F]/12 overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:divide-[#6B7CFF]/18"
                   >
                     <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <h5 className="text-sm font-black text-slate-900 dark:text-white">
@@ -3768,7 +3768,7 @@ export function NodesPage({
                       .map((agent) => (
                         <button
                           aria-label={`${language === 'zh' ? '切换到其他主机' : 'Switch to other host'} ${getHostEdit(agent).name}`}
-                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 active:translate-y-px dark:hover:bg-white/[0.04]"
+                          className="nodes-host-thin-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[#DCE1FF]/55 active:translate-y-px dark:hover:bg-[#6B7CFF]/10"
                           key={agent.id}
                           onClick={() => setSelectedHostPreviewId(agent.id)}
                           type="button"
@@ -3777,7 +3777,7 @@ export function NodesPage({
                             <span className="block truncate font-mono text-xs font-black text-slate-800 dark:text-white/85">{agent.publicAddress}</span>
                             <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">{agent.region}</span>
                           </span>
-                          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600 dark:bg-white/[0.06] dark:text-white/55">
+                          <span className="shrink-0 rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-black text-[#35405A] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/55">
                             {t.statusLabels[agent.status]}
                           </span>
                         </button>
@@ -3786,12 +3786,12 @@ export function NodesPage({
                 ) : null}
                 <section
                   aria-label={language === 'zh' ? '高级详情' : 'Advanced details'}
-                  className="nodes-advanced-details island-card overflow-hidden"
+                  className="nodes-advanced-details island-card overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
                   role="group"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3 p-4">
                     <div>
-                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-500 dark:text-primary">
+                      <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                         {language === 'zh' ? '高级详情' : 'Advanced Details'}
                       </p>
                       <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
@@ -3804,7 +3804,7 @@ export function NodesPage({
                       </p>
                       <button
                         aria-expanded={hostAdvancedDetailsOpen}
-                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-100 active:translate-y-px dark:border-primary/25 dark:bg-primary/10 dark:text-primary dark:hover:bg-primary/15"
+                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#D9FF00] bg-[#D9FF00]/[0.22] px-3 text-xs font-black text-[#07111F] transition hover:-translate-y-0.5 hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.3] active:translate-y-px dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5] dark:hover:bg-[#EAFF5A]/18"
                         onClick={() => setHostAdvancedDetailsOpen((open) => !open)}
                         type="button"
                       >
@@ -3817,11 +3817,11 @@ export function NodesPage({
                   </div>
                   {hostAdvancedDetailsOpen ? (
                     filteredHostAgents.length === 0 ? (
-                      <section className="border-t border-slate-200 dark:border-white/10">
+                      <section className="border-t border-[#07111F]/12 dark:border-[#6B7CFF]/18">
                         <EmptyState label={t.noMatchingHosts} />
                       </section>
                     ) : (
-                      <div className="grid grid-cols-1 gap-5 border-t border-slate-200 p-4 dark:border-white/10 2xl:grid-cols-3 xl:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-5 border-t border-[#07111F]/12 p-4 dark:border-[#6B7CFF]/18 2xl:grid-cols-3 xl:grid-cols-2">
                         {filteredHostAgents.map((agent) => (
                           <ManagedHostCard
                             key={agent.id}
@@ -3985,7 +3985,7 @@ export function NodesPage({
                       {t.bulkCopyCustomerNodeLinks}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
                       disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
                       onClick={resetSelectedCustomerNodeTraffic}
                       type="button"
@@ -4005,7 +4005,7 @@ export function NodesPage({
                       />
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={addTrafficToSelectedCustomerNodes}
                       type="button"
@@ -4024,7 +4024,7 @@ export function NodesPage({
                       />
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={renewSelectedCustomerNodes}
                       type="button"
@@ -4032,7 +4032,7 @@ export function NodesPage({
                       {t.bulkRenewCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={resetSelectedCustomerNodeUsedTraffic}
                       type="button"
@@ -4055,7 +4055,7 @@ export function NodesPage({
                       </select>
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-200 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-orange-400/30 dark:text-orange-300 dark:hover:bg-orange-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#FF3D18]/45 px-3 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FFB299]/30 dark:text-[#FFB299] dark:hover:bg-[#FFB299]/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={applySelectedCustomerNodeResetPolicy}
                       type="button"
@@ -4071,7 +4071,7 @@ export function NodesPage({
                       {t.bulkEnableCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-200 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-orange-400/30 dark:text-orange-300 dark:hover:bg-orange-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#FF3D18]/45 px-3 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FFB299]/30 dark:text-[#FFB299] dark:hover:bg-[#FFB299]/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={() => updateSelectedCustomerNodesEnabled(false)}
                       type="button"
@@ -4947,11 +4947,11 @@ function CustomerNodeBulkImpactPreflight({
   return (
     <section
       aria-label={t.customerNodeBulkImpactPreflight}
-      className="border-b border-orange-200 bg-orange-50/60 px-4 py-4 dark:border-orange-300/20 dark:bg-orange-400/[0.045]"
+      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-4 py-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
+          <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.customerNodeBulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -4960,14 +4960,14 @@ function CustomerNodeBulkImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.hostLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#FF3D18]/45 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.hostLabels.length > 4 ? (
-              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#FF3D18]/45 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#536078] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.hostLabels.length - 4, language)}
               </span>
             ) : null}
@@ -5026,7 +5026,7 @@ function CustomerNodeBulkImpactPreflight({
 
 function CustomerNodeBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-[#1E3AFF]/35 bg-[#FFFDF5]/85 px-3 py-2 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -5046,9 +5046,12 @@ function CustomerNodeBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
+    <div className={cn(
+      'min-w-0 rounded-lg border bg-[#FFFDF5]/72 p-3 dark:bg-white/[0.025]',
+      warning ? 'border-[#FF3D18]/45 dark:border-[#FFB299]/20' : 'border-[#D9FF00]/60 dark:border-[#E9FF6A]/20'
+    )}>
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <div className={warning ? 'mt-2 space-y-1 text-[#C92810] dark:text-[#FFB299]' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -5144,41 +5147,41 @@ function ManagedHostCard({
   const serviceHealthSummary = telemetryReported ? formatRuntimeServiceHealth(agent, t) : t.serviceWaiting;
   const statusTone =
     agent.status === 'online'
-      ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
+      ? 'bg-[#00A878] shadow-[0_0_10px_rgba(0,168,120,0.62)]'
       : agent.status === 'degraded'
-        ? 'bg-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.72)]'
+        ? 'bg-[#D9FF00] shadow-[0_0_10px_rgba(217,255,0,0.62)]'
         : agent.status === 'provisioning'
-          ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.75)]'
+          ? 'bg-[#1E3AFF] shadow-[0_0_10px_rgba(30,58,255,0.52)]'
           : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.75)]';
   const addressFamily = agent.publicAddress.includes(':') ? 'IPv6' : 'IPv4';
   const modeBadge = agent.connectionMode.slice(0, 1).toUpperCase();
 
   return (
     <article
-      className="group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 rounded-[16px] border border-white/[0.04] border-t-white/[0.12] bg-[linear-gradient(145deg,rgba(30,35,45,0.45)_0%,rgba(15,18,25,0.75)_100%)] p-5 text-white/85 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.02)] backdrop-blur-2xl transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-white/10 hover:border-t-white/25 hover:shadow-[0_20px_40px_-8px_rgba(37,99,235,0.14)]"
+      className="island-card group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 p-5 text-[#35405A] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:shadow-[0_18px_44px_-30px_rgba(30,58,255,0.34)] dark:text-white/75 dark:hover:border-[#6B7CFF]/25 dark:hover:shadow-[0_18px_50px_-32px_rgba(30,58,255,0.45)]"
       onClick={onEdit}
     >
-      <div className="flex items-center justify-between border-b border-white/[0.04] pb-3">
+      <div className="flex items-center justify-between border-b border-slate-200/80 pb-3 dark:border-white/10">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-400 transition-colors group-hover:text-white">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[#1E3AFF] transition-colors group-hover:border-[#1E3AFF] group-hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF] dark:group-hover:border-[#6B7CFF]/35 dark:group-hover:text-[#DCE1FF]">
             <Globe2 className="h-4 w-4" strokeWidth={1.5} />
           </div>
-          <h3 className="max-w-[140px] truncate text-[15px] font-semibold tracking-wide text-white/95">{hostEdit.name}</h3>
-          <span className="flex-shrink-0 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] text-blue-400">
+          <h3 className="max-w-[140px] truncate text-[15px] font-semibold tracking-normal text-slate-900 dark:text-white">{hostEdit.name}</h3>
+          <span className="flex-shrink-0 rounded border border-[#1E3AFF]/35 bg-[#DCE1FF] px-1.5 py-0.5 font-mono text-[10px] text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF]">
             {addressFamily}
           </span>
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-blue-400/35 bg-blue-500/15 text-[10px] font-bold text-blue-200">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
             {modeBadge}
           </span>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/65">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
             {t.statusLabels[agent.status]}
           </span>
           <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
           <button
             aria-label={t.deployHostConfig}
-            className="text-white/30 transition-colors hover:text-blue-300"
+            className="text-slate-400 transition-colors hover:text-[#1E3AFF] dark:text-white/35 dark:hover:text-[#9EACFF]"
             onClick={(event) => {
               event.stopPropagation();
               onDeploy();
@@ -5189,7 +5192,7 @@ function ManagedHostCard({
           </button>
           <button
             aria-label={t.editHost}
-            className="text-white/30 transition-colors hover:text-white"
+            className="text-slate-400 transition-colors hover:text-slate-900 dark:text-white/35 dark:hover:text-white"
             onClick={(event) => {
               event.stopPropagation();
               onEdit();
@@ -5200,7 +5203,7 @@ function ManagedHostCard({
           </button>
           <button
             aria-label={t.deleteHost}
-            className="text-white/25 transition-colors hover:text-red-300"
+            className="text-slate-400 transition-colors hover:text-red-600 dark:text-white/30 dark:hover:text-red-300"
             onClick={(event) => {
               event.stopPropagation();
               onDelete();
@@ -5212,19 +5215,19 @@ function ManagedHostCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-        <span className="font-bold uppercase tracking-[0.18em] text-white/35">{t.runtimeHostName}</span>
-        <span className="font-mono text-white/70">{hostEdit.runtimeHostName}</span>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/45">
+        <span className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.runtimeHostName}</span>
+        <span className="font-mono text-slate-700 dark:text-white/70">{hostEdit.runtimeHostName}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/[0.04] bg-white/[0.025] p-2 text-[10px]">
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 text-[10px] dark:border-white/10 dark:bg-white/[0.03]">
         <div className="min-w-0">
-          <p className="font-bold uppercase tracking-[0.16em] text-white/35">{t.lastReport}</p>
-          <p className="mt-1 truncate font-mono text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
+          <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.lastReport}</p>
+          <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
         </div>
         <div className="min-w-0">
-          <p className="font-bold uppercase tracking-[0.16em] text-white/35">{t.loadAverageLabel}</p>
-          <p className="mt-1 truncate font-mono text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
+          <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.loadAverageLabel}</p>
+          <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
         </div>
       </div>
 
@@ -5250,20 +5253,20 @@ function ManagedHostCard({
       </div>
 
       {agent.status === 'provisioning' ? (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.06] p-3">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-            <span className="font-bold uppercase tracking-[0.18em] text-blue-200/85">{t.versionLabel}</span>
-            <span className="font-mono text-blue-50/90">{agent.version}</span>
-            <span className="text-blue-300/30">/</span>
-            <span className="font-bold uppercase tracking-[0.18em] text-blue-200/85">{t.platformLabel}</span>
-            <span className="font-mono text-blue-50/90">{agent.platform}</span>
+        <div className="rounded-xl border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
+            <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.versionLabel}</span>
+            <span className="font-mono text-slate-800 dark:text-white/85">{agent.version}</span>
+            <span className="text-[#1E3AFF]/35 dark:text-[#9EACFF]/35">/</span>
+            <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.platformLabel}</span>
+            <span className="font-mono text-slate-800 dark:text-white/85">{agent.platform}</span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-white/45">
-            <span className="font-bold uppercase tracking-[0.18em] text-blue-200/85">{t.capabilitiesLabel}</span>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
+            <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.capabilitiesLabel}</span>
             {agent.capabilities.map((capability) => (
               <span
                 key={capability}
-                className="rounded-full border border-blue-300/25 bg-blue-400/10 px-2 py-0.5 font-mono text-[10px] text-blue-100"
+                className="rounded-full border border-[#1E3AFF]/35 bg-[#FFFDF5] px-2 py-0.5 font-mono text-[10px] text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-white/[0.05] dark:text-[#DCE1FF]"
               >
                 {capability}
               </span>
@@ -5280,7 +5283,7 @@ function ManagedHostCard({
               icon={Cpu}
               label="CPU"
               percent={agent.telemetry.cpuPercent}
-              tone="from-blue-500 to-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+              tone="from-[#1E3AFF] to-[#6B7CFF] shadow-[0_0_8px_rgba(30,58,255,0.34)]"
               value={formatPercent(agent.telemetry.cpuPercent)}
             />
             <HostMetric
@@ -5292,7 +5295,7 @@ function ManagedHostCard({
               icon={MemoryStick}
               label={t.memory}
               percent={agent.telemetry.memoryPercent}
-              tone="from-blue-700 to-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.5)]"
+              tone="from-[#1E3AFF] to-[#00A878] shadow-[0_0_8px_rgba(30,58,255,0.28)]"
               value={formatPercent(agent.telemetry.memoryPercent)}
             />
             <HostMetric
@@ -5304,7 +5307,7 @@ function ManagedHostCard({
               icon={HardDrive}
               label={t.disk}
               percent={diskPercent}
-              tone="from-emerald-500 to-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+              tone="from-[#00A878] to-[#D9FF00] shadow-[0_0_8px_rgba(0,168,120,0.34)]"
               value={formatPercent(diskPercent)}
             />
             <HostMetric
@@ -5312,12 +5315,12 @@ function ManagedHostCard({
               icon={PieChart}
               label={t.monthly}
               percent={monthlyPercent}
-              tone="from-blue-600 to-orange-400 shadow-[0_0_8px_rgba(37,99,235,0.55)]"
+              tone="from-[#1E3AFF] to-[#FF3D18] shadow-[0_0_8px_rgba(255,61,24,0.28)]"
               value={`${formatBytes(monthlyUsedBytes)} / ${hostEdit.monthlyTrafficGb}${t.unitGb}`}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-x-6 border-y border-white/[0.04] py-4">
+          <div className="grid grid-cols-2 gap-x-6 border-y border-slate-200/80 py-4 dark:border-white/10">
             <TrafficMetric
               icon={Download}
               label={t.download}
@@ -5361,7 +5364,7 @@ function ManagedHostCard({
           </div>
         </>
       ) : (
-        <div className="rounded-xl border border-orange-300/20 bg-orange-400/[0.06] p-4 text-xs font-semibold text-orange-100">
+        <div className="rounded-xl border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-4 text-xs font-semibold text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
             {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
@@ -5371,22 +5374,22 @@ function ManagedHostCard({
 
       {shouldOfferRecovery ? (
         <div
-          className="space-y-2 border-t border-orange-300/15 pt-3"
+          className="space-y-2 border-t border-[#D9FF00]/55 pt-3 dark:border-[#E9FF6A]/20"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-200/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#07111F] dark:text-[#F4FFC5]">
                 {t.agentRecoveryTitle}
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-orange-100/75">
+              <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-[#F4FFC5]/75">
                 {telemetryReported ? t.agentRecoverySampleGapDescription : t.agentRecoveryPollOnlyDescription}
               </p>
             </div>
             {canRemoteUpgrade ? (
               <button
                 aria-label={t.remoteUpgradeAgent}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-blue-200/25 bg-blue-200/10 px-2.5 py-1.5 text-[10px] font-bold text-blue-100 transition hover:bg-blue-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF] px-2.5 py-1.5 text-[10px] font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/75 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/15"
                 disabled={remoteUpgradeBusy}
                 onClick={() => onRemoteUpgrade?.()}
                 type="button"
@@ -5397,7 +5400,7 @@ function ManagedHostCard({
             ) : (
               <button
                 aria-label={t.copyUpgradeCommand}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-orange-200/25 bg-orange-200/10 px-2.5 py-1.5 text-[10px] font-bold text-orange-100 transition hover:bg-orange-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#D9FF00] bg-[#D9FF00]/[0.18] px-2.5 py-1.5 text-[10px] font-bold text-[#07111F] transition hover:bg-[#D9FF00]/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5] dark:hover:bg-[#E9FF6A]/15"
                 disabled={upgradeBusy}
                 onClick={() => onCopyUpgradeCommand()}
                 type="button"
@@ -5407,11 +5410,11 @@ function ManagedHostCard({
               </button>
             )}
           </div>
-          {upgradeError ? <p className="text-[11px] font-semibold text-red-200">{t.upgradeCommandError}</p> : null}
+          {upgradeError ? <p className="text-[11px] font-semibold text-red-700 dark:text-red-200">{t.upgradeCommandError}</p> : null}
           {upgradeCommand ? (
             <>
-              <p className="text-[11px] font-semibold text-emerald-200">{t.upgradeCommandCopied}</p>
-              <code className="block max-h-20 overflow-auto break-all border-l border-orange-200/20 pl-2 font-mono text-[10px] leading-5 text-white/65">
+              <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">{t.upgradeCommandCopied}</p>
+              <code className="block max-h-20 overflow-auto break-all border-l border-[#D9FF00] pl-2 font-mono text-[10px] leading-5 text-slate-700 dark:border-[#E9FF6A]/20 dark:text-white/65">
                 {upgradeCommand.command}
               </code>
             </>
@@ -5419,43 +5422,43 @@ function ManagedHostCard({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-white/[0.04] pt-3 text-[11px]">
-        <div className="flex items-center gap-1.5 text-white/40">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-slate-200 pt-3 text-[11px] dark:border-white/10">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.expiry}
-          <span className="ml-1 font-semibold text-orange-400">
+          <span className="ml-1 font-semibold text-orange-600 dark:text-orange-300">
             {remainingDaysUntil(hostEdit.expiresAt)}
             {t.unitDays}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-white/40">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <SampleStatusIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.sampleStatus}
           <span
             className={cn(
               'ml-1 max-w-[5rem] truncate font-semibold',
-              !telemetryReported ? 'text-white/45' : sampleGapDetected ? 'text-orange-300' : 'text-emerald-300'
+              !telemetryReported ? 'text-slate-500 dark:text-white/45' : sampleGapDetected ? 'text-[#07111F] dark:text-[#F4FFC5]' : 'text-emerald-700 dark:text-emerald-300'
             )}
           >
             {sampleStatus}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-white/40">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <ServiceHealthIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.serviceHealthLabel}
           <span
             className={cn(
               'ml-1 max-w-[6rem] truncate font-semibold',
-              !telemetryReported ? 'text-white/45' : serviceIssueCount > 0 ? 'text-orange-300' : 'text-emerald-300'
+              !telemetryReported ? 'text-slate-500 dark:text-white/45' : serviceIssueCount > 0 ? 'text-[#07111F] dark:text-[#F4FFC5]' : 'text-emerald-700 dark:text-emerald-300'
             )}
           >
             {serviceHealthSummary}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-white/40">
+        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
           <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.online}
-          <span className="ml-1 font-semibold text-blue-400">
+          <span className="ml-1 font-semibold text-blue-700 dark:text-primary">
             {telemetryReported ? `${agent.telemetry.onlineDays ?? 0}${t.unitDays}` : '-'}
           </span>
         </div>
@@ -5492,16 +5495,16 @@ function HostMetric({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-[11px]">
-        <span className="flex items-center gap-1.5 text-white/50">
+        <span className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
           <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {label}
         </span>
-        <span className="font-mono font-semibold tabular-nums text-white/90">{value}</span>
+        <span className="font-mono font-semibold tabular-nums text-slate-900 dark:text-white/90">{value}</span>
       </div>
-      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-black/50 shadow-inner">
+      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 shadow-inner dark:bg-black/45">
         <div className={cn('h-full rounded-full bg-gradient-to-r', tone)} style={{ width: `${clampPercent(percent)}%` }} />
       </div>
-      <div className="text-right font-mono text-[10px] text-white/30">{detail}</div>
+      <div className="text-right font-mono text-[10px] text-slate-500 dark:text-white/35">{detail}</div>
     </div>
   );
 }
@@ -5527,7 +5530,7 @@ function TrafficMetric({
           {value.split(' ')[0]} <span className="font-sans text-[10px] opacity-70">{value.split(' ').slice(1).join(' ')}</span>
         </p>
       </div>
-      <div className="mt-1 flex items-center justify-between text-[10px] text-white/30">
+      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 dark:text-white/35">
         <Cloud className="h-3 w-3" strokeWidth={1.5} />
         <span className="font-mono" aria-label={label}>
           {total}
@@ -5552,12 +5555,12 @@ function SegmentMetric({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/50">
+      <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-white/50">
         <span className="flex items-center gap-1.5">
           <Icon className="h-3 w-3" strokeWidth={1.5} />
           {label}
         </span>
-        <span className="font-mono font-bold text-white/90">{value}</span>
+        <span className="font-mono font-bold text-slate-900 dark:text-white/90">{value}</span>
       </div>
       <div className="mt-2 flex h-2.5 w-full items-center justify-between gap-[2px]">
         {samples.map((sample, index) => (
