@@ -522,6 +522,16 @@ describe('AppShell', () => {
     expect(within(resultRow).getByRole('button', { name: /复制链接 Acme 香港 Premium 订阅/ })).toBeInTheDocument();
   });
 
+  it('summarizes global quick action scope in the topbar search trigger', async () => {
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const quickActionButton = await screen.findByRole('button', { name: '打开控制面搜索' });
+
+    expect(within(quickActionButton).getByText(/\d+ 对象/)).toBeInTheDocument();
+    expect(within(quickActionButton).getByText(/\d+ 动作/)).toBeInTheDocument();
+    expect(within(quickActionButton).getByText('Ctrl K')).toBeInTheDocument();
+  });
+
   it('opens global quick actions with Ctrl+K and closes it with Escape', async () => {
     const user = userEvent.setup();
 

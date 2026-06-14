@@ -57,6 +57,7 @@ describe('workspace chrome fauvist palette', () => {
         title="概览"
         subtitle="运行状态"
         language="zh"
+        quickActionScope={{ commands: 5, objects: 12 }}
         onLanguageChange={vi.fn()}
         onLogout={vi.fn()}
         onOpenQuickActions={vi.fn()}
@@ -65,7 +66,11 @@ describe('workspace chrome fauvist palette', () => {
     );
 
     expect(screen.getByRole('banner')).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
-    expect(screen.getByRole('button', { name: '打开控制面搜索' })).toHaveClass('border-[#1E3AFF]', 'text-[#1E3AFF]');
+    const quickActionButton = screen.getByRole('button', { name: '打开控制面搜索' });
+    expect(quickActionButton).toHaveClass('border-[#1E3AFF]', 'text-[#1E3AFF]');
+    expect(within(quickActionButton).getByText('12 对象')).toBeInTheDocument();
+    expect(within(quickActionButton).getByText('5 动作')).toBeInTheDocument();
+    expect(within(quickActionButton).getByText('Ctrl K')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '退出登录' })).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
     expect(screen.getByRole('button', { name: '切换深浅主题' })).toHaveClass('border-[#D9FF00]', 'text-[#07111F]');
   });

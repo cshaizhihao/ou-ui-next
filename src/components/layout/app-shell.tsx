@@ -1372,6 +1372,16 @@ export function AppShell({ ready }: AppShellProps) {
       }),
     [agents, customers, forwardingRules, inbounds, language, nodes, quotaPolicies, subscriptionClients, subscriptionSources]
   );
+  const quickActionScope = useMemo(
+    () => ({
+      objects: quickActionItems.length,
+      commands: quickActionItems.reduce(
+        (total, item) => total + (item.commands ?? (item.command ? [item.command] : [])).length,
+        0
+      )
+    }),
+    [quickActionItems]
+  );
 
   const refreshControlPlane = useCallback(() => {
     void snapshot.refetch();
@@ -3428,6 +3438,7 @@ export function AppShell({ ready }: AppShellProps) {
             title={activeNav.label}
             subtitle={activeNav.description}
             language={language}
+            quickActionScope={quickActionScope}
             showGlobalActions
             onLanguageChange={setLanguage}
             onLogout={() => void handleLogout()}
