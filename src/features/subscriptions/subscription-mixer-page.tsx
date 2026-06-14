@@ -3013,13 +3013,13 @@ export function SubscriptionMixerPage({
       </ResponsiveSection>
 
       <WorkspaceCockpit aria-label="订阅控制 cockpit" className="subscription-ops-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="subscription-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label="订阅控制 rail"
-            className="subscription-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="subscription-ops-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
@@ -3072,7 +3072,7 @@ export function SubscriptionMixerPage({
           </aside>
 
           <WorkspaceCockpitScroller aria-label="订阅工作区" className="subscription-ops-workspace min-h-0">
-            <div className="space-y-4 p-4">
+            <div className="space-y-3 p-3">
               <SubscriptionQuickLinks
                 clients={clients}
                 language={language}
@@ -3081,8 +3081,8 @@ export function SubscriptionMixerPage({
                 t={t}
               />
 
-              <section className="stagger-2 rounded-xl border border-blue-200 bg-blue-50/45 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.04]">
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <section className="subscription-overview-panel stagger-2 border border-[#1E3AFF]/25 bg-[#DCE1FF]/40 p-3 dark:border-[#6B7CFF]/15 dark:bg-[#6B7CFF]/10">
+                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
                   <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
                   <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
                   <SummaryMetric icon={FileSliders} label={profileT.tab} value={formatNumber(exportProfiles.length, language)} />
@@ -3246,14 +3246,14 @@ export function SubscriptionMixerPage({
                 <Table label={t.tableLabel(t.clientsTab)} minWidth="980px" scrollHint={t.tableScrollHint}>
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
-                      <th className="w-12 px-5 py-3">{t.selectClient}</th>
-                      <th className="px-5 py-3">{t.subId}</th>
-                      <th className="px-5 py-3">{t.email}</th>
-                      <th className="px-5 py-3">{t.protocol}</th>
-                      <th className="px-5 py-3">{t.trafficLimit}</th>
-                      <th className="px-5 py-3">{t.selectedTags}</th>
-                      <th className="px-5 py-3">{t.formats}</th>
-                      <th className="px-5 py-3 text-right">{t.actions}</th>
+                      <th className="w-12 px-3 py-2.5">{t.selectClient}</th>
+                      <th className="px-3 py-2.5">{t.subId}</th>
+                      <th className="px-3 py-2.5">{t.email}</th>
+                      <th className="px-3 py-2.5">{t.protocol}</th>
+                      <th className="px-3 py-2.5">{t.trafficLimit}</th>
+                      <th className="px-3 py-2.5">{t.selectedTags}</th>
+                      <th className="px-3 py-2.5">{t.formats}</th>
+                      <th className="px-3 py-2.5 text-right">{t.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -3262,7 +3262,7 @@ export function SubscriptionMixerPage({
                         key={client.id}
                         className="subscription-ops-client-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
                       >
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <input
                             aria-label={`${t.selectClient} ${client.displayName}`}
                             checked={selectedClientIds.includes(client.id)}
@@ -3271,7 +3271,7 @@ export function SubscriptionMixerPage({
                             type="checkbox"
                           />
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{client.displayName}</p>
                           <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-white/70">{client.customerName ?? client.email}</p>
                           <p className="mt-1 font-mono text-[11px] font-bold text-slate-500 dark:text-white/45">{client.subId}</p>
@@ -3279,25 +3279,25 @@ export function SubscriptionMixerPage({
                             {client.enabled ? t.enabled : t.disabled} / {client.group} / {formatNumber(client.generatedNodeCount, language)} {t.matchedNodes}
                           </p>
                         </td>
-                        <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{client.email}</td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">{client.email}</td>
+                        <td className="px-3 py-2.5">
                           <p className="text-xs font-bold uppercase text-slate-800 dark:text-white/80">{client.protocol}</p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">IP {client.ipLimit}</p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{formatNumber(client.requestLimitPerHour ?? 360, language)} req/h</p>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
                             {formatBytes(client.usedTrafficBytes)} / {formatBytes(client.trafficLimitBytes)}
                           </p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{formatDateTime(client.expiresAt, language)}</p>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <TagList tags={client.selectedTags} />
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <TagList tags={client.formats.map((format) => getClientFormatLabel(format, language))} />
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <div className="flex justify-end gap-2">
                             <IconButton label={t.copySubscriptionLink} onClick={() => copyText(createDefaultSubscriptionUrl(client))}>
                               <Copy className="h-3.5 w-3.5" />
@@ -4783,7 +4783,7 @@ function SubscriptionQuickLinks({
   return (
     <section
       aria-label={t.quickLinksTitle}
-      className="subscription-ops-links-panel stagger-2 grid grid-cols-1 gap-4 xl:grid-cols-2"
+      className="subscription-ops-links-panel stagger-2 grid grid-cols-1 gap-3 xl:grid-cols-2"
     >
       {clients.map((client) => {
         const url = createDefaultSubscriptionUrl(client);
@@ -4792,7 +4792,7 @@ function SubscriptionQuickLinks({
         return (
           <article
             aria-label={client.displayName}
-            className="rounded-lg border border-slate-200 bg-white/75 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.035]"
+            className="subscription-quick-link-card border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.035]"
             key={client.id}
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -4833,13 +4833,13 @@ function SubscriptionQuickLinks({
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="space-y-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="space-y-2.5">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                     {formatLabel}
                   </p>
-                  <p className="mt-1 break-all rounded-lg bg-slate-50/80 p-3 font-mono text-[11px] leading-5 text-slate-700 dark:bg-white/[0.035] dark:text-white/65">
+                  <p className="mt-1 break-all bg-slate-50/80 p-2.5 font-mono text-[11px] leading-5 text-slate-700 dark:bg-white/[0.035] dark:text-white/65">
                     {url}
                   </p>
                 </div>
@@ -4878,7 +4878,7 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 function DataSection({ children, hint, title }: { children: ReactNode; hint?: string; title: string }) {
   return (
     <section className="stagger-3 island-card overflow-hidden">
-      <div className="border-b border-slate-200 p-5 dark:border-white/10">
+      <div className="border-b border-slate-200 px-4 py-3 dark:border-white/10">
         <h4 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h4>
         {hint ? <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/45">{hint}</p> : null}
       </div>
@@ -4929,11 +4929,11 @@ function SummaryMetric({
   icon: LucideIcon;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+    <div className="min-h-[76px] border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-1.5 text-lg font-black text-slate-900 dark:text-white">{value}</p>
         </div>
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
       </div>
@@ -4961,9 +4961,9 @@ function PipelineReadinessPanel({
   return (
     <section
       aria-label={t.pipelineReadiness}
-      className="subscription-ops-readiness-panel mt-4 rounded-xl border border-[#1E3AFF]/35 bg-[#DCE1FF]/45 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
+      className="subscription-ops-readiness-panel mt-3 border border-[#1E3AFF]/35 bg-[#DCE1FF]/45 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{t.pipelineReadiness}</p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.pipelineReadinessHint}</p>
@@ -4981,7 +4981,7 @@ function PipelineReadinessPanel({
             </div>
           ) : null}
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
           <BulkImpactMetric
             label={t.pipelineCompleteness}
             value={`${formatNumber(summary.completeStages, language)} / ${formatNumber(summary.totalStages, language)}`}
@@ -5031,7 +5031,7 @@ function SubscriptionDistributionGateRow({ gate }: { gate: DistributionGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="subscription-distribution-gate-row group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -5068,9 +5068,9 @@ function BulkClientImpactPreflight({
   return (
     <section
       aria-label={t.bulkImpactPreflight}
-      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-4 py-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
+      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-3 py-3 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.bulkImpactPreflight}
@@ -5092,7 +5092,7 @@ function BulkClientImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
           <BulkImpactMetric label={t.bulkImpactCustomers} value={formatNumber(summary.customerLabels.length, language)} />
           <BulkImpactMetric label={t.bulkImpactNodes} value={formatNumber(summary.matchedNodes.length, language)} />
           <BulkImpactMetric label={t.bulkImpactSources} value={formatNumber(summary.matchedSources.length, language)} />
@@ -5103,7 +5103,7 @@ function BulkClientImpactPreflight({
           <BulkImpactMetric label={t.bulkImpactDisabled} value={formatNumber(summary.disabledClientCount, language)} />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2.5 lg:grid-cols-3">
         <BulkImpactPreview title={t.bulkImpactCustomerPreview} values={summary.customerLabels.slice(0, 5)} />
         <BulkImpactPreview title={t.bulkImpactNodePreview} values={nodePreview.map((node) => node.name)} />
         <BulkImpactPreview title={t.bulkImpactRiskPreview} values={riskPreview.length > 0 ? riskPreview : [t.bulkImpactNoRisk]} warning={riskPreview.length > 0} />
@@ -5132,9 +5132,9 @@ function SourceImpactPreflight({
   return (
     <section
       aria-label={t.sourceImpactPreflight}
-      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-4 py-4 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
+      className="border-b border-[#FF3D18]/45 bg-[#FFD8C6]/45 px-3 py-3 dark:border-[#FFB299]/20 dark:bg-[#FFB299]/10"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.sourceImpactPreflight}
@@ -5156,7 +5156,7 @@ function SourceImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[30rem]">
           <BulkImpactMetric label={t.selectedSources} value={formatNumber(selectedCount, language)} />
           <BulkImpactMetric label={t.sourceImpactNodes} value={formatNumber(summary.nodeCount, language)} />
           <BulkImpactMetric label={t.sourceImpactRiskSources} value={formatNumber(summary.riskSourceCount, language)} />
@@ -5164,7 +5164,7 @@ function SourceImpactPreflight({
           <BulkImpactMetric label={t.sourceImpactFetchBudget} value={fetchBudgetLabel} />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2.5 lg:grid-cols-3">
         <BulkImpactPreview title={t.sourceImpactSourcePreview} values={summary.sourceLabels.slice(0, 5)} />
         <BulkImpactPreview title={t.sourceImpactNodePreview} values={summary.nodeLabels.slice(0, 5)} />
         <BulkImpactPreview
@@ -5189,9 +5189,9 @@ function ExportGenerationImpactPreflight({
   return (
     <section
       aria-label={t.exportImpactPreflight}
-      className="subscription-export-generation-preflight border-b border-[#1E3AFF]/35 bg-[#DCE1FF]/45 px-4 py-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
+      className="subscription-export-generation-preflight border-b border-[#1E3AFF]/35 bg-[#DCE1FF]/45 px-3 py-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">
             {t.exportImpactPreflight}
@@ -5213,14 +5213,14 @@ function ExportGenerationImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
           <BulkImpactMetric label={t.exportImpactFiles} value={formatNumber(summary.fileCount, language)} />
           <BulkImpactMetric label={t.exportImpactClients} value={formatNumber(summary.clientCount, language)} />
           <BulkImpactMetric label={t.exportImpactFormats} value={formatNumber(summary.formatCount, language)} />
           <BulkImpactMetric label={t.exportImpactProviders} value={formatNumber(summary.providerReferenceCount, language)} />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2.5 lg:grid-cols-3">
         <BulkImpactPreview title={t.exportImpactExportPreview} values={summary.exportLabels.slice(0, 5)} />
         <BulkImpactPreview title={t.exportImpactClientPreview} values={summary.clientLabels.slice(0, 5)} />
         <BulkImpactPreview title={t.exportImpactFormatPreview} values={[summary.formatLabels.join(' / ')]} />
@@ -5241,9 +5241,9 @@ function ProviderGenerationImpactPreflight({
   return (
     <section
       aria-label={t.providerImpactPreflight}
-      className="subscription-provider-generation-preflight border-b border-[#1E3AFF]/35 bg-[#DCE1FF]/45 px-4 py-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
+      className="subscription-provider-generation-preflight border-b border-[#1E3AFF]/35 bg-[#DCE1FF]/45 px-3 py-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">
             {t.providerImpactPreflight}
@@ -5265,14 +5265,14 @@ function ProviderGenerationImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[30rem]">
           <BulkImpactMetric label={t.providerImpactProviders} value={formatNumber(summary.providerCount, language)} />
           <BulkImpactMetric label={t.providerImpactRelatedExports} value={formatNumber(summary.fileCount, language)} />
           <BulkImpactMetric label={t.exportImpactClients} value={formatNumber(summary.clientCount, language)} />
           <BulkImpactMetric label={t.exportImpactFormats} value={formatNumber(summary.formatCount, language)} />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2.5 lg:grid-cols-3">
         <BulkImpactPreview title={t.providerImpactProviderPreview} values={summary.providerLabels.slice(0, 5)} />
         <BulkImpactPreview title={t.exportImpactExportPreview} values={summary.exportLabels.slice(0, 5)} />
         <BulkImpactPreview title={t.exportImpactFormatPreview} values={[summary.formatLabels.join(' / ')]} />
@@ -5311,7 +5311,7 @@ function BulkImpactPreview({ title, values, warning = false }: { title: string; 
     : 'border-[#1E3AFF]/18 bg-[#EAF3D1]/60 text-[#35405A] dark:border-[#6B7CFF]/15 dark:bg-white/[0.035] dark:text-white/72';
 
   return (
-    <div className={`subscription-distribution-evidence-card min-w-0 rounded-lg border p-3 ${previewClass}`}>
+    <div className={`subscription-distribution-evidence-card min-w-0 border p-2.5 ${previewClass}`}>
       <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">{title}</p>
       <div className={warning ? 'mt-2 space-y-1 text-[#C92810] dark:text-[#FFB299]' : 'mt-2 space-y-1.5'}>
         {values.map((value) => (

@@ -394,6 +394,82 @@ describe('SubscriptionMixerPage', () => {
     );
   });
 
+  it('keeps the subscription distribution cockpit compact without masonry or oversized cards', () => {
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, backupSubscriptionClient],
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-acme-mihomo',
+          name: 'Acme Mihomo',
+          client: 'mihomo',
+          sourceIds: [source.id, backupSource.id],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['uri', 'clash', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml',
+          proxyGroups: [],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          accessTokenPreview: subscriptionClient.accessTokenPreview,
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt
+        }
+      ]
+    });
+
+    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const cockpitGrid = cockpit.querySelector('.subscription-cockpit-grid');
+    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
+    const workspace = within(cockpit).getByRole('region', { name: '订阅工作区' });
+    const quickLinks = within(workspace).getByRole('region', { name: '订阅链接' });
+    const quickLinkCard = within(quickLinks).getByRole('article', { name: 'Acme 香港 Premium 订阅' });
+    const readiness = within(workspace).getByRole('region', { name: '订阅链路就绪' });
+    const overviewPanel = workspace.querySelector('.subscription-overview-panel');
+    const gates = within(rail).getByRole('region', { name: '订阅分发门禁' });
+    const sourceGate = within(gates).getByRole('group', { name: '来源同步' });
+
+    expect(cockpitGrid).not.toBeNull();
+    expect(cockpitGrid as HTMLElement).toHaveClass('subscription-cockpit-grid', 'xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(rail).not.toHaveClass('p-4');
+    expect(workspace.firstElementChild).toHaveClass('space-y-3', 'p-3');
+    expect(overviewPanel).not.toBeNull();
+    expect(overviewPanel as HTMLElement).toHaveClass('subscription-overview-panel', 'p-3');
+    expect(overviewPanel as HTMLElement).not.toHaveClass('p-4', 'rounded-xl');
+    expect(quickLinks).toHaveClass('gap-3');
+    expect(quickLinks).not.toHaveClass('gap-4');
+    expect(quickLinkCard).toHaveClass('subscription-quick-link-card', 'p-3');
+    expect(quickLinkCard).not.toHaveClass('p-5');
+    expect(readiness).toHaveClass('p-3');
+    expect(readiness).not.toHaveClass('rounded-xl', 'p-4');
+    expect(sourceGate).toHaveClass('subscription-distribution-gate-row', 'min-h-[76px]', 'px-3', 'py-2.5');
+    expect(sourceGate).not.toHaveClass('min-h-20', 'px-4', 'py-3');
+
+    const layoutHtml = `${cockpit.outerHTML}${quickLinks.outerHTML}${readiness.outerHTML}`;
+    expect(layoutHtml).not.toContain('masonry');
+    expect(layoutHtml).not.toContain('columns-');
+    expect(layoutHtml).not.toContain('grid-flow-row-dense');
+    expect(layoutHtml).not.toContain('row-span');
+    expect(layoutHtml).not.toContain('col-span');
+  });
+
   it('surfaces subscription distribution gates on the control rail', () => {
     renderPage({
       subscriptionSources: [
