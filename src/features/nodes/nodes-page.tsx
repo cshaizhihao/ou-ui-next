@@ -5340,7 +5340,7 @@ function ManagedHostCard({
           </div>
         </>
       ) : (
-        <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs font-semibold text-amber-100">
+        <div className="rounded-xl border border-orange-300/20 bg-orange-400/[0.06] p-4 text-xs font-semibold text-orange-100">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
             {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
@@ -5350,15 +5350,15 @@ function ManagedHostCard({
 
       {shouldOfferRecovery ? (
         <div
-          className="space-y-2 border-t border-amber-300/15 pt-3"
+          className="space-y-2 border-t border-orange-300/15 pt-3"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-200/90">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-200/90">
                 {t.agentRecoveryTitle}
               </p>
-              <p className="mt-1 text-[11px] leading-5 text-amber-100/75">
+              <p className="mt-1 text-[11px] leading-5 text-orange-100/75">
                 {telemetryReported ? t.agentRecoverySampleGapDescription : t.agentRecoveryPollOnlyDescription}
               </p>
             </div>
@@ -5376,7 +5376,7 @@ function ManagedHostCard({
             ) : (
               <button
                 aria-label={t.copyUpgradeCommand}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2.5 py-1.5 text-[10px] font-bold text-amber-100 transition hover:bg-amber-200/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-orange-200/25 bg-orange-200/10 px-2.5 py-1.5 text-[10px] font-bold text-orange-100 transition hover:bg-orange-200/15 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={upgradeBusy}
                 onClick={() => onCopyUpgradeCommand()}
                 type="button"
@@ -5390,7 +5390,7 @@ function ManagedHostCard({
           {upgradeCommand ? (
             <>
               <p className="text-[11px] font-semibold text-emerald-200">{t.upgradeCommandCopied}</p>
-              <code className="block max-h-20 overflow-auto break-all border-l border-amber-200/20 pl-2 font-mono text-[10px] leading-5 text-white/65">
+              <code className="block max-h-20 overflow-auto break-all border-l border-orange-200/20 pl-2 font-mono text-[10px] leading-5 text-white/65">
                 {upgradeCommand.command}
               </code>
             </>

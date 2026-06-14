@@ -769,6 +769,13 @@ describe('NodesPage', () => {
 
     await openHostAdvancedDetails(user, 'en');
 
+    const hostCard = screen.getByRole('heading', { name: 'Metered Host' }).closest('article');
+    expect(hostCard).not.toBeNull();
+    const recoveryPanel = within(hostCard as HTMLElement).getByText('Agent Recovery').closest('.space-y-2');
+
+    expect(recoveryPanel).not.toBeNull();
+    expect((recoveryPanel as HTMLElement).outerHTML).toContain('orange-');
+    expect((recoveryPanel as HTMLElement).outerHTML).not.toContain('amber-');
     expect(screen.getByText('Gap 5.0min')).toBeInTheDocument();
   });
 
