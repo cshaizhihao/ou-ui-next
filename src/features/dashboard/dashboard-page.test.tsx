@@ -445,6 +445,67 @@ describe('DashboardPage', () => {
     expect(rollbackBoundary).toHaveTextContent('succeeded');
   });
 
+  it('summarizes production readiness gates on the dashboard first screen', () => {
+    renderPage();
+
+    const readiness = screen.getByRole('region', { name: '生产就绪门禁' });
+
+    expect(readiness).toHaveAttribute('data-production-readiness-state', 'issues');
+    expect(readiness).toHaveTextContent('生产就绪门禁');
+    expect(readiness).toHaveTextContent('4 条门禁');
+    expect(readiness).toHaveTextContent('主机通道');
+    expect(readiness).toHaveTextContent('就绪');
+    expect(readiness).toHaveTextContent('1/1 在线');
+    expect(readiness).toHaveTextContent('流量链路');
+    expect(readiness).toHaveTextContent('启用');
+    expect(readiness).toHaveTextContent('1 转发 · 1 节点');
+    expect(readiness).toHaveTextContent('发布证据');
+    expect(readiness).toHaveTextContent('就绪');
+    expect(readiness).toHaveTextContent('配置 1 · 预检 1 · 快照 1');
+    expect(readiness).toHaveTextContent('告警压力');
+    expect(readiness).toHaveTextContent('关注');
+    expect(readiness).toHaveTextContent('1 活动告警');
+    expect(readiness.outerHTML).toContain('#1E3AFF');
+    expect(readiness.outerHTML).toContain('#FF3D18');
+    expect(readiness.outerHTML).toContain('#D9FF00');
+    expect(readiness.outerHTML).toContain('#00A878');
+    expect(readiness).toHaveClass('motion-safe:animate-[ou-panel-in_180ms_ease-out]');
+  });
+
+  it('keeps production readiness gates readable inside the operations rail', () => {
+    renderPage();
+
+    const readiness = screen.getByRole('region', { name: '生产就绪门禁' });
+    const gateGrid = readiness.querySelector('.dashboard-production-readiness-grid');
+
+    expect(gateGrid).not.toBeNull();
+    expect(gateGrid).toHaveClass('sm:grid-cols-2');
+    expect(gateGrid).not.toHaveClass('xl:grid-cols-4');
+    expect(within(readiness).getByText('主机通道')).not.toHaveClass('truncate');
+  });
+
+  it('localizes production readiness gates in English', () => {
+    renderPage({ language: 'en' });
+
+    const readiness = screen.getByRole('region', { name: 'Production readiness gates' });
+
+    expect(readiness).toHaveAttribute('data-production-readiness-state', 'issues');
+    expect(readiness).toHaveTextContent('Production readiness gates');
+    expect(readiness).toHaveTextContent('4 gates');
+    expect(readiness).toHaveTextContent('Host Channel');
+    expect(readiness).toHaveTextContent('Ready');
+    expect(readiness).toHaveTextContent('1/1 online');
+    expect(readiness).toHaveTextContent('Traffic Path');
+    expect(readiness).toHaveTextContent('Enabled');
+    expect(readiness).toHaveTextContent('1 forwarding · 1 node');
+    expect(readiness).toHaveTextContent('Release Evidence');
+    expect(readiness).toHaveTextContent('Ready');
+    expect(readiness).toHaveTextContent('Config 1 · Preflight 1 · Snapshot 1');
+    expect(readiness).toHaveTextContent('Alert Pressure');
+    expect(readiness).toHaveTextContent('Review');
+    expect(readiness).toHaveTextContent('1 active alert');
+  });
+
   it('localizes rollback readiness on the release evidence rail in English', () => {
     renderPage({ language: 'en' });
 

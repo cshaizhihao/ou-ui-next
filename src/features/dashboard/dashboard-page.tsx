@@ -172,6 +172,33 @@ const copy = {
       forwarding: ['配置转发', '进入端口转发工作区处理端口、配额和策略'],
       releaseEvidence: ['查看发布证据', '检查执行记录、预检、快照与回滚线索']
     },
+    productionReadinessRegion: '生产就绪门禁',
+    productionReadinessTitle: '生产就绪门禁',
+    productionReadinessSubtitle: '把主机、流量、发布证据和告警压力压缩成可操作门禁。',
+    productionReadinessGateCount: (count: number, language: AppLanguage) => `${formatNumber(count, language)} 条门禁`,
+    productionReadinessStates: {
+      ready: '就绪',
+      issues: '关注',
+      waiting: '等待'
+    },
+    productionReadinessGateLabels: {
+      host: '主机通道',
+      traffic: '流量链路',
+      release: '发布证据',
+      alerts: '告警压力'
+    },
+    productionReadinessValues: {
+      trafficEnabled: '启用'
+    },
+    productionReadinessDetails: {
+      host: (online: number, total: number, language: AppLanguage) =>
+        `${formatNumber(online, language)}/${formatNumber(total, language)} 在线`,
+      traffic: (forwardingCount: number, nodeCount: number, language: AppLanguage) =>
+        `${formatNumber(forwardingCount, language)} 转发 · ${formatNumber(nodeCount, language)} 节点`,
+      release: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
+        `配置 ${formatNumber(configCount, language)} · 预检 ${formatNumber(preflightCount, language)} · 快照 ${formatNumber(snapshotCount, language)}`,
+      alerts: (alertCount: number, language: AppLanguage) => `${formatNumber(alertCount, language)} 活动告警`
+    },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
     controlPlanePath: ['Master', 'Agent', 'Customer Nodes', 'Forwarding', 'Subscriptions', 'Audit Evidence'],
@@ -382,6 +409,35 @@ const copy = {
       forwarding: ['Configure Forwarding', 'Handle ports, quotas, and policy state in forwarding'],
       releaseEvidence: ['Review Release Evidence', 'Inspect execution records, preflight, snapshots, and rollback cues']
     },
+    productionReadinessRegion: 'Production readiness gates',
+    productionReadinessTitle: 'Production readiness gates',
+    productionReadinessSubtitle: 'Compress host, traffic, release evidence, and alert pressure into actionable gates.',
+    productionReadinessGateCount: (count: number, language: AppLanguage) =>
+      `${formatNumber(count, language)} ${count === 1 ? 'gate' : 'gates'}`,
+    productionReadinessStates: {
+      ready: 'Ready',
+      issues: 'Review',
+      waiting: 'Waiting'
+    },
+    productionReadinessGateLabels: {
+      host: 'Host Channel',
+      traffic: 'Traffic Path',
+      release: 'Release Evidence',
+      alerts: 'Alert Pressure'
+    },
+    productionReadinessValues: {
+      trafficEnabled: 'Enabled'
+    },
+    productionReadinessDetails: {
+      host: (online: number, total: number, language: AppLanguage) =>
+        `${formatNumber(online, language)}/${formatNumber(total, language)} online`,
+      traffic: (forwardingCount: number, nodeCount: number, language: AppLanguage) =>
+        `${formatNumber(forwardingCount, language)} forwarding · ${formatNumber(nodeCount, language)} ${nodeCount === 1 ? 'node' : 'nodes'}`,
+      release: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
+        `Config ${formatNumber(configCount, language)} · Preflight ${formatNumber(preflightCount, language)} · Snapshot ${formatNumber(snapshotCount, language)}`,
+      alerts: (alertCount: number, language: AppLanguage) =>
+        `${formatNumber(alertCount, language)} active ${alertCount === 1 ? 'alert' : 'alerts'}`
+    },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
     controlPlanePath: ['Master Plane', 'Agent Runtime', 'Customer Node Mesh', 'Forwarding Fabric', 'Subscription Distribution', 'Audit Evidence Chain'],
@@ -484,6 +540,16 @@ type ResponseAction = {
   onClick: () => void;
 };
 
+type ProductionReadinessState = 'ready' | 'issues' | 'waiting';
+type ProductionReadinessGate = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  state: ProductionReadinessState;
+  tone: 'blue' | 'green' | 'orange' | 'chartreuse';
+};
+
 const responseActionToneClasses = {
   blue: {
     card: 'border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] hover:bg-[#1E3AFF] hover:text-white dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-[#F4F8FF] dark:hover:bg-[#6B7CFF] dark:hover:text-[#07111F]',
@@ -496,6 +562,29 @@ const responseActionToneClasses = {
   slate: {
     card: 'border-[#07111F] bg-[#D9FF00]/28 text-[#07111F] hover:bg-[#D9FF00] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#EAFF5A] dark:hover:text-[#07111F]',
     icon: 'border-[#07111F] bg-[#07111F] text-[#D9FF00] dark:border-[#EAFF5A] dark:bg-[#EAFF5A] dark:text-[#07111F]'
+  }
+} as const;
+
+const productionReadinessToneClasses = {
+  blue: {
+    item: 'border-[#1E3AFF] bg-[#DCE1FF]/72 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/12',
+    badge: 'border-[#1E3AFF] bg-[#1E3AFF] text-white dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]',
+    rail: 'bg-[#1E3AFF]'
+  },
+  green: {
+    item: 'border-[#00A878] bg-[#00A878]/[0.12] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10',
+    badge: 'border-[#00A878] bg-[#00A878] text-white dark:border-[#35E68E] dark:bg-[#35E68E] dark:text-[#07111F]',
+    rail: 'bg-[#00A878]'
+  },
+  orange: {
+    item: 'border-[#FF3D18] bg-[#FF3D18]/[0.12] dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12',
+    badge: 'border-[#FF3D18] bg-[#FF3D18] text-white dark:border-[#FF6A3A] dark:bg-[#FF6A3A] dark:text-[#07111F]',
+    rail: 'bg-[#FF3D18]'
+  },
+  chartreuse: {
+    item: 'border-[#D9FF00] bg-[#D9FF00]/[0.26] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12',
+    badge: 'border-[#07111F] bg-[#D9FF00] text-[#07111F] dark:border-[#EAFF5A] dark:bg-[#EAFF5A] dark:text-[#07111F]',
+    rail: 'bg-[#D9FF00]'
   }
 } as const;
 
@@ -540,6 +629,23 @@ export function DashboardPage({
   const latestPreflightPlan = getLatestReleaseRecord(preflightPlans, (plan) => plan.createdAt);
   const latestRuntimeSnapshot = getLatestReleaseRecord(runtimeSnapshots, (snapshot) => snapshot.capturedAt);
   const responseActions: ResponseAction[] = [];
+  const productionReadinessGates = createProductionReadinessGates({
+    activeAlerts,
+    activeForwarding,
+    configRevisions,
+    language,
+    nodes,
+    onlineAgents,
+    preflightPlans,
+    runtimeSnapshots,
+    t,
+    totalAgents: agents.length
+  });
+  const productionReadinessState: ProductionReadinessState = productionReadinessGates.some((gate) => gate.state === 'issues')
+    ? 'issues'
+    : productionReadinessGates.some((gate) => gate.state === 'waiting')
+      ? 'waiting'
+      : 'ready';
 
   if (onOpenHostWorkspace) {
     responseActions.push({
@@ -719,6 +825,13 @@ export function DashboardPage({
         </section>
 
         <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-4">
+          <ProductionReadinessPanel
+            gates={productionReadinessGates}
+            language={language}
+            state={productionReadinessState}
+            t={t}
+          />
+
           <section aria-label={t.hostTelemetryRegion} className="min-w-0">
             <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -863,6 +976,135 @@ function ResponseActionButton({ action }: { action: ResponseAction }) {
         <ArrowRight className="h-4 w-4 flex-shrink-0 transition duration-200 group-hover:translate-x-0.5" />
       </span>
     </button>
+  );
+}
+
+function createProductionReadinessGates({
+  activeAlerts,
+  activeForwarding,
+  configRevisions,
+  language,
+  nodes,
+  onlineAgents,
+  preflightPlans,
+  runtimeSnapshots,
+  t,
+  totalAgents
+}: {
+  activeAlerts: number;
+  activeForwarding: number;
+  configRevisions: RuntimeConfigRevision[];
+  language: AppLanguage;
+  nodes: ManagedNode[];
+  onlineAgents: number;
+  preflightPlans: RuntimePreflightPlan[];
+  runtimeSnapshots: RuntimeSnapshot[];
+  t: DashboardCopy;
+  totalAgents: number;
+}): ProductionReadinessGate[] {
+  const hostState: ProductionReadinessState =
+    totalAgents === 0 ? 'waiting' : onlineAgents === totalAgents ? 'ready' : 'issues';
+  const trafficState: ProductionReadinessState =
+    activeForwarding > 0 && nodes.length > 0 ? 'ready' : activeForwarding > 0 || nodes.length > 0 ? 'issues' : 'waiting';
+  const releaseState: ProductionReadinessState =
+    configRevisions.length > 0 && preflightPlans.length > 0 && runtimeSnapshots.length > 0 ? 'ready' : 'waiting';
+  const alertState: ProductionReadinessState = activeAlerts > 0 ? 'issues' : 'ready';
+
+  return [
+    {
+      id: 'host',
+      label: t.productionReadinessGateLabels.host,
+      value: t.productionReadinessStates[hostState],
+      detail: t.productionReadinessDetails.host(onlineAgents, totalAgents, language),
+      state: hostState,
+      tone: 'blue'
+    },
+    {
+      id: 'traffic',
+      label: t.productionReadinessGateLabels.traffic,
+      value:
+        trafficState === 'ready'
+          ? t.productionReadinessValues.trafficEnabled
+          : t.productionReadinessStates[trafficState],
+      detail: t.productionReadinessDetails.traffic(activeForwarding, nodes.length, language),
+      state: trafficState,
+      tone: 'green'
+    },
+    {
+      id: 'release',
+      label: t.productionReadinessGateLabels.release,
+      value: t.productionReadinessStates[releaseState],
+      detail: t.productionReadinessDetails.release(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language),
+      state: releaseState,
+      tone: 'orange'
+    },
+    {
+      id: 'alerts',
+      label: t.productionReadinessGateLabels.alerts,
+      value: t.productionReadinessStates[alertState],
+      detail: t.productionReadinessDetails.alerts(activeAlerts, language),
+      state: alertState,
+      tone: 'chartreuse'
+    }
+  ];
+}
+
+function ProductionReadinessPanel({
+  gates,
+  language,
+  state,
+  t
+}: {
+  gates: ProductionReadinessGate[];
+  language: AppLanguage;
+  state: ProductionReadinessState;
+  t: DashboardCopy;
+}) {
+  return (
+    <section
+      aria-label={t.productionReadinessRegion}
+      className="dashboard-production-readiness motion-safe:animate-[ou-panel-in_180ms_ease-out] overflow-hidden rounded-[1.35rem] border border-[#07111F] bg-[#FFFDF5] p-4 shadow-xl shadow-slate-950/10 dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20"
+      data-production-readiness-state={state}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.productionReadinessTitle}</h4>
+          <p className="mt-1 max-w-[64ch] text-xs font-semibold leading-5 text-[#536078] dark:text-[#B8C2E6]/72">
+            {t.productionReadinessSubtitle}
+          </p>
+        </div>
+        <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.24] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
+          {t.productionReadinessGateCount(gates.length, language)}
+        </span>
+      </div>
+      <div className="dashboard-production-readiness-grid mt-3 grid gap-2 sm:grid-cols-2">
+        {gates.map((gate) => {
+          const tone = productionReadinessToneClasses[gate.tone];
+
+          return (
+            <div
+              className={cn(
+                'group relative min-h-[104px] overflow-hidden rounded-[1.1rem] border p-3 text-[#07111F] transition duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:text-[#F4F8FF]',
+                tone.item
+              )}
+              data-production-readiness-gate-state={gate.state}
+              key={gate.id}
+            >
+              <span className={cn('absolute inset-x-0 top-0 h-1', tone.rail)} aria-hidden="true" />
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 text-[10px] font-black uppercase leading-4 tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">
+                  {gate.label}
+                </p>
+                <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', tone.badge)}>
+                  {gate.value}
+                </span>
+              </div>
+              <p className="mt-5 text-xs font-black leading-5 text-[#07111F] dark:text-[#F4F8FF]">{gate.detail}</p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
