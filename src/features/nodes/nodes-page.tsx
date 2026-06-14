@@ -383,6 +383,13 @@ const copy = {
     xrayServiceLabel: 'Xray',
     forwardingServiceLabel: '端口转发',
     waitingTelemetry: '等待 Agent 遥测',
+    agentReadinessTitle: 'Agent 纳管就绪度',
+    agentReadinessAgentLink: 'Agent 通道',
+    agentReadinessTelemetry: '遥测采样',
+    agentReadinessRuntimeServices: '运行服务',
+    agentReadinessReady: '就绪',
+    agentReadinessIssues: '需处理',
+    agentReadinessWaiting: '等待接入',
     agentRecoveryTitle: 'Agent 恢复',
     agentRecoveryPollOnlyDescription: 'Agent 已在线轮询，但 Master 没有收到自动遥测。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
     agentRecoverySampleGapDescription: 'Agent 遥测采样已中断。新 Agent 可远程下发恢复任务，旧 Agent 复制升级命令到目标机器执行。',
@@ -688,6 +695,13 @@ const copy = {
     xrayServiceLabel: 'Xray',
     forwardingServiceLabel: 'Forwarding',
     waitingTelemetry: 'Waiting for Agent telemetry',
+    agentReadinessTitle: 'Agent onboarding readiness',
+    agentReadinessAgentLink: 'Agent Link',
+    agentReadinessTelemetry: 'Telemetry',
+    agentReadinessRuntimeServices: 'Runtime Services',
+    agentReadinessReady: 'Ready',
+    agentReadinessIssues: 'Needs attention',
+    agentReadinessWaiting: 'Waiting',
     agentRecoveryTitle: 'Agent Recovery',
     agentRecoveryPollOnlyDescription: 'The Agent is polling Master, but Master has not received automatic telemetry. New Agents can receive a remote recovery task; old Agents still use the copied command.',
     agentRecoverySampleGapDescription: 'Agent telemetry sampling has stopped. New Agents can receive a remote recovery task; old Agents still use the copied command.',
@@ -3707,6 +3721,7 @@ export function NodesPage({
                       <InfoField label={t.memory} value={selectedHostPreviewHasTelemetry ? formatTelemetryPercentValue(selectedHostPreview, selectedHostPreview.telemetry.memoryPercent) : '-'} />
                       <InfoField label={t.serviceHealthLabel} value={selectedHostPreviewHasTelemetry ? t.statusLabels[selectedHostPreview.status] : t.serviceWaiting} />
                     </div>
+                    <SelectedAgentReadiness agent={selectedHostPreview} t={t} />
                     <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <InfoField
                         label={t.runtimeHostName}
@@ -3724,8 +3739,8 @@ export function NodesPage({
                         }
                       />
                       <InfoField
-                        label={t.serviceHealthLabel}
-                        value={selectedHostPreviewHasTelemetry ? formatRuntimeServiceHealth(selectedHostPreview, t) : t.serviceWaiting}
+                        label={t.lastReport}
+                        value={formatTelemetryTimestamp(selectedHostPreview, language)}
                       />
                     </div>
                     <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -5090,6 +5105,131 @@ function LinkMaterialCard({
       <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
         {value}
       </code>
+    </div>
+  );
+}
+
+type AgentReadinessState = 'ready' | 'issues' | 'waiting';
+type AgentReadinessTone = 'command' | 'healthy' | 'caution' | 'waiting';
+
+function getAgentReadinessState(agent: Agent): AgentReadinessState {
+  const telemetryReported = hasTelemetryReport(agent);
+
+  if (!telemetryReported) {
+    return 'waiting';
+  }
+
+  if (
+    agent.status !== 'online' ||
+    agent.telemetry.sampleGapDetected === true ||
+    runtimeServiceIssueCount(agent) > 0
+  ) {
+    return 'issues';
+  }
+
+  return 'ready';
+}
+
+function SelectedAgentReadiness({
+  agent,
+  t
+}: {
+  agent: Agent;
+  t: NodesCopy;
+}) {
+  const telemetryReported = hasTelemetryReport(agent);
+  const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
+  const serviceIssueCount = runtimeServiceIssueCount(agent);
+  const readinessState = getAgentReadinessState(agent);
+  const telemetryValue = !telemetryReported ? t.serviceWaiting : sampleGapDetected ? t.sampleGap : t.sampleHealthy;
+  const runtimeValue =
+    !telemetryReported ? t.serviceWaiting : serviceIssueCount > 0 ? formatRuntimeServiceHealth(agent, t) : t.serviceHealthy;
+
+  return (
+    <section
+      aria-label={t.agentReadinessTitle}
+      className={cn(
+        'mt-4 border border-[#07111F]/80 bg-[#FFFDF5] p-3 text-[#07111F] transition duration-200 motion-safe:animate-[ou-panel-in_180ms_ease-out] dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:text-white',
+        readinessState === 'issues'
+          ? 'shadow-[inset_0_3px_0_#D9FF00]'
+          : readinessState === 'ready'
+            ? 'shadow-[inset_0_3px_0_#00A878]'
+            : 'shadow-[inset_0_3px_0_#1E3AFF]'
+      )}
+      data-agent-readiness-state={readinessState}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs font-black text-[#07111F] dark:text-white">{t.agentReadinessTitle}</p>
+        <span
+          className={cn(
+            'rounded-full border px-2.5 py-1 text-[11px] font-black',
+            readinessState === 'issues'
+              ? 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]'
+              : readinessState === 'ready'
+                ? 'border-[#00A878] bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]'
+                : 'border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF]'
+          )}
+        >
+          {readinessState === 'issues'
+            ? t.agentReadinessIssues
+            : readinessState === 'ready'
+              ? t.agentReadinessReady
+              : t.agentReadinessWaiting}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <AgentReadinessGate
+          icon={Network}
+          label={t.agentReadinessAgentLink}
+          tone={agent.status === 'online' ? 'command' : 'caution'}
+          value={t.statusLabels[agent.status]}
+        />
+        <AgentReadinessGate
+          icon={Activity}
+          label={t.agentReadinessTelemetry}
+          tone={!telemetryReported ? 'waiting' : sampleGapDetected ? 'caution' : 'healthy'}
+          value={telemetryValue}
+        />
+        <AgentReadinessGate
+          icon={ServerCog}
+          label={t.agentReadinessRuntimeServices}
+          tone={!telemetryReported ? 'waiting' : serviceIssueCount > 0 ? 'caution' : 'healthy'}
+          value={runtimeValue}
+        />
+      </div>
+    </section>
+  );
+}
+
+function AgentReadinessGate({
+  icon: Icon,
+  label,
+  tone,
+  value
+}: {
+  icon: typeof Activity;
+  label: string;
+  tone: AgentReadinessTone;
+  value: string;
+}) {
+  const toneClass =
+    tone === 'command'
+      ? 'border-[#1E3AFF]/55 bg-[#DCE1FF]/70 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF]'
+      : tone === 'healthy'
+        ? 'border-[#00A878]/45 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/30 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]'
+        : tone === 'caution'
+          ? 'border-[#D9FF00] bg-[#D9FF00]/[0.22] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]'
+          : 'border-[#07111F]/25 bg-[#EAF3D1] text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.04] dark:text-white/55';
+
+  return (
+    <div className={cn('min-w-0 border p-3', toneClass)}>
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+        <p className="truncate text-[10px] font-black uppercase tracking-[0.14em]">{label}</p>
+      </div>
+      <p className="mt-2 truncate text-sm font-black" title={value}>
+        {value}
+      </p>
     </div>
   );
 }

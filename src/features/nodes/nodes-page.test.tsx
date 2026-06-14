@@ -376,6 +376,89 @@ describe('NodesPage', () => {
     expect(within(detail).getByText('1 异常 / 2')).toBeInTheDocument();
   });
 
+  it('summarizes selected Agent onboarding readiness as explicit control-plane gates', () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            capabilities: ['host-agent', 'xray', 'telemetry', 'self-update'],
+            telemetry: {
+              ...createAgent().telemetry,
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'missing',
+                  enabled: false,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                }
+              ]
+            }
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const detail = screen.getByRole('region', { name: '当前主机' });
+    const readiness = within(detail).getByRole('region', { name: 'Agent 纳管就绪度' });
+
+    expect(readiness).toHaveAttribute('data-agent-readiness-state', 'issues');
+    expect(readiness.outerHTML).toContain('#1E3AFF');
+    expect(readiness.outerHTML).toContain('#D9FF00');
+    expect(readiness.outerHTML).not.toContain('amber-');
+    expect(within(readiness).getByText('Agent 通道')).toBeInTheDocument();
+    expect(within(readiness).getByText('在线')).toBeInTheDocument();
+    expect(within(readiness).getByText('遥测采样')).toBeInTheDocument();
+    expect(within(readiness).getByText('正常')).toBeInTheDocument();
+    expect(within(readiness).getByText('运行服务')).toBeInTheDocument();
+    expect(within(readiness).getByText('1 异常 / 2')).toBeInTheDocument();
+  });
+
+  it('localizes selected Agent onboarding readiness gates in English', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const detail = screen.getByRole('region', { name: 'Selected host' });
+    const readiness = within(detail).getByRole('region', { name: 'Agent onboarding readiness' });
+
+    expect(readiness).toHaveAttribute('data-agent-readiness-state', 'ready');
+    expect(within(readiness).getByText('Agent Link')).toBeInTheDocument();
+    expect(within(readiness).getByText('Online')).toBeInTheDocument();
+    expect(within(readiness).getByText('Telemetry')).toBeInTheDocument();
+    expect(within(readiness).getByText('Normal')).toBeInTheDocument();
+    expect(within(readiness).getByText('Runtime Services')).toBeInTheDocument();
+    expect(within(readiness).getByText('All Healthy')).toBeInTheDocument();
+  });
+
   it('renders managed host cards as light-first control surfaces instead of dark gradient shells', async () => {
     const user = userEvent.setup();
 
