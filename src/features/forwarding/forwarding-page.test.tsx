@@ -351,6 +351,12 @@ describe('ForwardingPage', () => {
     const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
     const shellGrid = cockpit.querySelector('.forwarding-cockpit-grid');
     const rail = within(cockpit).getByRole('complementary', { name: 'Forwarding control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Forwarding rules workspace' });
+    const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
+    const rulePanel = within(workspace).getByRole('complementary', { name: 'Rule management panel' });
+    const ruleToolbar = rulePanel.querySelector('.forwarding-rule-toolbar');
+    const firstHeaderCell = rulePanel.querySelector('thead th');
+    const firstBodyCell = rulePanel.querySelector('tbody td');
     const overviewPanel = within(rail).getByRole('region', { name: 'Operational Overview' });
     const metricGrid = overviewPanel.querySelector('.forwarding-overview-metric-grid');
     const metricCards = overviewPanel.querySelectorAll('.forwarding-overview-metric');
@@ -362,6 +368,14 @@ describe('ForwardingPage', () => {
     expect(shellGrid).not.toBeNull();
     expect(shellGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
     expect(rail).toHaveClass('p-3');
+    expect(workspaceShell).toHaveClass('p-3');
+    expect(workspaceShell).not.toHaveClass('lg:p-4', 'p-4', 'p-5', 'p-6');
+    expect(ruleToolbar).toHaveClass('p-3');
+    expect(ruleToolbar).not.toHaveClass('p-4', 'p-5');
+    expect(firstHeaderCell).toHaveClass('px-3', 'py-2.5');
+    expect(firstHeaderCell).not.toHaveClass('px-4');
+    expect(firstBodyCell).toHaveClass('px-3', 'py-2.5');
+    expect(firstBodyCell).not.toHaveClass('px-4', 'py-3');
     expect(overviewPanel).toHaveClass('p-3');
     expect(metricGrid).not.toBeNull();
     expect(metricGrid).toHaveClass('forwarding-overview-metric-grid', 'grid-cols-2', 'xl:grid-cols-1');
@@ -385,6 +399,25 @@ describe('ForwardingPage', () => {
     expect(cockpit.outerHTML).not.toContain('grid-flow-row-dense');
     expect(cockpit.outerHTML).not.toContain('row-span');
     expect(cockpit.outerHTML).not.toContain('col-span');
+  });
+
+  it('keeps the forwarding empty rule panel compact without an oversized blank card', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const emptyState = within(cockpit).getByText('No forwarding rules yet').closest('.forwarding-empty-state');
+
+    expect(emptyState).toHaveClass('p-3');
+    expect(emptyState).not.toHaveClass('p-8', 'p-6', 'p-5');
   });
 
   it('surfaces runtime readiness on the forwarding control rail', () => {
@@ -457,11 +490,44 @@ describe('ForwardingPage', () => {
     expect(metadata.listenPort).not.toBe(2443);
 
     const endpoint = `198.51.100.10:${metadata.listenPort}`;
-    expect(screen.getByRole('status')).toHaveTextContent(endpoint);
+    const status = screen.getByRole('status');
+    expect(status).toHaveClass('forwarding-entry-endpoint-status', 'p-3');
+    expect(status).not.toHaveClass('p-4', 'rounded-xl', 'shadow-sm');
+    expect(status).toHaveTextContent(endpoint);
 
     await user.click(screen.getByRole('button', { name: 'Copy Entry Endpoint' }));
 
     expect(writeText).toHaveBeenCalledWith(endpoint);
+  });
+
+  it('keeps the forwarding drawer advanced options compact until the operator needs them', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Create Forward Rule' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Create Forward Rule' });
+    const advancedOptions = within(dialog).getByText('Advanced Config').closest('details');
+
+    expect(advancedOptions).toHaveClass('forwarding-advanced-options', 'p-3');
+    expect(advancedOptions).not.toHaveClass('p-4', 'p-5', 'p-6');
+    expect(within(dialog).queryByLabelText('Rule Name')).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByText('Advanced Config'));
+
+    const advancedBody = dialog.querySelector('.forwarding-advanced-options-body');
+    expect(advancedBody).toHaveClass('mt-3', 'space-y-3');
+    expect(advancedBody).not.toHaveClass('mt-4', 'space-y-4');
   });
 
   it('blocks duplicate entry bindings before submitting a new forwarding rule', async () => {
@@ -572,11 +638,19 @@ describe('ForwardingPage', () => {
     const impact = impactTitle.closest('section');
 
     expect(impact).not.toBeNull();
-    expect(impact).toHaveClass('border-[#1E3AFF]', 'bg-[#D9FF00]/[0.18]');
+    expect(impact).toHaveClass('forwarding-bulk-impact-preflight', 'border-[#1E3AFF]', 'bg-[#D9FF00]/[0.18]', 'p-3');
+    expect(impact).not.toHaveClass('p-4', 'p-5', 'p-6');
+    const impactMetricGrid = (impact as HTMLElement).querySelector('.forwarding-bulk-impact-metric-grid');
+    expect(impactMetricGrid).toHaveClass('xl:w-[26rem]');
+    expect(impactMetricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
     expect(within(impact as HTMLElement).getByText('Entry Hosts')).toBeInTheDocument();
     expect(within(impact as HTMLElement).getByText('HKG Entry')).toBeInTheDocument();
     expect(within(impact as HTMLElement).getByText('HKG Entry')).toHaveClass('border-[#1E3AFF]', 'bg-[#FFFDF5]', 'text-[#07111F]');
     expect(screen.getByRole('button', { name: 'Bulk Migrate Entry' })).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
+    expect(impact?.outerHTML).not.toContain('masonry');
+    expect(impact?.outerHTML).not.toContain('columns-');
+    expect(impact?.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(impact?.outerHTML).not.toContain('row-span');
   });
 
   it('renders a scan-friendly runtime path for each forwarding rule', () => {

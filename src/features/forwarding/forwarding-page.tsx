@@ -1291,7 +1291,7 @@ export function ForwardingPage({
 
           {lastEntryEndpoints.length > 0 ? (
             <section
-              className="stagger-2 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800 shadow-sm dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
+              className="forwarding-entry-endpoint-status stagger-2 border border-emerald-200 bg-emerald-50/80 p-3 text-sm text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
               role="status"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1328,7 +1328,7 @@ export function ForwardingPage({
           aria-label={t.forwardingRulesWorkspace}
           className="forwarding-ops-workspace min-h-0"
         >
-          <div className="p-3 lg:p-4">
+          <div className="forwarding-workspace-shell p-3">
         <section
           className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-hidden"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
@@ -1338,7 +1338,7 @@ export function ForwardingPage({
             <EmptyState label={t.noRules} />
           ) : (
             <>
-            <div className="border-b border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/[0.02]">
+            <div className="forwarding-rule-toolbar border-b border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/[0.02]">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.3fr)]">
                 <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.searchRules}</span>
@@ -1480,7 +1480,7 @@ export function ForwardingPage({
                 <table className="w-full min-w-[1220px] text-left">
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
-                      <th className="px-4 py-2.5">
+                      <th className="px-3 py-2.5">
                         <input
                           aria-label={t.selectVisibleRules}
                           checked={filteredRules.length > 0 && selectedVisibleCount === filteredRules.length}
@@ -1489,13 +1489,13 @@ export function ForwardingPage({
                           type="checkbox"
                         />
                       </th>
-                      <th className="px-4 py-2.5">{t.name}</th>
-                      <th className="px-4 py-2.5">{t.binding}</th>
-                      <th className="px-4 py-2.5">{t.target}</th>
-                      <th className="px-4 py-2.5">{t.policy}</th>
-                      <th className="px-4 py-2.5">{t.quota}</th>
-                      <th className="px-4 py-2.5">{t.limiter}</th>
-                      <th className="px-4 py-2.5 text-right">{t.actions}</th>
+                      <th className="px-3 py-2.5">{t.name}</th>
+                      <th className="px-3 py-2.5">{t.binding}</th>
+                      <th className="px-3 py-2.5">{t.target}</th>
+                      <th className="px-3 py-2.5">{t.policy}</th>
+                      <th className="px-3 py-2.5">{t.quota}</th>
+                      <th className="px-3 py-2.5">{t.limiter}</th>
+                      <th className="px-3 py-2.5 text-right">{t.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -1504,7 +1504,7 @@ export function ForwardingPage({
                         key={rule.id}
                         className="forwarding-ops-rule-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
                       >
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-3 py-2.5 align-top">
                           <input
                             aria-label={t.selectRule(rule.name)}
                             checked={selectedRuleIds.includes(rule.id)}
@@ -1513,7 +1513,7 @@ export function ForwardingPage({
                             type="checkbox"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <div className="flex items-start gap-3">
                             <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
                               <ArrowRightLeft className="h-4 w-4" />
@@ -1549,7 +1549,7 @@ export function ForwardingPage({
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <div className="space-y-2">
                             {rule.bindings.map((binding) => (
                               <ForwardingRuntimePath
@@ -1563,10 +1563,10 @@ export function ForwardingPage({
                             ))}
                           </div>
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
                           {rule.targetAddress}:{rule.targetPort}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <p className="text-xs font-bold text-slate-800 dark:text-white/80">
                             {t.strategyOptions[rule.strategy]}
                           </p>
@@ -1574,7 +1574,7 @@ export function ForwardingPage({
                             {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
                           </p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
                             {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
                           </p>
@@ -1582,7 +1582,7 @@ export function ForwardingPage({
                             {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
                           </p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <p className="text-xs font-bold text-slate-800 dark:text-white/80">
                             {rule.rateLimitMbps} {t.unitMbps}
                           </p>
@@ -1591,7 +1591,7 @@ export function ForwardingPage({
                           </p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           <div className="flex justify-end gap-2">
                             <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
                               <Pencil className="h-3.5 w-3.5" />
@@ -1750,13 +1750,13 @@ export function ForwardingPage({
           </label>
           <p className="rounded-lg border border-slate-200 bg-white/60 p-3 text-[10px] font-semibold leading-5 text-slate-500 dark:border-white/10 dark:bg-black/20 dark:text-white/45">{t.runtimeLimitsHint}</p>
           <details
-            className="rounded-lg border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10"
+            className="forwarding-advanced-options rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10"
             onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
             open={advancedOpen}
           >
             <summary className="cursor-pointer text-xs font-black text-slate-800 dark:text-white">{t.advancedOptions}</summary>
             {advancedOpen ? (
-            <div className="mt-4 space-y-3">
+            <div className="forwarding-advanced-options-body mt-3 space-y-3">
               <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
               <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1821,7 +1821,7 @@ function ForwardingBulkImpactPreflight({
   return (
     <section
       aria-label={t.forwardingBulkImpactPreflight}
-      className="mt-3 border border-[#1E3AFF] bg-[#D9FF00]/[0.18] p-3 shadow-[0_16px_36px_-32px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/35 dark:bg-[#D9FF00]/[0.08]"
+      className="forwarding-bulk-impact-preflight mt-3 border border-[#1E3AFF] bg-[#D9FF00]/[0.18] p-3 shadow-[0_16px_36px_-32px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/35 dark:bg-[#D9FF00]/[0.08]"
     >
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
@@ -1847,7 +1847,7 @@ function ForwardingBulkImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[30rem]">
+        <div className="forwarding-bulk-impact-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[26rem]">
           <ForwardingBulkImpactMetric
             label={t.forwardingBulkImpactCustomers}
             value={formatNumber(summary.customerLabels.length, language)}
@@ -2206,7 +2206,7 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <div className="p-8 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
+  return <div className="forwarding-empty-state p-3 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
 }
 
 function ForwardingRuntimePath({
