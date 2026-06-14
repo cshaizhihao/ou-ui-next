@@ -229,7 +229,7 @@ export function AdminAccountSettingsPage({
   }
 
   return (
-    <ResponsivePage className="admin-account-cockpit space-y-5 md:space-y-6">
+    <ResponsivePage className="admin-account-cockpit space-y-3 md:space-y-4">
       <section className="stagger-1">
         <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
         <p className="mt-1 text-xs text-[#35405A] dark:text-white/55">{t.subtitle}</p>
@@ -296,7 +296,7 @@ export function AdminAccountSettingsPage({
           <WorkspaceCockpitScroller aria-label={t.controlPlaneSafetyWorkspace} className="account-safety-workspace min-h-0">
             <div className="account-safety-dashboard-grid grid items-start gap-3 p-3 2xl:grid-cols-[minmax(0,1.3fr)_minmax(22rem,0.7fr)]">
               {controlPlaneBackupSummary && onCopyControlPlaneBackup ? (
-                <GlassCard aria-label={t.backupTitle} className="account-safety-backup-panel p-4" role="group">
+                <GlassCard aria-label={t.backupTitle} className="account-safety-backup-panel p-3" role="group">
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -411,7 +411,7 @@ export function AdminAccountSettingsPage({
                 </GlassCard>
               ) : null}
 
-              <GlassCard aria-label={t.sessions} className="account-safety-sessions-panel p-4" role="group">
+              <GlassCard aria-label={t.sessions} className="account-safety-sessions-panel p-3" role="group">
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
@@ -427,7 +427,7 @@ export function AdminAccountSettingsPage({
                 ) : operatorSessionsError ? (
                   <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
                 ) : operatorSessions.length === 0 ? (
-                  <div className="border border-dashed border-[#07111F]/25 p-4 text-xs text-[#35405A] dark:border-[#6B7CFF]/25 dark:text-white/52">
+                  <div className="border border-dashed border-[#07111F]/25 p-3 text-xs text-[#35405A] dark:border-[#6B7CFF]/25 dark:text-white/52">
                     {t.sessionsEmpty}
                   </div>
                 ) : (

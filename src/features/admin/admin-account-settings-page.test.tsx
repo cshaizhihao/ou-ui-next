@@ -155,22 +155,29 @@ describe('AdminAccountSettingsPage', () => {
     const sessionsPanel = within(workspace).getByRole('group', { name: 'Operator Sessions' });
     const compactMetricGrid = backupPanel.querySelector('.account-safety-compact-metrics-grid');
     const preflight = within(backupPanel).getByRole('region', { name: 'Restore Preflight Result' });
+    const page = cockpit.closest('.admin-account-cockpit');
     const pageHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
 
+    expect(page).toHaveClass('space-y-3', 'md:space-y-4');
     expect(shellGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
     expect(workspaceGrid).toHaveClass('account-safety-dashboard-grid');
     expect(workspaceGrid).toHaveClass('items-start');
     expect(workspaceGrid).toHaveClass('2xl:grid-cols-[minmax(0,1.3fr)_minmax(22rem,0.7fr)]');
     expect(rail.querySelectorAll('.account-safety-identity-row')).toHaveLength(4);
     expect(rail.querySelector('.account-safety-identity-list')).toHaveClass('gap-2');
-    expect(backupPanel).toHaveClass('p-4');
-    expect(sessionsPanel).toHaveClass('p-4');
+    expect(backupPanel).toHaveClass('p-3');
+    expect(sessionsPanel).toHaveClass('p-3');
     expect(compactMetricGrid).toHaveClass('grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]');
     expect(backupPanel.querySelector('.account-safety-backup-metric')).toHaveClass('p-2.5');
     expect(backupPanel.querySelector('.account-safety-backup-field')).toHaveClass('p-3');
     expect(preflight).toHaveClass('p-3');
     expect(pageHtml).not.toContain('masonry');
     expect(pageHtml).not.toContain('columns-');
+    expect(pageHtml).not.toContain('grid-flow-row-dense');
+    expect(pageHtml).not.toContain('row-span');
+    expect(pageHtml).not.toContain('space-y-5');
+    expect(pageHtml).not.toContain('space-y-6');
+    expect(pageHtml).not.toContain('p-4');
     expect(pageHtml).not.toContain('p-5');
   });
 
