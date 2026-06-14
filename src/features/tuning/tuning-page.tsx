@@ -215,10 +215,10 @@ function getStatusTone(status: DeployTaskStatus) {
     case 'succeeded':
       return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200';
     case 'failed':
-      return 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200';
+      return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200';
     case 'running':
     case 'retrying':
-      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200';
+      return 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200';
     default:
       return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-white/65';
   }
@@ -424,7 +424,7 @@ export function TuningPage({
                   <Metric label={t.hostStatus} value={targetAgent?.status === 'online' ? t.online : t.offline} />
                   {taskMutationBusy ? (
                     <div
-                      className="flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200"
+                      className="flex min-h-10 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-xs font-bold text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
                       role="status"
                     >
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -521,7 +521,7 @@ export function TuningPage({
                           </div>
                           <button
                             aria-label={t.removeSysctl(parameter.key)}
-                            className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 dark:hover:bg-rose-400/10 dark:hover:text-rose-200"
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 dark:hover:bg-orange-400/10 dark:hover:text-orange-200"
                             onClick={() => removeCustomParameter(parameter.key)}
                             type="button"
                           >
@@ -672,7 +672,7 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
           </div>
           {task.failureReason ? (
             <div
-              className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200"
+              className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-xs font-bold text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
               role="alert"
             >
               <span className="uppercase tracking-widest">{t.failure}: </span>

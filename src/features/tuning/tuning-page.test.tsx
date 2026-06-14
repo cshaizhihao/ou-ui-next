@@ -216,9 +216,15 @@ describe('TuningPage', () => {
     expect(statusPanel).toHaveClass('tuning-ops-status-panel');
     expect(customRow).toHaveClass('tuning-ops-sysctl-row');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('rose-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
   it('renders practical BBR TCP and custom sysctl controls without template search clutter', () => {
@@ -329,6 +335,9 @@ describe('TuningPage', () => {
     expect(within(statusPanel).getByText('Custom sysctl / agent-hkg-01')).toBeInTheDocument();
     expect(within(statusPanel).getByText('Read current sysctl values')).toBeInTheDocument();
     expect(within(statusPanel).getByText('Apply sysctl values')).toBeInTheDocument();
+    expect(statusPanel.outerHTML).toContain('orange-');
+    expect(statusPanel.outerHTML).not.toContain('rose-');
+    expect(statusPanel.outerHTML).not.toContain('amber-');
     expect(screen.getByRole('alert')).toHaveTextContent('sysctl net.ipv4.tcp_fin_timeout is not allowlisted');
   });
 
@@ -345,6 +354,8 @@ describe('TuningPage', () => {
     );
 
     expect(screen.getByRole('status')).toHaveTextContent('Submitting change');
+    expect(screen.getByRole('status').outerHTML).toContain('orange-');
+    expect(screen.getByRole('status').outerHTML).not.toContain('amber-');
     expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeDisabled();
   });
