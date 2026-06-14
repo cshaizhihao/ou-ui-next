@@ -306,6 +306,40 @@ describe('ForwardingPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('surfaces runtime readiness on the forwarding control rail', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-ready' }),
+          createRule({
+            id: 'forward-issue',
+            name: 'LAX Guardrail Forward',
+            quotaExceeded: true
+          }),
+          createRule({
+            id: 'forward-waiting',
+            name: 'Waiting Forward',
+            bindings: [],
+            bindingCount: 0,
+            portStatus: 'allocated'
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const readiness = within(cockpit).getByRole('region', { name: 'Runtime Readiness' });
+
+    expect(within(readiness).getByRole('group', { name: 'Ready' })).toHaveTextContent('1');
+    expect(within(readiness).getByRole('group', { name: 'Issues' })).toHaveTextContent('1');
+    expect(within(readiness).getByRole('group', { name: 'Waiting' })).toHaveTextContent('1');
+  });
+
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

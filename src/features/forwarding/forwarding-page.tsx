@@ -153,6 +153,13 @@ type ForwardingOverviewMetric = {
   detail: string;
   tone?: 'signal';
 };
+type ForwardingRuntimeReadinessState = 'ready' | 'issues' | 'waiting';
+type ForwardingRuntimeReadinessMetric = {
+  detail: string;
+  label: string;
+  state: ForwardingRuntimeReadinessState;
+  value: string;
+};
 
 const RANDOM_LISTEN_PORT_MIN = 20_000;
 const RANDOM_LISTEN_PORT_MAX = 60_999;
@@ -225,6 +232,14 @@ const copy = {
     forwardingBulkImpactBindingPreview: '绑定预览',
     forwardingBulkImpactRiskPreview: '风险提示',
     forwardingBulkImpactNoRisk: '暂无守护或端口风险',
+    runtimeReadiness: '运行时就绪度',
+    runtimeReadinessHint: '把转发规则按可下发、需处理和等待运行服务证据分组，避免在批量操作前漏看守护边界。',
+    runtimeReadinessReady: '就绪',
+    runtimeReadinessReadyDetail: '具备入口绑定和运行服务证据。',
+    runtimeReadinessIssues: '异常',
+    runtimeReadinessIssuesDetail: '存在配额、守护、冲突或失败风险。',
+    runtimeReadinessWaiting: '等待',
+    runtimeReadinessWaitingDetail: '等待运行服务、恢复启用或部署完成。',
     runtimeEvidence: '运行时证据',
     runtimeEvidenceForRule: (name: string) => `${name} 的运行时证据`,
     runtimeEvidenceBindings: (count: string) => `绑定 ${count}`,
@@ -379,6 +394,14 @@ const copy = {
     forwardingBulkImpactBindingPreview: 'Binding Preview',
     forwardingBulkImpactRiskPreview: 'Risk Notes',
     forwardingBulkImpactNoRisk: 'No guardrail or port risks',
+    runtimeReadiness: 'Runtime Readiness',
+    runtimeReadinessHint: 'Groups forwarding rules by ready-to-deploy, needs attention, and waiting for runtime evidence before bulk changes.',
+    runtimeReadinessReady: 'Ready',
+    runtimeReadinessReadyDetail: 'Has entry bindings and runtime service evidence.',
+    runtimeReadinessIssues: 'Issues',
+    runtimeReadinessIssuesDetail: 'Quota, guardrail, conflict, or failed runtime risks.',
+    runtimeReadinessWaiting: 'Waiting',
+    runtimeReadinessWaitingDetail: 'Waiting for runtime service, resume, or deployment completion.',
     runtimeEvidence: 'Runtime Evidence',
     runtimeEvidenceForRule: (name: string) => `Runtime evidence for ${name}`,
     runtimeEvidenceBindings: (count: string) => `Bindings ${count}`,
@@ -734,6 +757,63 @@ function createForwardingBulkImpactSummary(
   };
 }
 
+function getForwardingRuntimeReadinessState(rule: ForwardingRuleView): ForwardingRuntimeReadinessState {
+  if (
+    rule.quotaExceeded ||
+    rule.runtimeDisabledByPolicy ||
+    Boolean(rule.guardrailReason) ||
+    rule.portStatus === 'conflict' ||
+    rule.portStatus === 'failed'
+  ) {
+    return 'issues';
+  }
+
+  const hasRuntimeService = rule.bindings.some((binding) => (binding.runtimeServiceNames ?? []).length > 0);
+
+  if (!rule.enabled || !hasRuntimeService || ['deploying', 'paused', 'releasing'].includes(rule.portStatus)) {
+    return 'waiting';
+  }
+
+  return 'ready';
+}
+
+function createForwardingRuntimeReadinessMetrics(
+  rules: ForwardingRuleView[],
+  language: AppLanguage,
+  t: (typeof copy)['zh' | 'en']
+): ForwardingRuntimeReadinessMetric[] {
+  const counts: Record<ForwardingRuntimeReadinessState, number> = {
+    ready: 0,
+    issues: 0,
+    waiting: 0
+  };
+
+  rules.forEach((rule) => {
+    counts[getForwardingRuntimeReadinessState(rule)] += 1;
+  });
+
+  return [
+    {
+      detail: t.runtimeReadinessReadyDetail,
+      label: t.runtimeReadinessReady,
+      state: 'ready',
+      value: formatNumber(counts.ready, language)
+    },
+    {
+      detail: t.runtimeReadinessIssuesDetail,
+      label: t.runtimeReadinessIssues,
+      state: 'issues',
+      value: formatNumber(counts.issues, language)
+    },
+    {
+      detail: t.runtimeReadinessWaitingDetail,
+      label: t.runtimeReadinessWaiting,
+      state: 'waiting',
+      value: formatNumber(counts.waiting, language)
+    }
+  ];
+}
+
 function createDraftFromRule(rule: ForwardingRuleView): ForwardDraft {
   return {
     name: rule.name,
@@ -928,6 +1008,10 @@ export function ForwardingPage({
       }
     ],
     [bindingCount, enabledCount, language, riskFlagCount, t, visibleRules.length]
+  );
+  const runtimeReadinessMetrics = useMemo(
+    () => createForwardingRuntimeReadinessMetrics(visibleRules, language, t),
+    [language, t, visibleRules]
   );
 
   useEffect(() => {
@@ -1202,6 +1286,8 @@ export function ForwardingPage({
               <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
             </div>
           </section>
+
+          <ForwardingRuntimeReadinessPanel metrics={runtimeReadinessMetrics} t={t} />
 
           {lastEntryEndpoints.length > 0 ? (
             <section
@@ -1802,6 +1888,66 @@ function ForwardingBulkImpactPreflight({
         />
       </div>
     </section>
+  );
+}
+
+function ForwardingRuntimeReadinessPanel({
+  metrics,
+  t
+}: {
+  metrics: ForwardingRuntimeReadinessMetric[];
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  return (
+    <section
+      aria-label={t.runtimeReadiness}
+      className="stagger-2 mt-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.runtimeReadiness}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.runtimeReadinessHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {metrics.map((metric) => (
+          <ForwardingRuntimeReadinessMetricCard key={metric.state} metric={metric} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ForwardingRuntimeReadinessMetricCard({ metric }: { metric: ForwardingRuntimeReadinessMetric }) {
+  const stateClass = {
+    ready: 'bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'bg-[#FF3D18]/[0.13] text-[#C9220C] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB197]',
+    waiting: 'bg-[#D9FF00]/[0.26] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<ForwardingRuntimeReadinessState, string>;
+
+  return (
+    <article
+      aria-label={metric.label}
+      className="group relative min-h-24 overflow-hidden px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">
+            {metric.label}
+          </p>
+          <p className="mt-1 max-w-[14rem] text-[11px] leading-5 text-[#35405A] dark:text-white/55">
+            {metric.detail}
+          </p>
+        </div>
+        <span className={`min-w-14 border border-current px-2.5 py-1 text-center text-lg font-black ${stateClass[metric.state]}`}>
+          {metric.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
+    </article>
   );
 }
 
