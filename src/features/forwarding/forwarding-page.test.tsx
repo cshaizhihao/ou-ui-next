@@ -892,6 +892,51 @@ describe('ForwardingPage', () => {
     expect(evidence.outerHTML).not.toContain('indigo-');
   });
 
+  it('keeps forwarding runtime evidence readable for long generated service names', () => {
+    const longServiceName =
+      'ou-forward-forward-custom-2443-agent-edge-hkg-production-primary-tcp-forwarding-runtime.service';
+    const acmeRule = createRule({
+      id: 'forward-acme-long-service',
+      name: 'Acme Long Runtime Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443,
+      bindings: [
+        {
+          agentId: 'agent-hkg-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.0.0.20',
+          targetPort: 2443,
+          protocol: 'tcp+udp',
+          status: 'allocated',
+          runtimeServiceNames: [longServiceName]
+        }
+      ],
+      bindingCount: 1
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[acmeRule]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const evidence = screen.getByRole('group', { name: 'Runtime evidence for Acme Long Runtime Forward' });
+    const path = screen.getByRole('group', { name: 'Runtime Path Acme Long Runtime Forward' });
+
+    expect(evidence).toHaveClass('forwarding-runtime-evidence-card');
+    expect(path).toHaveClass('forwarding-runtime-path-card');
+    expect(within(evidence).getByText(longServiceName)).not.toHaveClass('truncate');
+    expect(within(path).getByText(longServiceName)).not.toHaveClass('truncate');
+  });
+
   it('confirms row runtime and delete actions before changing a forwarding rule', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();

@@ -2013,7 +2013,7 @@ function ForwardingRuntimeEvidenceCard({
   return (
     <div
       aria-label={t.runtimeEvidenceForRule(rule.name)}
-      className="mt-3 max-w-[19rem] rounded-xl border border-[#1E3AFF] bg-[#DCE1FF]/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/[0.08]"
+      className="forwarding-runtime-evidence-card mt-3 max-w-[19rem] rounded-xl border border-[#1E3AFF] bg-[#DCE1FF]/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/[0.08]"
       role="group"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -2041,7 +2041,7 @@ function ForwardingRuntimeEvidenceCard({
       <div className="mt-2 space-y-1">
         {(runtimeServices.length > 0 ? runtimeServices : [t.runtimeEvidenceNoService]).slice(0, 3).map((service) => (
           <p
-            className="truncate font-mono text-[10px] font-semibold text-[#35405A] dark:text-white/55"
+            className="break-all font-mono text-[10px] font-semibold leading-4 text-[#35405A] dark:text-white/55"
             key={service}
             title={service}
           >
@@ -2229,7 +2229,7 @@ function ForwardingRuntimePath({
   return (
     <div
       aria-label={`${t.runtimePath} ${ruleName}`}
-      className="rounded-xl border border-[#07111F]/25 bg-[#FFFDF5]/80 p-3 shadow-sm shadow-slate-950/5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04] dark:shadow-none"
+      className="forwarding-runtime-path-card rounded-xl border border-[#07111F]/25 bg-[#FFFDF5]/80 p-3 shadow-sm shadow-slate-950/5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04] dark:shadow-none"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -2251,7 +2251,7 @@ function ForwardingRuntimePath({
         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#35405A] dark:text-white/45">
           {t.runtimePathService}
         </p>
-        <p className="mt-1 truncate font-mono text-[10px] font-semibold text-[#35405A] dark:text-white/55">
+        <p className="mt-1 break-all font-mono text-[10px] font-semibold leading-4 text-[#35405A] dark:text-white/55">
           {runtimeServiceNames.length > 0 ? runtimeServiceNames.join(', ') : t.runtimePathNoService}
         </p>
       </div>
