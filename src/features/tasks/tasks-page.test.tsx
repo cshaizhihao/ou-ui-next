@@ -267,6 +267,62 @@ describe('TasksPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('keeps the execution evidence cockpit compact and rejects masonry-style layout', () => {
+    render(
+      <TasksPage
+        tasks={[task]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Execution release cockpit' });
+    const cockpitGrid = cockpit.firstElementChild as HTMLElement;
+    const rail = within(cockpit).getByRole('complementary', { name: 'Execution control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Release evidence workspace' });
+    const workspaceStack = workspace.firstElementChild as HTMLElement;
+    const pipeline = within(workspace).getByRole('group', { name: 'Release Pipeline' });
+    const taskRow = within(pipeline).getByRole('article', { name: 'Apply port forwarding policy' });
+    const gates = within(rail).getByRole('region', { name: 'Execution Release Gates' });
+    const gateRow = within(gates).getByRole('group', { name: 'Execution Queue' });
+    const logPanel = within(workspace).getByRole('group', { name: /Agent Runtime Logs/ });
+    const archivePanel = within(workspace).getByRole('group', { name: /Log Archives/ });
+    const layoutHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
+
+    expect(cockpitGrid).toHaveClass('tasks-release-cockpit-grid');
+    expect(cockpitGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(rail).not.toHaveClass('p-4');
+    expect(workspaceStack).toHaveClass('space-y-3');
+    expect(workspaceStack).toHaveClass('p-3');
+    expect(pipeline).toHaveClass('p-3');
+    expect(pipeline).not.toHaveClass('p-5');
+    expect(taskRow).toHaveClass('p-3');
+    expect(taskRow).not.toHaveClass('rounded-xl');
+    expect(gateRow).toHaveClass('tasks-release-gate-row');
+    expect(gateRow).toHaveClass('min-h-[76px]');
+    expect(gateRow).toHaveClass('px-3');
+    expect(gateRow).toHaveClass('py-2.5');
+    expect(gateRow).not.toHaveClass('min-h-20');
+    expect(gateRow).not.toHaveClass('px-4');
+    expect(gateRow).not.toHaveClass('py-3');
+    expect(logPanel).toHaveClass('tasks-agent-log-panel');
+    expect(logPanel).toHaveClass('p-3');
+    expect(archivePanel).toHaveClass('tasks-agent-archive-panel');
+    expect(archivePanel).toHaveClass('p-3');
+    expect(layoutHtml).not.toContain('masonry');
+    expect(layoutHtml).not.toContain('columns-');
+    expect(layoutHtml).not.toContain('grid-flow-row-dense');
+    expect(layoutHtml).not.toContain('row-span');
+    expect(layoutHtml).not.toContain('col-span');
+  });
+
   it('surfaces execution release gates on the control rail', () => {
     render(
       <TasksPage

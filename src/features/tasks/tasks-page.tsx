@@ -1127,23 +1127,23 @@ function MetricTile({
       : 'text-slate-500 dark:text-white/45';
 
   return (
-    <article aria-label={label} className={`ou-surface-muted rounded-2xl p-4 ${metricClass}`} role="group">
+    <article aria-label={label} className={`ou-surface-muted min-h-[76px] p-3 ${metricClass}`} role="group">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelClass}`}>{label}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
+          <p className={`text-[10px] font-semibold uppercase tracking-[0.14em] ${labelClass}`}>{label}</p>
+          <p className="mt-1 text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
             {formatNumber(value, language)}
           </p>
         </div>
       </div>
-      {detail ? <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-white/60">{detail}</p> : null}
+      {detail ? <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-white/60">{detail}</p> : null}
     </article>
   );
 }
 
 function ReleasePath({ labels }: { labels: string[] }) {
   return (
-    <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+    <ol className="mt-3 grid grid-cols-2 gap-2">
       {labels.map((label, index) => (
         <li className="flex min-w-0 items-center gap-2" key={label}>
           <span
@@ -1163,9 +1163,9 @@ function ReleasePath({ labels }: { labels: string[] }) {
 
 function EvidenceSummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <article aria-label={label} className="rounded-xl border border-slate-200 bg-white/55 p-4 dark:border-white/10 dark:bg-black/10">
+    <article aria-label={label} className="min-h-[76px] border border-slate-200 bg-white/55 p-3 dark:border-white/10 dark:bg-black/10">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-2 text-base font-black text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-2 text-sm font-black leading-5 text-slate-900 dark:text-white">{value}</p>
     </article>
   );
 }
@@ -1183,7 +1183,7 @@ function ExecutionReleaseGatePanel({
       className="tasks-release-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.executionReleaseGates}</p>
         <p className="mt-1 text-[11px] leading-5 text-white/82">{t.executionReleaseGatesHint}</p>
       </div>
@@ -1206,7 +1206,7 @@ function ExecutionReleaseGateRow({ gate }: { gate: ExecutionReleaseGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="tasks-release-gate-row group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -1242,7 +1242,7 @@ function ReleaseStep({
   const t = copy[language];
 
   return (
-    <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+    <div className="border border-slate-200 p-2.5 dark:border-white/10">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
         <StatusPill status={status} language={language} />
@@ -1274,7 +1274,7 @@ function RuntimeReleaseTimeline({
 
   return (
     <div
-      className={`tasks-runtime-release-evidence-card mt-4 break-words border-t border-[#D9FF00]/55 pt-4 dark:border-[#D9FF00]/20 ${className}`}
+      className={`tasks-runtime-release-evidence-card mt-3 break-words border-t border-[#D9FF00]/55 pt-3 dark:border-[#D9FF00]/20 ${className}`}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -1285,7 +1285,7 @@ function RuntimeReleaseTimeline({
           {moduleKind ? t.moduleKind[moduleKind] : ''}
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
         <ReleaseStep
           detail={
             configRevision
@@ -1817,8 +1817,8 @@ function AgentLogPanel({
   }
 
   return (
-    <GlassCard className="stagger-3 p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <GlassCard aria-label={t.agentLogsTitle} className="tasks-agent-log-panel stagger-3 p-3" role="group">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-white">
@@ -1853,8 +1853,8 @@ function AgentLogPanel({
       </div>
 
       {chunks.length > 0 ? (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.28fr)]">
+        <div className="mb-3 border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.28fr)]">
             <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                 {t.searchAgentLogs}
@@ -1945,9 +1945,9 @@ function AgentLogPanel({
         </form>
       ) : null}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {filteredChunks.map((chunk) => (
-          <article key={chunk.eventId} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+          <article key={chunk.eventId} className="border border-slate-200 p-3 dark:border-white/10">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
                 {t.streamLabels[chunk.stream]}
@@ -1959,16 +1959,16 @@ function AgentLogPanel({
             <p className="mt-2 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
               {t.agentLogDetail(chunk.agentId, chunk.taskId, chunk.commandId, chunk.chunkSeq, language)}
             </p>
-            <pre className="mt-3 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 font-mono text-[11px] leading-5 text-slate-100">{chunk.content}</pre>
+            <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words bg-slate-950 p-3 font-mono text-[11px] leading-5 text-slate-100">{chunk.content}</pre>
           </article>
         ))}
         {chunks.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
             <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogsEmpty}</p>
           </div>
         ) : null}
         {chunks.length > 0 && filteredChunks.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
             <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogsEmpty}</p>
           </div>
         ) : null}
@@ -2005,8 +2005,8 @@ function AgentLogArchivePanel({
   }
 
   return (
-    <GlassCard className="stagger-4 p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <GlassCard aria-label={t.agentLogArchivesTitle} className="tasks-agent-archive-panel stagger-4 p-3" role="group">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-white">
@@ -2027,8 +2027,8 @@ function AgentLogArchivePanel({
       </div>
 
       {archives.length > 0 ? (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.28fr)]">
+        <div className="mb-3 border border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.28fr)]">
             <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                 {t.searchAgentLogArchives}
@@ -2081,9 +2081,9 @@ function AgentLogArchivePanel({
         </div>
       ) : null}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {filteredArchives.map((archive) => (
-          <article key={archive.id} className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+          <article key={archive.id} className="border border-slate-200 p-3 dark:border-white/10">
             <p className="mb-2 break-all font-mono text-[11px] font-semibold text-slate-700 dark:text-white/80">
               {archive.id}
             </p>
@@ -2106,12 +2106,12 @@ function AgentLogArchivePanel({
           </article>
         ))}
         {archives.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
             <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogArchivesEmpty}</p>
           </div>
         ) : null}
         {archives.length > 0 && filteredArchives.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
             <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogArchivesEmpty}</p>
           </div>
         ) : null}
@@ -2355,14 +2355,14 @@ export function TasksPage({
         aria-label={language === 'zh' ? '执行发布 cockpit' : 'Execution release cockpit'}
         className="tasks-release-cockpit"
       >
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="tasks-release-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={language === 'zh' ? '执行控制栏' : 'Execution control rail'}
-            className="tasks-release-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="tasks-release-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
                   <Workflow className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.releasePath}</p>
@@ -2381,7 +2381,7 @@ export function TasksPage({
                 ))}
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-bold text-slate-800 dark:text-white">{t.executionOverview}</p>
                   <span className="rounded-full border border-[#FF3D18]/35 bg-[#FFD8C6]/70 px-3 py-1 text-[11px] font-black text-[#C92810] dark:border-[#FF6A3A]/25 dark:bg-[#FF3D18]/10 dark:text-[#FFB299]">
@@ -2396,8 +2396,8 @@ export function TasksPage({
               </div>
 
               {tasks.length > 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="grid grid-cols-1 gap-3">
+                <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="grid grid-cols-1 gap-2">
                     <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                         {t.searchTasks}
@@ -2499,13 +2499,13 @@ export function TasksPage({
             aria-label={language === 'zh' ? '发布证据工作区' : 'Release evidence workspace'}
             className="tasks-release-workspace min-h-0"
           >
-            <div className="space-y-4 p-4">
+            <div className="space-y-3 p-3">
               <GlassCard
                 aria-label={t.pipelineTitle}
-                className="tasks-release-panel stagger-2 p-5"
+                className="tasks-release-panel stagger-2 p-3"
                 role="group"
               >
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Workflow className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                     <h4 className="text-sm font-bold text-slate-800 dark:text-white">
@@ -2517,12 +2517,12 @@ export function TasksPage({
                   </GlowButton>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {releaseBundles.map((bundle) => (
                     <article
                       aria-label={bundle.task.summary}
                       key={bundle.task.id}
-                      className="tasks-release-row rounded-xl border border-slate-200 bg-white/70 p-4 transition hover:-translate-y-0.5 hover:border-[#1E3AFF]/25 hover:shadow-[0_14px_38px_-30px_rgba(30,58,255,0.24)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
+                      className="tasks-release-row border border-slate-200 bg-white/70 p-3 transition hover:border-[#1E3AFF]/25 hover:shadow-[0_10px_26px_-24px_rgba(30,58,255,0.24)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
                     >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
