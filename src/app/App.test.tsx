@@ -33,7 +33,16 @@ async function openAdvancedNavigation(user: TestUser) {
 }
 
 async function clickNavigation(user: TestUser, label: string | RegExp) {
-  const button = screen.queryAllByRole('button', { name: label })[0];
+  const navigation =
+    screen.queryByRole('complementary', { name: 'Master 控制面导航' }) ??
+    screen.queryByRole('complementary', { name: 'Master control-plane navigation' });
+  const button =
+    navigation?.querySelectorAll('button')
+      ? Array.from(navigation.querySelectorAll('button')).find((candidate) => {
+          const accessibleName = candidate.getAttribute('aria-label') ?? candidate.textContent ?? '';
+          return typeof label === 'string' ? accessibleName === label : label.test(accessibleName);
+        })
+      : screen.queryAllByRole('button', { name: label })[0];
 
   if (button) {
     await user.click(button);

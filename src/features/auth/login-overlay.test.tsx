@@ -121,7 +121,9 @@ describe('LoginOverlay', () => {
     expect(loginBox).toHaveClass('login-box-centered');
 
     expect(overlay).toHaveClass('grid', 'place-items-center');
+    expect(overlay).toHaveClass('content-center');
     expect(loginBox).toHaveClass('justify-self-center', 'self-center');
+    expect(loginBox).not.toHaveClass('place-self-start', 'justify-self-end', 'self-start');
   });
 
   it('reuses an existing server-side operator session in HTTP mode', async () => {

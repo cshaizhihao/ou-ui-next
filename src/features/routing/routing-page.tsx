@@ -24,7 +24,6 @@ type RoutingCompileGateState = 'ready' | 'issues' | 'waiting';
 const copy = {
   zh: {
     title: '分流策略',
-    subtitle: '主机节点 / 访问域名 / 出站协议',
     operationalOverview: '运营总览',
     overviewTotalPolicies: '总策略',
     overviewVisiblePolicies: '可见策略',
@@ -35,7 +34,6 @@ const copy = {
     targetGroup: '目标组',
     hits: '命中',
     submitTitle: '策略提交',
-    submitDescription: '策略变更任务',
     policyCount: '策略数量',
     highRiskRules: '高风险规则',
     highRiskFilter: '高风险',
@@ -112,7 +110,6 @@ const copy = {
   },
   en: {
     title: 'Routing Policy',
-    subtitle: 'Host node / accessed domain / outbound protocol',
     operationalOverview: 'Operational Overview',
     overviewTotalPolicies: 'Total Policies',
     overviewVisiblePolicies: 'Visible Policies',
@@ -123,7 +120,6 @@ const copy = {
     targetGroup: 'Target Group',
     hits: 'Hits',
     submitTitle: 'Policy Submission',
-    submitDescription: 'Policy change task',
     policyCount: 'Policy Count',
     highRiskRules: 'High Risk Rules',
     highRiskFilter: 'High Risk',
@@ -492,7 +488,6 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
               {t.operationalOverview}
             </p>
             <h3 className="mt-2 text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
-            <p className="mt-1 max-w-4xl text-xs leading-5 text-[#35405A] dark:text-white/50">{t.subtitle}</p>
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-[#35405A] dark:text-white/65">
               <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewTotalPolicies} {formatNumber(policies.length, language)}
@@ -531,7 +526,6 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                   <ShieldCheck className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                   <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.compileScope}</h4>
                 </div>
-                <p className="text-xs leading-5 text-[#35405A] dark:text-white/50">{t.submitDescription}</p>
                 <div className="mt-3 space-y-2">
                   <Metric icon={Network} label={t.policyCount} value={formatNumber(policies.length)} />
                   <Metric icon={Network} label={t.visibleHits} value={formatNumber(visibleHits, language)} />

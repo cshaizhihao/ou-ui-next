@@ -82,10 +82,15 @@ describe('AdminAccountSettingsPage', () => {
     expect(within(rail).getByText('Current Login Identity')).toBeInTheDocument();
     expect(within(rail).getByText('sudo ou-ui rotate-credentials')).toBeInTheDocument();
     expect(within(rail).getByRole('button', { name: 'Show Current Credentials' })).toBeInTheDocument();
+    expect(screen.queryByText('Review the current control-plane login identity, credential rotation command, and operator sessions.')).not.toBeInTheDocument();
+    expect(rail).not.toHaveTextContent('Rotate the local login credential or inspect the active credential command.');
 
     expect(within(workspace).getByRole('heading', { name: 'Control-plane Backup' })).toBeInTheDocument();
     expect(within(workspace).getByText('sudo ou-ui restore-control-plane-backup --stdin')).toBeInTheDocument();
     expect(within(workspace).getByRole('heading', { name: 'Operator Sessions' })).toBeInTheDocument();
+    expect(workspace).not.toHaveTextContent('Backup packages contain inventory, runtime artifacts, task evidence, audit anchors, and session metadata for recovery review.');
+    expect(workspace).not.toHaveTextContent('Sensitive tokens keep only state or prefixes; login passwords, Telegram tokens, and Agent token hashes are excluded.');
+    expect(workspace).not.toHaveTextContent('Revoking active sessions writes audit evidence. Revoking the current session requires signing in again.');
   });
 
   it('uses a v2 safety cockpit visual system for account backup and session controls', () => {
@@ -450,7 +455,7 @@ describe('AdminAccountSettingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Control-plane Backup' })).toBeInTheDocument();
     expect(screen.getByText('sudo ou-ui restore-control-plane-backup --stdin')).toBeInTheDocument();
     expect(screen.getByText('sha256:latest-audit-anchor')).toBeInTheDocument();
-    expect(screen.getByText('Sensitive tokens keep only state or prefixes; login passwords, Telegram tokens, and Agent token hashes are excluded.')).toBeInTheDocument();
+    expect(screen.queryByText('Sensitive tokens keep only state or prefixes; login passwords, Telegram tokens, and Agent token hashes are excluded.')).not.toBeInTheDocument();
     expect(screen.getByText('18')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();

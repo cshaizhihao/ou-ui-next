@@ -162,6 +162,8 @@ describe('RoutingPage', () => {
     expect(cockpit).toHaveTextContent('访问域名');
     expect(cockpit).toHaveTextContent('出站协议');
     expect(cockpit).toHaveTextContent('出站标签');
+    expect(screen.queryByText('主机节点 / 访问域名 / 出站协议')).not.toBeInTheDocument();
+    expect(cockpit).not.toHaveTextContent('策略变更任务');
     expect(cockpit).not.toHaveTextContent('先看策略规模');
     expect(cockpit).not.toHaveTextContent('V1.0');
     expect(cockpit).not.toHaveTextContent('等待 Agent 回执');

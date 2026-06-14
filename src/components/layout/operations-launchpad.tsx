@@ -135,7 +135,7 @@ export function OperationsLaunchpad({
     }
   ];
 
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <section
@@ -207,7 +207,7 @@ export function OperationsLaunchpad({
             return (
               <button
                 className={cn(
-                  'ou-action-card group min-h-[92px] border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
+                  'ou-action-card group min-h-[68px] border p-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
                   active
                     ? 'border-[#1E3AFF] bg-[#DCE1FF] shadow-lg shadow-[#1E3AFF]/12 dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/14'
                     : actionToneClasses[action.tone]
@@ -226,7 +226,7 @@ export function OperationsLaunchpad({
                     {action.metric}
                   </span>
                 </div>
-                <p className="mt-3 text-xs font-semibold">{action.label}</p>
+                <p className="mt-2 text-xs font-semibold">{action.label}</p>
               </button>
             );
           })}

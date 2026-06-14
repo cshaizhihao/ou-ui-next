@@ -1303,7 +1303,7 @@ export function ForwardingPage({
           aria-label={t.forwardingRulesWorkspace}
           className="forwarding-ops-workspace min-h-0 xl:overflow-y-auto xl:overscroll-contain"
         >
-          <div className="forwarding-workspace-shell min-h-0 p-3">
+          <div className="forwarding-workspace-shell min-h-0 p-3 max-md:pb-28">
         <section
           className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-visible"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
@@ -1452,7 +1452,7 @@ export function ForwardingPage({
               <EmptyState label={t.noMatchingRules} />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1220px] text-left">
+                <table className="w-full min-w-[1040px] text-left">
                   <thead className="bg-[#07111F] text-[10px] font-bold uppercase tracking-widest text-[#FDFFF1] dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
                       <th className="px-3 py-2.5">

@@ -1104,8 +1104,6 @@ const shellCopy = {
     compileRoutingTarget: '分流策略',
     tuningSummary: '下发系统调优变更',
     tuningTarget: '系统调优',
-    permissionSummary: '提交转发分组权限变更',
-    permissionTarget: '分组授权',
     resetQuotaSummary: (targetLabel: string) => `重置 ${targetLabel} 配额`,
     noManagedHostForDeploy: '请先安装并注册一台受控主机，然后再应用主机设置。',
     logoutPending: '正在退出登录',
@@ -1194,8 +1192,6 @@ const shellCopy = {
     compileRoutingTarget: 'Routing policy',
     tuningSummary: 'Dispatch system tuning change',
     tuningTarget: 'System tuning',
-    permissionSummary: 'Submit forwarding-group permission change',
-    permissionTarget: 'Group authorization',
     resetQuotaSummary: (targetLabel: string) => `Reset ${targetLabel} quota`,
     noManagedHostForDeploy: 'Install and register a managed host before applying host settings.',
     logoutPending: 'Signing out',
@@ -3393,7 +3389,6 @@ export function AppShell({ ready }: AppShellProps) {
         <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-28">
           <Topbar
             title={activeNav.label}
-            subtitle={activeNav.description}
             language={language}
             quickActionScope={quickActionScope}
             showGlobalActions

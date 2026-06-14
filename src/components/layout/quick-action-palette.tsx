@@ -387,7 +387,7 @@ export function QuickActionPalette({
                     role="listitem"
                   >
                     <button
-                      aria-label={`${item.title} ${item.description}`}
+                      aria-label={item.title}
                       aria-current={item.id === activeItem?.id ? true : undefined}
                       className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55 max-sm:flex-col max-sm:items-start max-sm:gap-3"
                       onClick={() => onSelect(item)}
@@ -395,9 +395,6 @@ export function QuickActionPalette({
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-semibold text-[#07111F] dark:text-[#F4F8FF]">{item.title}</span>
-                        <span className="mt-1 block truncate text-xs text-[#35405A] dark:text-[#D8E0FF]/72">
-                          {item.description}
-                        </span>
                       </span>
                       <span className="flex flex-shrink-0 items-center gap-2 max-sm:self-stretch max-sm:flex-wrap">
                         <span className="rounded-full border border-[#FF3D18] px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-[#FF3D18] dark:border-[#FF6A3A]/35 dark:text-[#FFB197]">
@@ -445,7 +442,7 @@ export function QuickActionPalette({
         </div>
 
         <p aria-label={t.activeResult} className="sr-only" role="status">
-          {activeItem ? `${activeItem.title} ${activeItem.description}` : t.empty}
+          {activeItem ? activeItem.title : t.empty}
         </p>
 
         <div className={cn('border-t border-[#07111F]/12 px-4 py-3 dark:border-[#E2E8F0]/10', visibleItems.length === 0 && 'hidden')}>

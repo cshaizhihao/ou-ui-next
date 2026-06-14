@@ -70,6 +70,32 @@ describe('command surfaces fauvist palette', () => {
     expect(commandButton).toHaveClass('border-[#FF3D18]', 'bg-[#FF3D18]/[0.12]', 'text-[#FF3D18]');
   });
 
+  it('keeps quick action results free of visible explanatory descriptions', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="zh"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const results = screen.getByRole('list', { name: '搜索结果' });
+
+    expect(within(results).getByRole('button', { name: '端口转发网络' })).toBeInTheDocument();
+    expect(results).not.toHaveTextContent('打开 端口转发');
+    expect(results).not.toHaveTextContent('打开 订阅');
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), {
+      target: { value: '打开 订阅' }
+    });
+
+    expect(within(results).getByRole('button', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
+    expect(results).not.toHaveTextContent('打开 订阅');
+  });
+
   it('summarizes control-plane search scope before the result list', () => {
     render(
       <QuickActionPalette
@@ -205,7 +231,7 @@ describe('command surfaces fauvist palette', () => {
     );
 
     const firstResult = document.getElementById('quick-action-result-forwarding-acme') as HTMLElement;
-    const resultButton = within(firstResult).getByRole('button', { name: '端口转发网络 打开 端口转发' });
+    const resultButton = within(firstResult).getByRole('button', { name: '端口转发网络' });
     const metadataRail = within(firstResult).getByText('端口转发').parentElement;
     const commandButton = within(firstResult).getByRole('button', { name: '应用 端口转发网络' });
     const commandRail = commandButton.parentElement;
@@ -256,7 +282,7 @@ describe('command surfaces fauvist palette', () => {
     );
   });
 
-  it('frames action overlays with execution and verification boundaries', () => {
+  it('keeps action overlays compact without fixed runtime-impact filler copy', () => {
     render(
       <ActionOverlay
         confirmLabel="执行变更"
@@ -270,12 +296,15 @@ describe('command surfaces fauvist palette', () => {
     );
 
     const dialog = screen.getByRole('dialog', { name: '应用主机设置' });
-    const impact = screen.getByText('运行影响').closest('div');
 
     expect(document.querySelector('[data-action-overlay="true"]')).toHaveClass('bg-[#07111F]/55');
     expect(dialog).toHaveClass('border-[#FF3D18]', 'bg-[#FFFDF5]');
     expect(screen.getByRole('button', { name: '关闭浮窗' })).toHaveClass('border-[#1E3AFF]', 'text-[#1E3AFF]');
-    expect(impact).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.16]');
+    expect(dialog).toHaveTextContent('应用端口转发策略');
+    expect(dialog).not.toHaveTextContent('运行影响');
+    expect(dialog).not.toHaveTextContent('应用前先生成配置快照');
+    expect(dialog).not.toHaveTextContent('通知主机代理执行变更');
+    expect(dialog).not.toHaveTextContent('成功后保留回滚点');
     expect(screen.getByRole('button', { name: '取消' })).toHaveClass('border-[#07111F]/25', 'text-[#35405A]');
   });
 

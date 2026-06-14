@@ -57,15 +57,40 @@ describe('workspace chrome fauvist palette', () => {
     );
 
     const launchpad = screen.getByText('操作启动台').closest('section');
-    expect(launchpad).toHaveAttribute('data-state', 'expanded');
-    expect(document.querySelector('.ou-launchpad-panel')).toHaveClass('motion-safe:animate-[ou-panel-in_180ms_ease-out]');
-
-    fireEvent.click(screen.getByRole('button', { name: /收起/ }));
-
     expect(launchpad).toHaveAttribute('data-state', 'collapsed');
+    expect(document.querySelector('.ou-launchpad-panel')).toBeNull();
     expect(document.querySelector('.ou-launchpad-metric-rail')).toHaveClass(
       'motion-safe:animate-[ou-panel-in_180ms_ease-out]'
     );
+
+    fireEvent.click(screen.getByRole('button', { name: /展开/ }));
+
+    expect(launchpad).toHaveAttribute('data-state', 'expanded');
+    expect(document.querySelector('.ou-launchpad-panel')).toHaveClass(
+      'motion-safe:animate-[ou-panel-in_180ms_ease-out]'
+    );
+  });
+
+  it('keeps launchpad action cards compact instead of padding the dashboard first screen', () => {
+    render(
+      <OperationsLaunchpad
+        activePage="dashboard"
+        agentsCount={1}
+        forwardingRulesCount={3}
+        language="zh"
+        nodesCount={2}
+        subscriptionsCount={4}
+        onOpenQuickActions={vi.fn()}
+        onSelectPage={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /展开/ }));
+
+    const actionButton = screen.getByText('接入服务器').closest('button');
+
+    expect(actionButton).toHaveClass('min-h-[68px]', 'p-2.5');
+    expect(actionButton).not.toHaveClass('min-h-[92px]', 'p-3');
   });
 
   it('uses fauvist wayfinding on the sidebar active path and master-node status block', () => {
@@ -82,6 +107,11 @@ describe('workspace chrome fauvist palette', () => {
     );
     expect(activeItem).toHaveClass('nav-active', 'border-[#1E3AFF]', 'bg-[#DCE1FF]');
     expect(masterNode?.parentElement).toHaveClass('border-[#00A878]', 'bg-[#00A878]/[0.12]');
+    expect(sidebar).not.toHaveTextContent('运行状态');
+    expect(sidebar).not.toHaveTextContent('多主机端口转发');
+    expect(sidebar).not.toHaveTextContent('主机、节点、转发、订阅');
+    expect(sidebar.querySelector('.control-plane-nav-description')).toBeNull();
+    expect(sidebar.querySelector('.control-plane-nav-group-description')).toBeNull();
   });
 
   it('keeps topbar global controls on the same fauvist command, execute, and verify colors', () => {
@@ -99,6 +129,8 @@ describe('workspace chrome fauvist palette', () => {
     );
 
     expect(screen.getByRole('banner')).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument();
+    expect(screen.queryByText('运行状态')).not.toBeInTheDocument();
     const quickActionButton = screen.getByRole('button', { name: '打开控制面搜索' });
     expect(quickActionButton).toHaveClass('border-[#1E3AFF]', 'text-[#1E3AFF]');
     expect(within(quickActionButton).getByText('12 对象')).toBeInTheDocument();

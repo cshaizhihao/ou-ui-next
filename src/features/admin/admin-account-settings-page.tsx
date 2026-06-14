@@ -388,7 +388,6 @@ export function AdminAccountSettingsPage({
     <ResponsivePage className="admin-account-cockpit space-y-3 md:space-y-4">
       <section className="stagger-1">
         <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-[#35405A] dark:text-white/55">{t.subtitle}</p>
       </section>
 
       <WorkspaceCockpit aria-label={t.accountSettingsCockpit} className="account-safety-cockpit stagger-2">
@@ -419,7 +418,6 @@ export function AdminAccountSettingsPage({
                       <TerminalSquare className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
                       <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.resetTitle}</h4>
                     </div>
-                    <p className="mt-2 break-words text-[11px] leading-5 text-[#35405A] dark:text-white/52">{t.resetHint}</p>
                   </div>
                   <span className="rounded-full border border-[#1E3AFF]/35 bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#1E3AFF]/15 dark:text-[#DDE3FF]">
                     {activeSessions}/{operatorSessions.length}
@@ -459,7 +457,6 @@ export function AdminAccountSettingsPage({
                         <DatabaseBackup className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
                         <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.backupTitle}</h4>
                       </div>
-                      <p className="mt-2 max-w-3xl break-words text-xs text-[#35405A] dark:text-white/52">{t.backupHint}</p>
                     </div>
                     <GlowButton
                       className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold"
@@ -487,15 +484,12 @@ export function AdminAccountSettingsPage({
                     <BackupEvidenceField label={t.latestAuditHash} value={controlPlaneBackupSummary.latestAuditHash ?? 'n/a'} />
                   </div>
 
-                  <p className="mt-3 break-words text-[11px] text-[#35405A] dark:text-white/52">{t.redactionHint}</p>
-
                   {onPreflightControlPlaneBackup ? (
                     <div className="mt-4 border border-[#1E3AFF]/35 bg-[#DCE1FF]/32 p-3 dark:border-[#6B7CFF]/24 dark:bg-[#1E3AFF]/[0.07]">
                       <div className="flex items-center gap-2">
                         <FileSearch className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
                         <h5 className="text-sm font-bold text-[#07111F] dark:text-white">{t.restorePreflightTitle}</h5>
                       </div>
-                      <p className="mt-2 break-words text-xs text-[#35405A] dark:text-white/52">{t.restorePreflightHint}</p>
                       <label className="mt-4 block text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/48">
                         {t.pasteControlPlaneBackup}
                         <textarea
@@ -759,7 +753,6 @@ export function AdminAccountSettingsPage({
                       <LogOut className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
                       <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.sessions}</h4>
                     </div>
-                    <p className="mt-2 break-words text-xs text-[#35405A] dark:text-white/52">{t.sessionsHint}</p>
                   </div>
                 </div>
 

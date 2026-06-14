@@ -47,8 +47,11 @@ describe('navigation groups', () => {
     const projectRoot = process.cwd();
     const removedWorkspacePath = resolve(projectRoot, 'src/features/permissions');
     const glassCss = readFileSync(resolve(projectRoot, 'src/styles/glass.css'), 'utf8');
+    const browserSmoke = readFileSync(resolve(projectRoot, 'scripts/production-browser-smoke.cjs'), 'utf8');
 
     expect(existsSync(removedWorkspacePath)).toBe(false);
     expect(glassCss).not.toContain('permissions-safety');
+    expect(browserSmoke).not.toContain('权限与配额');
+    expect(browserSmoke).not.toContain('Group Authorization');
   });
 });

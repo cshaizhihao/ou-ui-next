@@ -5,7 +5,7 @@ import { LanguageSwitch } from '../ui/language-switch';
 
 type TopbarProps = {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   language: AppLanguage;
   quickActionScope?: {
     objects: number;
@@ -21,7 +21,6 @@ type TopbarProps = {
 
 export function Topbar({
   title,
-  subtitle,
   language,
   quickActionScope,
   showGlobalActions = true,
@@ -48,9 +47,6 @@ export function Topbar({
     <header className="control-plane-topbar flex min-h-20 flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#07111F] bg-[#FFFDF5] px-8 py-4 shadow-[0_16px_34px_-34px_rgba(7,17,31,0.42)] backdrop-blur-xl dark:border-[#6B7CFF]/25 dark:bg-[#101827] max-md:min-h-16 max-md:flex-nowrap max-md:gap-2 max-md:px-3 max-md:py-3">
       <div className="min-w-0">
         <h2 className="truncate text-sm font-semibold tracking-tight text-[#07111F] dark:text-white max-md:text-xs">{title}</h2>
-        <p className="mt-1 truncate text-[10px] font-medium text-[#35405A] dark:text-white/55 max-md:max-w-[44vw] max-md:text-[9px]">
-          {subtitle}
-        </p>
       </div>
 
       {showGlobalActions ? (

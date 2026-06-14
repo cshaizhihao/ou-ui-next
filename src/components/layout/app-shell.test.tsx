@@ -277,6 +277,25 @@ describe('AppShell', () => {
     expect((await screen.findAllByRole('heading', { name: '受控主机' })).length).toBeGreaterThan(0);
   });
 
+  it('keeps the dashboard launchpad collapsed by default so it does not pad the first screen', async () => {
+    const user = userEvent.setup();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const launchpad = await screen.findByText('操作启动台');
+    const launchpadShell = launchpad.closest('section');
+
+    expect(launchpadShell).toHaveAttribute('data-state', 'collapsed');
+    expect(document.querySelector('.ou-launchpad-panel')).toBeNull();
+    expect(document.querySelector('.ou-launchpad-metric-rail')).toBeInTheDocument();
+
+    await user.click(within(launchpadShell as HTMLElement).getByRole('button', { name: '展开' }));
+
+    expect(launchpadShell).toHaveAttribute('data-state', 'expanded');
+    expect(document.querySelector('.ou-launchpad-panel')).toBeInTheDocument();
+    expect(screen.getByText('接入服务器').closest('button')).toHaveClass('min-h-[68px]', 'p-2.5');
+  });
+
   it('routes dashboard first-screen response actions into forwarding and release evidence workspaces', async () => {
     const user = userEvent.setup();
 
@@ -538,10 +557,10 @@ describe('AppShell', () => {
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme');
 
     expect(await screen.findByRole('dialog', { name: '控制面搜索' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^端口转发网络 打开 端口转发/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '端口转发网络' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ }));
+    await user.click(screen.getByRole('button', { name: 'Acme 香港 Premium 订阅' }));
 
     expect((await screen.findAllByRole('heading', { name: '订阅管理', hidden: true })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
@@ -555,7 +574,7 @@ describe('AppShell', () => {
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'copy');
 
-    const result = await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ });
+    const result = await screen.findByRole('button', { name: 'Acme 香港 Premium 订阅' });
     const resultRow = result.closest('[role="listitem"]') as HTMLElement;
 
     expect(result).toBeInTheDocument();
@@ -627,7 +646,7 @@ describe('AppShell', () => {
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme');
 
     const subscriptionResult = await screen.findByRole('button', {
-      name: /^Acme 香港 Premium 订阅 打开 订阅/
+      name: 'Acme 香港 Premium 订阅'
     });
     expect(subscriptionResult).toHaveClass('focus-visible:ring-2');
     expect(await screen.findByRole('button', { name: '复制链接 Acme 香港 Premium 订阅' })).toHaveClass(
@@ -705,7 +724,7 @@ describe('AppShell', () => {
     await user.type(searchbox, 'Acme');
 
     expect(searchbox).toHaveValue('Acme');
-    expect(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
   });
 
   it('keeps Tab focus inside the quick action dialog', async () => {
@@ -888,13 +907,14 @@ describe('AppShell', () => {
     await user.keyboard('{Control>}k{/Control}');
     await user.type(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Mihomo Provider');
 
-    expect(screen.queryByRole('button', { name: /^端口转发网络 打开 端口转发/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '端口转发网络' })).not.toBeInTheDocument();
 
     await user.keyboard('{Escape}');
     await user.keyboard('{Control>}k{/Control}');
 
     expect(await screen.findByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' })).toHaveValue('');
-    expect(screen.getByRole('button', { name: /^概览 运行状态/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '概览' })).toBeInTheDocument();
+    expect(screen.queryByText('运行状态')).not.toBeInTheDocument();
   });
 
   it('opens the first matching quick action result with Enter', async () => {
@@ -966,7 +986,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme 香港 Premium');
-    await user.click(await screen.findByRole('button', { name: /^Acme 香港 Premium 订阅 打开 订阅/ }));
+    await user.click(await screen.findByRole('button', { name: 'Acme 香港 Premium 订阅' }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Acme 香港 Premium 订阅 订阅链接' });
     expect(within(drawer).getByText(/\/sub\/subacmehgmium\/uri\/sub_acme_hkg_premium/)).toBeInTheDocument();
@@ -981,7 +1001,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
-    await user.click(await screen.findByRole('button', { name: /^端口转发网络 打开 端口转发/ }));
+    await user.click(await screen.findByRole('button', { name: '端口转发网络' }));
 
     const drawer = await screen.findByRole('dialog', { name: '编辑转发规则' });
     expect(within(drawer).getByLabelText('监听端口')).toHaveValue(443);
@@ -998,7 +1018,7 @@ describe('AppShell', () => {
 
     await user.click(quickActionButton);
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '端口转发网络');
-    await user.click(await screen.findByRole('button', { name: /^端口转发网络 打开 端口转发/ }));
+    await user.click(await screen.findByRole('button', { name: '端口转发网络' }));
 
     expect(await screen.findByRole('dialog', { name: '编辑转发规则' })).toBeInTheDocument();
 
@@ -1017,7 +1037,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Acme Team');
-    await user.click(await screen.findByRole('button', { name: /^Acme Team 打开 客户/ }));
+    await user.click(await screen.findByRole('button', { name: 'Acme Team' }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Acme Team 客户资源' });
     expect(within(drawer).getByText('forward-hkg-443')).toBeInTheDocument();
@@ -1074,7 +1094,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
+    await user.click(await screen.findByRole('button', { name: '香港入口 Agent' }));
 
     const drawer = await screen.findByRole('dialog', { name: '应用主机设置' });
     expect(within(drawer).getByText(/香港入口 Agent/)).toBeInTheDocument();
@@ -1089,7 +1109,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
+    await user.click(await screen.findByRole('button', { name: '香港入口 Agent' }));
 
     const dialog = await screen.findByRole('dialog', { name: '应用主机设置' });
     const closeButton = within(dialog).getByRole('button', { name: '关闭浮窗' });
@@ -1114,7 +1134,7 @@ describe('AppShell', () => {
 
     await user.click(quickActionButton);
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
+    await user.click(await screen.findByRole('button', { name: '香港入口 Agent' }));
 
     const dialog = await screen.findByRole('dialog', { name: '应用主机设置' });
     const confirmButton = within(dialog).getByRole('button', { name: '确认应用' });
@@ -1134,7 +1154,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), '香港入口 Agent');
-    await user.click(await screen.findByRole('button', { name: /^香港入口 Agent 打开 服务器/ }));
+    await user.click(await screen.findByRole('button', { name: '香港入口 Agent' }));
 
     expect(await screen.findByRole('dialog', { name: '应用主机设置' })).toBeInTheDocument();
 
@@ -1150,7 +1170,7 @@ describe('AppShell', () => {
 
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Primary VLESS Gateway');
-    await user.click(await screen.findByRole('button', { name: /^Primary VLESS Gateway 打开 节点/ }));
+    await user.click(await screen.findByRole('button', { name: 'Primary VLESS Gateway' }));
 
     const drawer = await screen.findByRole('dialog', { name: '编辑客户节点' });
     expect(within(drawer).getByLabelText('客户节点名称')).toHaveValue('Primary VLESS Gateway');
@@ -1167,11 +1187,13 @@ describe('AppShell', () => {
     await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
     await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
 
-    expect(
-      await screen.findByRole('button', { name: /^ops-hkg 打开 节点 · Primary VLESS Gateway/ })
-    ).toBeInTheDocument();
+    const customerNodeResult = (await screen.findAllByRole('button', { name: 'ops-hkg' })).find((button) =>
+      button.closest('[role="listitem"]')?.textContent?.includes('客户节点')
+    );
 
-    await user.click(screen.getByRole('button', { name: /^ops-hkg 打开 节点 · Primary VLESS Gateway/ }));
+    expect(customerNodeResult).toBeInTheDocument();
+
+    await user.click(customerNodeResult as HTMLElement);
 
     const drawer = await screen.findByRole('dialog', { name: '编辑客户节点' });
     expect(within(drawer).getByLabelText('客户节点名称')).toHaveValue('Primary VLESS Gateway');

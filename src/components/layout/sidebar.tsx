@@ -69,9 +69,6 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       >
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-semibold tracking-tight">{item.label}</span>
-          <span className="mt-0.5 truncate text-[9px] font-medium opacity-60">
-            {item.description}
-          </span>
         </span>
       </button>
     );
@@ -101,7 +98,6 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
         >
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-[11px] font-semibold tracking-tight">{group.label}</span>
-            <span className="mt-0.5 truncate text-[10px] font-medium opacity-60">{group.description}</span>
           </span>
           <ChevronDown
             className={cn('h-4 w-4 flex-shrink-0 transition-transform', !isOpen && '-rotate-90')}

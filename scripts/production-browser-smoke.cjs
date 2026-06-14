@@ -441,7 +441,6 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       { label: '订阅', heading: /订阅管理|Subscription Management/i },
       { label: '分流策略', heading: /分流策略|Routing Policy/i },
       { label: '调优', heading: /系统调优|System Tuning/i },
-      { label: '权限与配额', heading: /分组授权|Group Authorization/i },
       { label: '通知', heading: /Telegram 通知|Telegram Notifications/i },
       { label: '账户', heading: /管理员账户设置|Admin Accounts/i },
       { label: '执行记录', heading: /执行记录|Execution Log/i },

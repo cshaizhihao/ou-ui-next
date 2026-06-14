@@ -18,23 +18,11 @@ type ActionOverlayProps = {
 const copy = {
   zh: {
     close: '关闭浮窗',
-    impact: '运行影响',
-    cancel: '取消',
-    items: [
-      '应用前先生成配置快照，避免直接覆盖当前主机状态。',
-      '通知主机代理执行变更，并等待主机回传确认结果。',
-      '成功后保留回滚点，便于需要时恢复上一版配置。'
-    ]
+    cancel: '取消'
   },
   en: {
     close: 'Close dialog',
-    impact: 'Runtime Impact',
-    cancel: 'Cancel',
-    items: [
-      'Create a pending configuration snapshot before touching the host agent runtime.',
-      'Record a task.created audit event and wait for the host ACK.',
-      'Mark the task rollback-ready after completion for controlled recovery.'
-    ]
+    cancel: 'Cancel'
   }
 } as const;
 
@@ -160,19 +148,6 @@ export function ActionOverlay({
           >
             <X className="h-4 w-4" />
           </button>
-        </div>
-
-        <div className="mt-6 border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-4 dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/10">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#07111F] dark:text-[#F4FFC5]">
-            {t.impact}
-          </p>
-          <div className="mt-4 space-y-3 text-xs text-[#07111F] dark:text-[#F4F8FF]">
-            {t.items.map((item, index) => (
-              <p key={item}>
-                {index + 1}. {item}
-              </p>
-            ))}
-          </div>
         </div>
 
         <div className="mt-auto flex items-center justify-end gap-3 pt-6">

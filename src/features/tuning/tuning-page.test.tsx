@@ -422,6 +422,7 @@ describe('TuningPage', () => {
     expect(cockpit).toHaveTextContent('TCP 状态');
     expect(cockpit).toHaveTextContent('调优预设');
     expect(cockpit).toHaveTextContent('下发调优预设');
+    expect(screen.queryByText('BBR 探测 / TCP 状态 / 预设下发')).not.toBeInTheDocument();
     expect(cockpit).not.toHaveTextContent('自定义 sysctl');
     expect(cockpit).not.toHaveTextContent('应用自定义 sysctl');
     expect(cockpit).not.toHaveTextContent('apply_sysctl');

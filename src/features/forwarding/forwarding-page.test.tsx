@@ -516,6 +516,27 @@ describe('ForwardingPage', () => {
     expect((workspaceShell as HTMLElement).className).not.toContain('overflow-hidden');
   });
 
+  it('reserves mobile bottom-nav clearance and uses a narrower forwarding table', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
+    const table = within(workspace).getByRole('table');
+
+    expect(workspaceShell).toHaveClass('max-md:pb-28');
+    expect(table).toHaveClass('min-w-[1040px]');
+    expect(table).not.toHaveClass('min-w-[1220px]', 'min-w-[1280px]');
+  });
+
   it('keeps the forwarding empty rule panel compact without an oversized blank card', () => {
     render(
       <ForwardingPage

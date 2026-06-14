@@ -60,7 +60,6 @@ const defaults = {
 const copy = {
   zh: {
     title: '系统调优',
-    subtitle: 'BBR 探测 / TCP 状态 / 预设下发',
     operationalOverview: '运营总览',
     operationalOverviewHint: '',
     tuningPath: '调优链路',
@@ -142,7 +141,6 @@ const copy = {
   },
   en: {
     title: 'System Tuning',
-    subtitle: 'BBR probe / TCP state / preset dispatch',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: '',
     tuningPath: 'Tuning path',
@@ -470,7 +468,6 @@ export function TuningPage({
               {t.operationalOverview}
             </p>
             <h3 className="mt-2 text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
-            <p className="mt-2 max-w-4xl text-xs leading-6 text-[#35405A] dark:text-white/50">{t.subtitle}</p>
             <div className="mt-3 flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
               <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.tuningPath}</p>
