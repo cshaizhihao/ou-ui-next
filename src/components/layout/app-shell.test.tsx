@@ -240,6 +240,22 @@ describe('AppShell', () => {
     expect((await screen.findAllByRole('heading', { name: '受控主机' })).length).toBeGreaterThan(0);
   });
 
+  it('routes dashboard first-screen response actions into forwarding and release evidence workspaces', async () => {
+    const user = userEvent.setup();
+
+    renderShell(createMockApi({ seedInventory: true, seedRuntimeEvidence: true }));
+
+    const responseRail = await screen.findByRole('region', { name: '首屏处置入口' });
+
+    await user.click(within(responseRail).getByRole('button', { name: /配置转发/ }));
+    expect((await screen.findAllByRole('heading', { name: '端口转发' })).length).toBeGreaterThan(0);
+
+    await clickNavigation(user, '概览');
+    await user.click(within(await screen.findByRole('region', { name: '首屏处置入口' })).getByRole('button', { name: /查看发布证据/ }));
+
+    expect((await screen.findAllByRole('heading', { name: '执行记录' })).length).toBeGreaterThan(0);
+  });
+
   afterEach(() => {
     act(() => {
       useAppStore.getState().reset();

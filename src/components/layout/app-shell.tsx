@@ -1475,6 +1475,14 @@ export function AppShell({ ready }: AppShellProps) {
     navigateToPage('nodes');
   }, [navigateToPage]);
 
+  const handleOpenForwardingWorkspace = useCallback(() => {
+    navigateToPage('forwarding');
+  }, [navigateToPage]);
+
+  const handleOpenReleaseEvidenceWorkspace = useCallback(() => {
+    navigateToPage('tasks');
+  }, [navigateToPage]);
+
   const handleSelectQuickAction = useCallback((item: QuickActionItem) => {
     prefetchAppShellPage(item.pageId);
 
@@ -3294,7 +3302,9 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             onExportTrafficRollupCompactions={handleExportTrafficRollupCompactions}
             onExportTrafficRollups={handleExportTrafficRollups}
+            onOpenForwardingWorkspace={handleOpenForwardingWorkspace}
             onOpenHostWorkspace={handleOpenHostWorkspace}
+            onOpenReleaseEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
             onUpdateTrafficRollupRetentionPolicy={handleUpdateTrafficRollupRetentionPolicy}
             onRefresh={() => void refreshControlPlane()}
           />
@@ -3336,7 +3346,9 @@ export function AppShell({ ready }: AppShellProps) {
     handleGenerateSubscriptionExportFile,
     handleCreateTelegramBinding,
     handleCreateTelegramChallenge,
+    handleOpenForwardingWorkspace,
     handleOpenHostWorkspace,
+    handleOpenReleaseEvidenceWorkspace,
     handlePreflightControlPlaneBackup,
     handleRevokeAgentCredential,
     handleRetryTelegramDelivery,

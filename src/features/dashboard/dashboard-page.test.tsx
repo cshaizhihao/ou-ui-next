@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import type {
   Agent,
@@ -363,6 +363,49 @@ describe('DashboardPage', () => {
     await screen.getByRole('button', { name: '刷新视图' }).click();
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers first-screen response actions for host forwarding and release evidence workspaces', async () => {
+    const onOpenHostWorkspace = vi.fn();
+    const onOpenForwardingWorkspace = vi.fn();
+    const onOpenReleaseEvidenceWorkspace = vi.fn();
+
+    renderPage({
+      onOpenHostWorkspace,
+      onOpenForwardingWorkspace,
+      onOpenReleaseEvidenceWorkspace
+    });
+
+    const responseRail = screen.getByRole('region', { name: '首屏处置入口' });
+
+    expect(responseRail).toHaveTextContent('从总览直接进入主机、转发与发布证据处置。');
+    expect(within(responseRail).getByRole('button', { name: /接入主机/ })).toBeInTheDocument();
+    expect(within(responseRail).getByRole('button', { name: /配置转发/ })).toBeInTheDocument();
+    expect(within(responseRail).getByRole('button', { name: /查看发布证据/ })).toBeInTheDocument();
+
+    await within(responseRail).getByRole('button', { name: /接入主机/ }).click();
+    await within(responseRail).getByRole('button', { name: /配置转发/ }).click();
+    await within(responseRail).getByRole('button', { name: /查看发布证据/ }).click();
+
+    expect(onOpenHostWorkspace).toHaveBeenCalledTimes(1);
+    expect(onOpenForwardingWorkspace).toHaveBeenCalledTimes(1);
+    expect(onOpenReleaseEvidenceWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('localizes first-screen response actions in English', () => {
+    renderPage({
+      language: 'en',
+      onOpenHostWorkspace: vi.fn(),
+      onOpenForwardingWorkspace: vi.fn(),
+      onOpenReleaseEvidenceWorkspace: vi.fn()
+    });
+
+    const responseRail = screen.getByRole('region', { name: 'First-screen Response' });
+
+    expect(responseRail).toHaveTextContent('Jump from overview into host, forwarding, and release evidence handling.');
+    expect(within(responseRail).getByRole('button', { name: /Enroll Hosts/ })).toBeInTheDocument();
+    expect(within(responseRail).getByRole('button', { name: /Configure Forwarding/ })).toBeInTheDocument();
+    expect(within(responseRail).getByRole('button', { name: /Review Release Evidence/ })).toBeInTheDocument();
   });
 
   it('splits the first screen into a control surface and an operations rail', () => {

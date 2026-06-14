@@ -1,6 +1,7 @@
 import {
   Activity,
   Archive,
+  ArrowRight,
   Network,
   RadioTower
 } from 'lucide-react';
@@ -45,6 +46,8 @@ type DashboardPageProps = {
   onExportTrafficRollupCompactions?: (dimension: TrafficRollup['dimension']) => void;
   onUpdateTrafficRollupRetentionPolicy?: (input: TrafficRollupRetentionPolicyUpdateInput) => void;
   onOpenHostWorkspace?: () => void;
+  onOpenForwardingWorkspace?: () => void;
+  onOpenReleaseEvidenceWorkspace?: () => void;
   onRefresh: () => void;
 };
 
@@ -161,6 +164,14 @@ const copy = {
     hostTelemetryRegion: '主机遥测',
     releaseEvidenceRegion: '发布证据',
     auditAlertRegion: '审计与告警',
+    responseActionsRegion: '首屏处置入口',
+    responseActionsTitle: '首屏处置入口',
+    responseActionsSubtitle: '从总览直接进入主机、转发与发布证据处置。',
+    responseActions: {
+      hosts: ['接入主机', '安装 Agent、检查遥测、进入受控主机工作区'],
+      forwarding: ['配置转发', '进入端口转发工作区处理端口、配额和策略'],
+      releaseEvidence: ['查看发布证据', '检查执行记录、预检、快照与回滚线索']
+    },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
     controlPlanePath: ['Master', 'Agent', 'Customer Nodes', 'Forwarding', 'Subscriptions', 'Audit Evidence'],
@@ -357,6 +368,14 @@ const copy = {
     hostTelemetryRegion: 'Host Telemetry',
     releaseEvidenceRegion: 'Release Evidence',
     auditAlertRegion: 'Audit & Alerts',
+    responseActionsRegion: 'First-screen Response',
+    responseActionsTitle: 'First-screen Response',
+    responseActionsSubtitle: 'Jump from overview into host, forwarding, and release evidence handling.',
+    responseActions: {
+      hosts: ['Enroll Hosts', 'Install Agents, inspect telemetry, and open managed hosts'],
+      forwarding: ['Configure Forwarding', 'Handle ports, quotas, and policy state in forwarding'],
+      releaseEvidence: ['Review Release Evidence', 'Inspect execution records, preflight, snapshots, and rollback cues']
+    },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
     controlPlanePath: ['Master Plane', 'Agent Runtime', 'Customer Node Mesh', 'Forwarding Fabric', 'Subscription Distribution', 'Audit Evidence Chain'],
@@ -443,6 +462,30 @@ const copy = {
   }
 } as const;
 type DashboardCopy = (typeof copy)[AppLanguage];
+type ResponseAction = {
+  id: string;
+  icon: typeof Activity;
+  label: string;
+  description: string;
+  metric: string;
+  tone: 'blue' | 'orange' | 'slate';
+  onClick: () => void;
+};
+
+const responseActionToneClasses = {
+  blue: {
+    card: 'border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] hover:bg-[#1E3AFF] hover:text-white dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-[#F4F8FF] dark:hover:bg-[#6B7CFF] dark:hover:text-[#07111F]',
+    icon: 'border-[#1E3AFF] bg-[#1E3AFF] text-white dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]'
+  },
+  orange: {
+    card: 'border-[#FF3D18] bg-[#FFD8C6]/72 text-[#07111F] hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]',
+    icon: 'border-[#FF3D18] bg-[#FF3D18] text-white dark:border-[#FF6A3A] dark:bg-[#FF6A3A] dark:text-[#07111F]'
+  },
+  slate: {
+    card: 'border-[#07111F] bg-[#D9FF00]/28 text-[#07111F] hover:bg-[#D9FF00] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#EAFF5A] dark:hover:text-[#07111F]',
+    icon: 'border-[#07111F] bg-[#07111F] text-[#D9FF00] dark:border-[#EAFF5A] dark:bg-[#EAFF5A] dark:text-[#07111F]'
+  }
+} as const;
 
 function clampPercent(value: number) {
   if (!Number.isFinite(value)) {
@@ -469,6 +512,8 @@ export function DashboardPage({
   systemAlerts,
   language,
   onOpenHostWorkspace,
+  onOpenForwardingWorkspace,
+  onOpenReleaseEvidenceWorkspace,
   onRefresh
 }: DashboardPageProps) {
   const t = copy[language];
@@ -482,6 +527,43 @@ export function DashboardPage({
   const latestConfigRevision = getLatestReleaseRecord(configRevisions, (revision) => revision.createdAt);
   const latestPreflightPlan = getLatestReleaseRecord(preflightPlans, (plan) => plan.createdAt);
   const latestRuntimeSnapshot = getLatestReleaseRecord(runtimeSnapshots, (snapshot) => snapshot.capturedAt);
+  const responseActions: ResponseAction[] = [];
+
+  if (onOpenHostWorkspace) {
+    responseActions.push({
+      id: 'hosts',
+      icon: Activity,
+      label: t.responseActions.hosts[0],
+      description: t.responseActions.hosts[1],
+      metric: `${formatNumber(onlineAgents, language)}/${formatNumber(agents.length, language)}`,
+      tone: 'blue',
+      onClick: onOpenHostWorkspace
+    });
+  }
+
+  if (onOpenForwardingWorkspace) {
+    responseActions.push({
+      id: 'forwarding',
+      icon: Network,
+      label: t.responseActions.forwarding[0],
+      description: t.responseActions.forwarding[1],
+      metric: formatNumber(activeForwarding, language),
+      tone: 'orange',
+      onClick: onOpenForwardingWorkspace
+    });
+  }
+
+  if (onOpenReleaseEvidenceWorkspace) {
+    responseActions.push({
+      id: 'releaseEvidence',
+      icon: Archive,
+      label: t.responseActions.releaseEvidence[0],
+      description: t.responseActions.releaseEvidence[1],
+      metric: formatNumber(configRevisions.length + preflightPlans.length + runtimeSnapshots.length, language),
+      tone: 'slate',
+      onClick: onOpenReleaseEvidenceWorkspace
+    });
+  }
 
   const cockpitCards = [
     {
@@ -603,6 +685,25 @@ export function DashboardPage({
               );
             })}
           </div>
+
+          {responseActions.length > 0 ? (
+            <section aria-label={t.responseActionsRegion} className="dashboard-response-actions rounded-[1.35rem] border border-[#07111F] bg-[#FFFDF5] p-4 shadow-xl shadow-slate-950/10 dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.responseActionsTitle}</h4>
+                  <p className="mt-1 max-w-[64ch] text-xs font-semibold leading-5 text-[#536078] dark:text-[#B8C2E6]/72">{t.responseActionsSubtitle}</p>
+                </div>
+                <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.24] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
+                  {formatNumber(responseActions.length, language)} routes
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {responseActions.map((action) => (
+                  <ResponseActionButton key={action.id} action={action} />
+                ))}
+              </div>
+            </section>
+          ) : null}
         </section>
 
         <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-4">
@@ -717,6 +818,38 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
         <CompactProbeBar label={t.disk} value={formatPercent(diskPercent)} percent={diskPercent} />
       </div>
     </article>
+  );
+}
+
+function ResponseActionButton({ action }: { action: ResponseAction }) {
+  const Icon = action.icon;
+  const tone = responseActionToneClasses[action.tone];
+
+  return (
+    <button
+      className={cn(
+        'group min-h-24 rounded-[1.1rem] border p-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/55 active:translate-y-0 dark:focus-visible:ring-[#6B7CFF]/60',
+        tone.card
+      )}
+      onClick={action.onClick}
+      type="button"
+    >
+      <span className="flex items-start justify-between gap-3">
+        <span className={cn('grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl border shadow-sm transition duration-200 group-hover:scale-105', tone.icon)}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="rounded-full border border-[#07111F]/25 bg-[#FFFDF5] px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+          {action.metric}
+        </span>
+      </span>
+      <span className="mt-3 flex items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-black">{action.label}</span>
+          <span className="mt-1 block text-[11px] font-semibold leading-4 opacity-72">{action.description}</span>
+        </span>
+        <ArrowRight className="h-4 w-4 flex-shrink-0 transition duration-200 group-hover:translate-x-0.5" />
+      </span>
+    </button>
   );
 }
 
