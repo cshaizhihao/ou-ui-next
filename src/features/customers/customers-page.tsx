@@ -33,14 +33,11 @@ type CustomerResourceKey = keyof typeof copy.zh.resourceLabels;
 const copy = {
   zh: {
     title: '客户管理',
-    subtitle: '客户目录由客户节点、订阅身份和端口转发归属自动汇总，受控主机只保留运行时承载关系。',
     customerCockpit: '客户资源 cockpit',
     customerControlRail: '客户控制栏',
     customerResourceWorkspace: '客户资源工作区',
     customerDirectoryPanel: '客户目录面板',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先看客户规模、受限客户和聚合用量，再进入目录筛选、复制资源或打开资源抽屉。',
-    workflowSteps: ['审阅客户覆盖', '筛选状态与来源', '复制资源 ID', '打开资源抽屉'],
     totalCustomers: '客户总数',
     activeCustomers: '正常客户',
     limitedCustomers: '受限客户',
@@ -102,15 +99,11 @@ const copy = {
   },
   en: {
     title: 'Customer Management',
-    subtitle: 'The customer directory is derived from customer nodes, subscription identities, and port-forwarding ownership while managed hosts only carry runtime placement.',
     customerCockpit: 'Customer resource cockpit',
     customerControlRail: 'Customer control rail',
     customerResourceWorkspace: 'Customer resource workspace',
     customerDirectoryPanel: 'Customer directory panel',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint:
-      'Review customer scale, limited accounts, and aggregated usage before filtering the directory, copying resources, or opening the resource drawer.',
-    workflowSteps: ['Review customer coverage', 'Filter by status and source', 'Copy resource IDs', 'Open the resource drawer'],
     totalCustomers: 'Customers',
     activeCustomers: 'Active Customers',
     limitedCustomers: 'Limited Customers',
@@ -488,17 +481,6 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
                     {t.operationalOverview}
                   </p>
                   <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-                  <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
-                    {t.workflowSteps.map((step, index) => (
-                      <span
-                        className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
-                        key={step}
-                      >
-                        {index + 1}. {step}
-                      </span>
-                    ))}
-                  </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
                       {t.totalCustomers} {formatNumber(customers.length, language)}

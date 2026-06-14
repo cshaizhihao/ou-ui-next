@@ -61,11 +61,11 @@ describe('CustomersPage', () => {
     render(<CustomersPage customers={[customer]} language="zh" />);
 
     const overview = screen.getByRole('region', { name: '运营总览' });
-    expect(within(overview).getByText(/1\. 审阅客户覆盖/)).toBeInTheDocument();
     expect(within(overview).getByText('客户总数 1')).toBeInTheDocument();
     expect(within(overview).getByText('正常客户 0')).toBeInTheDocument();
     expect(within(overview).getByText('受限客户 1')).toBeInTheDocument();
     expect(within(overview).getByText('聚合用量 9.0 GB')).toBeInTheDocument();
+    expect(within(overview).queryByText(/审阅客户覆盖/)).not.toBeInTheDocument();
 
     const row = screen.getByRole('row', { name: /客户甲/ });
 
@@ -79,6 +79,28 @@ describe('CustomersPage', () => {
     expect(within(row).getByText('订阅 1')).toBeInTheDocument();
     expect(within(row).getByText('转发 1')).toBeInTheDocument();
     expect(within(row).getByText('主机 1')).toBeInTheDocument();
+  });
+
+  it('does not render customer directory explanatory filler copy', () => {
+    const { unmount } = render(<CustomersPage customers={[customer, backupCustomer]} language="en" />);
+
+    const englishOverview = screen.getByRole('region', { name: 'Operational Overview' });
+    expect(within(englishOverview).getByText('Customers 2')).toBeInTheDocument();
+    expect(within(englishOverview).getByText('Limited Customers 1')).toBeInTheDocument();
+    expect(within(englishOverview).queryByText(/Review customer scale/i)).not.toBeInTheDocument();
+    expect(within(englishOverview).queryByText(/Review customer coverage/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/The customer directory is derived/i)).not.toBeInTheDocument();
+
+    unmount();
+
+    render(<CustomersPage customers={[customer, backupCustomer]} language="zh" />);
+
+    const chineseOverview = screen.getByRole('region', { name: '运营总览' });
+    expect(within(chineseOverview).getByText('客户总数 2')).toBeInTheDocument();
+    expect(within(chineseOverview).getByText('受限客户 1')).toBeInTheDocument();
+    expect(within(chineseOverview).queryByText(/先看客户规模/)).not.toBeInTheDocument();
+    expect(within(chineseOverview).queryByText(/审阅客户覆盖/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/客户目录由客户节点/)).not.toBeInTheDocument();
   });
 
   it('shows an empty state without seeded customer rows', () => {
