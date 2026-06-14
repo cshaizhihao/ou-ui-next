@@ -394,6 +394,59 @@ describe('SubscriptionMixerPage', () => {
     );
   });
 
+  it('surfaces subscription distribution gates on the control rail', () => {
+    renderPage({
+      subscriptionSources: [
+        source,
+        {
+          ...backupSource,
+          status: 'warning',
+          syncWarnings: ['subscription_source.cross_source_duplicates:2']
+        }
+      ],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, riskySubscriptionClient],
+      proxyProviders: [
+        {
+          id: 'provider-source-hk-premium',
+          name: '香港 Premium Provider',
+          externalSubscriptionId: source.id,
+          filter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          geoIpFilter: 'CN,HK,SG,JP,US,EU',
+          processMode: 'server',
+          overrideRule: 'source:source-hk-premium;dedupe:server-port'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          accessTokenPreview: subscriptionClient.accessTokenPreview,
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt
+        }
+      ]
+    });
+
+    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
+    const gates = within(rail).getByRole('region', { name: '订阅分发门禁' });
+
+    expect(within(gates).getByRole('group', { name: '来源同步' })).toHaveTextContent('异常');
+    expect(within(gates).getByRole('group', { name: '库存命中' })).toHaveTextContent('就绪');
+    expect(within(gates).getByRole('group', { name: '导出产物' })).toHaveTextContent('就绪');
+    expect(within(gates).getByRole('group', { name: '订阅入口' })).toHaveTextContent('异常');
+  });
+
   it('keeps subscription operation drawers on the blue-orange control palette', async () => {
     const user = userEvent.setup();
     renderPage({

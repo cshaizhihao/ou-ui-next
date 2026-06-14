@@ -423,6 +423,27 @@ const copy = {
     pipelineRiskSources: '异常来源',
     pipelineStageSummary: (sources: string, nodes: string, providers: string, exports: string, clients: string) =>
       `来源 ${sources} · 库存 ${nodes} · 代理集合 ${providers} · 导出 ${exports} · 身份 ${clients}`,
+    distributionGates: '订阅分发门禁',
+    distributionGatesHint: '发布前核对来源、库存、导出产物和订阅入口四个边界，避免把不可用订阅交给客户。',
+    distributionGateReady: '就绪',
+    distributionGateIssues: '异常',
+    distributionGateWaiting: '等待',
+    distributionSourceGate: '来源同步',
+    distributionSourceGateReady: '所有来源最近同步可用。',
+    distributionSourceGateIssues: '存在失败、暂停或同步警告。',
+    distributionSourceGateWaiting: '等待外部订阅源接入。',
+    distributionInventoryGate: '库存命中',
+    distributionInventoryGateReady: '已有可用节点进入订阅库存。',
+    distributionInventoryGateIssues: '库存节点全部不可发布。',
+    distributionInventoryGateWaiting: '等待来源同步生成节点库存。',
+    distributionExportGate: '导出产物',
+    distributionExportGateReady: '已有可发布导出文件。',
+    distributionExportGateIssues: '导出文件引用缺失的身份或代理集合。',
+    distributionExportGateWaiting: '等待导出配置生成订阅文件。',
+    distributionEntryGate: '订阅入口',
+    distributionEntryGateReady: '启用身份具备节点与格式入口。',
+    distributionEntryGateIssues: '存在配额、到期或停用守护风险。',
+    distributionEntryGateWaiting: '等待订阅身份或输出格式配置。',
     selectSource: '选择',
     selectVisibleSources: '选择当前订阅源',
     selectedSources: '已选订阅源',
@@ -694,6 +715,27 @@ const copy = {
     pipelineRiskSources: 'Risk Sources',
     pipelineStageSummary: (sources: string, nodes: string, providers: string, exports: string, clients: string) =>
       `Sources ${sources} · Inventory ${nodes} · Providers ${providers} · Exports ${exports} · Identities ${clients}`,
+    distributionGates: 'Subscription Distribution Gates',
+    distributionGatesHint: 'Check source, inventory, export artifact, and subscription-entry boundaries before publishing customer links.',
+    distributionGateReady: 'Ready',
+    distributionGateIssues: 'Issues',
+    distributionGateWaiting: 'Waiting',
+    distributionSourceGate: 'Source Sync',
+    distributionSourceGateReady: 'All sources have usable sync state.',
+    distributionSourceGateIssues: 'A source is failed, paused, or warning.',
+    distributionSourceGateWaiting: 'Waiting for external sources.',
+    distributionInventoryGate: 'Inventory Match',
+    distributionInventoryGateReady: 'Usable nodes are available in inventory.',
+    distributionInventoryGateIssues: 'Inventory nodes are not publishable.',
+    distributionInventoryGateWaiting: 'Waiting for source sync to create inventory.',
+    distributionExportGate: 'Export Artifacts',
+    distributionExportGateReady: 'Publishable export files are available.',
+    distributionExportGateIssues: 'Export files reference missing identities or providers.',
+    distributionExportGateWaiting: 'Waiting for export files.',
+    distributionEntryGate: 'Subscription Entry',
+    distributionEntryGateReady: 'Enabled identities have nodes and formats.',
+    distributionEntryGateIssues: 'Quota, expiry, disabled, or guardrail risk exists.',
+    distributionEntryGateWaiting: 'Waiting for identities or output formats.',
     selectSource: 'Select',
     selectVisibleSources: 'Select Visible Sources',
     selectedSources: 'Selected Sources',
@@ -1732,6 +1774,13 @@ type PipelineReadinessSummary = {
   };
   exportLabels: string[];
 };
+type DistributionGateState = 'ready' | 'issues' | 'waiting';
+type DistributionGate = {
+  detail: string;
+  label: string;
+  state: DistributionGateState;
+  value: string;
+};
 
 function createBulkClientImpactSummary(
   clients: SubscriptionClientIdentity[],
@@ -1860,6 +1909,135 @@ function createPipelineReadinessSummary({
     stageCounts,
     exportLabels: publishableExports.slice(0, 5).map((file) => `${file.name} · ${file.formats.map((format) => getClientFormatLabel(format, language)).join(' / ')}`)
   };
+}
+
+function hasPublishableInventoryNode(node: SubscriptionInventoryNode) {
+  return Boolean(node.rawUrl) && !['disabled', 'expired', 'quota-exceeded', 'error'].includes(node.status ?? '');
+}
+
+function hasClientDistributionRisk(client: SubscriptionClientIdentity) {
+  const expiresAtMs = Date.parse(client.expiresAt);
+  const expired = Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now();
+
+  return Boolean(client.quotaExceeded || client.runtimeDisabledByPolicy || client.guardrailReason || expired || !client.enabled);
+}
+
+function createSubscriptionDistributionGates({
+  clients,
+  exportFiles,
+  inventoryNodes,
+  providers,
+  sources,
+  t
+}: {
+  clients: SubscriptionClientIdentity[];
+  exportFiles: SubscriptionExportFile[];
+  inventoryNodes: SubscriptionInventoryNode[];
+  providers: ProxyProviderConfig[];
+  sources: SubscriptionSource[];
+  t: (typeof copy)[AppLanguage];
+}): DistributionGate[] {
+  const clientIds = new Set(clients.map((client) => client.id));
+  const providerIds = new Set(providers.map((provider) => provider.id));
+  const usableNodeCount = inventoryNodes.filter(hasPublishableInventoryNode).length;
+  const sourceHasIssue = sources.some(
+    (source) =>
+      source.status === 'warning' ||
+      source.status === 'failed' ||
+      source.status === 'paused' ||
+      Boolean(source.syncWarnings?.length)
+  );
+  const exportHasIssue = exportFiles.some(
+    (file) =>
+      !clientIds.has(file.subscriptionClientId) ||
+      file.formats.length === 0 ||
+      file.selectedProviderIds.length === 0 ||
+      file.selectedProviderIds.some((providerId) => !providerIds.has(providerId))
+  );
+  const publishableExportCount = exportFiles.filter(
+    (file) =>
+      clientIds.has(file.subscriptionClientId) &&
+      file.formats.length > 0 &&
+      file.selectedProviderIds.length > 0 &&
+      file.selectedProviderIds.every((providerId) => providerIds.has(providerId))
+  ).length;
+  const entryHasIssue = clients.some(hasClientDistributionRisk);
+  const entryReadyCount = clients.filter(
+    (client) => {
+      const outputFormats = client.outputFormats?.length ? client.outputFormats : client.formats;
+
+      return (
+        client.enabled &&
+        client.formats.length > 0 &&
+        outputFormats.length > 0 &&
+        findClientMatchingInventoryNodes(inventoryNodes, client).some(hasPublishableInventoryNode)
+      );
+    }
+  ).length;
+  const formatGateValue = (state: DistributionGateState) => {
+    if (state === 'ready') {
+      return t.distributionGateReady;
+    }
+
+    if (state === 'issues') {
+      return t.distributionGateIssues;
+    }
+
+    return t.distributionGateWaiting;
+  };
+  const sourceState: DistributionGateState = sources.length === 0 ? 'waiting' : sourceHasIssue ? 'issues' : 'ready';
+  const inventoryState: DistributionGateState =
+    usableNodeCount > 0 ? 'ready' : inventoryNodes.length > 0 ? 'issues' : 'waiting';
+  const exportState: DistributionGateState =
+    publishableExportCount > 0 ? 'ready' : exportHasIssue ? 'issues' : 'waiting';
+  const entryState: DistributionGateState = entryHasIssue ? 'issues' : entryReadyCount > 0 ? 'ready' : 'waiting';
+
+  return [
+    {
+      detail:
+        sourceState === 'ready'
+          ? t.distributionSourceGateReady
+          : sourceState === 'issues'
+            ? t.distributionSourceGateIssues
+            : t.distributionSourceGateWaiting,
+      label: t.distributionSourceGate,
+      state: sourceState,
+      value: formatGateValue(sourceState)
+    },
+    {
+      detail:
+        inventoryState === 'ready'
+          ? t.distributionInventoryGateReady
+          : inventoryState === 'issues'
+            ? t.distributionInventoryGateIssues
+            : t.distributionInventoryGateWaiting,
+      label: t.distributionInventoryGate,
+      state: inventoryState,
+      value: formatGateValue(inventoryState)
+    },
+    {
+      detail:
+        exportState === 'ready'
+          ? t.distributionExportGateReady
+          : exportState === 'issues'
+            ? t.distributionExportGateIssues
+            : t.distributionExportGateWaiting,
+      label: t.distributionExportGate,
+      state: exportState,
+      value: formatGateValue(exportState)
+    },
+    {
+      detail:
+        entryState === 'ready'
+          ? t.distributionEntryGateReady
+          : entryState === 'issues'
+            ? t.distributionEntryGateIssues
+            : t.distributionEntryGateWaiting,
+      label: t.distributionEntryGate,
+      state: entryState,
+      value: formatGateValue(entryState)
+    }
+  ];
 }
 
 function createProviderGenerationImpactSummary(
@@ -2108,6 +2286,18 @@ export function SubscriptionMixerPage({
   const exportGenerationImpactSummary = useMemo(
     () => createExportGenerationImpactSummary(selectedExportFiles, clients, language),
     [clients, language, selectedExportFiles]
+  );
+  const distributionGates = useMemo(
+    () =>
+      createSubscriptionDistributionGates({
+        clients,
+        exportFiles,
+        inventoryNodes,
+        providers,
+        sources,
+        t
+      }),
+    [clients, exportFiles, inventoryNodes, providers, sources, t]
   );
   const controlRailMetrics = useMemo(
     () => [
@@ -2852,6 +3042,8 @@ export function SubscriptionMixerPage({
                   <SummaryMetric key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} />
                 ))}
               </div>
+
+              <SubscriptionDistributionGatePanel gates={distributionGates} t={t} />
 
               <div className="flex flex-wrap gap-2">
                 <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openSourceDrawer}>
@@ -4800,6 +4992,62 @@ function PipelineReadinessPanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function SubscriptionDistributionGatePanel({
+  gates,
+  t
+}: {
+  gates: DistributionGate[];
+  t: (typeof copy)[AppLanguage];
+}) {
+  return (
+    <section
+      aria-label={t.distributionGates}
+      className="subscription-ops-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.distributionGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.distributionGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <SubscriptionDistributionGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SubscriptionDistributionGateRow({ gate }: { gate: DistributionGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<DistributionGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
+    </article>
   );
 }
 
