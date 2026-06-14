@@ -265,7 +265,6 @@ type ExportProfileDraft = {
 const copy = {
   zh: {
     title: '订阅管理',
-    subtitle: '订阅身份、外部订阅源、节点库存、代理集合、导出文件。',
     operationalOverview: '运营总览',
     operationalOverviewHint: '',
     operationalOverviewSteps: [],
@@ -377,7 +376,6 @@ const copy = {
     selectVisibleClients: '选择当前结果',
     selectedClients: '已选订阅身份',
     bulkImpactPreflight: '批量影响预检',
-    bulkImpactHint: '基于当前订阅规则、节点库存和守护状态预估批量操作影响；执行前请核对客户、节点、来源和风险。',
     bulkImpactCustomers: '受影响客户',
     bulkImpactNodes: '命中节点',
     bulkImpactSources: '覆盖来源',
@@ -390,8 +388,6 @@ const copy = {
     bulkImpactRiskPreview: '风险提示',
     bulkImpactNoRisk: '暂无守护或到期风险',
     sourceImpactPreflight: '订阅源影响预检',
-    sourceImpactHint:
-      '批量同步会触发远端抓取、解析和库存刷新；批量删除会停止来源后续同步。执行前请核对来源、节点、预算和警告。',
     sourceImpactNodes: '库存节点',
     sourceImpactRiskSources: '异常来源',
     sourceImpactWarnings: '同步警告',
@@ -401,7 +397,6 @@ const copy = {
     sourceImpactRiskPreview: '风险提示',
     sourceImpactNoRisk: '暂无同步警告或异常来源',
     exportImpactPreflight: '生成影响预检',
-    exportImpactHint: '批量生成会刷新导出配置产物并影响客户订阅入口。执行前请核对文件、身份、格式和代理集合引用。',
     exportImpactFiles: '导出文件',
     exportImpactClients: '订阅身份',
     exportImpactFormats: '输出格式',
@@ -410,7 +405,6 @@ const copy = {
     exportImpactClientPreview: '身份预览',
     exportImpactFormatPreview: '格式预览',
     providerImpactPreflight: '代理集合生成影响预检',
-    providerImpactHint: '批量生成关联导出会刷新引用所选代理集合的导出文件。执行前请核对集合、关联导出、身份和格式。',
     providerImpactProviders: '代理集合',
     providerImpactRelatedExports: '关联导出文件',
     providerImpactProviderPreview: '代理集合预览',
@@ -535,7 +529,6 @@ const copy = {
     unitGb: 'GB',
     unitDays: '天',
     sourceDrawerTitle: '导入外部订阅源',
-    sourceDrawerHint: '源会先登记为外部订阅，再同步进节点库存，之后由代理集合和导出文件引用。',
     sourceKind: '源类型',
     sourceDisplayName: '源名称',
     providerAccount: '服务商账户',
@@ -552,7 +545,6 @@ const copy = {
   },
   en: {
     title: 'Subscription Management',
-    subtitle: 'Identities, external sources, inventory, proxy providers, and export files.',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: '',
     operationalOverviewSteps: [],
@@ -666,7 +658,6 @@ const copy = {
     selectVisibleClients: 'Select Visible Identities',
     selectedClients: 'Selected Identities',
     bulkImpactPreflight: 'Bulk Impact Preflight',
-    bulkImpactHint: 'Estimate bulk-action impact from current subscription rules, node inventory, and guardrail state before executing changes.',
     bulkImpactCustomers: 'Affected Customers',
     bulkImpactNodes: 'Matched Nodes',
     bulkImpactSources: 'Covered Sources',
@@ -679,8 +670,6 @@ const copy = {
     bulkImpactRiskPreview: 'Risk Notes',
     bulkImpactNoRisk: 'No guardrail or expiry risks',
     sourceImpactPreflight: 'Source Impact Preflight',
-    sourceImpactHint:
-      'Bulk sync triggers remote fetch, parsing, and inventory refresh; bulk delete stops future sync for selected sources. Review sources, nodes, budgets, and warnings before execution.',
     sourceImpactNodes: 'Inventory Nodes',
     sourceImpactRiskSources: 'Risk Sources',
     sourceImpactWarnings: 'Sync Warnings',
@@ -690,8 +679,6 @@ const copy = {
     sourceImpactRiskPreview: 'Risk Notes',
     sourceImpactNoRisk: 'No sync warnings or source risks',
     exportImpactPreflight: 'Generation Impact Preflight',
-    exportImpactHint:
-      'Bulk generation refreshes export artifacts and affects customer subscription entry points. Review files, identities, formats, and proxy-provider references before execution.',
     exportImpactFiles: 'Export Files',
     exportImpactClients: 'Identities',
     exportImpactFormats: 'Output Formats',
@@ -700,8 +687,6 @@ const copy = {
     exportImpactClientPreview: 'Identity Preview',
     exportImpactFormatPreview: 'Format Preview',
     providerImpactPreflight: 'Provider Generation Impact Preflight',
-    providerImpactHint:
-      'Bulk related-export generation refreshes export files that reference the selected proxy providers. Review providers, related exports, identities, and formats before execution.',
     providerImpactProviders: 'Proxy Providers',
     providerImpactRelatedExports: 'Related Export Files',
     providerImpactProviderPreview: 'Provider Preview',
@@ -828,7 +813,6 @@ const copy = {
     unitGb: 'GB',
     unitDays: 'days',
     sourceDrawerTitle: 'Import External Source',
-    sourceDrawerHint: 'Sources are registered first, synchronized into inventory, then referenced by proxy providers and export files.',
     sourceKind: 'Source Kind',
     sourceDisplayName: 'Source Name',
     providerAccount: 'Provider Account',
@@ -3002,7 +2986,6 @@ export function SubscriptionMixerPage({
         <div className="flex flex-wrap items-end justify-between gap-3 border border-[#07111F]/18 bg-[#FFFDF5]/78 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
           <div className="min-w-0">
             <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
-            <p className="mt-1 text-xs font-semibold text-[#35405A] dark:text-white/58">{t.subtitle}</p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-right max-md:w-full max-md:text-left">
             <div className="border border-[#1E3AFF]/30 bg-[#DCE1FF]/55 px-3 py-2">
@@ -4572,7 +4555,6 @@ export function SubscriptionMixerPage({
       </ConfigDrawer>
 
       <ConfigDrawer
-        description={t.sourceDrawerHint}
         open={drawer.type === 'source'}
         returnFocusRef={returnFocusRef}
         title={t.sourceDrawerTitle}
@@ -5077,7 +5059,6 @@ function BulkClientImpactPreflight({
           <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.bulkImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.bulkImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.customerLabels.slice(0, 4).map((label) => (
               <span
@@ -5141,7 +5122,6 @@ function SourceImpactPreflight({
           <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.sourceImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.sourceImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.sourceLabels.slice(0, 4).map((label) => (
               <span
@@ -5198,7 +5178,6 @@ function ExportGenerationImpactPreflight({
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">
             {t.exportImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.exportImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.exportLabels.slice(0, 4).map((label) => (
               <span
@@ -5250,7 +5229,6 @@ function ProviderGenerationImpactPreflight({
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">
             {t.providerImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.providerImpactHint}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.providerLabels.slice(0, 4).map((label) => (
               <span

@@ -940,6 +940,78 @@ describe('SubscriptionMixerPage', () => {
     expect(preflight.outerHTML).not.toContain('row-span');
   });
 
+  it('keeps subscription preflights operational without explanatory filler paragraphs', async () => {
+    const user = userEvent.setup();
+    const acmeProvider: ProxyProviderConfig = {
+      id: 'provider-source-hk-premium',
+      name: '香港 Premium Provider',
+      externalSubscriptionId: source.id,
+      filter: 'premium|streaming',
+      excludeFilter: 'expired|test',
+      geoIpFilter: 'CN,HK,SG,JP,US,EU',
+      processMode: 'server',
+      overrideRule: 'source:source-hk-premium;dedupe:server-port'
+    };
+    const acmeExportFile: SubscriptionExportFile = {
+      id: 'export-sub-client-acme-profile',
+      subscriptionClientId: subscriptionClient.id,
+      exportProfileId: 'profile-acme-mihomo',
+      exportProfileName: 'Acme Mihomo',
+      subId: subscriptionClient.subId,
+      name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+      templateName: 'mihomo-compatible.yaml',
+      selectedTags: ['premium', 'streaming'],
+      selectedProviderIds: [acmeProvider.id],
+      formats: ['mihomo', 'clash'],
+      trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+      expiresAt: subscriptionClient.expiresAt,
+      accessTokenPreview: subscriptionClient.accessTokenPreview
+    };
+
+    renderPage({
+      subscriptionSources: [source],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient],
+      proxyProviders: [acmeProvider],
+      subscriptionExportFiles: [acmeExportFile]
+    });
+
+    await user.click(screen.getByRole('checkbox', { name: '选择 Acme 香港 Premium 订阅' }));
+    const clientPreflight = screen.getByRole('region', { name: '批量影响预检' });
+    expect(within(clientPreflight).getByText('受影响客户 1')).toBeInTheDocument();
+    expect(within(clientPreflight).getByText('客户预览')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批量启用' })).toBeInTheDocument();
+    expect(clientPreflight).not.toHaveTextContent('基于当前订阅规则');
+    expect(clientPreflight).not.toHaveTextContent('执行前请核对');
+
+    await user.click(screen.getByRole('button', { name: '外部订阅源' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择当前订阅源' }));
+    const sourcePreflight = screen.getByRole('region', { name: '订阅源影响预检' });
+    expect(within(sourcePreflight).getByText('已选订阅源 1')).toBeInTheDocument();
+    expect(within(sourcePreflight).getByText('来源预览')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批量同步' })).toBeInTheDocument();
+    expect(sourcePreflight).not.toHaveTextContent('批量同步会触发');
+    expect(sourcePreflight).not.toHaveTextContent('执行前请核对');
+
+    await user.click(screen.getByRole('button', { name: '代理集合' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择当前代理集合' }));
+    const providerPreflight = screen.getByRole('region', { name: '代理集合生成影响预检' });
+    expect(within(providerPreflight).getByText('代理集合 1')).toBeInTheDocument();
+    expect(within(providerPreflight).getByText('代理集合预览')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批量生成关联导出' })).toBeInTheDocument();
+    expect(providerPreflight).not.toHaveTextContent('批量生成关联导出会刷新');
+    expect(providerPreflight).not.toHaveTextContent('执行前请核对');
+
+    await user.click(screen.getByRole('button', { name: '导出文件' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择当前导出文件' }));
+    const exportPreflight = screen.getByRole('region', { name: '生成影响预检' });
+    expect(within(exportPreflight).getByText('导出文件 1')).toBeInTheDocument();
+    expect(within(exportPreflight).getByText('导出预览')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '批量生成' })).toBeInTheDocument();
+    expect(exportPreflight).not.toHaveTextContent('批量生成会刷新');
+    expect(exportPreflight).not.toHaveTextContent('执行前请核对');
+  });
+
   it('submits external subscription source sync policy and miaomiaowu-style source rules', async () => {
     const user = userEvent.setup({ delay: null });
     const onImportSource = vi.fn();
