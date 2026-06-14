@@ -693,6 +693,68 @@ describe('ForwardingPage', () => {
     expect(onCreateForwarding).not.toHaveBeenCalled();
   });
 
+  it('surfaces per-rule runtime evidence before row actions', () => {
+    const acmeRule = createRule({
+      id: 'forward-acme-game',
+      name: 'Acme Game Forward',
+      ownerName: 'Acme',
+      listenPort: 2443,
+      targetAddress: '10.0.0.20',
+      targetPort: 2443,
+      quotaExceeded: true,
+      guardrailReason: 'forward_rule_quota_exceeded',
+      bindings: [
+        {
+          agentId: 'agent-hkg-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.0.0.20',
+          targetPort: 2443,
+          protocol: 'tcp+udp',
+          status: 'allocated',
+          runtimeServiceNames: ['ou-forward-acme-hkg.service']
+        },
+        {
+          agentId: 'agent-lax-01',
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.0.0.20',
+          targetPort: 2443,
+          protocol: 'tcp+udp',
+          status: 'paused',
+          runtimeServiceNames: ['ou-forward-acme-lax.service']
+        }
+      ],
+      bindingCount: 2
+    });
+
+    render(
+      <ForwardingPage
+        agents={[
+          createAgent('agent-hkg-01', 'HKG Entry'),
+          createAgent('agent-lax-01', 'LAX Entry')
+        ]}
+        language="en"
+        rules={[acmeRule]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const evidence = screen.getByRole('group', { name: 'Runtime evidence for Acme Game Forward' });
+    expect(within(evidence).getByText('Runtime Evidence')).toBeInTheDocument();
+    expect(within(evidence).getByText('Bindings 2')).toBeInTheDocument();
+    expect(within(evidence).getByText('Next Action Deploy / Pause')).toBeInTheDocument();
+    expect(within(evidence).getByText('Guardrail forward_rule_quota_exceeded')).toBeInTheDocument();
+    expect(within(evidence).getByText('ou-forward-acme-hkg.service')).toBeInTheDocument();
+    expect(within(evidence).getByText('ou-forward-acme-lax.service')).toBeInTheDocument();
+    expect(evidence.outerHTML).toContain('blue-');
+    expect(evidence.outerHTML).toContain('orange-');
+    expect(evidence.outerHTML).not.toContain('purple-');
+    expect(evidence.outerHTML).not.toContain('indigo-');
+  });
+
   it('confirms row runtime and delete actions before changing a forwarding rule', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();

@@ -220,6 +220,13 @@ const copy = {
     forwardingBulkImpactBindingPreview: '绑定预览',
     forwardingBulkImpactRiskPreview: '风险提示',
     forwardingBulkImpactNoRisk: '暂无守护或端口风险',
+    runtimeEvidence: '运行时证据',
+    runtimeEvidenceForRule: (name: string) => `${name} 的运行时证据`,
+    runtimeEvidenceBindings: (count: string) => `绑定 ${count}`,
+    runtimeEvidenceNextAction: (action: string) => `下一步 ${action}`,
+    runtimeEvidenceGuardrail: (reason: string) => `守护 ${reason}`,
+    runtimeEvidenceNoGuardrail: '守护正常',
+    runtimeEvidenceNoService: '尚无运行时服务',
     confirmBulkDelete: (count: string) => `确认删除 ${count} 条规则`,
     confirmBulkMigrateEntry: (count: string, agent: string) => `确认将 ${count} 条已选转发规则迁移到 ${agent}？`,
     confirmBulkRuntimeAction: (action: string, count: string) => `确认${action} ${count} 条转发规则？`,
@@ -362,6 +369,13 @@ const copy = {
     forwardingBulkImpactBindingPreview: 'Binding Preview',
     forwardingBulkImpactRiskPreview: 'Risk Notes',
     forwardingBulkImpactNoRisk: 'No guardrail or port risks',
+    runtimeEvidence: 'Runtime Evidence',
+    runtimeEvidenceForRule: (name: string) => `Runtime evidence for ${name}`,
+    runtimeEvidenceBindings: (count: string) => `Bindings ${count}`,
+    runtimeEvidenceNextAction: (action: string) => `Next Action ${action}`,
+    runtimeEvidenceGuardrail: (reason: string) => `Guardrail ${reason}`,
+    runtimeEvidenceNoGuardrail: 'Guardrail clear',
+    runtimeEvidenceNoService: 'No runtime service yet',
     confirmBulkDelete: (count: string) => `Confirm Delete ${count} Rules`,
     confirmBulkMigrateEntry: (count: string, agent: string) =>
       `Migrate ${count} selected forwarding rule${count === '1' ? '' : 's'} to ${agent}?`,
@@ -1431,6 +1445,11 @@ export function ForwardingPage({
                                   {rule.guardrailReason}
                                 </p>
                               ) : null}
+                              <ForwardingRuntimeEvidenceCard
+                                language={language}
+                                rule={rule}
+                                t={t}
+                              />
                             </div>
                           </div>
                         </td>
@@ -1824,6 +1843,78 @@ function ForwardingBulkImpactPreview({
           </p>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ForwardingRuntimeEvidenceCard({
+  language,
+  rule,
+  t
+}: {
+  language: AppLanguage;
+  rule: ForwardingRuleView;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  const runtimeServices = Array.from(
+    new Set(rule.bindings.flatMap((binding) => binding.runtimeServiceNames ?? []))
+  );
+  const nextAction = rule.enabled
+    ? `${t.applyPolicy} / ${t.pausePolicy}`
+    : t.resumePolicy;
+  const guardrailText = rule.guardrailReason
+    ? t.runtimeEvidenceGuardrail(rule.guardrailReason)
+    : rule.quotaExceeded
+      ? t.runtimeEvidenceGuardrail(t.quotaExceeded)
+      : rule.runtimeDisabledByPolicy
+        ? t.runtimeEvidenceGuardrail(t.quotaSuspended)
+        : t.runtimeEvidenceNoGuardrail;
+  const hasRisk = Boolean(rule.guardrailReason || rule.quotaExceeded || rule.runtimeDisabledByPolicy);
+
+  return (
+    <div
+      aria-label={t.runtimeEvidenceForRule(rule.name)}
+      className="mt-3 max-w-[19rem] rounded-xl border border-blue-100 bg-blue-50/55 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-blue-300/15 dark:bg-blue-400/[0.06]"
+      role="group"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
+          {t.runtimeEvidence}
+        </span>
+        <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-black text-blue-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-blue-100">
+          {t.runtimeEvidenceBindings(formatNumber(rule.bindingCount, language))}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black">
+        <span className="rounded-full bg-white px-2 py-1 text-slate-600 dark:bg-white/[0.05] dark:text-white/65">
+          {t.runtimeEvidenceNextAction(nextAction)}
+        </span>
+        <span
+          className={
+            hasRisk
+              ? 'rounded-full bg-orange-50 px-2 py-1 text-orange-700 dark:bg-orange-400/10 dark:text-orange-200'
+              : 'rounded-full bg-white px-2 py-1 text-slate-600 dark:bg-white/[0.05] dark:text-white/65'
+          }
+        >
+          {guardrailText}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1">
+        {(runtimeServices.length > 0 ? runtimeServices : [t.runtimeEvidenceNoService]).slice(0, 3).map((service) => (
+          <p
+            className="truncate font-mono text-[10px] font-semibold text-slate-600 dark:text-white/55"
+            key={service}
+            title={service}
+          >
+            {service}
+          </p>
+        ))}
+      </div>
+      {runtimeServices.length > 3 ? (
+        <p className="mt-1 text-[10px] font-bold text-slate-500 dark:text-white/40">
+          +{formatNumber(runtimeServices.length - 3, language)}
+        </p>
+      ) : null}
     </div>
   );
 }
