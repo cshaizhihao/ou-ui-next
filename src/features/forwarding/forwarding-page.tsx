@@ -1239,13 +1239,13 @@ export function ForwardingPage({
   return (
     <ResponsivePage>
       <ResponsiveSection className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+        <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
       </ResponsiveSection>
 
       <WorkspaceCockpit aria-label={t.forwardingCockpit} className="forwarding-ops-cockpit stagger-2">
         <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside
-          className="forwarding-control-rail forwarding-ops-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+          className="forwarding-control-rail forwarding-ops-rail border-b border-[#07111F]/20 bg-[#FDFFF1] p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
           aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
           role="complementary"
         >
@@ -1257,8 +1257,8 @@ export function ForwardingPage({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="max-w-2xl">
                 <div className="flex items-center gap-2">
-                  <Router className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+                  <Router className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+                  <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.operationalOverview}</p>
                 </div>
               </div>
               <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
@@ -1272,9 +1272,9 @@ export function ForwardingPage({
                 <OverviewMetric key={metric.label} {...metric} />
               ))}
             </div>
-            <div className="mt-2 border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.billingDirection}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
+            <div className="mt-2 border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{t.billingDirection}</p>
+              <p className="mt-2 text-sm font-semibold text-[#07111F] dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
             </div>
           </section>
 
@@ -1282,7 +1282,7 @@ export function ForwardingPage({
 
           {lastEntryEndpoints.length > 0 ? (
             <section
-              className="forwarding-entry-endpoint-status stagger-2 border border-emerald-200 bg-emerald-50/80 p-3 text-sm text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
+              className="forwarding-entry-endpoint-status stagger-2 border border-[#00A878] bg-[#00A878]/10 p-3 text-sm text-[#07111F] dark:border-[#00D49A]/25 dark:bg-[#00A878]/10 dark:text-[#D7FFF3]"
               role="status"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1294,7 +1294,7 @@ export function ForwardingPage({
                   <div className="mt-2 flex flex-wrap gap-2">
                     {lastEntryEndpoints.map((endpoint) => (
                       <code
-                        className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-xs font-bold text-emerald-800 dark:border-emerald-300/20 dark:bg-white/[0.06] dark:text-emerald-100"
+                        className="border border-[#00A878] bg-[#FFFDF5] px-2.5 py-1 font-mono text-xs font-bold text-[#07111F] dark:border-[#00D49A]/25 dark:bg-white/[0.06] dark:text-[#D7FFF3]"
                         key={endpoint}
                       >
                         {endpoint}
@@ -1303,7 +1303,7 @@ export function ForwardingPage({
                   </div>
                 </div>
                 <button
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-bold text-emerald-700 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/25 dark:bg-white/[0.06] dark:text-emerald-100 dark:hover:bg-emerald-300/10"
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-[#00A878] bg-[#FFFDF5] px-3 text-xs font-bold text-[#07111F] transition hover:-translate-y-0.5 hover:bg-[#00A878] hover:text-white dark:border-[#00D49A]/25 dark:bg-white/[0.06] dark:text-[#D7FFF3] dark:hover:bg-[#00A878]/20"
                   onClick={copyLastEntryEndpoints}
                   type="button"
                 >
@@ -1329,24 +1329,24 @@ export function ForwardingPage({
             <EmptyState label={t.noRules} />
           ) : (
             <>
-            <div className="forwarding-rule-toolbar border-b border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/[0.02]">
+            <div className="forwarding-rule-toolbar border-b border-[#07111F]/20 bg-[#EAF3D1]/55 p-3 dark:border-white/10 dark:bg-white/[0.02]">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.3fr)]">
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.searchRules}</span>
+                <label className="block border border-[#07111F]/20 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{t.searchRules}</span>
                   <input
                     aria-label={t.searchRules}
-                    className="mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                    className="mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/60 dark:text-white dark:placeholder:text-white/35"
                     onChange={(event) => setRuleSearch(event.target.value)}
                     placeholder={t.searchRulesPlaceholder}
                     type="search"
                     value={ruleSearch}
                   />
                 </label>
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.ruleStatus}</span>
+                <label className="block border border-[#07111F]/20 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{t.ruleStatus}</span>
                   <select
                     aria-label={t.ruleStatus}
-                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                     onChange={(event) => setRuleStatusFilter(event.target.value as RuleStatusFilter)}
                     value={ruleStatusFilter}
                   >
@@ -1362,7 +1362,7 @@ export function ForwardingPage({
                 </label>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                   {t.matchingRules} {filteredRules.length} / {visibleRules.length}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1370,18 +1370,18 @@ export function ForwardingPage({
                     {t.selectedRules} {selectedRules.length}
                   </span>
                   <button
-                    className="rounded-lg border border-[#07111F]/25 px-3 py-2 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF] hover:bg-[#FFFDF5] hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    className="rounded-full border border-[#07111F]/25 px-3 py-2 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF] hover:bg-[#FFFDF5] hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                     disabled={filteredRules.length === 0}
                     onClick={toggleVisibleRuleSelection}
                     type="button"
                   >
                     {t.selectVisibleRules}
                   </button>
-                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-2.5 text-xs font-bold text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                  <label className="inline-flex min-h-9 items-center gap-2 rounded-full border border-[#07111F]/25 bg-[#FFFDF5] px-2.5 text-xs font-bold text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
                     <span className="whitespace-nowrap">{t.bulkMigrateEntryHost}</span>
                     <select
                       aria-label={t.bulkMigrateEntryHost}
-                      className="ou-select min-h-7 min-w-28 bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                      className="ou-select min-h-7 min-w-28 bg-transparent text-xs font-black text-[#07111F] outline-none dark:text-white"
                       onChange={(event) => setBulkMigrateEntryNodeId(event.target.value)}
                       value={bulkMigrateEntryNodeId}
                     >
@@ -1393,7 +1393,7 @@ export function ForwardingPage({
                     </select>
                   </label>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#FF3D18] bg-[#FFFDF5] px-3 text-xs font-bold text-[#FF3D18] transition hover:-translate-y-0.5 hover:bg-[#FF3D18] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-[#FFFDF5] disabled:hover:text-[#FF3D18] dark:border-[#FF6A3A]/45 dark:bg-white/[0.04] dark:text-[#FF6A3A] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-[#FF3D18] bg-[#FFFDF5] px-3 text-xs font-bold text-[#FF3D18] transition hover:-translate-y-0.5 hover:bg-[#FF3D18] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-[#FFFDF5] disabled:hover:text-[#FF3D18] dark:border-[#FF6A3A]/45 dark:bg-white/[0.04] dark:text-[#FF6A3A] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]"
                     disabled={selectedRules.length === 0 || !bulkMigrateEntryNodeId || hasBulkMigrationConflict || taskMutationBusy}
                     onClick={migrateSelectedRulesToEntryNode}
                     type="button"
@@ -1402,7 +1402,7 @@ export function ForwardingPage({
                     {t.bulkMigrateEntry}
                   </button>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-[#07111F]/25 px-3 text-xs font-bold text-[#35405A] transition hover:bg-[#FFFDF5] hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                     disabled={selectedRules.length === 0 || taskMutationBusy}
                     onClick={() => runSelectedTasks('apply')}
                     type="button"
@@ -1411,7 +1411,7 @@ export function ForwardingPage({
                     {t.bulkApply}
                   </button>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-[#07111F]/25 px-3 text-xs font-bold text-[#35405A] transition hover:bg-[#FFFDF5] hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                     disabled={selectedRules.length === 0 || taskMutationBusy}
                     onClick={() => runSelectedTasks('pause')}
                     type="button"
@@ -1420,7 +1420,7 @@ export function ForwardingPage({
                     {t.bulkPause}
                   </button>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-[#07111F]/25 px-3 text-xs font-bold text-[#35405A] transition hover:bg-[#FFFDF5] hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                     disabled={selectedRules.length === 0 || taskMutationBusy}
                     onClick={() => runSelectedTasks('resume')}
                     type="button"
@@ -1429,7 +1429,7 @@ export function ForwardingPage({
                     {t.bulkResume}
                   </button>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400/30 dark:text-red-200 dark:hover:bg-red-400/10"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400/30 dark:text-red-200 dark:hover:bg-red-400/10"
                     disabled={selectedRules.length === 0 || taskMutationBusy}
                     onClick={bulkDeleteConfirming ? deleteSelectedRules : () => setBulkDeleteConfirming(true)}
                     type="button"
@@ -1469,13 +1469,13 @@ export function ForwardingPage({
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1220px] text-left">
-                  <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
+                  <thead className="bg-[#07111F] text-[10px] font-bold uppercase tracking-widest text-[#FDFFF1] dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
                       <th className="px-3 py-2.5">
                         <input
                           aria-label={t.selectVisibleRules}
                           checked={filteredRules.length > 0 && selectedVisibleCount === filteredRules.length}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                          className="h-4 w-4 rounded border-[#FDFFF1]/60 text-[#1E3AFF] accent-[#1E3AFF]"
                           onChange={toggleVisibleRuleSelection}
                           type="checkbox"
                         />
@@ -1506,7 +1506,7 @@ export function ForwardingPage({
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-start gap-3">
-                            <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
+                            <span className="forwarding-rule-icon mt-1 border border-[#1E3AFF] bg-[#DCE1FF] p-2 text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/10 dark:text-primary">
                               <ArrowRightLeft className="h-4 w-4" />
                             </span>
                             <div>
@@ -2262,12 +2262,12 @@ function OverviewMetric({ label, value, detail, tone }: ForwardingOverviewMetric
   const labelClass =
     tone === 'signal'
       ? 'text-[#C9220C] dark:text-[#FFB197]'
-      : 'text-slate-500 dark:text-white/45';
+      : 'text-[#35405A] dark:text-white/45';
   return (
     <article aria-label={label} role="group" className={`forwarding-overview-metric ou-surface-muted min-h-[76px] p-3 ${metricClass}`}>
       <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelClass}`}>{label}</p>
-      <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{value}</p>
-      <p className="mt-1.5 text-xs leading-5 text-slate-600 dark:text-white/60">{detail}</p>
+      <p className="mt-1 text-xl font-black text-[#07111F] dark:text-white">{value}</p>
+      <p className="mt-1.5 text-xs leading-5 text-[#35405A] dark:text-white/60">{detail}</p>
     </article>
   );
 }

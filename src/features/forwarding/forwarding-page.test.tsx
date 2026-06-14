@@ -333,6 +333,50 @@ describe('ForwardingPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('keeps forwarding first-screen controls on the design-system palette without generic admin color drift', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Forwarding control rail' });
+    const overviewPanel = within(rail).getByRole('region', { name: 'Operational Overview' });
+    const endpointStatus = cockpit.querySelector('.forwarding-entry-endpoint-status');
+    const rulePanel = within(cockpit).getByRole('complementary', { name: 'Rule management panel' });
+    const ruleToolbar = rulePanel.querySelector('.forwarding-rule-toolbar');
+    const firstRuleIcon = rulePanel.querySelector('.forwarding-rule-icon');
+    const tableHead = rulePanel.querySelector('thead');
+
+    expect(rail).toHaveClass('border-[#07111F]/20', 'bg-[#FDFFF1]');
+    expect(overviewPanel.outerHTML).toContain('#1E3AFF');
+    expect(ruleToolbar).toHaveClass('border-[#07111F]/20', 'bg-[#EAF3D1]/55');
+    expect(firstRuleIcon).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]', 'text-[#1E3AFF]');
+    expect(tableHead).toHaveClass('bg-[#07111F]', 'text-[#FDFFF1]');
+
+    const firstScreenHtml = [
+      rail.outerHTML,
+      overviewPanel.outerHTML,
+      endpointStatus?.outerHTML ?? '',
+      ruleToolbar?.outerHTML ?? '',
+      tableHead?.outerHTML ?? ''
+    ].join('');
+
+    expect(firstScreenHtml).not.toContain('bg-slate');
+    expect(firstScreenHtml).not.toContain('text-slate');
+    expect(firstScreenHtml).not.toContain('border-slate');
+    expect(firstScreenHtml).not.toContain('bg-blue');
+    expect(firstScreenHtml).not.toContain('text-blue');
+    expect(firstScreenHtml).not.toContain('emerald-');
+    expect(firstScreenHtml).not.toContain('rounded-lg');
+  });
+
   it('keeps the forwarding cockpit compact without waterfall card layout patterns', () => {
     render(
       <ForwardingPage
