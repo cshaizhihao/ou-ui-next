@@ -95,6 +95,44 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('surfaces Telegram notification acceptance gates on the control rail', () => {
+    const settings = {
+      ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+      enabled: true,
+      botTokenSet: true,
+      adminChatIds: ['999000111'],
+      lastTestAt: '2026-06-06T10:03:00.000Z'
+    };
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[
+          createDelivery({ id: 'telegram-delivery-failed', status: 'failed' }),
+          createDelivery({ id: 'telegram-delivery-delivered', status: 'delivered' })
+        ]}
+        language="en"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Telegram operations cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Telegram control rail' });
+    const gates = within(rail).getByRole('region', { name: 'Notification Acceptance Gates' });
+
+    expect(gates).toHaveClass('telegram-acceptance-gate-panel');
+    expect(gates.outerHTML).toContain('#1E3AFF');
+    expect(gates.outerHTML).toContain('#FF3D18');
+    expect(gates.outerHTML).toContain('#D9FF00');
+    expect(gates.outerHTML).toContain('#00A878');
+    expect(within(gates).getByRole('group', { name: 'Bot Credential' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Policy Coverage' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Binding Coverage' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Delivery Health' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Smoke Evidence' })).toHaveTextContent('Ready');
+  });
+
   it('frames Telegram as a notification control surface while preserving credential controls', () => {
     const settings = {
       ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),

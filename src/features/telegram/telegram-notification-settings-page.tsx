@@ -50,6 +50,14 @@ type OverviewMetricItem = {
   tone?: 'signal';
   value: string;
 };
+type TelegramAcceptanceGateState = 'ready' | 'issues' | 'waiting';
+
+type TelegramAcceptanceGate = {
+  detail: string;
+  label: string;
+  state: TelegramAcceptanceGateState;
+  value: string;
+};
 
 const copy = {
   zh: {
@@ -88,6 +96,27 @@ const copy = {
     telegramOperationsCockpit: 'Telegram 运营 cockpit',
     telegramControlRail: 'Telegram 控制轨',
     notificationDeliveryWorkspace: '通知投递工作区',
+    notificationAcceptanceGates: '通知验收门禁',
+    notificationAcceptanceGatesHint: '把凭据、策略、绑定、投递健康和烟测证据压缩到同一条放行线。',
+    botCredentialGate: 'Bot 凭据',
+    botCredentialGateDetail: 'Token 与管理员 Chat 必须同时就绪',
+    policyCoverageGate: '策略覆盖',
+    policyCoverageGateDetail: (enabledCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(enabledCount, language)} 开启 / ${formatNumber(totalCount, language)} 总策略`,
+    bindingCoverageGate: '绑定覆盖',
+    bindingCoverageGateDetail: (bindingCount: number, language: AppLanguage) =>
+      `${formatNumber(bindingCount, language)} 个客户绑定可接收通知`,
+    deliveryHealthGate: '投递健康',
+    deliveryHealthGateDetail: (failedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(failedCount, language)} 失败 / ${formatNumber(totalCount, language)} 总投递`,
+    smokeEvidenceGate: '烟测证据',
+    smokeEvidenceGateDetail: (lastTestAt: string | undefined, language: AppLanguage) =>
+      lastTestAt ? formatDateTime(lastTestAt, language) : '尚未提交通知烟测',
+    gateStateLabel: {
+      ready: '就绪',
+      issues: '异常',
+      waiting: '等待'
+    },
     policyAndBinding: '策略与绑定'
   },
   en: {
@@ -126,6 +155,27 @@ const copy = {
     telegramOperationsCockpit: 'Telegram operations cockpit',
     telegramControlRail: 'Telegram control rail',
     notificationDeliveryWorkspace: 'Notification delivery workspace',
+    notificationAcceptanceGates: 'Notification Acceptance Gates',
+    notificationAcceptanceGatesHint: 'Collapse credential, policy, binding, delivery health, and smoke evidence into one release line.',
+    botCredentialGate: 'Bot Credential',
+    botCredentialGateDetail: 'Token and admin chat must both be ready',
+    policyCoverageGate: 'Policy Coverage',
+    policyCoverageGateDetail: (enabledCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(enabledCount, language)} enabled / ${formatNumber(totalCount, language)} total policies`,
+    bindingCoverageGate: 'Binding Coverage',
+    bindingCoverageGateDetail: (bindingCount: number, language: AppLanguage) =>
+      `${formatNumber(bindingCount, language)} customer bindings can receive notifications`,
+    deliveryHealthGate: 'Delivery Health',
+    deliveryHealthGateDetail: (failedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(failedCount, language)} failed / ${formatNumber(totalCount, language)} total deliveries`,
+    smokeEvidenceGate: 'Smoke Evidence',
+    smokeEvidenceGateDetail: (lastTestAt: string | undefined, language: AppLanguage) =>
+      lastTestAt ? formatDateTime(lastTestAt, language) : 'No notification smoke submitted yet',
+    gateStateLabel: {
+      ready: 'Ready',
+      issues: 'Issues',
+      waiting: 'Waiting'
+    },
     policyAndBinding: 'Policy and Binding'
   }
 } as const;
@@ -142,6 +192,68 @@ function settingsToDraft(settings: TelegramBotSettings): SettingsDraft {
     botToken: '',
     chatId: settings.adminChatIds.join(', ')
   };
+}
+
+function createTelegramAcceptanceGates({
+  bindings,
+  deliveries,
+  enabledPolicyCount,
+  failedDeliveryCount,
+  language,
+  policies,
+  settings,
+  t
+}: {
+  bindings: TelegramBindingReadModel[];
+  deliveries: TelegramNotificationDelivery[];
+  enabledPolicyCount: number;
+  failedDeliveryCount: number;
+  language: AppLanguage;
+  policies: TelegramNotificationPolicy[];
+  settings: TelegramBotSettings;
+  t: (typeof copy)[AppLanguage];
+}): TelegramAcceptanceGate[] {
+  const credentialState: TelegramAcceptanceGateState =
+    settings.enabled && settings.botTokenSet && settings.adminChatIds.length > 0 ? 'ready' : 'issues';
+  const policyState: TelegramAcceptanceGateState =
+    policies.length === 0 ? 'waiting' : enabledPolicyCount > 0 ? 'ready' : 'issues';
+  const bindingState: TelegramAcceptanceGateState = bindings.length > 0 ? 'ready' : 'waiting';
+  const deliveryState: TelegramAcceptanceGateState =
+    failedDeliveryCount > 0 ? 'issues' : deliveries.length > 0 ? 'ready' : 'waiting';
+  const smokeState: TelegramAcceptanceGateState = settings.lastTestAt ? 'ready' : 'waiting';
+
+  return [
+    {
+      detail: t.botCredentialGateDetail,
+      label: t.botCredentialGate,
+      state: credentialState,
+      value: t.gateStateLabel[credentialState]
+    },
+    {
+      detail: t.policyCoverageGateDetail(enabledPolicyCount, policies.length, language),
+      label: t.policyCoverageGate,
+      state: policyState,
+      value: t.gateStateLabel[policyState]
+    },
+    {
+      detail: t.bindingCoverageGateDetail(bindings.length, language),
+      label: t.bindingCoverageGate,
+      state: bindingState,
+      value: t.gateStateLabel[bindingState]
+    },
+    {
+      detail: t.deliveryHealthGateDetail(failedDeliveryCount, deliveries.length, language),
+      label: t.deliveryHealthGate,
+      state: deliveryState,
+      value: t.gateStateLabel[deliveryState]
+    },
+    {
+      detail: t.smokeEvidenceGateDetail(settings.lastTestAt, language),
+      label: t.smokeEvidenceGate,
+      state: smokeState,
+      value: t.gateStateLabel[smokeState]
+    }
+  ];
 }
 
 export function TelegramNotificationSettingsPage({
@@ -169,6 +281,20 @@ export function TelegramNotificationSettingsPage({
   const enabledPolicyCount = policies.filter((policy) => policy.enabled).length;
   const deliveryReady = settings.enabled && settings.botTokenSet && settings.adminChatIds.length > 0;
   const latestDelivery = sortedDeliveries[0];
+  const acceptanceGates = useMemo(
+    () =>
+      createTelegramAcceptanceGates({
+        bindings,
+        deliveries,
+        enabledPolicyCount,
+        failedDeliveryCount,
+        language,
+        policies,
+        settings,
+        t
+      }),
+    [bindings, deliveries, enabledPolicyCount, failedDeliveryCount, language, policies, settings, t]
+  );
   const overviewMetrics: OverviewMetricItem[] = [
     {
       detail: deliveryReady ? t.deliveryReady : t.deliveryBlocked,
@@ -285,6 +411,8 @@ export function TelegramNotificationSettingsPage({
                   value={formatNumber(settings.adminChatIds.length, language)}
                 />
               </div>
+
+              <TelegramAcceptanceGatePanel gates={acceptanceGates} t={t} />
 
               <form className="mt-5 space-y-4" onSubmit={submitSettings}>
                 <label className="block rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
@@ -521,6 +649,62 @@ function ControlRailMetric({
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
       <p className="mt-1 truncate text-xs font-black">{value}</p>
     </div>
+  );
+}
+
+function TelegramAcceptanceGatePanel({
+  gates,
+  t
+}: {
+  gates: TelegramAcceptanceGate[];
+  t: (typeof copy)[AppLanguage];
+}) {
+  return (
+    <section
+      aria-label={t.notificationAcceptanceGates}
+      className="telegram-acceptance-gate-panel mt-5 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.notificationAcceptanceGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.notificationAcceptanceGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <TelegramAcceptanceGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TelegramAcceptanceGateRow({ gate }: { gate: TelegramAcceptanceGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<TelegramAcceptanceGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
+    </article>
   );
 }
 
