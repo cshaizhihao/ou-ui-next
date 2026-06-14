@@ -499,7 +499,7 @@ export function DashboardPage({
       value: formatNumber(subscriptions.length, language),
       detail: language === 'zh' ? '订阅包' : 'bundles',
       icon: Archive,
-      tone: 'from-amber-400 to-orange-400'
+      tone: 'from-orange-500 to-orange-400'
     }
   ];
 
@@ -677,7 +677,7 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
     agent.status === 'online'
       ? 'bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.75)]'
       : agent.status === 'degraded'
-        ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]'
+        ? 'bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.7)]'
         : 'bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.7)]';
 
   return (

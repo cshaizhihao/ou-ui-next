@@ -318,7 +318,24 @@ describe('DashboardPage', () => {
     expect(markup).not.toContain('cyan-');
     expect(markup).not.toContain('purple-');
     expect(markup).not.toContain('violet-');
+    expect(markup).not.toContain('amber-');
+    expect(markup).not.toContain('rose-');
     expect(markup).not.toContain('background-clip:text');
+  });
+
+  it('uses orange signal tone for degraded host probes without amber drift', () => {
+    renderPage({
+      agents: [
+        {
+          ...createAgent(),
+          status: 'degraded'
+        }
+      ]
+    });
+
+    const hostTelemetry = screen.getByRole('region', { name: '主机遥测' });
+    expect(hostTelemetry.outerHTML).toContain('orange-');
+    expect(hostTelemetry.outerHTML).not.toContain('amber-');
   });
 
   it('switches cockpit copy to English without restoring removed ledger and alert panels', () => {
