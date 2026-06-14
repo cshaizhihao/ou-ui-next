@@ -26,7 +26,6 @@ const copy = {
     passwordLabel: '密码',
     usernamePlaceholder: '输入管理员用户名',
     passwordPlaceholder: '输入管理员密码',
-    recoveryHint: '使用管理员凭据进入生产控制面。',
     error: '访问拒绝：认证失败',
     submit: '安全登录',
     languageSwitcher: '语言切换'
@@ -38,7 +37,6 @@ const copy = {
     passwordLabel: 'Password',
     usernamePlaceholder: 'Enter admin username',
     passwordPlaceholder: 'Enter admin password',
-    recoveryHint: 'Use administrator credentials to enter the production control plane.',
     error: 'Access denied: authentication failed',
     submit: 'Secure Login',
     languageSwitcher: 'Language switcher'
@@ -69,7 +67,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   );
   const usernameInputId = 'operator-login-username';
   const passwordInputId = 'operator-login-password';
-  const recoveryHintId = 'operator-login-recovery';
+  const errorId = 'operator-login-error';
 
   useEffect(() => {
     document.title = authenticated || runtimeConfig.disableInAppLogin ? appDocumentTitle : t.title;
@@ -184,8 +182,8 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   }
 
   return (
-    <div id="login-overlay">
-      <div className={cn('login-box', hasError && 'login-box-shake')}>
+    <div id="login-overlay" className="login-overlay-centered">
+      <div className={cn('login-box login-box-centered', hasError && 'login-box-shake')}>
         <form className="login-content flex flex-col bg-transparent p-8" onSubmit={handleSubmit}>
           <LanguageSwitch
             ariaLabel={t.languageSwitcher}
@@ -210,9 +208,6 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
           </div>
 
           <div className="space-y-4">
-            <p id={recoveryHintId} className="text-center text-xs font-semibold leading-5 text-[#35405A] dark:text-white/70">
-              {t.recoveryHint}
-            </p>
             <div className="space-y-2">
               <label
                 className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#07111F] dark:text-white/80"
@@ -221,7 +216,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
                 {t.usernameLabel}
               </label>
               <GlassInput
-                aria-describedby={recoveryHintId}
+                aria-describedby={hasError ? errorId : undefined}
                 aria-invalid={hasError}
                 autoComplete="username"
                 className="font-mono"
@@ -239,7 +234,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
                 {t.passwordLabel}
               </label>
               <GlassInput
-                aria-describedby={recoveryHintId}
+                aria-describedby={hasError ? errorId : undefined}
                 aria-invalid={hasError}
                 autoComplete="current-password"
                 className="font-mono"
@@ -251,6 +246,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
               />
             </div>
             <p
+              id={errorId}
               role={hasError ? 'alert' : undefined}
               className={cn(
                 'mt-2 text-center text-[10px] font-bold tracking-wide text-red-500',

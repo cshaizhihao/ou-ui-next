@@ -257,19 +257,16 @@ describe('DashboardPage', () => {
 
     expect(shell).toHaveClass('dashboard-control-plane');
     expect(screen.getByText('Master Control Plane')).toBeInTheDocument();
-    expect(screen.getByText('Master')).toBeInTheDocument();
-    expect(screen.getByText('Agent')).toBeInTheDocument();
-    expect(screen.getByText('Customer Nodes')).toBeInTheDocument();
-    expect(screen.getByText('Forwarding')).toBeInTheDocument();
-    expect(screen.getByText('Subscriptions')).toBeInTheDocument();
-    expect(screen.getByText('Audit Evidence')).toBeInTheDocument();
+    expect(screen.getByText('主机')).toBeInTheDocument();
+    expect(screen.getByText('已挂载主机')).toBeInTheDocument();
+    expect(screen.getByText('节点')).toBeInTheDocument();
     expect(screen.getByText('Release Evidence')).toBeInTheDocument();
     expect(screen.getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
     expect(screen.getByText('Audit & Alerts')).toBeInTheDocument();
     expect(screen.getByText('Audit 1 / Alerts 1')).toBeInTheDocument();
     expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-[#FFFDF5]');
     expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('dark:!bg-[#07111F]');
-    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toHaveClass('text-[#35405A]');
+    expect(screen.queryByText('实时查看核心资源、交付链路与服务状态。')).not.toBeInTheDocument();
     expect(screen.getByText('Release Evidence')).toHaveClass('text-[#35405A]');
     expect(document.querySelector('.dashboard-control-plane-media')).not.toBeNull();
     expect(document.querySelector('.dashboard-control-plane-metric-grid')).not.toBeNull();
@@ -327,13 +324,15 @@ describe('DashboardPage', () => {
   it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
     renderPage();
 
-    expect(screen.getByRole('heading', { name: '运营态势' })).toBeInTheDocument();
-    expect(screen.getByText('实时查看核心资源、交付链路与服务状态。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '连通性' })).toBeInTheDocument();
+    expect(screen.queryByText('实时查看核心资源、交付链路与服务状态。')).not.toBeInTheDocument();
     expect(screen.getByText('主机接入')).toBeInTheDocument();
     expect(screen.getByText('客户节点')).toBeInTheDocument();
     expect(screen.getAllByText('端口转发').length).toBeGreaterThan(0);
     expect(screen.getByText('订阅交付')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '实时流量拓扑' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' })).toBeInTheDocument();
+    expect(document.querySelector('.dashboard-connectivity-flow')).toBeInTheDocument();
+    expect(document.querySelectorAll('.dashboard-connectivity-node')).toHaveLength(3);
     expect(screen.getByText('香港入口主机')).toBeInTheDocument();
 
     expect(screen.queryByText('用量账本')).not.toBeInTheDocument();
@@ -389,13 +388,13 @@ describe('DashboardPage', () => {
   it('switches cockpit copy to English without restoring removed ledger and alert panels', () => {
     renderPage({ language: 'en' });
 
-    expect(screen.getByRole('heading', { name: 'Operations Overview' })).toBeInTheDocument();
-    expect(screen.getByText('Monitor core resources, delivery paths, and service readiness in real time.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Connectivity' })).toBeInTheDocument();
+    expect(screen.queryByText('Monitor core resources, delivery paths, and service readiness in real time.')).not.toBeInTheDocument();
     expect(screen.getByText('Host Access')).toBeInTheDocument();
     expect(screen.getByText('Customer Nodes')).toBeInTheDocument();
     expect(screen.getByText('Forwarding')).toBeInTheDocument();
     expect(screen.getByText('Subscriptions')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Real-time traffic topology' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Host to mounted host to node connectivity' })).toBeInTheDocument();
 
     expect(screen.queryByText('Single-screen Control Cockpit')).not.toBeInTheDocument();
     expect(screen.queryByText('一屏总览控制台')).not.toBeInTheDocument();
@@ -582,14 +581,14 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('主机探针')).toHaveClass('text-[#07111F]');
     expect(screen.getByText('主机探针')).toHaveClass('dark:text-[#F4F8FF]');
-    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('text-[#536078]');
-    expect(screen.getByText('优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。')).toHaveClass('dark:text-[#B8C2E6]/72');
+    expect(screen.getByText('Agent 遥测 / 运行服务 / 流量 / 延迟')).toHaveClass('text-[#536078]');
+    expect(screen.getByText('Agent 遥测 / 运行服务 / 流量 / 延迟')).toHaveClass('dark:text-[#B8C2E6]/72');
   });
 
   it('uses a fixed responsive title scale instead of clamp sizing in the dashboard hero', () => {
     renderPage();
 
-    const heroHeading = screen.getByRole('heading', { name: '运营态势' });
+    const heroHeading = screen.getByRole('heading', { name: '连通性' });
 
     expect(heroHeading.className).not.toContain('clamp(');
     expect(heroHeading).toHaveClass('text-4xl');

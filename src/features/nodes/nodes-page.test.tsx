@@ -6,6 +6,7 @@ import { NodesPage } from './nodes-page';
 
 const GB = 1024 ** 3;
 const UUID_IN_LINK = '[0-9a-f-]{36}';
+type TestXrayClient = XrayInbound['clients'][number] & { trafficMultiplier?: number };
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -68,6 +69,8 @@ function createAgent(): Agent {
 }
 
 function createInbound(overrides: Partial<XrayInbound> = {}): XrayInbound {
+  const overrideClient = overrides.clients?.[0] as TestXrayClient | undefined;
+
   return {
     id: 'inbound-premium-vless',
     nodeId: 'node-metered-01',
@@ -87,6 +90,7 @@ function createInbound(overrides: Partial<XrayInbound> = {}): XrayInbound {
         id: 'client-acme-premium',
         email: 'acme-premium@example.com',
         enabled: true,
+        ...(overrideClient?.trafficMultiplier ? { trafficMultiplier: overrideClient.trafficMultiplier } : {}),
         trafficLimitBytes: 100 * GB,
         usedTrafficBytes: 12 * GB,
         expiresAt: '2026-12-31T23:59:59.000Z',
@@ -2111,6 +2115,53 @@ describe('NodesPage', () => {
     expect(within(dialog).queryByText((value) => value.includes('vless://client-acme-premium@'))).not.toBeInTheDocument();
     expect(within(dialog).getByText((value) => value.includes('/sub/') && value.includes('/clash/premium-hk'))).toBeInTheDocument();
     expect(await within(dialog).findByAltText('Subscription QR Code')).toBeInTheDocument();
+  });
+
+  it('keeps the customer node traffic multiplier visible only in the admin UI and never in customer links', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound({ clients: [{ ...createInbound().clients[0], trafficMultiplier: 1.5 } as TestXrayClient] })]}
+        language="zh"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('columnheader', { name: '流量倍率' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'x1.5' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '编辑客户节点' }));
+    const dialog = screen.getByRole('dialog', { name: '编辑客户节点' });
+    expect(within(dialog).getByLabelText('流量倍率')).toHaveValue('1.5');
+
+    await user.selectOptions(within(dialog).getByLabelText('流量倍率'), '0.5');
+    await user.click(within(dialog).getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      expect(onSaveCustomerNode).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nodeId: 'inbound-premium-vless',
+          trafficMultiplier: 0.5
+        }),
+        'update'
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: '查看链接和二维码' }));
+    const linksDialog = screen.getByRole('dialog', { name: '客户节点链接' });
+    expect(linksDialog.textContent).not.toContain('x0.5');
+    expect(linksDialog.textContent).not.toContain('x1.5');
+    expect(linksDialog.textContent).not.toContain('trafficMultiplier');
+    expect(linksDialog.textContent).not.toContain('倍率');
   });
 
   it('clones a customer node into a new create task without reusing the inbound id', async () => {

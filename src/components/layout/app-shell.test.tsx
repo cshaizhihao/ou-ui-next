@@ -312,10 +312,15 @@ describe('AppShell', () => {
   it('renders a real empty dashboard on fresh installs instead of seeded node signals', async () => {
     renderShell(createMockApi());
 
-    expect(await screen.findByText('等待受控主机接入')).toBeInTheDocument();
-    expect(screen.getByText('暂无主机探针，主机代理完成注册后会显示实时遥测。')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '连通性' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' })).toBeInTheDocument();
+    expect(screen.getByText('主机')).toBeInTheDocument();
+    expect(screen.getByText('已挂载主机')).toBeInTheDocument();
+    expect(screen.getAllByText('节点').length).toBeGreaterThan(0);
     expect(screen.queryByText('节点运行热区')).not.toBeInTheDocument();
     expect(screen.queryByText('订阅与执行信号')).not.toBeInTheDocument();
+    expect(screen.queryByText('等待受控主机接入')).not.toBeInTheDocument();
+    expect(screen.queryByText('暂无主机探针，主机代理完成注册后会显示实时遥测。')).not.toBeInTheDocument();
     expect(screen.queryByText(seedNodes[0].name)).not.toBeInTheDocument();
   });
 
@@ -2758,7 +2763,7 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '调优');
-    await user.click(await screen.findByRole('button', { name: '应用 BBR' }));
+    await user.click(await screen.findByRole('button', { name: '下发调优预设' }));
 
     await waitFor(() => {
       expect(api.createTask).toHaveBeenCalledWith(
@@ -2766,11 +2771,11 @@ describe('AppShell', () => {
           operation: 'system.tune',
           resourceType: 'agent',
           targetId: seedAgents[0].id,
-          targetLabel: `BBR Edge Throughput / ${seedAgents[0].id}`,
+          targetLabel: `BBR + FQ 预设 / ${seedAgents[0].id}`,
           metadata: expect.objectContaining({
             agentId: seedAgents[0].id,
-            tuningProfileId: 'tune-bbr-edge',
-            tuningProfileName: 'BBR Edge Throughput',
+            tuningProfileId: 'bbr-fq',
+            tuningProfileName: 'BBR + FQ 预设',
             tuningTarget: 'kernel',
             tuningRiskLevel: 'medium',
             tuningActions: expect.arrayContaining([
@@ -2789,7 +2794,7 @@ describe('AppShell', () => {
           riskConfirmation: {
             operation: 'system.tune',
             targetId: seedAgents[0].id,
-            reason: 'BBR Edge Throughput'
+            reason: 'BBR + FQ 预设'
           }
         }),
         expect.any(Object)
@@ -3039,7 +3044,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await clickNavigation(user, '权限与配额');
+    await clickNavigation(user, '账户');
 
     expect(await screen.findByRole('heading', { name: '操作员会话' })).toBeInTheDocument();
     expect(screen.getByText('operator-session-current-001')).toBeInTheDocument();
@@ -3073,12 +3078,13 @@ describe('AppShell', () => {
     });
     renderShell(api);
 
-    await clickNavigation(user, '权限与配额');
+    await clickNavigation(user, '账户');
 
     expect(await screen.findByRole('heading', { name: '操作员会话' })).toBeInTheDocument();
     expect(await screen.findByText('operator-session-local-current')).toBeInTheDocument();
     expect(screen.getByText('operator-session-remote-review')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '复制已选会话证据' })).toBeDisabled();
+    expect(screen.getByRole('group', { name: 'Agent 运行凭证' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '复制已选会话证据' })).not.toBeInTheDocument();
   });
 
   it('manages sanitized Agent credentials in the security workspace', async () => {
@@ -3109,7 +3115,7 @@ describe('AppShell', () => {
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
 
-    await clickNavigation(user, '权限与配额');
+    await clickNavigation(user, '账户');
 
     expect(await screen.findByText('Agent 运行凭证')).toBeInTheDocument();
     const credentialRow = screen.getByText(runtimeCredentialSummary.id).closest('tr');

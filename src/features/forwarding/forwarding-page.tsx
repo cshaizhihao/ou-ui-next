@@ -167,11 +167,11 @@ const RANDOM_LISTEN_PORT_MAX = 60_999;
 const copy = {
   zh: {
     title: '端口转发',
-    subtitle: '按端口转发模型管理转发规则、入口端口绑定和转发分组。规则可以应用到多个入口主机，并独立配置限速、限连、计费方向与转发策略。',
+    subtitle: '转发规则、入口绑定、配额和运行时状态。',
     forwardingCockpit: '端口转发 cockpit',
     forwardingRulesWorkspace: '转发规则工作区',
     operationalOverview: '运营概览',
-    operationalOverviewHint: '先看规则规模、启用面、入口绑定密度和风险标记，再决定是否批量变更。',
+    operationalOverviewHint: '',
     totalRules: '规则总数',
     totalRulesDetail: '当前可见的转发规则数量。',
     enabledRules: '启用规则',
@@ -183,12 +183,12 @@ const copy = {
     rulesTab: '转发规则',
     createAction: '创建转发规则',
     editAction: '编辑转发规则',
-    drawerDescription: '按入口主机、目标端点、协议、流量限制、计费方向和启用状态创建转发；高级项默认隐藏。',
-    createHint: '普通创建只需要选择入口主机并填写目标端点，系统会自动生成规则名和运行时服务。',
+    drawerDescription: '',
+    createHint: '',
     entryEndpointReady: '转发入口已生成',
     copyEntryEndpoint: '复制入口地址',
     advancedOptions: '高级配置',
-    advancedHint: '仅在接管既有规则或需要覆盖监听地址、调度策略、历史用量时修改。',
+    advancedHint: '',
     usedQuota: '已用配额',
     billingDirection: '计费方向',
     name: '规则名称',
@@ -267,11 +267,11 @@ const copy = {
     quotaGb: '流量配额',
     monthlyResetDay: '重置日期',
     currentUsedTraffic: '当前已用流量',
-    currentUsedTrafficHint: '用于补录历史用量或修正首次接管前的转发统计，后续由 Agent 回传实时流量。',
+    currentUsedTrafficHint: '',
     rateLimitMbps: '规则限速',
     rateLimitMode: '限速模式',
     rateLimitDirection: '限速方向',
-    runtimeLimitsHint: '当前 Agent 运行时仅开放规则级单双向限速、流量配额和流量计费；单 IP 限速、连接数上限与 Proxy Protocol 暂不提交。',
+    runtimeLimitsHint: '',
     portConflictTitle: '端口冲突',
     portConflictHint: '当前入口绑定已被现有转发规则占用，请更换入口主机、监听端口、协议或监听地址后再保存。',
     portConflictBinding: (agent: string, endpoint: string, rule: string) => `${agent} / ${endpoint} 已被 ${rule} 占用`,
@@ -329,11 +329,11 @@ const copy = {
   },
   en: {
     title: 'Port Forwarding',
-    subtitle: 'Manage port forwarding rules, entry port bindings, and forwarding groups. A rule can target multiple entry hosts with independent rate, connection, billing, and strategy controls.',
+    subtitle: 'Forward rules, entry bindings, quota, and runtime state.',
     forwardingCockpit: 'Port forwarding cockpit',
     forwardingRulesWorkspace: 'Forwarding rules workspace',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint: 'Check scale, enabled coverage, binding density, and risk flags before you batch anything.',
+    operationalOverviewHint: '',
     totalRules: 'Total rules',
     totalRulesDetail: 'All visible forwarding rules.',
     enabledRules: 'Enabled rules',
@@ -345,12 +345,12 @@ const copy = {
     rulesTab: 'Forward Rules',
     createAction: 'Create Forward Rule',
     editAction: 'Edit Forward Rule',
-    drawerDescription: 'Create forwarding from entry hosts, target endpoint, protocol, traffic limit, billing direction, and enabled state. Advanced settings stay hidden by default.',
-    createHint: 'Ordinary creation only needs entry hosts and a target endpoint; rule name and runtime services are generated automatically.',
+    drawerDescription: '',
+    createHint: '',
     entryEndpointReady: 'Entry endpoint ready',
     copyEntryEndpoint: 'Copy Entry Endpoint',
     advancedOptions: 'Advanced Config',
-    advancedHint: 'Change these only when taking over an existing rule or overriding listen address, strategy, or historical usage.',
+    advancedHint: '',
     usedQuota: 'Used Quota',
     billingDirection: 'Billing Direction',
     name: 'Rule Name',
@@ -431,11 +431,11 @@ const copy = {
     quotaGb: 'Traffic Quota',
     monthlyResetDay: 'Reset Day',
     currentUsedTraffic: 'Current Used Traffic',
-    currentUsedTrafficHint: 'Backfill historical usage or correct the first takeover; Agent telemetry owns live counters after enrollment.',
+    currentUsedTrafficHint: '',
     rateLimitMbps: 'Rule Rate',
     rateLimitMode: 'Rate Mode',
     rateLimitDirection: 'Rate Direction',
-    runtimeLimitsHint: 'The current Agent runtime only accepts rule-level one-way or bi-directional rate limits, traffic quota, and billing counters; per-IP limits, connection caps, and Proxy Protocol are not submitted yet.',
+    runtimeLimitsHint: '',
     portConflictTitle: 'Port conflict',
     portConflictHint: 'The selected entry binding is already used by an existing forwarding rule. Change entry host, listen port, protocol, or listen address before saving.',
     portConflictBinding: (agent: string, endpoint: string, rule: string) => `${agent} / ${endpoint} is already used by ${rule}`,
@@ -1240,14 +1240,6 @@ export function ForwardingPage({
     <ResponsivePage>
       <ResponsiveSection className="stagger-1">
         <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
-          {(language === 'zh' ? ['选入口主机', '填目标端点', '设配额限速', '应用规则'] : ['Pick entry host', 'Set target', 'Quota & rate', 'Apply rule']).map((step, index) => (
-            <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
-              {index + 1}. {step}
-            </span>
-          ))}
-        </div>
       </ResponsiveSection>
 
       <WorkspaceCockpit aria-label={t.forwardingCockpit} className="forwarding-ops-cockpit stagger-2">
@@ -1268,7 +1260,6 @@ export function ForwardingPage({
                   <Router className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
                 </div>
-                <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
               </div>
               <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
                 <Plus className="h-3.5 w-3.5" />
@@ -1589,7 +1580,6 @@ export function ForwardingPage({
                           <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-white/60">
                             {t.rateLimitModeOptions[rule.rateLimitMode]} / {t.rateLimitDirectionOptions[rule.rateLimitDirection]}
                           </p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex justify-end gap-2">
@@ -1630,14 +1620,13 @@ export function ForwardingPage({
       </WorkspaceCockpit>
 
       <ConfigDrawer
-        description={t.drawerDescription}
         open={drawer.type !== 'closed'}
         returnFocusRef={returnFocusRef}
         title={editingRule ? t.editAction : t.createAction}
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <FormSection hint={t.createHint} title={t.binding}>
+          <FormSection title={t.binding}>
             <InputField label={t.owner} value={draft.ownerName} onChange={(value) => updateDraft({ ownerName: value })} />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <InputField label={t.listenPort} type="number" value={draft.listenPort} onChange={(value) => updateDraft({ listenPort: value })} />
@@ -1748,7 +1737,6 @@ export function ForwardingPage({
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.enabled}</span>
             <GlassToggle aria-label={t.enabled} checked={draft.enabled} onChange={() => updateDraft({ enabled: !draft.enabled })} />
           </label>
-          <p className="rounded-lg border border-slate-200 bg-white/60 p-3 text-[10px] font-semibold leading-5 text-slate-500 dark:border-white/10 dark:bg-black/20 dark:text-white/45">{t.runtimeLimitsHint}</p>
           <details
             className="forwarding-advanced-options rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10"
             onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
@@ -1757,7 +1745,6 @@ export function ForwardingPage({
             <summary className="cursor-pointer text-xs font-black text-slate-800 dark:text-white">{t.advancedOptions}</summary>
             {advancedOpen ? (
             <div className="forwarding-advanced-options-body mt-3 space-y-3">
-              <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
               <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <InputField label={t.listenAddress} value={draft.listenAddress} onChange={(value) => updateDraft({ listenAddress: value })} />
@@ -1789,7 +1776,6 @@ export function ForwardingPage({
                   onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
                 />
               </div>
-              <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
             </div>
             ) : null}
           </details>

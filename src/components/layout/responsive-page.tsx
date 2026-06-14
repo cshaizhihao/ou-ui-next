@@ -49,7 +49,7 @@ export function WorkspaceCockpit({ children, className, ...props }: WorkspaceCoc
       {...props}
       className={cn(
         'workspace-cockpit min-h-0 border border-black/15 bg-white/90 shadow-[0_18px_55px_rgba(5,5,5,0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
-        'md:max-h-[calc(100dvh-15.5rem)] md:overflow-hidden',
+        'overflow-visible',
         'max-md:border-black/15 max-md:bg-white/92 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-black/88',
         className
       )}
@@ -64,10 +64,7 @@ export function WorkspaceCockpitScroller({ children, className, ...props }: Work
     <section
       {...props}
       className={cn(
-        'workspace-cockpit-scroller min-h-0',
-        'md:max-h-[calc(100dvh-15.5rem)] md:overflow-y-auto md:[scrollbar-width:thin]',
-        'md:[scrollbar-color:rgba(230,25,25,0.35)_transparent]',
-        'max-md:overflow-visible',
+        'workspace-cockpit-scroller min-h-0 overflow-visible',
         className
       )}
     >

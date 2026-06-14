@@ -10,7 +10,6 @@ import {
   type AuditLog,
   type ManagedNode,
   type OperatorSessionSummary,
-  type PermissionGrant,
   type SubscriptionClientFormat,
   type SubscriptionExportFile,
   type SubscriptionSource,
@@ -75,7 +74,6 @@ import {
   DashboardPage,
   ForwardingPage,
   NodesPage,
-  PermissionsPage,
   RoutingPage,
   SubscriptionMixerPage,
   TasksPage,
@@ -106,7 +104,6 @@ const EMPTY_SUBSCRIPTION_EXPORT_PROFILES: ControlPlaneSnapshot['subscriptionExpo
 const EMPTY_PROXY_PROVIDERS: ControlPlaneSnapshot['proxyProviders'] = [];
 const EMPTY_SUBSCRIPTION_EXPORT_FILES: ControlPlaneSnapshot['subscriptionExportFiles'] = [];
 const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
-const EMPTY_PERMISSION_GRANTS: ControlPlaneSnapshot['permissionGrants'] = [];
 const EMPTY_ROUTING_POLICIES: ControlPlaneSnapshot['routingPolicies'] = [];
 const EMPTY_TUNING_PROFILES: ControlPlaneSnapshot['tuningProfiles'] = [];
 const EMPTY_TASKS: ControlPlaneSnapshot['tasks'] = [];
@@ -146,11 +143,6 @@ const DEFAULT_TELEGRAM_NOTIFICATION_POLICY = createDefaultTelegramNotificationPo
 const DEFAULT_TELEGRAM_NOTIFICATION_POLICIES: ControlPlaneSnapshot['telegramNotificationPolicies'] = [
   DEFAULT_TELEGRAM_NOTIFICATION_POLICY
 ];
-
-function formatPermissionTaskTargetLabel(grant: PermissionGrant) {
-  const subjectPrefix = grant.subjectType === 'user' ? 'operator' : 'group';
-  return `${subjectPrefix}:${grant.subjectId} -> ${grant.resourceId}`;
-}
 
 function mapForwardRules(
   domainRules: ForwardRule[],
@@ -386,6 +378,7 @@ function createCustomerNodeMetadataFromInbound(
     fallbackXver: inbound.fallbacks[0]?.xver ?? 0,
     sniffingEnabled: inbound.sniffingEnabled,
     ipLimit: client.ipLimit,
+    trafficMultiplier: client.trafficMultiplier ?? 1,
     trafficLimitGb: gbFromBytes(client.trafficLimitBytes),
     monthlyResetDay: client.monthlyResetDay ?? 1,
     currentUsedTrafficGb: gbFromBytes(client.manualUsedTrafficBytes ?? 0),
@@ -1287,9 +1280,7 @@ export function AppShell({ ready }: AppShellProps) {
 
   const activeNav = getNavigationItem(activePage, language);
   const snapshot = useControlPlaneSnapshot(ready);
-  const operatorSessionsQuery = useOperatorSessions(
-    ready && (activePage === 'permissions' || activePage === 'adminAccounts')
-  );
+  const operatorSessionsQuery = useOperatorSessions(ready && activePage === 'adminAccounts');
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
   const customers = snapshot.data?.customers ?? EMPTY_CUSTOMERS;
   const deployTargetAgent = agents.find((agent) => agent.id === deployTargetAgentId);
@@ -1303,7 +1294,6 @@ export function AppShell({ ready }: AppShellProps) {
   const proxyProviders = snapshot.data?.proxyProviders ?? EMPTY_PROXY_PROVIDERS;
   const subscriptionExportFiles = snapshot.data?.subscriptionExportFiles ?? EMPTY_SUBSCRIPTION_EXPORT_FILES;
   const quotaPolicies = snapshot.data?.quotaPolicies ?? EMPTY_QUOTA_POLICIES;
-  const permissionGrants = snapshot.data?.permissionGrants ?? EMPTY_PERMISSION_GRANTS;
   const routingPolicies = snapshot.data?.routingPolicies ?? EMPTY_ROUTING_POLICIES;
   const tuningProfiles = snapshot.data?.tuningProfiles ?? EMPTY_TUNING_PROFILES;
   const tasks = snapshot.data?.tasks ?? EMPTY_TASKS;
@@ -2594,19 +2584,6 @@ export function AppShell({ ready }: AppShellProps) {
     [runTask, t.tuningSummary, t.tuningTarget, tuningProfiles]
   );
 
-  const handleRunPermission = useCallback(
-    (id: string) => {
-      const grant = permissionGrants.find((item) => item.id === id);
-      void runTask({
-        operation: 'permission.grant',
-        targetId: id,
-        targetLabel: grant ? formatPermissionTaskTargetLabel(grant) : t.permissionTarget,
-        summary: t.permissionSummary
-      });
-    },
-    [permissionGrants, runTask, t.permissionSummary, t.permissionTarget]
-  );
-
   const handleResetQuota = useCallback(
     (policy: QuotaPolicy) => {
       runQuotaResetTask(policy);
@@ -3206,34 +3183,11 @@ export function AppShell({ ready }: AppShellProps) {
             onRunTask={handleRunRouting}
           />
         );
-      case 'permissions':
-        return (
-          <PermissionsPage
-            agentCredentials={agentCredentials}
-            agentSessions={agentSessions}
-            currentOperatorSessionId={operatorSessionId}
-            forwardingRules={forwardingRules}
-            grants={permissionGrants}
-            language={language}
-            operatorSessions={operatorSessions}
-            operatorSessionsError={
-              operatorSessionsQuery.error
-                ? formatTaskMutationError(operatorSessionsQuery.error, language, t.operatorSessionRevokeFailed)
-                : undefined
-            }
-            operatorSessionsLoading={operatorSessionsQuery.isLoading}
-            quotaPolicies={quotaPolicies}
-            taskMutationBusy={taskMutationBusy}
-            onRevokeAgentCredential={handleRevokeAgentCredential}
-            onRevokeOperatorSession={handleRevokeOperatorSession}
-            onRotateAgentCredential={handleRotateAgentCredential}
-            onResetQuota={handleResetQuota}
-            onRunTask={handleRunPermission}
-          />
-        );
       case 'adminAccounts':
         return (
           <AdminAccountSettingsPage
+            agentCredentials={agentCredentials}
+            agentSessions={agentSessions}
             controlPlaneBackupPreflightResult={controlPlaneBackupPreflightResult}
             controlPlaneBackupSummary={controlPlaneBackupSummary}
             controlPlaneMode={runtimeConfig.controlPlaneMode}
@@ -3252,7 +3206,9 @@ export function AppShell({ ready }: AppShellProps) {
             taskMutationBusy={taskMutationBusy}
             onCopyControlPlaneBackup={controlPlaneBackup ? handleCopyControlPlaneBackup : undefined}
             onPreflightControlPlaneBackup={handlePreflightControlPlaneBackup}
+            onRevokeAgentCredential={handleRevokeAgentCredential}
             onRevokeOperatorSession={handleRevokeOperatorSession}
+            onRotateAgentCredential={handleRotateAgentCredential}
           />
         );
       case 'tuning':
@@ -3367,7 +3323,6 @@ export function AppShell({ ready }: AppShellProps) {
     handleResetQuota,
     handleRollbackTask,
     handleRunForwarding,
-    handleRunPermission,
     handleRunRouting,
     handleRunTuning,
     handleRotateAgentCredential,
@@ -3389,7 +3344,6 @@ export function AppShell({ ready }: AppShellProps) {
     operatorSessions,
     operatorSessionsQuery.error,
     operatorSessionsQuery.isLoading,
-    permissionGrants,
     proxyProviders,
     previewAgentInstallCommand,
     previewAgentUpgradeCommand,

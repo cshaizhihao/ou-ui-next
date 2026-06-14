@@ -130,6 +130,28 @@ describe('RoutingPage', () => {
     expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
   });
 
+  it('builds an administrator-authored domain routing rule from host, domain, and outbound protocol fields', async () => {
+    const user = userEvent.setup();
+    const onRunTask = vi.fn();
+
+    render(<RoutingPage language="zh" policies={policies} onRunTask={onRunTask} />);
+
+    const manualRule = screen.getByRole('region', { name: '手写分流规则' });
+    await user.type(within(manualRule).getByLabelText('生成主机'), '香港入口主机');
+    await user.type(within(manualRule).getByLabelText('访问域名'), 'stream.example.com');
+    await user.selectOptions(within(manualRule).getByLabelText('出站协议'), 'proxy');
+    await user.type(within(manualRule).getByLabelText('出站标签'), 'HK-PREMIUM');
+    await user.click(within(manualRule).getByRole('button', { name: '编译手写规则' }));
+
+    expect(onRunTask).toHaveBeenCalledWith('routing-manual-rule', [
+      'manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM'
+    ]);
+    expect(within(manualRule).getByText('香港入口主机 生成的节点')).toBeInTheDocument();
+    expect(within(manualRule).getByText('domain:stream.example.com')).toBeInTheDocument();
+    expect(within(manualRule).getByText('outbound:HK-PREMIUM')).toBeInTheDocument();
+    expect(screen.queryByText('将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。')).not.toBeInTheDocument();
+  });
+
   it('keeps the routing policy cockpit compact without masonry or oversized cards', () => {
     render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
 

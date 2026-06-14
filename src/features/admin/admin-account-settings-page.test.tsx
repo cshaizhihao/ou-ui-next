@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { OperatorSessionSummary } from '../../domain';
+import type { AgentCredentialSummary, AgentSessionSummary, OperatorSessionSummary } from '../../domain';
 import { AdminAccountSettingsPage } from './admin-account-settings-page';
 
 function createSession(overrides: Partial<OperatorSessionSummary> = {}): OperatorSessionSummary {
@@ -19,6 +19,37 @@ function createSession(overrides: Partial<OperatorSessionSummary> = {}): Operato
     ...overrides
   };
 }
+
+const runtimeCredentialSummary: AgentCredentialSummary = {
+  id: 'runtime-credential-agent-hkg-01',
+  agentId: 'agent-hkg-01',
+  purpose: 'runtime',
+  status: 'active',
+  tokenPrefix: 'oat_7f1c2a',
+  issuedAt: '2026-06-05T00:00:00.000Z',
+  expiresAt: '2026-09-03T00:00:00.000Z',
+  lastUsedAt: '2026-06-05T01:00:00.000Z',
+  issuedBy: 'operator:admin',
+  sourceIp: '203.0.113.8',
+  requestId: 'req-agent-runtime-credential-001',
+  sessionId: 'sess-agent-hkg-01',
+  metadata: {
+    installProfile: ['host-agent', 'xray'],
+    registrationCapabilities: ['host-agent', 'xray', 'port-forwarding']
+  }
+};
+
+const agentSessionSummary: AgentSessionSummary = {
+  agentId: 'agent-hkg-01',
+  sessionId: 'sess-agent-hkg-01',
+  status: 'online',
+  version: '1.2.3-agent',
+  capabilities: ['host-agent', 'xray', 'port-forwarding'],
+  lastSeq: 42,
+  lastSeenCommandSeq: 7,
+  updatedAt: '2026-06-05T01:05:00.000Z',
+  lastHeartbeatAt: '2026-06-05T01:05:00.000Z'
+};
 
 describe('AdminAccountSettingsPage', () => {
   it('splits account settings into a control rail and safety workspace cockpit', () => {
@@ -336,6 +367,60 @@ describe('AdminAccountSettingsPage', () => {
     await user.click(remoteRevokeButton!);
 
     expect(onRevokeOperatorSession).toHaveBeenCalledWith('operator-session-remote');
+  });
+
+  it('manages sanitized Agent runtime credentials from the account safety workspace', async () => {
+    const user = userEvent.setup();
+    const onRevokeAgentCredential = vi.fn();
+    const onRotateAgentCredential = vi.fn();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <AdminAccountSettingsPage
+        agentCredentials={[runtimeCredentialSummary]}
+        agentSessions={[agentSessionSummary]}
+        controlPlaneMode="http"
+        currentOperatorSessionId="operator-session-current"
+        language="zh"
+        loginUsername="admin"
+        operatorGroupId="owner"
+        operatorSessions={[createSession()]}
+        resourceGroupId="group-premium"
+        onRevokeAgentCredential={onRevokeAgentCredential}
+        onRotateAgentCredential={onRotateAgentCredential}
+        onRevokeOperatorSession={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Agent 运行凭证')).toBeInTheDocument();
+    const credentialRow = screen.getByText(runtimeCredentialSummary.id).closest('tr');
+    expect(credentialRow).not.toBeNull();
+    expect(within(credentialRow as HTMLElement).getByText('agent-hkg-01')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/令牌前缀 oat_7f1c2a/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText('运行凭证')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText('活跃')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText('在线')).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/事件 seq 42/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/命令 seq 7/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/Agent 版本 1.2.3-agent/)).toBeInTheDocument();
+    expect(within(credentialRow as HTMLElement).getByText(/能力 host-agent, xray, port-forwarding/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Agent 凭证操作预检' })).toBeInTheDocument();
+    expect(screen.queryByText('oat_shell_full_token_must_not_render')).not.toBeInTheDocument();
+    expect(screen.queryByText('sha256:runtime-token-hash-must-not-render')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '轮换凭证' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining(`轮换凭证 ${runtimeCredentialSummary.id}`));
+    expect(onRotateAgentCredential).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: '轮换凭证' }));
+    await user.click(screen.getByRole('button', { name: '撤销凭证' }));
+
+    expect(onRotateAgentCredential).toHaveBeenCalledWith(runtimeCredentialSummary.id);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining(`撤销凭证 ${runtimeCredentialSummary.id}`));
+    expect(onRevokeAgentCredential).toHaveBeenCalledWith(runtimeCredentialSummary.id);
   });
 
   it('surfaces the control-plane backup summary and copy action', async () => {

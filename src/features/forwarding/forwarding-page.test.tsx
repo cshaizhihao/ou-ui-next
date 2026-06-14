@@ -240,6 +240,33 @@ describe('ForwardingPage', () => {
     expect(within(rulePanel).getByRole('table')).toBeInTheDocument();
   });
 
+  it('does not render explanatory filler copy in the forwarding workflow', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="zh"
+        rules={[createRule({ id: 'forward-a' })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/按端口转发模型管理/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/先看规则规模/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/选入口主机/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/当前 Agent 运行时仅开放/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '创建转发规则' }));
+
+    expect(screen.queryByText(/按入口主机、目标端点/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/普通创建只需要/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/仅在接管既有规则/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/用于补录历史用量/)).not.toBeInTheDocument();
+  });
+
   it('uses the Fauvist control-plane palette in the forwarding cockpit', () => {
     const { container } = render(
       <ForwardingPage

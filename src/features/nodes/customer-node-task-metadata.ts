@@ -68,6 +68,7 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
     fallbackXver: metadata.fallbackXver,
     sniffingEnabled: metadata.sniffingEnabled,
     ipLimit: metadata.ipLimit,
+    trafficMultiplier: metadata.trafficMultiplier,
     trafficLimitGb: metadata.trafficLimitGb,
     monthlyResetDay: metadata.monthlyResetDay,
     currentUsedTrafficGb: metadata.currentUsedTrafficGb,

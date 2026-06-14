@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -62,7 +62,7 @@ const defaults = {
 const copy = {
   zh: {
     title: '系统调优',
-    subtitle: 'BBR、TCP buffer 和 allowlist sysctl 调优通过 Agent 任务执行。',
+    subtitle: '基于 Agent 探测状态选择 BBR 与 TCP 调优预设，并通过可审计任务下发。',
     operationalOverview: '运营总览',
     operationalOverviewHint: '先确认调优 profile、目标 Agent、风险等级和审计任务，再下发内核或网络参数。',
     tuningPath: '调优链路',
@@ -79,16 +79,29 @@ const copy = {
     hostStatus: '主机状态',
     online: '在线',
     offline: '离线',
-    bbrPanel: 'BBR 配置',
-    congestionControl: 'TCP 拥塞控制',
-    defaultQdisc: '默认队列',
-    applyBbr: '应用 BBR',
-    tcpPanel: 'TCP 调优',
-    tcpReceiveBuffer: 'TCP 接收缓冲',
-    tcpWriteBuffer: 'TCP 发送缓冲',
+    detectionPanel: '主机调优探测',
+    bbrDetected: 'BBR 已安装',
+    bbrMissing: 'BBR 未确认',
+    tcpStatus: 'TCP 状态',
+    tcpReady: '预设可下发',
+    tcpWaiting: '等待 Agent 探测',
+    kernelVersion: '内核版本',
+    tuningPreset: '调优预设',
+    tuningPresetPanel: '调优预设面板',
+    tuningPresetHint: '管理员选择预设后下发，避免在前端盲填 TCP buffer。',
+    dispatchTuningPreset: '下发调优预设',
+    presetNames: {
+      'bbr-fq': 'BBR + FQ 预设',
+      'tcp-balanced': 'TCP 均衡预设',
+      'tcp-high-throughput': 'TCP 高吞吐预设'
+    },
+    presetDescriptions: {
+      'bbr-fq': '启用 BBR 与 fq 队列，适合常规入口主机。',
+      'tcp-balanced': '保持中等缓冲与连接队列，适合混合客户节点。',
+      'tcp-high-throughput': '提高 TCP buffer 上限，适合高吞吐转发和节点承载。'
+    },
     somaxconn: '连接队列',
     tcpMaxSynBacklog: 'SYN 队列',
-    applyTcpTuning: '应用 TCP 调优',
     customSysctl: '自定义 sysctl',
     customSysctlKey: '自定义 sysctl 键',
     customSysctlValue: '自定义 sysctl 值',
@@ -136,7 +149,7 @@ const copy = {
   },
   en: {
     title: 'System Tuning',
-    subtitle: 'BBR, TCP buffers, and allowlisted sysctl changes run as Agent tasks.',
+    subtitle: 'Dispatch audited BBR and TCP tuning presets from the Agent detection state.',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: 'Check tuning profiles, target Agent, risk levels, and audit task state before dispatching kernel or network parameters.',
     tuningPath: 'Tuning path',
@@ -153,16 +166,29 @@ const copy = {
     hostStatus: 'Host Status',
     online: 'Online',
     offline: 'Offline',
-    bbrPanel: 'BBR Configuration',
-    congestionControl: 'TCP congestion control',
-    defaultQdisc: 'Default queue discipline',
-    applyBbr: 'Apply BBR',
-    tcpPanel: 'TCP Tuning',
-    tcpReceiveBuffer: 'TCP receive buffer',
-    tcpWriteBuffer: 'TCP write buffer',
+    detectionPanel: 'Host Tuning Probe',
+    bbrDetected: 'BBR Installed',
+    bbrMissing: 'BBR Unconfirmed',
+    tcpStatus: 'TCP Status',
+    tcpReady: 'Preset Ready',
+    tcpWaiting: 'Waiting for Agent probe',
+    kernelVersion: 'Kernel Version',
+    tuningPreset: 'Tuning Preset',
+    tuningPresetPanel: 'Tuning Preset Panel',
+    tuningPresetHint: 'Choose an operator preset for dispatch instead of blind TCP buffer entry.',
+    dispatchTuningPreset: 'Dispatch Tuning Preset',
+    presetNames: {
+      'bbr-fq': 'BBR + FQ Preset',
+      'tcp-balanced': 'TCP Balanced Preset',
+      'tcp-high-throughput': 'TCP High Throughput Preset'
+    },
+    presetDescriptions: {
+      'bbr-fq': 'Enable BBR with fq queueing for ordinary edge hosts.',
+      'tcp-balanced': 'Use moderate buffers and backlog limits for mixed customer nodes.',
+      'tcp-high-throughput': 'Raise TCP buffer ceilings for high-throughput forwarding and node hosting.'
+    },
     somaxconn: 'Connection backlog',
     tcpMaxSynBacklog: 'SYN backlog',
-    applyTcpTuning: 'Apply TCP Tuning',
     customSysctl: 'Custom sysctl',
     customSysctlKey: 'Custom sysctl key',
     customSysctlValue: 'Custom sysctl value',
@@ -217,14 +243,51 @@ type TuningReleaseGate = {
   state: TuningReleaseGateState;
   value: string;
 };
+type TuningPresetId = 'bbr-fq' | 'tcp-balanced' | 'tcp-high-throughput';
+type TuningPresetDefinition = {
+  id: TuningPresetId;
+  target: TuningProfile['target'];
+  riskLevel: TuningProfile['riskLevel'];
+  parameters: Array<{ key: string; value: string }>;
+};
 
-function findProfileByParameter(profiles: TuningProfile[], parameterKey: string) {
-  return profiles.find((profile) => profile.parameters.some((parameter) => parameter.key === parameterKey));
-}
-
-function readParameter(profile: TuningProfile | undefined, parameterKey: string, fallback: string) {
-  return profile?.parameters.find((parameter) => parameter.key === parameterKey)?.value ?? fallback;
-}
+const tuningPresetDefinitions: TuningPresetDefinition[] = [
+  {
+    id: 'bbr-fq',
+    target: 'kernel',
+    riskLevel: 'medium',
+    parameters: [
+      { key: keys.congestionControl, value: defaults.congestionControl },
+      { key: keys.defaultQdisc, value: defaults.defaultQdisc }
+    ]
+  },
+  {
+    id: 'tcp-balanced',
+    target: 'network',
+    riskLevel: 'medium',
+    parameters: [
+      { key: keys.congestionControl, value: defaults.congestionControl },
+      { key: keys.defaultQdisc, value: defaults.defaultQdisc },
+      { key: keys.tcpReceiveBuffer, value: defaults.tcpReceiveBuffer },
+      { key: keys.tcpWriteBuffer, value: defaults.tcpWriteBuffer },
+      { key: keys.somaxconn, value: defaults.somaxconn },
+      { key: keys.tcpMaxSynBacklog, value: defaults.tcpMaxSynBacklog }
+    ]
+  },
+  {
+    id: 'tcp-high-throughput',
+    target: 'network',
+    riskLevel: 'high',
+    parameters: [
+      { key: keys.congestionControl, value: defaults.congestionControl },
+      { key: keys.defaultQdisc, value: defaults.defaultQdisc },
+      { key: keys.tcpReceiveBuffer, value: '4096 87380 134217728' },
+      { key: keys.tcpWriteBuffer, value: '4096 65536 134217728' },
+      { key: keys.somaxconn, value: defaults.somaxconn },
+      { key: keys.tcpMaxSynBacklog, value: defaults.tcpMaxSynBacklog }
+    ]
+  }
+];
 
 function createParameter(key: string, value: string): TuningParameter {
   return {
@@ -250,6 +313,16 @@ function createProfile(input: {
     riskLevel: input.template?.riskLevel ?? input.riskLevel,
     parameters: input.parameters
   };
+}
+
+function createPresetProfile(preset: TuningPresetDefinition, t: TuningCopy): TuningProfile {
+  return createProfile({
+    id: preset.id,
+    name: t.presetNames[preset.id],
+    target: preset.target,
+    riskLevel: preset.riskLevel,
+    parameters: preset.parameters.map((parameter) => createParameter(parameter.key, parameter.value))
+  });
 }
 
 function latestTuningTask(tasks: DeployTask[]) {
@@ -289,33 +362,30 @@ function StatusIcon({ status }: { status: DeployTaskStatus }) {
 }
 
 function createTuningReleaseGates({
-  bbrProfile,
   customParameterCount,
   dispatchDisabled,
   language,
+  presetProfile,
   recentTask,
   targetAgent,
   targetAgentLabel,
-  t,
-  tcpProfile
+  t
 }: {
-  bbrProfile: TuningProfile;
   customParameterCount: number;
   dispatchDisabled: boolean;
   language: AppLanguage;
+  presetProfile: TuningProfile;
   recentTask: DeployTask | undefined;
   targetAgent: Agent | undefined;
   targetAgentLabel: string;
   t: TuningCopy;
-  tcpProfile: TuningProfile;
 }): TuningReleaseGate[] {
   const agentStatusLabel = targetAgent?.status === 'online' ? t.online : t.offline;
   const agentState: TuningReleaseGateState =
     targetAgent?.status === 'online' ? 'ready' : targetAgent ? 'issues' : 'waiting';
-  const tcpParameterTotal = bbrProfile.parameters.length + tcpProfile.parameters.length;
+  const tcpParameterTotal = presetProfile.parameters.length;
   const tcpState: TuningReleaseGateState =
-    tcpParameterTotal > 0 &&
-    [...bbrProfile.parameters, ...tcpProfile.parameters].every((parameter) => parameter.value.trim().length > 0)
+    tcpParameterTotal > 0 && presetProfile.parameters.every((parameter) => parameter.value.trim().length > 0)
       ? 'ready'
       : 'issues';
   const customState: TuningReleaseGateState = customParameterCount > 0 ? 'ready' : 'waiting';
@@ -371,25 +441,8 @@ export function TuningPage({
   onRunTask
 }: TuningPageProps) {
   const t = copy[language];
-  const bbrTemplate = useMemo(() => findProfileByParameter(profiles, keys.congestionControl), [profiles]);
-  const tcpTemplate = useMemo(() => findProfileByParameter(profiles, keys.tcpReceiveBuffer), [profiles]);
   const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.id ?? '');
-  const [congestionControl, setCongestionControl] = useState(() =>
-    readParameter(bbrTemplate, keys.congestionControl, defaults.congestionControl)
-  );
-  const [defaultQdisc, setDefaultQdisc] = useState(() =>
-    readParameter(bbrTemplate, keys.defaultQdisc, defaults.defaultQdisc)
-  );
-  const [tcpReceiveBuffer, setTcpReceiveBuffer] = useState(() =>
-    readParameter(tcpTemplate, keys.tcpReceiveBuffer, defaults.tcpReceiveBuffer)
-  );
-  const [tcpWriteBuffer, setTcpWriteBuffer] = useState(() =>
-    readParameter(tcpTemplate, keys.tcpWriteBuffer, defaults.tcpWriteBuffer)
-  );
-  const [somaxconn, setSomaxconn] = useState(() => readParameter(tcpTemplate, keys.somaxconn, defaults.somaxconn));
-  const [tcpMaxSynBacklog, setTcpMaxSynBacklog] = useState(() =>
-    readParameter(tcpTemplate, keys.tcpMaxSynBacklog, defaults.tcpMaxSynBacklog)
-  );
+  const [selectedPresetId, setSelectedPresetId] = useState<TuningPresetId>('bbr-fq');
   const [customKey, setCustomKey] = useState('');
   const [customValue, setCustomValue] = useState('');
   const [customParameters, setCustomParameters] = useState<TuningParameter[]>([]);
@@ -399,31 +452,9 @@ export function TuningPage({
   const recentTask = useMemo(() => latestTuningTask(tasks), [tasks]);
   const highRiskProfileCount = profiles.filter((profile) => profile.riskLevel === 'high').length;
   const parameterCount = profiles.reduce((total, profile) => total + profile.parameters.length, 0);
-
-  const bbrProfile = createProfile({
-    id: 'tune-bbr-edge',
-    name: 'BBR Edge Throughput',
-    target: 'kernel',
-    riskLevel: 'medium',
-    template: bbrTemplate,
-    parameters: [
-      createParameter(keys.congestionControl, congestionControl),
-      createParameter(keys.defaultQdisc, defaultQdisc)
-    ]
-  });
-  const tcpProfile = createProfile({
-    id: 'tune-runtime-reload',
-    name: 'TCP Buffer and Backlog',
-    target: 'network',
-    riskLevel: 'medium',
-    template: tcpTemplate,
-    parameters: [
-      createParameter(keys.tcpReceiveBuffer, tcpReceiveBuffer),
-      createParameter(keys.tcpWriteBuffer, tcpWriteBuffer),
-      createParameter(keys.somaxconn, somaxconn),
-      createParameter(keys.tcpMaxSynBacklog, tcpMaxSynBacklog)
-    ]
-  });
+  const selectedPresetDefinition =
+    tuningPresetDefinitions.find((preset) => preset.id === selectedPresetId) ?? tuningPresetDefinitions[0];
+  const presetProfile = createPresetProfile(selectedPresetDefinition, t);
   const customProfile = createProfile({
     id: 'custom-sysctl',
     name: t.customSysctl,
@@ -433,16 +464,18 @@ export function TuningPage({
   });
   const dispatchDisabled = taskMutationBusy || !targetAgentId;
   const releaseGates = createTuningReleaseGates({
-    bbrProfile,
     customParameterCount: customParameters.length,
     dispatchDisabled,
     language,
+    presetProfile,
     recentTask,
     targetAgent,
     targetAgentLabel,
-    t,
-    tcpProfile
+    t
   });
+  const bbrService = targetAgent?.telemetry.runtimeServices?.find((service) => service.moduleKind === 'bbr');
+  const bbrInstalled = Boolean(targetAgent?.capabilities.includes('bbr') || bbrService?.status === 'active');
+  const tcpProbeReady = Boolean(targetAgent?.telemetry.reportedAt || targetAgent?.lastHeartbeatAt);
 
   function dispatchProfile(profile: TuningProfile) {
     if (dispatchDisabled) {
@@ -571,29 +604,20 @@ export function TuningPage({
 
               <TuningReleaseGatePanel gates={releaseGates} t={t} />
 
-              <TuningToolCard
-                icon={Gauge}
-                title={t.bbrPanel}
-                buttonLabel={t.applyBbr}
-                disabled={dispatchDisabled}
-                onApply={() => dispatchProfile(bbrProfile)}
-              >
-                <TextInput label={t.congestionControl} value={congestionControl} onChange={setCongestionControl} />
-                <TextInput label={t.defaultQdisc} value={defaultQdisc} onChange={setDefaultQdisc} />
-              </TuningToolCard>
+              <TuningProbePanel
+                bbrInstalled={bbrInstalled}
+                kernelVersion={targetAgent?.hardware.kernelVersion}
+                tcpProbeReady={tcpProbeReady}
+                t={t}
+              />
 
-              <TuningToolCard
-                icon={Network}
-                title={t.tcpPanel}
-                buttonLabel={t.applyTcpTuning}
+              <TuningPresetCard
                 disabled={dispatchDisabled}
-                onApply={() => dispatchProfile(tcpProfile)}
-              >
-                <TextInput label={t.tcpReceiveBuffer} value={tcpReceiveBuffer} onChange={setTcpReceiveBuffer} />
-                <TextInput label={t.tcpWriteBuffer} value={tcpWriteBuffer} onChange={setTcpWriteBuffer} />
-                <TextInput label={t.somaxconn} value={somaxconn} onChange={setSomaxconn} />
-                <TextInput label={t.tcpMaxSynBacklog} value={tcpMaxSynBacklog} onChange={setTcpMaxSynBacklog} />
-              </TuningToolCard>
+                onApply={() => dispatchProfile(presetProfile)}
+                onPresetChange={setSelectedPresetId}
+                presetId={selectedPresetId}
+                t={t}
+              />
             </div>
           </aside>
 
@@ -751,30 +775,91 @@ function TextInput({ label, value, onChange }: { label: string; value: string; o
   );
 }
 
-function TuningToolCard({
-  title,
-  buttonLabel,
-  disabled,
-  onApply,
-  icon: Icon,
-  children
+function TuningProbePanel({
+  bbrInstalled,
+  kernelVersion,
+  tcpProbeReady,
+  t
 }: {
-  title: string;
-  buttonLabel: string;
-  disabled: boolean;
-  onApply: () => void;
-  icon: typeof Gauge;
-  children: ReactNode;
+  bbrInstalled: boolean;
+  kernelVersion?: string;
+  tcpProbeReady: boolean;
+  t: TuningCopy;
 }) {
   return (
-    <GlassCard aria-label={title} className="tuning-ops-tool-panel stagger-2 p-3" role="group">
+    <section
+      aria-label={t.detectionPanel}
+      className="tuning-ops-tool-panel border border-[#07111F]/18 bg-[#FFFDF5]/82 p-3 dark:border-white/10 dark:bg-white/[0.03]"
+      role="region"
+    >
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
-        <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{title}</h4>
+        <Gauge className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+        <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.detectionPanel}</h4>
       </div>
-      <div className="mt-3 space-y-2">{children}</div>
+      <div className="mt-3 grid gap-2">
+        <Metric label="BBR" value={bbrInstalled ? t.bbrDetected : t.bbrMissing} />
+        <Metric label={t.tcpStatus} value={tcpProbeReady ? t.tcpReady : t.tcpWaiting} />
+        <Metric label={t.kernelVersion} value={kernelVersion?.trim() || '-'} />
+      </div>
+    </section>
+  );
+}
+
+function TuningPresetCard({
+  disabled,
+  onApply,
+  onPresetChange,
+  presetId,
+  t
+}: {
+  disabled: boolean;
+  onApply: () => void;
+  onPresetChange: (presetId: TuningPresetId) => void;
+  presetId: TuningPresetId;
+  t: TuningCopy;
+}) {
+  const selectedPreset = tuningPresetDefinitions.find((preset) => preset.id === presetId) ?? tuningPresetDefinitions[0];
+
+  return (
+    <GlassCard aria-label={t.tuningPresetPanel} className="tuning-ops-tool-panel stagger-2 p-3" role="group">
+      <div className="flex items-center gap-2">
+        <Network className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+        <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.tuningPresetPanel}</h4>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[#35405A] dark:text-white/50">{t.tuningPresetHint}</p>
+      <label className="mt-3 block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
+          {t.tuningPreset}
+        </span>
+        <select
+          aria-label={t.tuningPreset}
+          className="ou-select mt-1 min-h-8 w-full bg-transparent text-sm font-bold text-[#07111F] outline-none dark:text-white"
+          onChange={(event) => onPresetChange(event.target.value as TuningPresetId)}
+          value={presetId}
+        >
+          {tuningPresetDefinitions.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {t.presetNames[preset.id]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="mt-2 text-[11px] leading-5 text-[#35405A] dark:text-white/45">
+        {t.presetDescriptions[selectedPreset.id]}
+      </p>
+      <div className="mt-3 grid gap-1.5">
+        {selectedPreset.parameters.map((parameter) => (
+          <code
+            className="block truncate border border-[#07111F]/12 bg-[#EAF3D1]/50 px-2 py-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/55"
+            key={parameter.key}
+            title={`${parameter.key}=${parameter.value}`}
+          >
+            {parameter.key}={parameter.value}
+          </code>
+        ))}
+      </div>
       <GlowButton className="mt-3 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={disabled} onClick={onApply}>
-        {buttonLabel}
+        {t.dispatchTuningPreset}
       </GlowButton>
     </GlassCard>
   );

@@ -8,7 +8,6 @@ export type PageId =
   | 'forwarding'
   | 'subscriptions'
   | 'routing'
-  | 'permissions'
   | 'telegram'
   | 'adminAccounts'
   | 'tuning'
@@ -45,7 +44,6 @@ export const navigationItems: NavigationItem[] = [
   { id: 'subscriptions', label: '订阅', description: '订阅身份与导出文件' },
   { id: 'routing', label: '分流策略', description: '路由与策略编排' },
   { id: 'tuning', label: '调优', description: 'Agent 调优任务' },
-  { id: 'permissions', label: '权限与配额', description: '访问与配额策略' },
   { id: 'telegram', label: '通知', description: 'Telegram Bot 与客户绑定' },
   { id: 'adminAccounts', label: '账户', description: '登录凭据与会话' },
   { id: 'tasks', label: '执行记录', description: '任务状态与回滚' },
@@ -61,7 +59,6 @@ export const englishNavigationItems: NavigationItem[] = [
   { id: 'subscriptions', label: 'Subscriptions', description: 'Identities and export files' },
   { id: 'routing', label: 'Routing', description: 'Policy orchestration' },
   { id: 'tuning', label: 'Tuning', description: 'Agent tuning tasks' },
-  { id: 'permissions', label: 'Access & Quotas', description: 'Access and quota policy' },
   { id: 'telegram', label: 'Notifications', description: 'Telegram bot and bindings' },
   { id: 'adminAccounts', label: 'Accounts', description: 'Login credentials and sessions' },
   { id: 'tasks', label: 'Execution', description: 'Task state and rollback' },
@@ -114,7 +111,6 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
           createLeaf(items, 'customers'),
           createLeaf(items, 'routing'),
           createLeaf(items, 'tuning'),
-          createLeaf(items, 'permissions'),
           createLeaf(items, 'telegram'),
           createLeaf(items, 'adminAccounts'),
           createLeaf(items, 'tasks'),
@@ -147,7 +143,6 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
         createLeaf(items, 'customers'),
         createLeaf(items, 'routing'),
         createLeaf(items, 'tuning'),
-        createLeaf(items, 'permissions'),
         createLeaf(items, 'telegram'),
         createLeaf(items, 'adminAccounts'),
         createLeaf(items, 'tasks'),

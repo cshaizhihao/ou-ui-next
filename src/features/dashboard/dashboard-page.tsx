@@ -67,8 +67,8 @@ const copy = {
     subtitle: '主控与受控主机控制面，优先呈现主机探针、客户节点、端口转发与告警状态。',
     refresh: '刷新视图',
     hostProbeTitle: '主机探针',
-    hostProbeSubtitle: '优先查看受控主机 Agent 遥测、运行服务、流量与延迟状态。',
-    hostProbeEmpty: '暂无主机探针，主机代理完成注册后会显示实时遥测。',
+    hostProbeSubtitle: 'Agent 遥测 / 运行服务 / 流量 / 延迟',
+    hostProbeEmpty: '等待接入',
     hostProbeShowing: (shown: string, total: string) => `显示 ${shown}/${total} 台`,
     manageHosts: '管理主机',
     runtimeHostName: '运行时主机名',
@@ -152,13 +152,11 @@ const copy = {
       offline: '离线',
       provisioning: '纳管中'
     },
-    topologyTitle: '流量拓扑',
-    topologyDescription: '主控、受控主机与端口转发链路之间的实时流向预览。',
-    topologyAria: '实时流量拓扑',
-    topologyMaster: '主控',
-    topologyManagedHosts: '受控主机',
-    topologyForwarding: '端口转发',
-    topologyIdle: '等待受控主机接入',
+    connectivityTitle: '连通性',
+    connectivityAria: '主机到已挂载主机到节点连通性',
+    connectivityHost: '主机',
+    connectivityMountedHost: '已挂载主机',
+    connectivityNode: '节点',
     controlSurfaceRegion: '控制面',
     operationsRailRegion: '运维侧栏',
     hostTelemetryRegion: '主机遥测',
@@ -201,7 +199,6 @@ const copy = {
     },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
-    controlPlanePath: ['Master', 'Agent', 'Customer Nodes', 'Forwarding', 'Subscriptions', 'Audit Evidence'],
     releaseEvidence: 'Release Evidence',
     releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
       `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
@@ -304,8 +301,8 @@ const copy = {
     subtitle: 'Control plane overview focused on host probes, customer nodes, forwarding, and alert state.',
     refresh: 'Refresh View',
     hostProbeTitle: 'Host Probes',
-    hostProbeSubtitle: 'Prioritized Agent telemetry, runtime services, traffic, and latency for managed hosts.',
-    hostProbeEmpty: 'No host probes yet. Telemetry appears after a host Agent registers.',
+    hostProbeSubtitle: 'Agent telemetry / runtime services / traffic / latency',
+    hostProbeEmpty: 'Waiting for host',
     hostProbeShowing: (shown: string, total: string) => `Showing ${shown}/${total} hosts`,
     manageHosts: 'Manage Hosts',
     runtimeHostName: 'Runtime Hostname',
@@ -389,13 +386,11 @@ const copy = {
       offline: 'Offline',
       provisioning: 'Provisioning'
     },
-    topologyTitle: 'Traffic Topology',
-    topologyDescription: 'Real-time flow preview across the control plane, managed hosts, and port forwarding links.',
-    topologyAria: 'Real-time traffic topology',
-    topologyMaster: 'Control Plane',
-    topologyManagedHosts: 'Managed Hosts',
-    topologyForwarding: 'Port Forwarding',
-    topologyIdle: 'Waiting for managed host enrollment',
+    connectivityTitle: 'Connectivity',
+    connectivityAria: 'Host to mounted host to node connectivity',
+    connectivityHost: 'Host',
+    connectivityMountedHost: 'Mounted Host',
+    connectivityNode: 'Node',
     controlSurfaceRegion: 'Control Surface',
     operationsRailRegion: 'Operations Rail',
     hostTelemetryRegion: 'Host Telemetry',
@@ -440,7 +435,6 @@ const copy = {
     },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
-    controlPlanePath: ['Master Plane', 'Agent Runtime', 'Customer Node Mesh', 'Forwarding Fabric', 'Subscription Distribution', 'Audit Evidence Chain'],
     releaseEvidence: 'Release Evidence',
     releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
       `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
@@ -622,7 +616,7 @@ export function DashboardPage({
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
   const visibleHostProbes = agents.slice(0, 3);
-  const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
+  const connectivityActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
   const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
   const latestTask = tasks[0];
   const latestConfigRevision = getLatestReleaseRecord(configRevisions, (revision) => revision.createdAt);
@@ -730,27 +724,14 @@ export function DashboardPage({
                   {t.controlPlaneLabel}
                 </p>
                 <h3 className="mt-2 max-w-4xl text-balance text-4xl font-black leading-[0.96] tracking-[-0.035em] text-[#07111F] md:text-5xl dark:text-[#F4F8FF]">
-                  {language === 'zh' ? '运营态势' : 'Operations Overview'}
+                  {t.connectivityTitle}
                 </h3>
-                <p className="mt-2 max-w-[56ch] text-sm font-semibold leading-6 text-[#35405A] dark:text-[#D8E0FF]/82">
-                  {language === 'zh'
-                    ? '实时查看核心资源、交付链路与服务状态。'
-                    : 'Monitor core resources, delivery paths, and service readiness in real time.'}
-                </p>
-                <p className="mt-1.5 text-xs font-bold text-[#536078] dark:text-[#B8C2E6]/75">{topologyActive ? t.topologyDescription : t.topologyIdle}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="dashboard-control-plane-media relative min-h-[10rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#07111F] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.62)] dark:border-[#6B7CFF]/30">
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.52)_0%,rgba(30,58,255,0.52)_30%,transparent_30%),linear-gradient(225deg,rgba(255,61,24,0.48)_0%,rgba(255,61,24,0.48)_24%,transparent_24%),linear-gradient(315deg,rgba(0,168,120,0.38)_0%,rgba(0,168,120,0.38)_20%,transparent_20%),linear-gradient(120deg,rgba(7,17,31,0.12),rgba(7,17,31,0.92))]" aria-hidden="true" />
-                  <div className="relative z-10 grid grid-cols-2 gap-1.5 p-2.5 sm:grid-cols-3 lg:grid-cols-6">
-                    {t.controlPlanePath.map((label) => (
-                      <span key={label} className="rounded-lg border border-[#F4F8FF]/18 bg-white/[0.04] px-2 py-1.5 text-center text-[10px] font-black text-[#F4F8FF]/84">
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                  <svg className="relative z-10 h-24 w-full" role="img" aria-label={t.topologyAria} viewBox="0 0 720 164">
+                  <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.connectivityAria} viewBox="0 0 720 190">
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
                         <stop className="svg-flow-stop-1" offset="0%" stopColor="#6B7CFF" />
@@ -758,13 +739,28 @@ export function DashboardPage({
                         <stop className="svg-flow-stop-3" offset="100%" stopColor="#FF3D18" />
                       </linearGradient>
                     </defs>
-                    <path className={topologyActive ? 'svg-line-dash' : 'opacity-25'} d="M 54 76 C 138 22, 196 130, 282 76 S 426 22, 510 76 S 610 124, 668 76" fill="none" stroke="url(#dashboard-control-plane-flow)" strokeLinecap="round" strokeWidth="4" />
-                    {[54, 282, 510, 668].map((cx) => <circle key={cx} cx={cx} cy="76" r="26" fill="url(#dashboard-control-plane-flow)" opacity="0.16" />)}
-                    {[54, 282, 510, 668].map((cx) => <circle key={`dot-${cx}`} cx={cx} cy="76" r="8" fill="#F4F8FF" />)}
-                    <text x="54" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{t.topologyMaster}</text>
-                    <text x="282" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{t.topologyManagedHosts}</text>
-                    <text x="510" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{t.topologyForwarding}</text>
-                    <text x="668" y="132" textAnchor="middle" className="fill-[#f4f8ff]/76 text-[10px]">{language === 'zh' ? '证据' : 'Evidence'}</text>
+                    <path
+                      className={connectivityActive ? 'dashboard-connectivity-flow svg-line-dash' : 'dashboard-connectivity-flow opacity-35'}
+                      d="M 120 92 C 205 38, 275 146, 360 92 S 515 38, 600 92"
+                      fill="none"
+                      stroke="url(#dashboard-control-plane-flow)"
+                      strokeLinecap="round"
+                      strokeWidth="5"
+                    />
+                    {[
+                      { cx: 120, label: t.connectivityHost },
+                      { cx: 360, label: t.connectivityMountedHost },
+                      { cx: 600, label: t.connectivityNode }
+                    ].map((node, index) => (
+                      <g className="dashboard-connectivity-node" key={node.label}>
+                        <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.14 + index * 0.04} />
+                        <circle cx={node.cx} cy="92" r="16" fill="#F4F8FF" />
+                        <circle cx={node.cx} cy="92" r="8" fill={index === 0 ? '#6B7CFF' : index === 1 ? '#D9FF00' : '#FF3D18'} />
+                        <text x={node.cx} y="154" textAnchor="middle" className="fill-[#f4f8ff] text-[13px] font-black">
+                          {node.label}
+                        </text>
+                      </g>
+                    ))}
                   </svg>
                 </div>
 

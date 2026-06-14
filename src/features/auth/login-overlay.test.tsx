@@ -67,7 +67,7 @@ describe('LoginOverlay', () => {
     });
   });
 
-  it('exposes production login fields with visible labels, autofill hints, and alert recovery semantics', async () => {
+  it('exposes centered production login fields without instructional filler copy', async () => {
     const user = userEvent.setup();
 
     render(
@@ -83,11 +83,13 @@ describe('LoginOverlay', () => {
     const passwordField = screen.getByLabelText('密码');
 
     expect(usernameField).toHaveAttribute('autocomplete', 'username');
-    expect(usernameField).toHaveAttribute('aria-describedby', 'operator-login-recovery');
     expect(passwordField).toHaveAttribute('type', 'password');
     expect(passwordField).toHaveAttribute('autocomplete', 'current-password');
-    expect(passwordField).toHaveAttribute('aria-describedby', 'operator-login-recovery');
-    expect(screen.getByText('使用管理员凭据进入生产控制面。')).toHaveAttribute('id', 'operator-login-recovery');
+    expect(usernameField).not.toHaveAttribute('aria-describedby');
+    expect(passwordField).not.toHaveAttribute('aria-describedby');
+    expect(screen.queryByText('使用管理员凭据进入生产控制面。')).not.toBeInTheDocument();
+    expect(document.getElementById('login-overlay')).toHaveClass('login-overlay-centered');
+    expect(document.querySelector('.login-box')).toHaveClass('login-box-centered');
 
     await user.type(usernameField, 'admin');
     await user.type(passwordField, 'wrong-password');
@@ -95,6 +97,8 @@ describe('LoginOverlay', () => {
 
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('访问拒绝：认证失败');
+    expect(usernameField).toHaveAttribute('aria-describedby', 'operator-login-error');
+    expect(passwordField).toHaveAttribute('aria-describedby', 'operator-login-error');
     expect(usernameField).toHaveAttribute('aria-invalid', 'true');
     expect(passwordField).toHaveAttribute('aria-invalid', 'true');
   });

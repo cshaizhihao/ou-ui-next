@@ -21,7 +21,8 @@ describe('navigation groups', () => {
     expect(coreIds).not.toContain('permissions');
     expect(coreIds).not.toContain('tasks');
     expect(coreIds).not.toContain('audit');
-    expect(advancedIds).toEqual(expect.arrayContaining(['permissions', 'tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
+    expect(advancedIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
+    expect(advancedIds).not.toContain('permissions');
   });
 
   it('uses the same control-plane grouping in English navigation', () => {
@@ -36,6 +37,7 @@ describe('navigation groups', () => {
     expect(coreIds).not.toContain('permissions');
     expect(coreIds).not.toContain('tasks');
     expect(coreIds).not.toContain('audit');
-    expect(advancedIds).toEqual(expect.arrayContaining(['permissions', 'tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
+    expect(advancedIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
+    expect(advancedIds).not.toContain('permissions');
   });
 });

@@ -150,8 +150,9 @@ describe('TuningPage', () => {
     const workspace = within(cockpit).getByRole('region', { name: 'Tuning execution workspace' });
 
     expect(within(rail).getByLabelText('Target Host')).toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: 'Apply BBR' })).toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: 'Apply TCP Tuning' })).toBeInTheDocument();
+    expect(within(rail).getByRole('region', { name: 'Host Tuning Probe' })).toBeInTheDocument();
+    expect(within(rail).getByRole('group', { name: 'Tuning Preset Panel' })).toBeInTheDocument();
+    expect(within(rail).getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeInTheDocument();
     expect(within(workspace).getByRole('region', { name: 'Execution Status' })).toBeInTheDocument();
     expect(within(workspace).getByRole('region', { name: 'Custom sysctl' })).toBeInTheDocument();
     expect(within(workspace).getByText('TCP Buffer and Backlog / agent-hkg-01')).toBeInTheDocument();
@@ -201,8 +202,8 @@ describe('TuningPage', () => {
     const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
     const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
     const workspace = within(cockpit).getByRole('region', { name: 'Tuning execution workspace' });
-    const bbrPanel = within(rail).getByRole('group', { name: 'BBR Configuration' });
-    const tcpPanel = within(rail).getByRole('group', { name: 'TCP Tuning' });
+    const probePanel = within(rail).getByRole('region', { name: 'Host Tuning Probe' });
+    const presetPanel = within(rail).getByRole('group', { name: 'Tuning Preset Panel' });
     const customPanel = within(workspace).getByRole('region', { name: 'Custom sysctl' });
     const statusPanel = within(workspace).getByRole('region', { name: 'Execution Status' });
     const customRow = within(customPanel).getByRole('article', { name: 'net.ipv4.tcp_fin_timeout' });
@@ -210,8 +211,8 @@ describe('TuningPage', () => {
     expect(cockpit).toHaveClass('tuning-ops-cockpit');
     expect(rail).toHaveClass('tuning-ops-rail');
     expect(workspace).toHaveClass('tuning-ops-workspace');
-    expect(bbrPanel).toHaveClass('tuning-ops-tool-panel');
-    expect(tcpPanel).toHaveClass('tuning-ops-tool-panel');
+    expect(probePanel).toHaveClass('tuning-ops-tool-panel');
+    expect(presetPanel).toHaveClass('tuning-ops-tool-panel');
     expect(customPanel).toHaveClass('tuning-ops-custom-panel');
     expect(statusPanel).toHaveClass('tuning-ops-status-panel');
     expect(customRow).toHaveClass('tuning-ops-sysctl-row');
@@ -270,6 +271,67 @@ describe('TuningPage', () => {
     expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
   });
 
+  it('detects BBR and TCP status from the selected host and dispatches administrator presets instead of manual TCP buffers', async () => {
+    const user = userEvent.setup();
+    const onRunTask = vi.fn();
+    vi.stubGlobal('confirm', vi.fn(() => true));
+
+    render(
+      <TuningPage
+        agents={[
+          {
+            ...baseAgent,
+            capabilities: ['xray', 'port-forwarding', 'bbr'],
+            telemetry: {
+              ...baseAgent.telemetry,
+              runtimeServices: [
+                {
+                  name: 'ou-ui-bbr.service',
+                  moduleKind: 'bbr',
+                  status: 'active',
+                  enabled: true,
+                  required: false,
+                  checkedAt: '2026-06-02T00:00:00.000Z'
+                }
+              ]
+            }
+          }
+        ]}
+        language="zh"
+        profiles={profiles}
+        tasks={[]}
+        onRunTask={onRunTask}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: '系统调优 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '调优控制轨' });
+
+    expect(within(rail).getByRole('region', { name: '主机调优探测' })).toBeInTheDocument();
+    expect(within(rail).getByText('BBR 已安装')).toBeInTheDocument();
+    expect(within(rail).getByText('TCP 状态')).toBeInTheDocument();
+    expect(screen.queryByLabelText('TCP 接收缓冲')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('TCP 发送缓冲')).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText('调优预设'), 'tcp-high-throughput');
+    await user.click(screen.getByRole('button', { name: '下发调优预设' }));
+
+    expect(onRunTask).toHaveBeenCalledWith(
+      'tcp-high-throughput',
+      'agent-hkg-01',
+      expect.objectContaining({
+        id: 'tcp-high-throughput',
+        name: 'TCP 高吞吐预设',
+        parameters: expect.arrayContaining([
+          expect.objectContaining({ key: 'net.ipv4.tcp_congestion_control', value: 'bbr' }),
+          expect.objectContaining({ key: 'net.core.default_qdisc', value: 'fq' }),
+          expect.objectContaining({ key: 'net.ipv4.tcp_rmem', value: '4096 87380 134217728' }),
+          expect.objectContaining({ key: 'net.ipv4.tcp_wmem', value: '4096 65536 134217728' })
+        ])
+      })
+    );
+  });
+
   it('keeps the system tuning cockpit compact without masonry or oversized cards', async () => {
     const user = userEvent.setup();
 
@@ -287,7 +349,7 @@ describe('TuningPage', () => {
     const actionGrid = workspace.querySelector('.tuning-ops-action-grid');
     const statusPanel = within(workspace).getAllByRole('region', { name: 'Execution Status' })[0];
     const customPanel = within(workspace).getByRole('region', { name: 'Custom sysctl' });
-    const bbrPanel = within(rail).getByRole('group', { name: 'BBR Configuration' });
+    const presetPanel = within(rail).getByRole('group', { name: 'Tuning Preset Panel' });
     const customRow = within(customPanel).getByRole('article', { name: 'net.ipv4.tcp_fin_timeout' });
     const railMetric = within(rail).getByRole('group', { name: 'Host Status' });
     const summaryGrid = document.querySelector('.tuning-summary-grid');
@@ -310,8 +372,8 @@ describe('TuningPage', () => {
     expect(statusPanel).not.toHaveClass('p-5', 'rounded-xl');
     expect(customPanel).toHaveClass('tuning-ops-custom-panel', 'p-3');
     expect(customPanel).not.toHaveClass('p-5', 'rounded-xl');
-    expect(bbrPanel).toHaveClass('tuning-ops-tool-panel', 'p-3');
-    expect(bbrPanel).not.toHaveClass('p-5', 'rounded-xl');
+    expect(presetPanel).toHaveClass('tuning-ops-tool-panel', 'p-3');
+    expect(presetPanel).not.toHaveClass('p-5', 'rounded-xl');
     expect(customRow).toHaveClass('tuning-ops-sysctl-row', 'min-h-[64px]', 'px-3', 'py-2');
     expect(customRow).not.toHaveClass('min-h-[76px]');
     expect(customRow).not.toHaveClass('rounded-xl');
@@ -331,16 +393,18 @@ describe('TuningPage', () => {
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Host Tuning Probe' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Tuning Preset Panel' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add sysctl' })).toBeDisabled();
-    expect(screen.getByLabelText('TCP receive buffer')).toHaveValue('4096 87380 67108864');
-    expect(screen.getByLabelText('TCP write buffer')).toHaveValue('4096 65536 67108864');
+    expect(screen.getByLabelText('Tuning Preset')).toHaveValue('bbr-fq');
+    expect(screen.queryByLabelText('TCP receive buffer')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('TCP write buffer')).not.toBeInTheDocument();
     expect(screen.getByText('No tuning execution yet')).toBeInTheDocument();
     expect(screen.queryByRole('searchbox', { name: 'Search Profiles' })).not.toBeInTheDocument();
   });
 
-  it('dispatches edited TCP buffers to the selected Agent', async () => {
+  it('dispatches the selected TCP preset to the selected Agent', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();
     vi.stubGlobal('confirm', vi.fn(() => true));
@@ -348,20 +412,19 @@ describe('TuningPage', () => {
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={onRunTask} />);
 
     await user.selectOptions(screen.getByLabelText('Target Host'), 'agent-sin-02');
-    await user.clear(screen.getByLabelText('TCP receive buffer'));
-    await user.type(screen.getByLabelText('TCP receive buffer'), '4096 131072 134217728');
-    await user.click(screen.getByRole('button', { name: 'Apply TCP Tuning' }));
+    await user.selectOptions(screen.getByLabelText('Tuning Preset'), 'tcp-high-throughput');
+    await user.click(screen.getByRole('button', { name: 'Dispatch Tuning Preset' }));
 
     expect(onRunTask).toHaveBeenCalledWith(
-      'tune-runtime-reload',
+      'tcp-high-throughput',
       'agent-sin-02',
       expect.objectContaining({
-        id: 'tune-runtime-reload',
-        name: 'TCP Buffer and Backlog',
+        id: 'tcp-high-throughput',
+        name: 'TCP High Throughput Preset',
         target: 'network',
         parameters: expect.arrayContaining([
-          expect.objectContaining({ key: 'net.ipv4.tcp_rmem', value: '4096 131072 134217728' }),
-          expect.objectContaining({ key: 'net.ipv4.tcp_wmem', value: '4096 65536 67108864' }),
+          expect.objectContaining({ key: 'net.ipv4.tcp_rmem', value: '4096 87380 134217728' }),
+          expect.objectContaining({ key: 'net.ipv4.tcp_wmem', value: '4096 65536 134217728' }),
           expect.objectContaining({ key: 'net.core.somaxconn', value: '65535' }),
           expect.objectContaining({ key: 'net.ipv4.tcp_max_syn_backlog', value: '65535' })
         ])
@@ -460,7 +523,7 @@ describe('TuningPage', () => {
     expect(screen.getByRole('status').outerHTML).toContain('#FFD8C6');
     expect(screen.getByRole('status').outerHTML).not.toContain('orange-');
     expect(screen.getByRole('status').outerHTML).not.toContain('amber-');
-    expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Apply Custom sysctl' })).toBeDisabled();
   });
 });

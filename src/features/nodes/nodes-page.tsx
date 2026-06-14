@@ -72,7 +72,9 @@ type HostCapabilityFilter = 'all' | Agent['capabilities'][number];
 type HostRuntimeHealthFilter = 'all' | 'issues' | 'sampling-gap' | 'no-telemetry';
 type CustomerNodeProtocolFilter = 'all' | XrayProtocol;
 type CustomerNodeStatusFilter = 'all' | XrayInboundStatus | 'client-disabled';
+type CustomerNodeTrafficMultiplier = 0.5 | 1 | 1.5 | 2;
 const hostStatuses: Agent['status'][] = ['online', 'degraded', 'offline', 'provisioning'];
+const CUSTOMER_NODE_TRAFFIC_MULTIPLIERS: CustomerNodeTrafficMultiplier[] = [0.5, 1, 1.5, 2];
 
 type NodesPageProps = {
   agents: Agent[];
@@ -160,6 +162,7 @@ export type CustomerNodeConfigMetadata = {
   fallbackXver: number;
   sniffingEnabled: boolean;
   ipLimit: number;
+  trafficMultiplier: CustomerNodeTrafficMultiplier;
   trafficLimitGb: number;
   monthlyResetDay: number;
   currentUsedTrafficGb: number;
@@ -206,6 +209,7 @@ type CustomerNodeRecord = {
   fallbackXver: number;
   sniffingEnabled: boolean;
   ipLimit: number;
+  trafficMultiplier: CustomerNodeTrafficMultiplier;
   trafficLimitGb: number;
   trafficLimitBytes: number;
   monthlyResetDay: number;
@@ -256,6 +260,7 @@ type CustomerDraft = {
   fallbackXver: string;
   sniffingEnabled: boolean;
   ipLimit: string;
+  trafficMultiplier: string;
   trafficLimitGb: string;
   monthlyResetDay: string;
   currentUsedTrafficGb: string;
@@ -545,6 +550,7 @@ const copy = {
     fallbackXver: '回落版本号',
     sniffingEnabled: '启用流量嗅探',
     ipLimit: 'IP 限制',
+    trafficMultiplier: '流量倍率',
     protocolLink: '可用订阅链接',
     configPreview: 'Xray 入站配置',
     remainingTime: '剩余时间',
@@ -860,6 +866,7 @@ const copy = {
     fallbackXver: 'Fallback Xver',
     sniffingEnabled: 'Enable Sniffing',
     ipLimit: 'IP Limit',
+    trafficMultiplier: 'Traffic Multiplier',
     protocolLink: 'Usable Subscription Link',
     configPreview: 'Xray Inbound Config',
     remainingTime: 'Remaining Time',
@@ -962,12 +969,21 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     fallbackXver: '0',
     sniffingEnabled: true,
     ipLimit: '',
+    trafficMultiplier: '1',
     trafficLimitGb: '100',
     monthlyResetDay: '1',
     currentUsedTrafficGb: '',
     remainingDays: '30',
     subscriptionRule: ''
   };
+}
+
+function parseCustomerNodeTrafficMultiplier(value: unknown): CustomerNodeTrafficMultiplier {
+  const numericValue = typeof value === 'number' ? value : Number.parseFloat(String(value ?? '1'));
+
+  return CUSTOMER_NODE_TRAFFIC_MULTIPLIERS.includes(numericValue as CustomerNodeTrafficMultiplier)
+    ? (numericValue as CustomerNodeTrafficMultiplier)
+    : 1;
 }
 
 function normalizeHostSearch(value: string) {
@@ -1938,6 +1954,7 @@ function mapInboundToCustomerNode(
     fallbackXver: inbound.fallbacks[0]?.xver ?? 0,
     sniffingEnabled: inbound.sniffingEnabled,
     ipLimit: primaryClient?.ipLimit ?? 0,
+    trafficMultiplier: parseCustomerNodeTrafficMultiplier(primaryClient?.trafficMultiplier),
     trafficLimitGb: Math.round(trafficLimitBytes / 1024 / 1024 / 1024),
     trafficLimitBytes,
     monthlyResetDay: primaryClient?.monthlyResetDay ?? 1,
@@ -2052,6 +2069,7 @@ function createCustomerDraftFromNode(node: CustomerNodeRecord): CustomerDraft {
     fallbackXver: String(node.fallbackXver),
     sniffingEnabled: node.sniffingEnabled,
     ipLimit: String(node.ipLimit),
+    trafficMultiplier: String(node.trafficMultiplier),
     trafficLimitGb: String(node.trafficLimitGb),
     monthlyResetDay: String(node.monthlyResetDay),
     currentUsedTrafficGb: String(node.currentUsedTrafficGb),
@@ -2116,6 +2134,7 @@ function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): Custome
     fallbackXver: node.fallbackXver,
     sniffingEnabled: node.sniffingEnabled,
     ipLimit: node.ipLimit,
+    trafficMultiplier: node.trafficMultiplier,
     trafficLimitGb: node.trafficLimitGb,
     monthlyResetDay: node.monthlyResetDay,
     currentUsedTrafficGb: node.currentUsedTrafficGb,
@@ -3066,6 +3085,7 @@ export function NodesPage({
       t.customerName
     );
     const resolvedTrafficLimitGb = Math.max(Number.parseInt(preparedDraft.trafficLimitGb, 10) || 0, 0);
+    const resolvedTrafficMultiplier = parseCustomerNodeTrafficMultiplier(preparedDraft.trafficMultiplier);
     const resolvedTrafficLimitBytes = bytesFromGb(resolvedTrafficLimitGb);
     const resolvedUsedTrafficGb = parseNonNegativeNumber(preparedDraft.currentUsedTrafficGb);
     const resolvedUsedTrafficBytes = bytesFromGb(resolvedUsedTrafficGb);
@@ -3114,6 +3134,7 @@ export function NodesPage({
       fallbackXver: Math.max(Number.parseInt(preparedDraft.fallbackXver, 10) || 0, 0),
       sniffingEnabled: preparedDraft.sniffingEnabled,
       ipLimit: Math.max(Number.parseInt(preparedDraft.ipLimit, 10) || 0, 0),
+      trafficMultiplier: resolvedTrafficMultiplier,
       trafficLimitGb: resolvedTrafficLimitGb,
       trafficLimitBytes: resolvedTrafficLimitBytes,
       monthlyResetDay: clampResetDay(Number.parseInt(preparedDraft.monthlyResetDay, 10) || 1),
@@ -3166,6 +3187,7 @@ export function NodesPage({
         fallbackXver: nextNode.fallbackXver,
         sniffingEnabled: nextNode.sniffingEnabled,
         ipLimit: nextNode.ipLimit,
+        trafficMultiplier: nextNode.trafficMultiplier,
         trafficLimitGb: nextNode.trafficLimitGb,
         monthlyResetDay: nextNode.monthlyResetDay,
         currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
@@ -4124,6 +4146,7 @@ export function NodesPage({
                     <th className="px-5 py-3">{t.assignedHost}</th>
                     <th className="px-5 py-3">{t.protocolConfig}</th>
                     <th className="px-5 py-3">{t.maxTraffic}</th>
+                    <th className="px-5 py-3">{t.trafficMultiplier}</th>
                     <th className="px-5 py-3">{t.subscriptionRule}</th>
                     <th className="px-5 py-3 text-right">{t.actions}</th>
                   </tr>
@@ -4166,6 +4189,9 @@ export function NodesPage({
                         </td>
                         <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
                           {node.trafficLimitGb} {t.unitGb}
+                        </td>
+                        <td aria-label={`x${node.trafficMultiplier}`} className="px-5 py-4 text-xs font-black text-slate-700 dark:text-white/70">
+                          x{node.trafficMultiplier}
                         </td>
                         <td className="px-5 py-4">
                           <code className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-white/10 dark:text-white/60">
@@ -4775,6 +4801,15 @@ export function NodesPage({
                     type="number"
                     value={customerDraft.currentUsedTrafficGb}
                     onChange={(value) => setCustomerDraft((current) => ({ ...current, currentUsedTrafficGb: value }))}
+                  />
+                  <SelectField
+                    label={t.trafficMultiplier}
+                    value={customerDraft.trafficMultiplier}
+                    onChange={(value) => setCustomerDraft((current) => ({ ...current, trafficMultiplier: value }))}
+                    options={CUSTOMER_NODE_TRAFFIC_MULTIPLIERS.map((multiplier) => ({
+                      label: `x${multiplier}`,
+                      value: String(multiplier)
+                    }))}
                   />
                   <InputField
                     label={t.ipLimit}

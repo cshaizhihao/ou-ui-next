@@ -14,6 +14,9 @@
     linear-gradient(135deg, rgba(30, 58, 255, 0.16) 0%, rgba(30, 58, 255, 0.16) 22%, transparent 22%),
     linear-gradient(225deg, rgba(255, 61, 24, 0.16) 0%, rgba(255, 61, 24, 0.16) 18%, transparent 18%),
     linear-gradient(315deg, rgba(217, 255, 0, 0.14) 0%, rgba(217, 255, 0, 0.14) 16%, transparent 16%);
+  background-size: 118% 118%, 122% 122%, 116% 116%;
+  animation: ouBackdropSlide 18s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+  transform: translate3d(0, 0, 0);
 }
 
 .ou-shell-grid {
@@ -51,6 +54,8 @@
   color: rgba(30, 58, 255, 0.08);
   white-space: nowrap;
   pointer-events: none;
+  animation: ouRibbonScroll 24s linear infinite;
+  will-change: transform;
 }
 
 .dark .ou-shell-ribbon {
@@ -121,7 +126,10 @@
 .ou-action-card,
 .ou-tab,
 .ou-chip,
-.ou-mini-button {
+.ou-mini-button,
+.btn-glow,
+.glass-input,
+.glass-toggle {
   transition:
     transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -135,7 +143,10 @@
 .ou-action-card:hover,
 .ou-tab:hover,
 .ou-chip:hover,
-.ou-mini-button:hover {
+.ou-mini-button:hover,
+.btn-glow:hover,
+.glass-input:hover,
+.glass-toggle:hover {
   transform: translateY(-1px);
 }
 
@@ -144,7 +155,10 @@
 .ou-action-card:active,
 .ou-tab:active,
 .ou-chip:active,
-.ou-mini-button:active {
+.ou-mini-button:active,
+.btn-glow:active,
+.glass-input:active,
+.glass-toggle:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -237,7 +251,30 @@
   }
 }
 
+@keyframes ouBackdropSlide {
+  0% {
+    background-position: 0% 0%, 100% 0%, 50% 100%;
+  }
+  50% {
+    background-position: 5% 3%, 94% 5%, 46% 94%;
+  }
+  100% {
+    background-position: 10% 0%, 88% 8%, 42% 88%;
+  }
+}
+
+@keyframes ouRibbonScroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-18vw, 0, 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ou-shell-backdrop,
+  .ou-shell-ribbon,
   .ou-page-enter,
   .ou-card-enter,
   .ou-fade-in,
@@ -251,23 +288,33 @@
   .ou-action-card,
   .ou-tab,
   .ou-chip,
-  .ou-mini-button {
+  .ou-mini-button,
+  .btn-glow,
+  .glass-input,
+  .glass-toggle {
     animation: none;
     transition: none;
   }
 
+  .ou-shell-ribbon,
   .ou-nav-item:hover,
   .ou-command-pill:hover,
   .ou-action-card:hover,
   .ou-tab:hover,
   .ou-chip:hover,
   .ou-mini-button:hover,
+  .btn-glow:hover,
+  .glass-input:hover,
+  .glass-toggle:hover,
   .ou-nav-item:active,
   .ou-command-pill:active,
   .ou-action-card:active,
   .ou-tab:active,
   .ou-chip:active,
-  .ou-mini-button:active {
+  .ou-mini-button:active,
+  .btn-glow:active,
+  .glass-input:active,
+  .glass-toggle:active {
     transform: none;
   }
 }

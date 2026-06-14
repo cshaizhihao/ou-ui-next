@@ -18,10 +18,6 @@ export const ForwardingPage = lazy(() =>
 
 export const NodesPage = lazy(() => appShellPageLoaders.nodes().then((module) => ({ default: module.NodesPage })));
 
-export const PermissionsPage = lazy(() =>
-  appShellPageLoaders.permissions().then((module) => ({ default: module.PermissionsPage }))
-);
-
 export const RoutingPage = lazy(() => appShellPageLoaders.routing().then((module) => ({ default: module.RoutingPage })));
 
 export const SubscriptionMixerPage = lazy(() =>

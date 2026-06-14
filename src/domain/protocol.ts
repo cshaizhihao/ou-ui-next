@@ -64,6 +64,7 @@ export type XrayClient = {
   comment?: string;
   tgId?: string;
   resetPolicy?: XrayClientResetPolicy;
+  trafficMultiplier?: 0.5 | 1 | 1.5 | 2;
   trafficLimitBytes: number;
   usedTrafficBytes: number;
   monthlyResetDay?: number;

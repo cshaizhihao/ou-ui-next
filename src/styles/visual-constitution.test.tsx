@@ -164,6 +164,17 @@ describe('visual constitution', () => {
     expect(rowSelectors.filter((selector) => !reducedSelectors.has(selector))).toEqual([]);
   });
 
+  it('animates the global Fauvist backdrop and ribbon while disabling them for reduced-motion users', () => {
+    const animationsCss = readFileSync(join(process.cwd(), 'src/styles/animations.css'), 'utf8');
+
+    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*animation:\s*ouBackdropSlide/u);
+    expect(animationsCss).toMatch(/\.ou-shell-ribbon\s*\{[\s\S]*animation:\s*ouRibbonScroll/u);
+    expect(animationsCss).toContain('@keyframes ouBackdropSlide');
+    expect(animationsCss).toContain('@keyframes ouRibbonScroll');
+    expect(animationsCss).toMatch(/\.btn-glow,[\s\S]*\.glass-toggle\s*\{[\s\S]*transition:/u);
+    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-shell-ribbon,[\s\S]*\.btn-glow/u);
+  });
+
   it('renders glass primitives without decorative orb backgrounds', () => {
     render(
       <>

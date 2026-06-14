@@ -106,7 +106,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '客户' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '分流策略' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '调优' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '权限与配额' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '权限与配额' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '账户' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
@@ -123,14 +123,14 @@ describe('App', () => {
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
 
-    expect(await screen.findByRole('heading', { name: 'Operations Overview' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Connectivity' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh View' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Accounts' })).not.toBeInTheDocument();
     await openAdvancedNavigation(user);
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accounts' })).toBeInTheDocument();
-    expect(screen.getByText('Real-time flow preview across the control plane, managed hosts, and port forwarding links.')).toBeInTheDocument();
+    expect(screen.queryByText('Real-time flow preview across the control plane, managed hosts, and port forwarding links.')).not.toBeInTheDocument();
     expect(screen.queryByText(/\u7cfb\u7edf\u603b\u89c8/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '通知' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '账户' })).not.toBeInTheDocument();
@@ -220,16 +220,16 @@ describe('App', () => {
     expect(screen.queryByText(/\u5206\u6d41\u77e9\u9635/)).not.toBeInTheDocument();
   });
 
-  it('switches the security workspace copy to English without keeping Chinese page labels', async () => {
+  it('does not expose the removed access and quota workspace in English navigation', async () => {
     render(<App />);
     const user = await login();
 
     await user.click(await screen.findByRole('button', { name: 'English' }));
-    await clickNavigation(user, 'Access & Quotas');
+    await openAdvancedNavigation(user);
 
-    expect(await screen.findByRole('heading', { name: 'Group Authorization' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Submit Permission Change' }).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/\u8bbf\u95ee\u6388\u6743\u77e9\u9635/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Access & Quotas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '权限与配额' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Group Authorization' })).not.toBeInTheDocument();
   });
 
   it('switches the tuning workspace copy to English without keeping Chinese page labels', async () => {
@@ -240,8 +240,8 @@ describe('App', () => {
     await clickNavigation(user, 'Tuning');
 
     expect(await screen.findByRole('heading', { name: 'System Tuning' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Apply BBR' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Apply TCP Tuning' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Host Tuning Probe' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeInTheDocument();
     expect(screen.queryByText(/\u7cfb\u7edf\u8c03\u4f18/)).not.toBeInTheDocument();
   });
 
@@ -394,40 +394,6 @@ describe('App', () => {
     await clickNavigation(user, '执行记录');
 
     expect((await screen.findAllByText(/香港入口 Agent/)).length).toBeGreaterThan(0);
-  });
-
-  it('opens the security workspace and creates a permission grant task', async () => {
-    const confirm = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirm);
-    render(<App />);
-    const user = await login();
-
-    await clickNavigation(user, '权限与配额');
-
-    expect((await screen.findAllByText('operator:bootstrap-owner')).length).toBeGreaterThan(0);
-    await user.click((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
-
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('提交权限变更'));
-
-    await clickNavigation(user, '执行记录');
-
-    expect(await screen.findByText('提交转发分组权限变更')).toBeInTheDocument();
-  });
-
-  it('deduplicates repeated permission submissions from the UI action layer', async () => {
-    const confirm = vi.fn(() => true);
-    vi.stubGlobal('confirm', confirm);
-    render(<App />);
-    const user = await login();
-
-    await clickNavigation(user, '权限与配额');
-    await user.dblClick((await screen.findAllByRole('button', { name: '提交权限变更' }))[0]);
-
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('提交权限变更'));
-
-    await clickNavigation(user, '执行记录');
-
-    expect(await screen.findAllByText('提交转发分组权限变更')).toHaveLength(1);
   });
 
   it('refreshes task inventory without creating a runtime reload task', async () => {

@@ -36,6 +36,7 @@ const baseMetadata: CustomerNodeConfigMetadata = {
   fallbackXver: 0,
   sniffingEnabled: true,
   ipLimit: 0,
+  trafficMultiplier: 1.5,
   trafficLimitGb: 100,
   monthlyResetDay: 1,
   currentUsedTrafficGb: 0,
@@ -72,6 +73,7 @@ describe('customer node task metadata', () => {
       expect.objectContaining({
         xrayProtocol: 'vless',
         security: 'reality',
+        trafficMultiplier: 1.5,
         realityPrivateKey: 'server-private-key'
       })
     );

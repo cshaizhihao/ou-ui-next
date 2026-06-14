@@ -24,7 +24,7 @@ type RoutingCompileGateState = 'ready' | 'issues' | 'waiting';
 const copy = {
   zh: {
     title: '分流策略',
-    subtitle: '将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。',
+    subtitle: '按主机、访问域名和出站协议手写 Xray 分流规则。',
     operationalOverview: '运营总览',
     operationalOverviewHint: '先看策略规模、可见范围和高风险规则，再编译或复制当前策略计划。',
     workflowSteps: ['审阅规则集', '筛选范围', '评估风险', '编译策略'],
@@ -57,6 +57,13 @@ const copy = {
     compile: '编译当前策略',
     compileSelectedPolicies: '编译已选策略',
     copySelectedCompilePlan: '复制已选编译计划',
+    manualRuleTitle: '手写分流规则',
+    generatedHost: '生成主机',
+    accessDomain: '访问域名',
+    outboundProtocol: '出站协议',
+    outboundTag: '出站标签',
+    manualRuleCompile: '编译手写规则',
+    manualNodeSuffix: '生成的节点',
     confirmRiskyCompile: (count: string) => `确认编译 ${count} 条高风险或拒绝策略？`,
     compileImpactPreflight: '路由编译影响预检',
     compileImpactHint: '基于已选分流策略的目标组、动作分布、命中量和高风险拒绝规则预估编译影响。',
@@ -108,7 +115,7 @@ const copy = {
   },
   en: {
     title: 'Routing Policy',
-    subtitle: 'Map domains, CIDR ranges, GeoIP rules, and application tags to Direct, Proxy, or Reject policies.',
+    subtitle: 'Author Xray routing rules by host-generated node, accessed domain, and outbound protocol.',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: 'Review policy volume, visible scope, and high-risk rules before compiling or copying the current plan.',
     workflowSteps: ['Review rule set', 'Filter scope', 'Assess risk', 'Compile policies'],
@@ -141,6 +148,13 @@ const copy = {
     compile: 'Compile Visible Policies',
     compileSelectedPolicies: 'Compile Selected Policies',
     copySelectedCompilePlan: 'Copy Selected Compile Plan',
+    manualRuleTitle: 'Manual Routing Rule',
+    generatedHost: 'Generated Host',
+    accessDomain: 'Access Domain',
+    outboundProtocol: 'Outbound Protocol',
+    outboundTag: 'Outbound Tag',
+    manualRuleCompile: 'Compile Manual Rule',
+    manualNodeSuffix: 'generated node',
     confirmRiskyCompile: (count: string) =>
       `Compile ${count} high-risk or reject polic${count === '1' ? 'y' : 'ies'}?`,
     compileImpactPreflight: 'Routing Compile Impact Preflight',
@@ -370,6 +384,10 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
   const [actionFilter, setActionFilter] = useState<RoutingActionFilter>('all');
   const [riskFilter, setRiskFilter] = useState<RoutingRiskFilter>('all');
   const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>([]);
+  const [manualHost, setManualHost] = useState('');
+  const [manualDomain, setManualDomain] = useState('');
+  const [manualOutboundProtocol, setManualOutboundProtocol] = useState<RoutingPolicy['action']>('proxy');
+  const [manualOutboundTag, setManualOutboundTag] = useState('');
   const filteredPolicies = useMemo(
     () => filterRoutingPolicies(policies, policySearch, actionFilter, riskFilter),
     [actionFilter, policies, policySearch, riskFilter]
@@ -451,6 +469,22 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
     }
 
     void navigator.clipboard?.writeText(createRoutingCompilePlanText(selectedPolicies));
+  }
+
+  function compileManualRule() {
+    const host = manualHost.trim();
+    const domain = manualDomain.trim();
+    const outboundTag =
+      manualOutboundTag.trim()
+      || (manualOutboundProtocol === 'direct' ? 'DIRECT' : manualOutboundProtocol === 'reject' ? 'REJECT' : 'PROXY');
+
+    if (!host || !domain) {
+      return;
+    }
+
+    onRunTask('routing-manual-rule', [
+      `manual:${host}:${domain}:${manualOutboundProtocol}:${outboundTag}`
+    ]);
   }
 
   return (
@@ -559,6 +593,61 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
 
           <WorkspaceCockpitScroller aria-label={t.routingPolicyWorkspace} className="routing-policy-workspace min-h-0">
             <div className="routing-policy-workspace-stack space-y-3 p-3">
+              <section
+                aria-label={t.manualRuleTitle}
+                className="routing-manual-rule-panel border border-[#07111F]/18 bg-[#FFFDF5] p-3 shadow-[0_12px_34px_-30px_rgba(7,17,31,0.26)] dark:border-white/10 dark:bg-white/[0.035]"
+                role="region"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+                      <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.manualRuleTitle}</h4>
+                    </div>
+                    {manualHost.trim() || manualDomain.trim() || manualOutboundTag.trim() ? (
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black text-[#35405A] dark:text-white/62">
+                        <span className="border border-[#07111F]/18 bg-[#EAF3D1]/60 px-2 py-1 dark:border-white/10 dark:bg-white/[0.04]">
+                          {manualHost.trim() || '-'} {t.manualNodeSuffix}
+                        </span>
+                        <span className="border border-[#07111F]/18 bg-[#DCE1FF]/62 px-2 py-1 text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12 dark:text-[#BAC4FF]">
+                          domain:{manualDomain.trim() || '-'}
+                        </span>
+                        <span className="border border-[#07111F]/18 bg-[#FFD8C6]/70 px-2 py-1 text-[#B93C17] dark:border-[#FFB299]/20 dark:bg-[#FF6A3A]/12 dark:text-[#FFB299]">
+                          outbound:{manualOutboundTag.trim() || manualOutboundProtocol.toUpperCase()}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <GlowButton
+                    className="min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!manualHost.trim() || !manualDomain.trim() || taskMutationBusy}
+                    onClick={compileManualRule}
+                  >
+                    {t.manualRuleCompile}
+                  </GlowButton>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_minmax(10rem,0.7fr)_minmax(10rem,0.8fr)]">
+                  <ManualRuleInput label={t.generatedHost} value={manualHost} onChange={setManualHost} />
+                  <ManualRuleInput label={t.accessDomain} value={manualDomain} onChange={setManualDomain} />
+                  <label className="block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
+                      {t.outboundProtocol}
+                    </span>
+                    <select
+                      aria-label={t.outboundProtocol}
+                      className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
+                      onChange={(event) => setManualOutboundProtocol(event.target.value as RoutingPolicy['action'])}
+                      value={manualOutboundProtocol}
+                    >
+                      <option value="direct">{t.actionLabels.direct}</option>
+                      <option value="proxy">{t.actionLabels.proxy}</option>
+                      <option value="reject">{t.actionLabels.reject}</option>
+                    </select>
+                  </label>
+                  <ManualRuleInput label={t.outboundTag} value={manualOutboundTag} onChange={setManualOutboundTag} />
+                </div>
+              </section>
+
               <GlassCard aria-label={t.matrixTitle} className="routing-policy-matrix-panel p-3" role="group">
                 <div className="mb-3 flex items-center gap-2">
                   <GitBranch className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
@@ -747,6 +836,28 @@ function RoutingSummaryCard({
         <Icon className="h-5 w-5 text-[#1E3AFF] dark:text-primary" />
       </div>
     </div>
+  );
+}
+
+function ManualRuleInput({
+  label,
+  onChange,
+  value
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</span>
+      <input
+        aria-label={label}
+        className="mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/55 dark:text-white dark:placeholder:text-white/35"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      />
+    </label>
   );
 }
 
