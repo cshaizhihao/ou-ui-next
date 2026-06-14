@@ -547,12 +547,18 @@ export function TelegramNotificationSettingsPage({
                       </p>
                       <StatusPill tone={deliveryReady ? 'green' : 'slate'} value={deliveryReady ? t.deliveryReady : t.deliveryBlocked} />
                     </div>
-                    <p className="mt-3 text-sm font-black text-[#07111F] dark:text-white">
-                      {latestDelivery ? latestDelivery.notificationType : t.noDeliveries}
-                    </p>
-                    <p className="mt-2 text-xs leading-6 text-[#35405A] dark:text-white/50">
-                      {latestDelivery?.renderedPreviewRedacted ?? t.noPreview}
-                    </p>
+                    {latestDelivery ? (
+                      <>
+                        <p className="mt-3 text-sm font-black text-[#07111F] dark:text-white">
+                          {latestDelivery.notificationType}
+                        </p>
+                        {latestDelivery.renderedPreviewRedacted ? (
+                          <p className="mt-2 text-xs leading-6 text-[#35405A] dark:text-white/50">
+                            {latestDelivery.renderedPreviewRedacted}
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
                     <div className="mt-3 grid gap-2">
                       <PolicyBindingRow label={t.policyCoverage} value={`${formatNumber(enabledPolicyCount, language)} / ${formatNumber(policies.length, language)}`} />
                       <PolicyBindingRow

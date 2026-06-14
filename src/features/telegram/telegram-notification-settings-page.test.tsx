@@ -214,6 +214,33 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(screen.queryByText(/把凭据/)).not.toBeInTheDocument();
   });
 
+  it('does not pad the policy and binding panel with empty latest-delivery placeholders', () => {
+    const settings = {
+      ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+      enabled: true,
+      botTokenSet: true,
+      adminChatIds: ['999000111']
+    };
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[]}
+        language="en"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    const policyPanel = screen.getByRole('region', { name: 'Policy and Binding' });
+
+    expect(within(policyPanel).getByText('Policy Coverage')).toBeInTheDocument();
+    expect(within(policyPanel).getByText('Customer Bindings')).toBeInTheDocument();
+    expect(within(policyPanel).getByText('Admin Chats')).toBeInTheDocument();
+    expect(within(policyPanel).queryByText('No delivery records yet')).not.toBeInTheDocument();
+    expect(within(policyPanel).queryByText('No preview yet')).not.toBeInTheDocument();
+  });
+
   it('surfaces Telegram notification acceptance gates on the control rail', () => {
     const settings = {
       ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
