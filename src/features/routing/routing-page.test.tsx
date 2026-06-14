@@ -60,11 +60,19 @@ describe('RoutingPage', () => {
     expect(within(workspace).getByRole('button', { name: 'Compile Selected Policies' })).toBeInTheDocument();
   });
 
-  it('uses the primary blue control-plane palette instead of cyan in the routing cockpit', () => {
+  it('uses the fauvist control-plane palette instead of legacy utility colors in the routing cockpit', () => {
     render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
 
     const cockpit = screen.getByRole('region', { name: 'Routing policy cockpit' });
-    expect(cockpit.outerHTML).toContain('blue-');
+    expect(cockpit.outerHTML).toContain('#1E3AFF');
+    expect(cockpit.outerHTML).toContain('#DCE1FF');
+    expect(cockpit.outerHTML).toContain('#FF3D18');
+    expect(cockpit.outerHTML).toContain('#FFD8C6');
+    expect(cockpit.outerHTML).toContain('#00A878');
+    expect(cockpit.outerHTML).not.toContain('blue-');
+    expect(cockpit.outerHTML).not.toContain('orange-');
+    expect(cockpit.outerHTML).not.toContain('slate-');
+    expect(cockpit.outerHTML).not.toContain('emerald-');
     expect(cockpit.outerHTML).not.toContain('cyan-');
   });
 
@@ -82,17 +90,25 @@ describe('RoutingPage', () => {
     expect(workspace).toHaveClass('routing-policy-workspace');
     expect(matrix).toHaveClass('routing-policy-matrix-panel');
     expect(policyRow).toHaveClass('routing-policy-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
-    expect(within(rail).getByRole('group', { name: 'High Risk Rules' }).outerHTML).toContain('orange-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('rose-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
+    const cockpitHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
+    expect(cockpitHtml).toContain('#1E3AFF');
+    expect(cockpitHtml).toContain('#DCE1FF');
+    expect(cockpitHtml).toContain('#FF3D18');
+    expect(cockpitHtml).toContain('#FFD8C6');
+    expect(cockpitHtml).toContain('#00A878');
+    expect(within(rail).getByRole('group', { name: 'High Risk Rules' }).outerHTML).toContain('#FF3D18');
+    expect(cockpitHtml).not.toContain('blue-');
+    expect(cockpitHtml).not.toContain('orange-');
+    expect(cockpitHtml).not.toContain('slate-');
+    expect(cockpitHtml).not.toContain('emerald-');
+    expect(cockpitHtml).not.toContain('sky-');
+    expect(cockpitHtml).not.toContain('indigo-');
+    expect(cockpitHtml).not.toContain('cyan-');
+    expect(cockpitHtml).not.toContain('purple-');
+    expect(cockpitHtml).not.toContain('violet-');
+    expect(cockpitHtml).not.toContain('rose-');
+    expect(cockpitHtml).not.toContain('amber-');
+    expect(cockpitHtml).not.toContain('background-clip:text');
   });
 
   it('surfaces routing policy compile gates on the control rail', () => {
@@ -124,8 +140,10 @@ describe('RoutingPage', () => {
     const workspaceStack = workspace.querySelector('.routing-policy-workspace-stack');
     const matrix = within(workspace).getByRole('group', { name: 'Policy List' });
     const filterPanel = matrix.querySelector('.routing-policy-filter-panel');
+    const filterGrid = matrix.querySelector('.routing-policy-filter-grid');
     const policyRow = within(matrix).getByRole('article', { name: 'HK streaming proxy' });
     const railMetric = within(rail).getByRole('group', { name: 'Policy Count' });
+    const overviewGrid = document.querySelector('.routing-summary-grid');
     const overviewCard = document.querySelector('.routing-summary-card');
     const emptyStateHtml = cockpit.outerHTML;
 
@@ -137,18 +155,26 @@ describe('RoutingPage', () => {
     expect(workspaceStack as HTMLElement).toHaveClass('space-y-3', 'p-3');
     expect(matrix).toHaveClass('routing-policy-matrix-panel', 'p-3');
     expect(matrix).not.toHaveClass('p-5', 'rounded-xl');
+    expect(overviewGrid).toBeInTheDocument();
+    expect(overviewGrid as HTMLElement).toHaveClass('xl:w-[28rem]', 'xl:grid-cols-2');
+    expect(overviewGrid as HTMLElement).not.toHaveClass('xl:grid-cols-1');
     expect(filterPanel).toBeInTheDocument();
     expect(filterPanel as HTMLElement).toHaveClass('p-3');
     expect(filterPanel as HTMLElement).not.toHaveClass('p-4', 'rounded-xl');
-    expect(policyRow).toHaveClass('routing-policy-row', 'min-h-[76px]', 'p-3');
+    expect(filterGrid).toBeInTheDocument();
+    expect(filterGrid as HTMLElement).toHaveClass('xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]');
+    expect(policyRow).toHaveClass('routing-policy-row', 'min-h-[64px]', 'px-3', 'py-2.5');
+    expect(policyRow).not.toHaveClass('min-h-[76px]', 'p-3');
     expect(policyRow).not.toHaveClass('rounded-xl');
-    expect(railMetric).toHaveClass('routing-rail-metric', 'min-h-[76px]', 'px-3', 'py-2.5');
+    expect(railMetric).toHaveClass('routing-rail-metric', 'min-h-[64px]', 'px-3', 'py-2');
+    expect(railMetric).not.toHaveClass('min-h-[76px]');
     expect(railMetric).not.toHaveClass('rounded-xl');
-    expect(overviewCard).toHaveClass('routing-summary-card', 'min-h-[76px]', 'p-3');
-    expect(overviewCard).not.toHaveClass('rounded-xl', 'p-4');
+    expect(overviewCard).toHaveClass('routing-summary-card', 'min-h-[64px]', 'p-2.5');
+    expect(overviewCard).not.toHaveClass('min-h-[76px]', 'rounded-xl', 'p-3', 'p-4');
     expect(emptyStateHtml).not.toContain('masonry');
     expect(emptyStateHtml).not.toContain('columns-');
     expect(emptyStateHtml).not.toContain('grid-flow-row-dense');
+    expect(emptyStateHtml).not.toContain('auto-rows');
     expect(emptyStateHtml).not.toContain('row-span');
   });
 
@@ -249,7 +275,9 @@ describe('RoutingPage', () => {
     expect(within(preflight).getByText('Reject Policies 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Risky Policies 1')).toBeInTheDocument();
     expect(within(preflight).getByText('Selected Hits 1,222')).toBeInTheDocument();
-    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).toContain('#FF3D18');
+    expect(preflight.outerHTML).toContain('#FFD8C6');
+    expect(preflight.outerHTML).not.toContain('orange-');
     expect(preflight.outerHTML).not.toContain('amber-');
 
     const targetPreview = within(preflight).getByText('Target Preview').closest('div');

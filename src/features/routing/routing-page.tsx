@@ -461,12 +461,12 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
       >
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,0.34fr)] xl:items-start">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3AFF] dark:text-primary">
               {t.operationalOverview}
             </p>
-            <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-            <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+            <h3 className="mt-2 text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
+            <p className="mt-1 max-w-4xl text-xs leading-5 text-[#35405A] dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-[#35405A] dark:text-white/70">
               {t.workflowSteps.map((step, index) => (
                 <span
                   className="shrink-0 rounded-full border border-[#07111F]/18 bg-white/80 px-2.5 py-1 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
@@ -476,7 +476,7 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                 </span>
               ))}
             </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-[#35405A] dark:text-white/65">
               <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewTotalPolicies} {formatNumber(policies.length, language)}
               </span>
@@ -492,7 +492,7 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
             </div>
           </div>
 
-          <div className="grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="routing-summary-grid grid min-w-0 grid-cols-2 gap-2 xl:w-[28rem] xl:grid-cols-2">
             <RoutingSummaryCard icon={Network} label={t.overviewTotalPolicies} value={formatNumber(policies.length, language)} />
             <RoutingSummaryCard icon={Search} label={t.overviewVisiblePolicies} value={formatNumber(filteredPolicies.length, language)} />
             <RoutingSummaryCard icon={ShieldAlert} label={t.overviewRiskyPolicies} value={formatNumber(highRiskCount, language)} />
@@ -511,10 +511,10 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
             <div className="flex flex-col gap-3 xl:sticky xl:top-0">
               <div className="border border-[#07111F]/18 bg-[#FFFDF5]/82 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="mb-3 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.compileScope}</h4>
+                  <ShieldCheck className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+                  <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.compileScope}</h4>
                 </div>
-                <p className="text-xs leading-5 text-slate-500 dark:text-white/50">{t.submitDescription}</p>
+                <p className="text-xs leading-5 text-[#35405A] dark:text-white/50">{t.submitDescription}</p>
                 <div className="mt-3 space-y-2">
                   <Metric icon={Network} label={t.policyCount} value={formatNumber(policies.length)} />
                   <Metric icon={Network} label={t.visibleHits} value={formatNumber(visibleHits, language)} />
@@ -545,14 +545,14 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
 
               <div className="border border-[#07111F]/18 bg-[#FFFDF5]/82 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.matrixTitle}</p>
+                  <GitBranch className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+                  <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.matrixTitle}</p>
                 </div>
                 <div className="mt-3 grid gap-2">
                   <Metric icon={Search} label={t.matchingPolicies} value={`${formatNumber(filteredPolicies.length, language)} / ${formatNumber(policies.length, language)}`} />
                   <Metric icon={ShieldCheck} label={t.selectedPolicies} value={formatNumber(selectedPolicies.length, language)} />
                 </div>
-                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/45">{t.operationalOverviewHint}</p>
+                <p className="mt-3 text-xs leading-5 text-[#35405A] dark:text-white/45">{t.operationalOverviewHint}</p>
               </div>
             </div>
           </aside>
@@ -561,21 +561,21 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
             <div className="routing-policy-workspace-stack space-y-3 p-3">
               <GlassCard aria-label={t.matrixTitle} className="routing-policy-matrix-panel p-3" role="group">
                 <div className="mb-3 flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.matrixTitle}</h4>
+                  <GitBranch className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
+                  <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.matrixTitle}</h4>
                 </div>
 
                 <div className="routing-policy-filter-panel mb-3 border border-[#07111F]/18 bg-[#EAF3D1]/35 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
-                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                  <div className="routing-policy-filter-grid grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
+                    <label className="block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                         {t.searchPolicies}
                       </span>
                       <div className="mt-1 flex min-h-7 items-center gap-2">
-                        <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                        <Search className="h-3.5 w-3.5 shrink-0 text-[#35405A]/70 dark:text-white/35" />
                         <input
                           aria-label={t.searchPolicies}
-                          className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                          className="w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/60 dark:text-white dark:placeholder:text-white/35"
                           onChange={(event) => setPolicySearch(event.target.value)}
                           placeholder={t.searchPoliciesPlaceholder}
                           type="search"
@@ -583,13 +583,13 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                         />
                       </div>
                     </label>
-                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <label className="block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                         {t.action}
                       </span>
                       <select
                         aria-label={t.action}
-                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                         onChange={(event) => setActionFilter(event.target.value as RoutingActionFilter)}
                         value={actionFilter}
                       >
@@ -599,13 +599,13 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                         <option value="reject">{t.actionLabels.reject}</option>
                       </select>
                     </label>
-                    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <label className="block border border-[#07111F]/18 bg-[#FFFDF5] px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                         {t.risk}
                       </span>
                       <select
                         aria-label={t.risk}
-                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                        className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                         onChange={(event) => setRiskFilter(event.target.value as RoutingRiskFilter)}
                         value={riskFilter}
                       >
@@ -617,28 +617,28 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                     </label>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.matchingPolicies} {filteredPolicies.length} / {policies.length}
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
-                      <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                      <label className="inline-flex items-center gap-2 text-xs font-bold text-[#35405A] dark:text-white/60">
                         <input
                           aria-label={t.selectVisiblePolicies}
                           checked={filteredPolicies.length > 0 && selectedVisiblePolicyCount === filteredPolicies.length}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-400"
+                          className="h-4 w-4 border-[#07111F]/30 text-[#1E3AFF] focus:ring-[#1E3AFF]/35"
                           onChange={toggleVisiblePolicySelection}
                           type="checkbox"
                         />
                         {t.selectVisiblePolicies}
                       </label>
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      <p className="text-xs font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                         {t.selectedPolicies} {formatNumber(selectedPolicies.length, language)}
                       </p>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#07111F]/20 px-3 text-xs font-bold text-[#35405A] transition hover:bg-[#DCE1FF]/55 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                       disabled={taskMutationBusy || selectedPolicies.length === 0}
                       onClick={compileSelectedPolicies}
                       type="button"
@@ -646,7 +646,7 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                       {t.compileSelectedPolicies}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      className="inline-flex min-h-9 items-center justify-center gap-2 border border-[#07111F]/20 px-3 text-xs font-bold text-[#35405A] transition hover:bg-[#DCE1FF]/55 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                       disabled={selectedPolicies.length === 0}
                       onClick={copySelectedCompilePlan}
                       type="button"
@@ -668,14 +668,14 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
 
                 <div aria-label="Filtered Route Policies" className="space-y-3">
                   {filteredPolicies.length === 0 ? (
-                    <div className="border border-dashed border-[#07111F]/30 p-3 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+                    <div className="border border-dashed border-[#07111F]/30 p-3 text-sm font-semibold text-[#35405A] dark:border-white/10 dark:text-white/45">
                       {t.noMatchingPolicies}
                     </div>
                   ) : (
                     filteredPolicies.map((policy) => (
                       <article
                         aria-label={policy.name}
-                        className="routing-policy-row min-h-[76px] border border-[#07111F]/18 p-3 transition-colors hover:bg-[#EAF3D1]/35 dark:border-white/10 dark:hover:bg-white/[0.03]"
+                        className="routing-policy-row min-h-[64px] border border-[#07111F]/18 px-3 py-2.5 transition-colors hover:bg-[#EAF3D1]/35 dark:border-white/10 dark:hover:bg-white/[0.03]"
                         key={policy.id}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -683,28 +683,28 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                             <input
                               aria-label={`${t.selectPolicy} ${policy.name}`}
                               checked={selectedPolicyIds.includes(policy.id)}
-                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-400"
+                              className="mt-0.5 h-4 w-4 shrink-0 border-[#07111F]/30 text-[#1E3AFF] focus:ring-[#1E3AFF]/35"
                               onChange={() => togglePolicySelection(policy.id)}
                               type="checkbox"
                             />
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-slate-900 dark:text-white">{policy.name}</p>
-                              <p className="mt-1 break-all font-mono text-[10px] font-semibold text-blue-600 dark:text-primary">
+                              <p className="text-sm font-bold text-[#07111F] dark:text-white">{policy.name}</p>
+                              <p className="mt-1 break-all font-mono text-[10px] font-semibold text-[#1E3AFF] dark:text-primary">
                                 {policy.id}
                               </p>
-                              <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">
+                              <p className="mt-1 break-all font-mono text-[11px] text-[#35405A] dark:text-white/45">
                                 {policy.match}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                            <span className="rounded-full bg-[#DCE1FF] px-2.5 py-1 text-[10px] font-bold uppercase text-[#1E3AFF] dark:bg-white/10 dark:text-white/70">
                               {policy.action}
                             </span>
                             <GlassToggle aria-label={`${policy.name} enabled`} checked={policy.enabled} readOnly />
                           </div>
                         </div>
-                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 dark:text-white/50 md:grid-cols-3">
+                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-[#35405A] dark:text-white/50 md:grid-cols-3">
                           <span>
                             {t.priority} {policy.priority}
                           </span>
@@ -738,13 +738,13 @@ function RoutingSummaryCard({
   value: string;
 }) {
   return (
-    <div className="routing-summary-card min-h-[76px] border border-[#07111F]/18 bg-white/55 p-3 dark:border-white/10 dark:bg-black/10">
+    <div className="routing-summary-card min-h-[64px] border border-[#07111F]/18 bg-[#FFFDF5]/74 p-2.5 dark:border-white/10 dark:bg-black/10">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</p>
+          <p className="mt-1 text-base font-black text-[#07111F] dark:text-white">{value}</p>
         </div>
-        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+        <Icon className="h-5 w-5 text-[#1E3AFF] dark:text-primary" />
       </div>
     </div>
   );
@@ -763,24 +763,24 @@ function Metric({
 }) {
   const toneClassName =
     tone === 'signal'
-      ? 'border-orange-200 bg-orange-50/70 dark:border-orange-400/20 dark:bg-orange-400/10'
-      : 'border-slate-200 dark:border-white/10';
+      ? 'border-[#FF3D18] bg-[#FFD8C6]/72 dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12'
+      : 'border-[#07111F]/18 dark:border-white/10';
   const labelClassName =
     tone === 'signal'
-      ? 'text-orange-700 dark:text-orange-200'
-      : 'text-slate-500 dark:text-white/40';
+      ? 'text-[#B93C17] dark:text-[#FFB197]'
+      : 'text-[#35405A] dark:text-white/40';
 
   return (
     <div
       aria-label={label}
-      className={`routing-rail-metric flex min-h-[76px] items-center justify-between border px-3 py-2.5 ${toneClassName}`}
+      className={`routing-rail-metric flex min-h-[64px] items-center justify-between border px-3 py-2 ${toneClassName}`}
       role="group"
     >
       <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${labelClassName}`}>
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <span className="text-sm font-black text-slate-900 dark:text-white">{value}</span>
+      <span className="text-sm font-black text-[#07111F] dark:text-white">{value}</span>
     </div>
   );
 }
@@ -792,7 +792,7 @@ function RoutingCompileGatePanel({ gates, t }: { gates: RoutingCompileGate[]; t:
       className="routing-compile-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.policyCompileGates}</p>
         <p className="mt-1 text-[11px] leading-5 text-white/82">{t.policyCompileGatesHint}</p>
       </div>
@@ -815,7 +815,7 @@ function RoutingCompileGateRow({ gate }: { gate: RoutingCompileGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -849,27 +849,27 @@ function RoutingCompileImpactPreflight({
   return (
     <section
       aria-label={t.compileImpactPreflight}
-      className="mb-3 border border-[#FF3D18]/35 bg-[#FFD8C6]/55 p-3 dark:border-[#FFB299]/20 dark:bg-orange-400/[0.055]"
+      className="mb-3 border border-[#FF3D18]/35 bg-[#FFD8C6]/55 p-3 dark:border-[#FFB299]/20 dark:bg-[#FF6A3A]/[0.055]"
     >
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
+          <p className="text-xs font-black uppercase tracking-widest text-[#B93C17] dark:text-[#FFB197]">
             {t.compileImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/55">
             {t.compileImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.targetGroupLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#FF3D18]/30 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#35405A] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.targetGroupLabels.length > 4 ? (
-              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#FF3D18]/30 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#35405A] dark:border-[#FFB299]/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.targetGroupLabels.length - 4, language)}
               </span>
             ) : null}
@@ -926,9 +926,9 @@ function RoutingCompileImpactPreflight({
 
 function RoutingCompileImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/15 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0 border border-[#FF3D18]/30 bg-[#FFFDF5]/80 px-3 py-2 dark:border-[#FFB299]/15 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-white">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -946,9 +946,9 @@ function RoutingCompileImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+    <div className="min-w-0 border border-[#FF3D18]/30 bg-[#FFFDF5]/70 p-3 dark:border-[#FFB299]/15 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-[#B93C17] dark:text-[#FFB197]' : 'mt-2 space-y-1 text-[#35405A] dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
