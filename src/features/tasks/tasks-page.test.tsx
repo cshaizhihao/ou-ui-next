@@ -227,6 +227,36 @@ describe('TasksPage', () => {
     expect(screen.getByRole('group', { name: 'Rollback ready' })).toHaveTextContent('1');
   });
 
+  it('keeps execution overview metrics free of explanatory filler text', () => {
+    render(
+      <TasksPage
+        tasks={[
+          { ...task, id: 'task-running', status: 'running' },
+          { ...task, id: 'task-failed', status: 'failed' },
+          { ...task, id: 'task-ready', status: 'succeeded', rollbackAvailable: true }
+        ]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Execution release cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Execution control rail' });
+
+    expect(within(rail).getByRole('group', { name: 'Total executions' })).toHaveTextContent('3');
+    expect(within(rail).getByRole('group', { name: 'Active executions' })).toHaveTextContent('1');
+    expect(within(rail).getByRole('group', { name: 'Needs attention' })).toHaveTextContent('1');
+    expect(within(rail).getByRole('group', { name: 'Rollback ready' })).toHaveTextContent('1');
+    expect(rail).not.toHaveTextContent('All execution records currently in the pipeline view.');
+    expect(rail).not.toHaveTextContent('Tasks that are queued, running, or retrying right now.');
+    expect(rail).not.toHaveTextContent('Failed tasks or records with failure evidence.');
+    expect(rail).not.toHaveTextContent('Succeeded tasks that still have a rollback path.');
+  });
+
   it('frames execution work as a cockpit with a control rail and release evidence workspace', () => {
     render(
       <TasksPage

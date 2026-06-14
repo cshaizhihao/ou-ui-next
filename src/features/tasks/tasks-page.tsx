@@ -71,7 +71,6 @@ const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent',
 type ExecutionMetric = {
   label: string;
   value: number;
-  detail?: string;
   language: AppLanguage;
   tone?: 'signal';
 };
@@ -131,13 +130,9 @@ const copy = {
     latestExecution: '最新执行',
     executionOverview: '执行概览',
     totalExecutions: '总执行数',
-    totalExecutionsDetail: '当前纳入流水线视图的全部执行记录。',
     activeExecutions: '进行中',
-    activeExecutionsDetail: '正在排队、执行或重试中的任务。',
     needsAttention: '需要处理',
-    needsAttentionDetail: '已失败或有失败证据的任务，优先处理。',
     rollbackReady: '可回滚',
-    rollbackReadyDetail: '已完成且具备回滚入口的任务。',
     overviewHint: '',
     pipelineTitle: '发布流水线',
     refresh: '刷新记录',
@@ -370,13 +365,9 @@ const copy = {
     latestExecution: 'Latest Execution',
     executionOverview: 'Execution Overview',
     totalExecutions: 'Total executions',
-    totalExecutionsDetail: 'All execution records currently in the pipeline view.',
     activeExecutions: 'Active executions',
-    activeExecutionsDetail: 'Tasks that are queued, running, or retrying right now.',
     needsAttention: 'Needs attention',
-    needsAttentionDetail: 'Failed tasks or records with failure evidence.',
     rollbackReady: 'Rollback ready',
-    rollbackReadyDetail: 'Succeeded tasks that still have a rollback path.',
     overviewHint: '',
     pipelineTitle: 'Release Pipeline',
     refresh: 'Refresh Records',
@@ -1112,7 +1103,6 @@ function StatusPill({ status, language }: { status?: string; language: AppLangua
 function MetricTile({
   label,
   value,
-  detail,
   language,
   tone
 }: ExecutionMetric) {
@@ -1135,7 +1125,6 @@ function MetricTile({
           </p>
         </div>
       </div>
-      {detail ? <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-white/60">{detail}</p> : null}
     </article>
   );
 }
@@ -2223,26 +2212,22 @@ export function TasksPage({
       {
         label: t.totalExecutions,
         value: tasks.length,
-        detail: t.totalExecutionsDetail,
         language
       },
       {
         label: t.activeExecutions,
         value: activeTaskCount,
-        detail: t.activeExecutionsDetail,
         language
       },
       {
         label: t.needsAttention,
         value: failureTaskCount,
-        detail: t.needsAttentionDetail,
         language,
         tone: 'signal'
       },
       {
         label: t.rollbackReady,
         value: rollbackReadyCount,
-        detail: t.rollbackReadyDetail,
         language,
         tone: 'signal'
       }
@@ -2253,13 +2238,9 @@ export function TasksPage({
       language,
       rollbackReadyCount,
       t.activeExecutions,
-      t.activeExecutionsDetail,
       t.needsAttention,
-      t.needsAttentionDetail,
       t.rollbackReady,
-      t.rollbackReadyDetail,
       t.totalExecutions,
-      t.totalExecutionsDetail,
       tasks
     ]
   );
