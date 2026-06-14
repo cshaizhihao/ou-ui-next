@@ -1243,18 +1243,18 @@ export function ForwardingPage({
                   {t.matchingRules} {filteredRules.length} / {visibleRules.length}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                  <span className="rounded-full border border-[#1E3AFF] bg-[#FFFDF5] px-3 py-1 text-xs font-bold text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/15 dark:text-primary">
                     {t.selectedRules} {selectedRules.length}
                   </span>
                   <button
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                    className="rounded-lg border border-[#07111F]/25 px-3 py-2 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF] hover:bg-[#FFFDF5] hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
                     disabled={filteredRules.length === 0}
                     onClick={toggleVisibleRuleSelection}
                     type="button"
                   >
                     {t.selectVisibleRules}
                   </button>
-                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                  <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-2.5 text-xs font-bold text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
                     <span className="whitespace-nowrap">{t.bulkMigrateEntryHost}</span>
                     <select
                       aria-label={t.bulkMigrateEntryHost}
@@ -1270,7 +1270,7 @@ export function ForwardingPage({
                     </select>
                   </label>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-primary/25 dark:text-primary dark:hover:bg-primary/10"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#FF3D18] bg-[#FFFDF5] px-3 text-xs font-bold text-[#FF3D18] transition hover:-translate-y-0.5 hover:bg-[#FF3D18] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-[#FFFDF5] disabled:hover:text-[#FF3D18] dark:border-[#FF6A3A]/45 dark:bg-white/[0.04] dark:text-[#FF6A3A] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]"
                     disabled={selectedRules.length === 0 || !bulkMigrateEntryNodeId || hasBulkMigrationConflict || taskMutationBusy}
                     onClick={migrateSelectedRulesToEntryNode}
                     type="button"
@@ -1677,27 +1677,27 @@ function ForwardingBulkImpactPreflight({
   return (
     <section
       aria-label={t.forwardingBulkImpactPreflight}
-      className="mt-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-primary/20 dark:bg-primary/[0.06]"
+      className="mt-3 rounded-xl border border-[#1E3AFF] bg-[#D9FF00]/[0.18] p-4 shadow-[0_16px_36px_-32px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/35 dark:bg-[#D9FF00]/[0.08]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-primary">
+          <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-primary">
             {t.forwardingBulkImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/60">
             {t.forwardingBulkImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.entryHostLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-primary/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-[#1E3AFF] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/30 dark:bg-white/[0.04] dark:text-white/75"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.entryHostLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-primary/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-[#1E3AFF] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#35405A] dark:border-[#6B7CFF]/30 dark:bg-white/[0.04] dark:text-white/55">
                 +{formatNumber(summary.entryHostLabels.length - 4, language)}
               </span>
             ) : null}
@@ -1749,9 +1749,9 @@ function ForwardingBulkImpactPreflight({
 
 function ForwardingBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-primary/20 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0 rounded-lg border border-[#07111F]/25 bg-[#FFFDF5]/90 px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/45">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-white">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -1769,9 +1769,9 @@ function ForwardingBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-primary/20 dark:bg-white/[0.025]">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+    <div className="min-w-0 rounded-lg border border-[#07111F]/25 bg-[#FFFDF5]/80 p-3 dark:border-[#6B7CFF]/25 dark:bg-white/[0.025]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-[#07111F] dark:text-[#EAFF5A]' : 'mt-2 space-y-1 text-[#07111F] dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}

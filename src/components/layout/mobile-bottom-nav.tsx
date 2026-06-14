@@ -67,7 +67,7 @@ export function MobileBottomNav({
   return (
     <nav
       aria-label={label}
-      className="fixed inset-x-3 bottom-3 z-40 border border-black/15 bg-white/95 p-1.5 shadow-2xl shadow-black/12 backdrop-blur-xl dark:border-white/10 dark:bg-black/90 md:hidden"
+      className="fixed inset-x-3 bottom-3 z-40 border border-[#07111F] bg-[#FFFDF5] p-1.5 shadow-2xl shadow-[#07111F]/14 backdrop-blur-xl dark:border-[#6B7CFF]/25 dark:bg-[#101827] md:hidden"
     >
       <div className="grid grid-cols-6 gap-1">
         {mobilePageIds.map((pageId) => {
@@ -82,8 +82,8 @@ export function MobileBottomNav({
                 className={cn(
                 'ou-tab flex min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-2 text-[10px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/60',
                 active
-                  ? 'border border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white'
-                  : 'text-black/55 hover:bg-black/[0.03] hover:text-black dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white'
+                  ? 'border border-[#1E3AFF] bg-[#1E3AFF] text-white shadow-sm shadow-[#1E3AFF]/20 dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]'
+                  : 'text-[#35405A] hover:bg-[#DCE1FF] hover:text-[#07111F] dark:text-white/65 dark:hover:bg-[#6B7CFF]/12 dark:hover:text-white'
               )}
               key={pageId}
               onClick={() => onPageChange(pageId)}
@@ -98,7 +98,7 @@ export function MobileBottomNav({
         })}
         <button
           aria-label={quickActionLabel}
-          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-black/20 bg-black/[0.04] px-1.5 py-2 text-[10px] font-semibold text-black shadow-sm shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:focus-visible:ring-primary/60"
+          className="ou-tab flex min-h-11 min-w-0 touch-manipulation flex-col items-center justify-center gap-1 rounded-2xl border border-[#FF3D18] bg-[#FF3D18]/[0.14] px-1.5 py-2 text-[10px] font-semibold text-[#07111F] shadow-sm shadow-[#FF3D18]/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197] dark:focus-visible:ring-primary/60"
           onClick={(event) => onOpenQuickActions(event.currentTarget)}
           type="button"
         >

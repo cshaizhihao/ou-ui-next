@@ -70,14 +70,25 @@ const copy = {
 } as const;
 
 const toneClasses = {
-  blue: 'border-black/15 bg-white text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70',
-  cyan: 'border-black/15 bg-white text-black/80 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
+  blue: 'border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/15 dark:text-[#DDE3FF]',
+  cyan: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
   orange:
-    'border-black/15 bg-white text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70',
+    'border-[#FF3D18] bg-[#FF3D18]/[0.12] text-[#C9220C] dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]',
   slate:
-    'border-black/15 bg-white text-black/75 dark:border-white/10 dark:bg-white/5 dark:text-white/70',
+    'border-[#D9FF00] bg-[#D9FF00]/[0.28] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]',
   amber:
-    'border-black/15 bg-white text-black/75 dark:border-white/10 dark:bg-white/5 dark:text-white/70'
+    'border-[#D9FF00] bg-[#D9FF00]/[0.28] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]'
+} as const;
+
+const actionToneClasses = {
+  blue:
+    'border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] hover:bg-[#1E3AFF] hover:text-white dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/14 dark:text-[#F4F8FF] dark:hover:bg-[#6B7CFF] dark:hover:text-[#07111F]',
+  cyan:
+    'border-[#00A878] bg-[#00A878]/[0.12] text-[#07111F] hover:bg-[#00A878] hover:text-white dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#F4F8FF] dark:hover:bg-[#35E68E] dark:hover:text-[#07111F]',
+  orange:
+    'border-[#FF3D18] bg-[#FF3D18]/[0.12] text-[#07111F] hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/40 dark:bg-[#FF6A3A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]',
+  slate:
+    'border-[#D9FF00] bg-[#D9FF00]/[0.28] text-[#07111F] hover:bg-[#D9FF00] hover:text-[#07111F] dark:border-[#EAFF5A]/40 dark:bg-[#EAFF5A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#EAFF5A] dark:hover:text-[#07111F]'
 } as const;
 
 export function OperationsLaunchpad({
@@ -134,25 +145,25 @@ export function OperationsLaunchpad({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="ou-card-enter mb-3 overflow-hidden border border-black/15 bg-white/92 p-2.5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.03] max-md:mb-2">
+    <section className="ou-card-enter mb-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_18px_44px_-34px_rgba(7,17,31,0.38)] backdrop-blur-xl dark:border-[#6B7CFF]/25 dark:bg-[#101827] max-md:mb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-9 w-9 flex-shrink-0 place-items-center border border-black/15 bg-black/[0.03] text-black shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white">
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/20 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/15 dark:text-[#DDE3FF]">
             <Activity className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-black/55 dark:text-white/52">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
               {t.eyebrow}
             </p>
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-sm font-semibold tracking-tight text-black dark:text-white">{t.title}</h3>
-              <p className="hidden truncate text-xs font-medium text-black/56 dark:text-white/45 lg:block">{t.subtitle}</p>
+              <h3 className="truncate text-sm font-semibold tracking-tight text-[#07111F] dark:text-white">{t.title}</h3>
+              <p className="hidden truncate text-xs font-medium text-[#35405A] dark:text-white/55 lg:block">{t.subtitle}</p>
             </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-black/15 bg-white/96 px-3 text-[11px] font-semibold tracking-[0.02em] text-black/72 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:focus-visible:ring-primary/55 max-md:hidden"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#1E3AFF] bg-[#FFFDF5] px-3 text-[11px] font-semibold tracking-[0.02em] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-[#6B7CFF]/35 dark:bg-white/[0.05] dark:text-[#DDE3FF] dark:focus-visible:ring-primary/55 max-md:hidden"
             onClick={(event) => onOpenQuickActions(event.currentTarget)}
             type="button"
           >
@@ -161,7 +172,7 @@ export function OperationsLaunchpad({
           </button>
           <button
             aria-expanded={expanded}
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-black/15 bg-black/[0.03] px-3 text-[11px] font-semibold tracking-[0.02em] text-black/76 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/72 dark:focus-visible:ring-primary/55"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D9FF00] bg-[#D9FF00]/[0.22] px-3 text-[11px] font-semibold tracking-[0.02em] text-[#07111F] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5] dark:focus-visible:ring-primary/55"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -174,15 +185,18 @@ export function OperationsLaunchpad({
       <div className="mt-2 grid grid-cols-4 gap-2 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
         {actions.map((action) => (
             <button
-              className="ou-action-card group min-h-12 border border-black/15 bg-white/92 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-primary/55"
+              className={cn(
+                'ou-action-card group min-h-12 border px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
+                actionToneClasses[action.tone]
+              )}
               key={action.id}
               onClick={() => onSelectPage(action.pageId)}
               onFocus={() => onPrefetchPage?.(action.pageId)}
               onMouseEnter={() => onPrefetchPage?.(action.pageId)}
               type="button"
             >
-            <span className="block truncate text-[10px] font-semibold tracking-[0.08em] text-slate-500 dark:text-white/45">{action.metric}</span>
-            <span className="mt-1 block truncate text-xs font-semibold text-slate-900 dark:text-white">{action.label}</span>
+            <span className="block truncate text-[10px] font-semibold tracking-[0.08em] opacity-75">{action.metric}</span>
+            <span className="mt-1 block truncate text-xs font-semibold">{action.label}</span>
           </button>
         ))}
       </div>
@@ -198,8 +212,8 @@ export function OperationsLaunchpad({
             className={cn(
                   'ou-action-card group min-h-[92px] border p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
                   active
-                    ? 'border-black/25 bg-black/[0.04] shadow-lg shadow-black/10 dark:border-white/18 dark:bg-white/[0.06]'
-                    : 'border-black/15 bg-white/92 hover:border-black/25 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/18'
+                    ? 'border-[#1E3AFF] bg-[#DCE1FF] shadow-lg shadow-[#1E3AFF]/12 dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/14'
+                    : actionToneClasses[action.tone]
                 )}
                 key={action.id}
                 onClick={() => onSelectPage(action.pageId)}
@@ -211,12 +225,12 @@ export function OperationsLaunchpad({
                   <span className={cn('grid h-8 w-8 place-items-center border', toneClasses[action.tone])}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="rounded-full bg-white px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-black/55 shadow-sm dark:bg-white/5 dark:text-white/45">
+                  <span className="rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-[#35405A] shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/50">
                     {action.metric}
                   </span>
                 </div>
-                <p className="mt-3 text-xs font-semibold text-black dark:text-white">{action.label}</p>
-                <p className="mt-1 line-clamp-2 text-[11px] font-normal leading-4 text-black/58 dark:text-white/50">
+                <p className="mt-3 text-xs font-semibold">{action.label}</p>
+                <p className="mt-1 line-clamp-2 text-[11px] font-normal leading-4 opacity-70">
                   {action.description}
                 </p>
               </button>

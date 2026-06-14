@@ -319,7 +319,7 @@ describe('ForwardingPage', () => {
     expect(screen.getByText('One-way / Egress')).toBeInTheDocument();
   });
 
-  it('frames the forwarding bulk impact preflight and bulk migrate action as a blue-and-orange control surface', async () => {
+  it('frames the forwarding bulk impact preflight and bulk migrate action as a Fauvist control surface', async () => {
     render(
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
@@ -367,11 +367,11 @@ describe('ForwardingPage', () => {
     const impact = impactTitle.closest('section');
 
     expect(impact).not.toBeNull();
-    expect(impact).toHaveClass('border-blue-200', 'bg-blue-50/60');
+    expect(impact).toHaveClass('border-[#1E3AFF]', 'bg-[#D9FF00]/[0.18]');
     expect(within(impact as HTMLElement).getByText('Entry Hosts')).toBeInTheDocument();
     expect(within(impact as HTMLElement).getByText('HKG Entry')).toBeInTheDocument();
-    expect(within(impact as HTMLElement).getByText('HKG Entry')).toHaveClass('border-blue-200', 'bg-white', 'text-slate-700');
-    expect(screen.getByRole('button', { name: 'Bulk Migrate Entry' })).toHaveClass('border-blue-200', 'text-blue-700');
+    expect(within(impact as HTMLElement).getByText('HKG Entry')).toHaveClass('border-[#1E3AFF]', 'bg-[#FFFDF5]', 'text-[#07111F]');
+    expect(screen.getByRole('button', { name: 'Bulk Migrate Entry' })).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
   });
 
   it('renders a scan-friendly runtime path for each forwarding rule', () => {

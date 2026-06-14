@@ -50,12 +50,12 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
     return (
       <button
         aria-label={item.label}
-          className={cn(
-            'ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
-            depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
-            activePage === item.id
-            ? 'nav-active border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:shadow-black/30'
-            : 'border-transparent text-black/65 hover:border-black/15 hover:bg-white/90 hover:text-black dark:text-white/70 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white'
+        className={cn(
+          'ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
+          depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
+          activePage === item.id
+            ? 'nav-active border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/45 dark:bg-[#6B7CFF]/15 dark:text-white dark:shadow-black/30'
+            : 'border-transparent text-[#35405A] hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/70 hover:text-[#07111F] dark:text-white/70 dark:hover:border-[#6B7CFF]/25 dark:hover:bg-[#6B7CFF]/10 dark:hover:text-white'
         )}
         key={item.id}
         onClick={() => onPageChange(item.id)}
@@ -87,8 +87,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           className={cn(
             'ou-nav-item flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left',
             containsActivePage
-              ? 'border-black/20 bg-black/[0.04] text-black shadow-sm shadow-black/10 dark:border-white/15 dark:bg-white/[0.06] dark:text-white'
-              : 'border-transparent text-black/58 hover:border-black/15 hover:bg-white/90 hover:text-black dark:text-white/60 dark:hover:border-white/10 dark:hover:bg-white/5 dark:hover:text-white/85'
+              ? 'border-[#D9FF00] bg-[#D9FF00]/[0.18] text-[#07111F] shadow-sm shadow-[#D9FF00]/15 dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/10 dark:text-[#F4FFC5]'
+              : 'border-transparent text-[#35405A] hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.16] hover:text-[#07111F] dark:text-white/60 dark:hover:border-[#EAFF5A]/25 dark:hover:bg-[#EAFF5A]/10 dark:hover:text-white/85'
           )}
           onClick={() => toggleGroup(group.id)}
           type="button"
@@ -117,12 +117,12 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   }
 
   return (
-    <aside className="island-panel w-[272px] flex-shrink-0 max-md:hidden">
-      <div className="flex h-20 shrink-0 items-center border-b border-black/15 bg-white/60 px-6 dark:border-white/10 dark:bg-white/[0.02]">
-        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-black/15 bg-white text-black shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white">
+    <aside className="island-panel w-[272px] flex-shrink-0 border-[#07111F] bg-[#FFFDF5] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+      <div className="flex h-20 shrink-0 items-center border-b border-[#07111F]/25 bg-[#DCE1FF]/70 px-6 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
+        <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-xl border border-[#1E3AFF] bg-[#FFFDF5] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/35 dark:bg-white/[0.04] dark:text-[#DDE3FF]">
           <BrandLogo />
         </div>
-        <h1 className="text-base font-semibold tracking-tight text-black dark:text-white">OU-UI NEXT</h1>
+        <h1 className="text-base font-semibold tracking-tight text-[#07111F] dark:text-white">OU-UI NEXT</h1>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-5">
@@ -130,13 +130,13 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       </nav>
 
       <div className="shrink-0 p-5 max-md:hidden">
-        <div className="flex items-center gap-3 rounded-2xl border border-black/15 bg-white/80 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/15 bg-white text-xs font-semibold text-black shadow-sm dark:border-white/10 dark:bg-black/40 dark:text-white">
+        <div className="flex items-center gap-3 rounded-2xl border border-[#00A878] bg-[#00A878]/[0.12] p-3 shadow-sm shadow-[#00A878]/10 dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#00A878] bg-[#FFFDF5] text-xs font-semibold text-[#007D5E] shadow-sm dark:border-[#35E68E]/35 dark:bg-black/40 dark:text-[#9EF4C4]">
             M
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold tracking-tight text-black dark:text-white">{controlNodeTitle}</p>
-            <p className="mt-0.5 truncate text-[9px] font-medium text-black/60 dark:text-white/50">
+            <p className="truncate text-xs font-semibold tracking-tight text-[#07111F] dark:text-white">{controlNodeTitle}</p>
+            <p className="mt-0.5 truncate text-[9px] font-medium text-[#35405A] dark:text-white/55">
               {controlNodeSubtitle}
             </p>
           </div>
