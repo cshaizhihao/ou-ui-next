@@ -278,7 +278,7 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('控制面正在呼吸')).not.toBeInTheDocument();
   });
 
-  it('keeps overview cards compact in fixed grids without bento or waterfall sizing', () => {
+  it('keeps overview cards compact in fixed grids without bento waterfall or oversized card shells', () => {
     renderPage({
       onOpenHostWorkspace: vi.fn(),
       onOpenForwardingWorkspace: vi.fn(),
@@ -287,13 +287,19 @@ describe('DashboardPage', () => {
 
     const overview = screen.getByRole('region', { name: 'Master Control Plane Overview' });
     const surface = overview.querySelector('.dashboard-control-plane-surface');
+    const media = overview.querySelector('.dashboard-control-plane-media');
     const metricGrid = overview.querySelector('.dashboard-control-plane-metric-grid');
     const responseGrid = overview.querySelector('.dashboard-response-action-grid');
     const readinessGrid = overview.querySelector('.dashboard-production-readiness-grid');
     const overviewHtml = overview.outerHTML;
 
     expect(surface).not.toHaveClass('min-h-[34rem]');
-    expect(surface).toHaveClass('min-h-[25rem]');
+    expect(surface).not.toHaveClass('min-h-[25rem]');
+    expect(surface).toHaveClass('min-h-0');
+    expect(surface?.outerHTML).not.toContain('p-5');
+    expect(surface?.outerHTML).not.toContain('md:p-6');
+    expect(media).not.toHaveClass('min-h-40');
+    expect(media).toHaveClass('min-h-[10rem]');
     expect(metricGrid).not.toBeNull();
     expect(metricGrid).toHaveClass('grid-cols-2');
     expect(metricGrid).toHaveClass('xl:grid-cols-4');
@@ -301,14 +307,21 @@ describe('DashboardPage', () => {
     expect(metricGrid?.outerHTML).not.toContain('col-span-2');
     expect(metricGrid?.outerHTML).not.toContain('min-h-36');
     expect(metricGrid?.outerHTML).not.toContain('min-h-[104px]');
-    expect(metricGrid?.outerHTML).toContain('min-h-[92px]');
+    expect(metricGrid?.outerHTML).not.toContain('min-h-[92px]');
+    expect(metricGrid?.outerHTML).toContain('min-h-[78px]');
     expect(responseGrid).not.toBeNull();
     expect(responseGrid?.outerHTML).not.toContain('min-h-24');
+    expect(responseGrid?.outerHTML).not.toContain('min-h-[76px]');
+    expect(responseGrid?.outerHTML).toContain('min-h-[68px]');
     expect(readinessGrid?.outerHTML).not.toContain('min-h-[104px]');
+    expect(readinessGrid?.outerHTML).not.toContain('min-h-[82px]');
+    expect(readinessGrid?.outerHTML).toContain('min-h-[72px]');
     expect(overviewHtml).not.toContain('dashboard-control-plane-bento');
     expect(overviewHtml).not.toContain('masonry');
     expect(overviewHtml).not.toContain('columns-');
     expect(overviewHtml).not.toContain('grid-flow-row-dense');
+    expect(overviewHtml).not.toContain('row-span');
+    expect(overviewHtml).not.toContain('space-y-6');
   });
 
   it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
@@ -579,8 +592,8 @@ describe('DashboardPage', () => {
     const heroHeading = screen.getByRole('heading', { name: '运营态势' });
 
     expect(heroHeading.className).not.toContain('clamp(');
-    expect(heroHeading).toHaveClass('text-5xl');
-    expect(heroHeading).toHaveClass('md:text-6xl');
+    expect(heroHeading).toHaveClass('text-4xl');
+    expect(heroHeading).toHaveClass('md:text-5xl');
   });
 
   it('uses the fauvist palette instead of the previous industrial red black scheme', () => {
