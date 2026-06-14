@@ -219,6 +219,27 @@ button:not([disabled]):not([aria-disabled='true']):active {
   background: linear-gradient(90deg, transparent, rgba(30, 58, 255, 0.26), rgba(255, 61, 24, 0.22), transparent);
 }
 
+.dashboard-connectivity-flow.svg-line-dash {
+  stroke-dasharray: 18 14;
+  animation: ouConnectivityFlow 2.8s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(217, 255, 0, 0.34));
+  will-change: stroke-dashoffset;
+}
+
+.dashboard-connectivity-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ouConnectivityNodePulse 2.8s ease-in-out infinite;
+}
+
+.dashboard-connectivity-node:nth-of-type(2) {
+  animation-delay: 140ms;
+}
+
+.dashboard-connectivity-node:nth-of-type(3) {
+  animation-delay: 280ms;
+}
+
 @keyframes ouPageEnter {
   from {
     opacity: 0;
@@ -256,6 +277,27 @@ button:not([disabled]):not([aria-disabled='true']):active {
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+@keyframes ouConnectivityFlow {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -80;
+  }
+}
+
+@keyframes ouConnectivityNodePulse {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
   }
 }
 
@@ -300,7 +342,9 @@ button:not([disabled]):not([aria-disabled='true']):active {
   button:not([disabled]):not([aria-disabled='true']),
   .btn-glow,
   .glass-input,
-  .glass-toggle {
+  .glass-toggle,
+  .dashboard-connectivity-flow.svg-line-dash,
+  .dashboard-connectivity-node {
     animation: none;
     transition: none;
   }
@@ -325,7 +369,8 @@ button:not([disabled]):not([aria-disabled='true']):active {
   button:not([disabled]):not([aria-disabled='true']):active,
   .btn-glow:active,
   .glass-input:active,
-  .glass-toggle:active {
+  .glass-toggle:active,
+  .dashboard-connectivity-node {
     transform: none;
   }
 }

@@ -169,7 +169,37 @@ describe('TasksPage', () => {
 
     const overview = screen.getByRole('region', { name: 'Operational Overview' });
     expect(within(overview).getByText('Execution Log')).toBeInTheDocument();
-    expect(within(overview).getByText('Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.')).toBeInTheDocument();
+    expect(
+      within(overview).queryByText(
+        'Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.'
+      )
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not pad the execution workspace with explanatory filler copy', () => {
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogArchives={[]}
+        agentLogChunks={[]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Execution release cockpit' });
+
+    expect(cockpit).toHaveTextContent('Release path');
+    expect(cockpit).toHaveTextContent('Execution Release Gates');
+    expect(cockpit).toHaveTextContent('Release Pipeline');
+    expect(cockpit).not.toHaveTextContent('Confirm Master dispatch');
+    expect(cockpit).not.toHaveTextContent('Keep queue');
+    expect(cockpit).not.toHaveTextContent('Keep the queue');
+    expect(cockpit).not.toHaveTextContent('New execution records will appear');
   });
 
   it('shows an execution overview with live task counts', () => {

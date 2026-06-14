@@ -179,6 +179,16 @@ describe('visual constitution', () => {
     expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-shell-ribbon,[\s\S]*\.btn-glow/u);
   });
 
+  it('animates dashboard host connectivity with a real dashed flow and reduced-motion fallback', () => {
+    const animationsCss = readFileSync(join(process.cwd(), 'src/styles/animations.css'), 'utf8');
+
+    expect(animationsCss).toMatch(/\.dashboard-connectivity-flow\.svg-line-dash\s*\{[\s\S]*stroke-dasharray:/u);
+    expect(animationsCss).toMatch(/\.dashboard-connectivity-flow\.svg-line-dash\s*\{[\s\S]*animation:\s*ouConnectivityFlow/u);
+    expect(animationsCss).toContain('@keyframes ouConnectivityFlow');
+    expect(animationsCss).toMatch(/@keyframes ouConnectivityFlow[\s\S]*stroke-dashoffset:\s*-80/u);
+    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.dashboard-connectivity-flow\.svg-line-dash/u);
+  });
+
   it('renders glass primitives without decorative orb backgrounds', () => {
     render(
       <>

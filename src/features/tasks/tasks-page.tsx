@@ -79,16 +79,16 @@ type ExecutionMetric = {
 const copy = {
   zh: {
     title: '执行记录',
-    subtitle: '记录 Master 下发、Agent 回执、预检、快照和回滚状态，确保每一次高风险变更都有据可查。',
+    subtitle: '',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先确认 Master 下发路径、Agent 执行证据、发布产物和回滚边界，再处理队列或失败任务。',
+    operationalOverviewHint: '',
     releasePath: '发布路径',
     pathMaster: 'Master',
     pathAgent: 'Agent',
     pathEvidence: 'Evidence',
     pathRollback: 'Rollback',
     executionReleaseGates: '执行发布门禁',
-    executionReleaseGatesHint: '把队列、失败处置、发布产物和回滚边界收敛到同一条放行线。',
+    executionReleaseGatesHint: '',
     executionQueueGate: '执行队列',
     executionQueueGateDetail: (activeCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(activeCount, language)} 进行中 / ${formatNumber(totalCount, language)} 总执行`,
@@ -138,7 +138,7 @@ const copy = {
     needsAttentionDetail: '已失败或有失败证据的任务，优先处理。',
     rollbackReady: '可回滚',
     rollbackReadyDetail: '已完成且具备回滚入口的任务。',
-    overviewHint: '控制执行队列、失败风险和回滚入口，优先处理影响面最大的任务。',
+    overviewHint: '',
     pipelineTitle: '发布流水线',
     refresh: '刷新记录',
     searchTasks: '搜索任务',
@@ -229,7 +229,7 @@ const copy = {
     snapshot: '快照',
     pendingArtifact: '等待产物生成',
     emptyTitle: '暂无执行记录',
-    emptyDescription: '在转发、订阅、分流或调优页面触发操作后，这里会出现新的执行记录。',
+    emptyDescription: '',
     checksUnit: '项检查',
     diffSummary: (added: number, changed: number, removed: number, language: AppLanguage) =>
       `变更 +${formatNumber(added, language)} / ~${formatNumber(changed, language)} / -${formatNumber(removed, language)}`,
@@ -318,17 +318,16 @@ const copy = {
   },
   en: {
     title: 'Execution Log',
-    subtitle: 'Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.',
+    subtitle: '',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint:
-      'Confirm Master dispatch, Agent evidence, release artifacts, and rollback boundaries before acting on the queue or failure records.',
+    operationalOverviewHint: '',
     releasePath: 'Release path',
     pathMaster: 'Master',
     pathAgent: 'Agent',
     pathEvidence: 'Evidence',
     pathRollback: 'Rollback',
     executionReleaseGates: 'Execution Release Gates',
-    executionReleaseGatesHint: 'Keep queue, failure handling, release artifacts, and rollback boundaries on one approval line.',
+    executionReleaseGatesHint: '',
     executionQueueGate: 'Execution Queue',
     executionQueueGateDetail: (activeCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(activeCount, language)} active / ${formatNumber(totalCount, language)} total`,
@@ -378,7 +377,7 @@ const copy = {
     needsAttentionDetail: 'Failed tasks or records with failure evidence.',
     rollbackReady: 'Rollback ready',
     rollbackReadyDetail: 'Succeeded tasks that still have a rollback path.',
-    overviewHint: 'Keep the queue, failure risk, and rollback entry points visible so operators can act fast.',
+    overviewHint: '',
     pipelineTitle: 'Release Pipeline',
     refresh: 'Refresh Records',
     searchTasks: 'Search Tasks',
@@ -469,7 +468,7 @@ const copy = {
     snapshot: 'Snapshot',
     pendingArtifact: 'Pending Artifact',
     emptyTitle: 'No execution records',
-    emptyDescription: 'New execution records will appear after actions are triggered in forwarding, subscription, routing, or tuning pages.',
+    emptyDescription: '',
     checksUnit: 'checks',
     diffSummary: (added: number, changed: number, removed: number, language: AppLanguage) =>
       `Diff +${formatNumber(added, language)} / ~${formatNumber(changed, language)} / -${formatNumber(removed, language)}`,
@@ -1202,7 +1201,9 @@ function ExecutionReleaseGatePanel({
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.executionReleaseGates}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.executionReleaseGatesHint}</p>
+        {t.executionReleaseGatesHint ? (
+          <p className="mt-1 text-[11px] leading-5 text-white/82">{t.executionReleaseGatesHint}</p>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {gates.map((gate) => (
@@ -2357,7 +2358,9 @@ export function TasksPage({
           {t.operationalOverview}
         </p>
         <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+        {t.subtitle ? (
+          <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+        ) : null}
       </section>
 
       <WorkspaceCockpit
@@ -2377,9 +2380,11 @@ export function TasksPage({
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.releasePath}</p>
                 </div>
                 <ReleasePath labels={[t.pathMaster, t.pathAgent, t.pathEvidence, t.pathRollback]} />
-                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
-                  {t.operationalOverviewHint}
-                </p>
+                {t.operationalOverviewHint ? (
+                  <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
+                    {t.operationalOverviewHint}
+                  </p>
+                ) : null}
               </div>
 
               <ExecutionReleaseGatePanel gates={executionReleaseGates} t={t} />
@@ -2401,7 +2406,9 @@ export function TasksPage({
                   <EvidenceSummaryTile label={t.releaseEvidence} value={releaseEvidenceSummary} />
                   <EvidenceSummaryTile label={t.agentEvidence} value={agentEvidenceSummary} />
                 </div>
-                <p className="mt-3 text-[11px] leading-5 text-slate-500 dark:text-white/45">{t.overviewHint}</p>
+                {t.overviewHint ? (
+                  <p className="mt-3 text-[11px] leading-5 text-slate-500 dark:text-white/45">{t.overviewHint}</p>
+                ) : null}
               </div>
 
               {tasks.length > 0 ? (
