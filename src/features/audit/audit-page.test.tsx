@@ -217,12 +217,49 @@ describe('AuditPage', () => {
 
     const overview = screen.getByRole('region', { name: 'Operational Overview' });
 
-    expect(overview).toHaveClass('rounded-xl');
+    expect(overview).toHaveClass('audit-operational-overview');
+    expect(overview).toHaveClass('p-3');
+    expect(overview).toHaveClass('md:p-3');
+    expect(overview).not.toHaveClass('rounded-xl');
     expect(overview).not.toHaveClass('rounded-[1.5rem]');
+    expect(overview).not.toHaveClass('p-5');
+    expect(overview).not.toHaveClass('p-4');
+    expect(overview.outerHTML).toContain('audit-operational-overview-strip');
+    expect(overview.outerHTML).not.toContain('columns-');
+    expect(overview.outerHTML).not.toContain('masonry');
+    expect(overview.outerHTML).not.toContain('grid-flow-row-dense');
     expect(overview.outerHTML).toContain('#1E3AFF');
     expect(overview.outerHTML).toContain('#FF3D18');
     expect(overview).not.toHaveClass('backdrop-blur-2xl');
     expect(container.querySelector('[aria-label="Operational Overview"]')).toBe(overview);
+  });
+
+  it('keeps empty audit ledger states compact instead of oversized blank cards', async () => {
+    const user = userEvent.setup();
+
+    const { unmount } = render(<AuditPage auditLogs={[]} language="en" />);
+
+    const emptyWorkspace = screen.getByRole('region', { name: 'Audit ledger workspace' });
+    const emptyLedger = within(emptyWorkspace).getByRole('group', { name: 'Change Ledger' });
+    const emptyState = within(emptyLedger).getByText('No audit events yet').closest('.audit-ledger-empty-state');
+
+    expect(emptyState).toHaveClass('p-3');
+    expect(emptyState).not.toHaveClass('p-8', 'p-6', 'p-5', 'rounded-xl');
+
+    unmount();
+
+    render(<AuditPage auditLogs={[deniedAuditLog, succeededAuditLog]} language="en" />);
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Audit Logs' }), 'missing audit evidence');
+
+    const filteredWorkspace = screen.getByRole('region', { name: 'Audit ledger workspace' });
+    const filteredLedger = within(filteredWorkspace).getByRole('group', { name: 'Change Ledger' });
+    const filteredEmptyState = within(filteredLedger)
+      .getByText('No matching audit records')
+      .closest('.audit-ledger-filter-empty-state');
+
+    expect(filteredEmptyState).toHaveClass('p-3');
+    expect(filteredEmptyState).not.toHaveClass('p-8', 'p-6', 'p-5', 'rounded-xl');
   });
 
   it('filters audit logs and opens copyable evidence for a denied change', async () => {
@@ -319,10 +356,29 @@ describe('AuditPage', () => {
     expect(drawer.querySelector('.audit-evidence-integrity-card')).toBeInTheDocument();
     expect(drawer.querySelectorAll('.audit-evidence-json-card')).toHaveLength(2);
     expect(drawer.querySelector('.audit-evidence-field')).toBeInTheDocument();
+    expect(drawer.querySelector('.audit-evidence-drawer-stack')).toHaveClass('space-y-3');
+    for (const selector of [
+      '.audit-evidence-summary-card',
+      '.audit-evidence-context-card',
+      '.audit-evidence-request-card',
+      '.audit-evidence-denial-card',
+      '.audit-evidence-integrity-card',
+      '.audit-evidence-json-card'
+    ]) {
+      drawer
+        .querySelectorAll(selector)
+        .forEach((evidenceCard) => expect(evidenceCard).toHaveClass('p-3'));
+      drawer
+        .querySelectorAll(selector)
+        .forEach((evidenceCard) => expect(evidenceCard).not.toHaveClass('p-4', 'p-5', 'rounded-xl'));
+    }
     expect(drawerHtml).toContain('#1E3AFF');
     expect(drawerHtml).toContain('#FF3D18');
     expect(drawerHtml).toContain('#D9FF00');
     expect(drawerHtml).toContain('#00A878');
+    expect(drawerHtml).not.toContain('masonry');
+    expect(drawerHtml).not.toContain('columns-');
+    expect(drawerHtml).not.toContain('grid-flow-row-dense');
     expect(drawerHtml).not.toContain('truncate');
     expect(drawerHtml).not.toContain('blue-');
     expect(drawerHtml).not.toContain('orange-');

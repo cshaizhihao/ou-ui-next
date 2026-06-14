@@ -589,7 +589,7 @@ function EvidenceJsonBlock({ label, value, emptyText }: { label: string; value: 
   const formattedValue = stringifyEvidenceValue(value);
 
   return (
-    <div className="audit-evidence-json-card border border-[#07111F] bg-[#FFFDF5] p-4 shadow-[0_12px_32px_-28px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+    <div className="audit-evidence-json-card border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_12px_32px_-28px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
       <p className="text-xs font-black uppercase tracking-widest text-[#35405A] dark:text-white/48">{label}</p>
       {formattedValue ? (
         <pre className="audit-evidence-json-value mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words border border-[#07111F]/30 bg-[#07111F] p-3 text-[11px] leading-5 text-[#FDFFF1] dark:border-[#6B7CFF]/25 dark:bg-[#07111F]">
@@ -623,18 +623,18 @@ function AuditEvidenceDrawer({
       onClose={onClose}
     >
       {log ? (
-        <div className="space-y-4">
-          <div className="audit-evidence-summary-card border border-[#1E3AFF] bg-[#DCE1FF]/70 p-4 shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/[0.10]">
+        <div className="audit-evidence-drawer-stack space-y-3">
+          <div className="audit-evidence-summary-card border border-[#1E3AFF] bg-[#DCE1FF]/70 p-3 shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/[0.10]">
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
               <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#DDE3FF]">
                 {t.evidenceSummary}
               </p>
             </div>
-            <p className="mt-3 break-words text-sm font-bold leading-6 text-[#07111F] dark:text-white">
+            <p className="mt-2 break-words text-sm font-bold leading-6 text-[#07111F] dark:text-white">
               {log.message}
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <span className="rounded-full border border-[#1E3AFF]/40 bg-[#FFFDF5] px-3 py-1 text-[10px] font-bold uppercase text-[#07111F] dark:border-[#6B7CFF]/30 dark:bg-white/[0.06] dark:text-white/75">
                 {t.severity[log.severity]}
               </span>
@@ -644,7 +644,7 @@ function AuditEvidenceDrawer({
             </div>
           </div>
 
-          <div className="audit-evidence-context-card border border-[#07111F] bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+          <div className="audit-evidence-context-card border border-[#07111F] bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
             <p className="text-xs font-black uppercase tracking-widest text-[#35405A] dark:text-white/48">
               {t.evidenceContext}
             </p>
@@ -664,7 +664,7 @@ function AuditEvidenceDrawer({
             </div>
           </div>
 
-          <div className="audit-evidence-request-card border border-[#1E3AFF] bg-[#DCE1FF]/44 p-4 dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/[0.08]">
+          <div className="audit-evidence-request-card border border-[#1E3AFF] bg-[#DCE1FF]/44 p-3 dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/[0.08]">
             <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#DDE3FF]">
               {t.request}
             </p>
@@ -675,7 +675,7 @@ function AuditEvidenceDrawer({
           </div>
 
           {(log.denialCode || log.denialReason) && (
-            <div className="audit-evidence-denial-card border border-[#FF3D18] bg-[#FFD8C6]/68 p-4 shadow-[inset_0_-3px_0_#FF3D18] dark:border-[#FF6A3A]/35 dark:bg-[#FF3D18]/[0.12]">
+            <div className="audit-evidence-denial-card border border-[#FF3D18] bg-[#FFD8C6]/68 p-3 shadow-[inset_0_-3px_0_#FF3D18] dark:border-[#FF6A3A]/35 dark:bg-[#FF3D18]/[0.12]">
               <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
                 {t.denial}
               </p>
@@ -686,7 +686,7 @@ function AuditEvidenceDrawer({
             </div>
           )}
 
-          <div className="audit-evidence-integrity-card border border-[#00A878] bg-[#D9FF00]/[0.18] p-4 shadow-[inset_0_-3px_0_#00A878] dark:border-[#00A878]/35 dark:bg-[#00A878]/[0.10]">
+          <div className="audit-evidence-integrity-card border border-[#00A878] bg-[#D9FF00]/[0.18] p-3 shadow-[inset_0_-3px_0_#00A878] dark:border-[#00A878]/35 dark:bg-[#00A878]/[0.10]">
             <p className="text-xs font-black uppercase tracking-widest text-[#006B50] dark:text-[#7FF3C9]">
               {t.evidenceIntegrity}
             </p>
@@ -763,15 +763,15 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
     <ResponsivePage className="space-y-5 md:space-y-6">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden rounded-xl border border-[#1E3AFF] bg-[#FFFDF5]/92 p-5 shadow-sm dark:border-[#6B7CFF]/25 dark:bg-white/[0.03] dark:shadow-[0_12px_28px_rgba(0,0,0,0.18)] max-md:rounded-2xl max-md:border-[#1E3AFF] max-md:bg-[#FFFDF5]/96 max-md:p-4 max-md:shadow-sm max-md:dark:border-[#6B7CFF]/25 max-md:dark:bg-slate-950/88"
+        className="audit-operational-overview stagger-1 overflow-hidden border border-[#1E3AFF] bg-[#FFFDF5]/92 p-3 shadow-[0_12px_32px_-28px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.03] dark:shadow-[0_12px_28px_rgba(0,0,0,0.18)] md:p-3 max-md:border-[#1E3AFF] max-md:bg-[#FFFDF5]/96 max-md:p-3 max-md:shadow-sm max-md:dark:border-[#6B7CFF]/25 max-md:dark:bg-slate-950/88"
       >
         <div className="min-w-0 max-w-4xl">
           <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3AFF] dark:text-[#DDE3FF]">
             {t.operationalOverview}
           </p>
-          <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+          <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+          <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+          <div className="audit-operational-overview-strip mt-3 grid grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
             <span className="rounded-full border border-[#1E3AFF] bg-[#DCE1FF] px-3 py-1.5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.03]">
               {t.matchingLogs} {formatNumber(filteredLogs.length)} / {formatNumber(auditLogs.length)}
             </span>
@@ -1015,13 +1015,13 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                     </article>
                   ))}
                   {auditLogs.length === 0 ? (
-                    <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
+                    <div className="audit-ledger-empty-state border border-dashed border-[#07111F]/24 bg-[#FFFDF5]/70 p-3 text-center dark:border-white/10 dark:bg-white/[0.025]">
                       <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
                     </div>
                   ) : null}
                   {auditLogs.length > 0 && filteredLogs.length === 0 ? (
-                    <div className="border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+                    <div className="audit-ledger-filter-empty-state border border-dashed border-[#07111F]/24 bg-[#FFFDF5]/70 p-3 text-sm font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.025] dark:text-white/45">
                       {t.noMatchingLogs}
                     </div>
                   ) : null}
