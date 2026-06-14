@@ -290,7 +290,7 @@ const copy = {
     customerNodesPageTitle: '客户节点',
     customerNodesPageSubtitle: '为客户独立配置 Xray 协议、入站端口、流量额度、IP 限制、传输参数和可用订阅链接，受控主机只作为运行时承载位置。',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先看纳管规模、在线健康和客户节点覆盖，再决定是否生成安装命令或切换到客户节点工作区。',
+    operationalOverviewHint: '',
     controlPath: '纳管链路',
     controlPathMaster: 'Master',
     controlPathAgent: 'Agent 通道',
@@ -302,10 +302,10 @@ const copy = {
     hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
-    workflowTitle: '推荐操作路径',
-    workflowSteps: ['接入受控主机', '创建客户节点', '应用主机设置'],
-    workflowDescriptions: ['先让服务器上线并回传遥测', '再配置协议、客户归属和流量策略', '最后编译配置并下发到目标主机'],
-    installDescription: '安装命令只负责把服务器接入主控端，并初始化主机代理、协议运行时、转发执行器、遥测上报与命令通道。',
+    workflowTitle: '',
+    workflowSteps: [],
+    workflowDescriptions: [],
+    installDescription: '',
     openInstall: '生成安装命令',
     hostName: '主机名称',
     tokenPolicy: '令牌策略',
@@ -422,7 +422,7 @@ const copy = {
     expiry: '到期',
     online: '在线',
     customerNodesTitle: '客户节点配置',
-    customerNodesHint: '一个受控主机可以承载多个客户节点。每个客户节点都要生成有效的协议入站和客户端配置，避免把客户业务写死在主机接入命令中。',
+    customerNodesHint: '',
     searchCustomerNodes: '搜索客户节点',
     searchCustomerNodesPlaceholder: '节点、客户、邮箱、订阅规则、端口、SNI 或路径',
     customerNodeProtocolFilter: '协议',
@@ -443,7 +443,7 @@ const copy = {
     addCustomerNode: '新增客户节点',
     editCustomerNode: '编辑客户节点',
     deleteCustomerNode: '删除客户节点',
-    operatorCreateHint: '按模板自动生成协议密钥、客户端凭证、分享链接和二维码；普通创建只需要填写客户、到期与流量。',
+    operatorCreateHint: '',
     protocolTemplate: '协议模板',
     protocolTemplateOptions: {
       'vless-reality-vision': 'VLESS Reality 推荐',
@@ -512,7 +512,7 @@ const copy = {
     generatedProtocolMaterial: '协议参数已自动生成',
     advancedToggle: '高级配置',
     advancedFeatures: '高级功能',
-    advancedHint: '仅在需要接管既有入站或覆盖模板默认值时修改。',
+    advancedHint: '',
     generatedCredential: '客户端凭证已自动生成',
     customerNodeName: '客户节点名称',
     customerName: '客户名称',
@@ -603,7 +603,7 @@ const copy = {
     customerNodesPageTitle: 'Customer Nodes',
     customerNodesPageSubtitle: 'Configure Xray protocol, inbound ports, traffic quota, IP limits, transport parameters, and usable subscription links independently from managed-host enrollment.',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint: 'Review managed-host scale, online health, and customer-node coverage before generating install commands or switching workspaces.',
+    operationalOverviewHint: '',
     controlPath: 'Control Path',
     controlPathMaster: 'Master',
     controlPathAgent: 'Agent Link',
@@ -615,10 +615,10 @@ const copy = {
     hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
-    workflowTitle: 'Recommended Path',
-    workflowSteps: ['Enroll host', 'Create customer node', 'Apply host config'],
-    workflowDescriptions: ['Bring the server online with telemetry first', 'Then configure protocol, ownership, and traffic policy', 'Finally compile and deploy config to the target host'],
-    installDescription: 'Install commands only enroll servers into the master and initialize host agent, protocol runtime, forwarding executor, telemetry, and command transport.',
+    workflowTitle: '',
+    workflowSteps: [],
+    workflowDescriptions: [],
+    installDescription: '',
     openInstall: 'Generate Install Command',
     hostName: 'Host Name',
     tokenPolicy: 'Token Policy',
@@ -735,7 +735,7 @@ const copy = {
     expiry: 'Expires',
     online: 'Online',
     customerNodesTitle: 'Customer Node Config',
-    customerNodesHint: 'A single managed host can serve multiple customer nodes. Each customer node generates a real protocol inbound and client config instead of being hard-coded into the host enrollment command.',
+    customerNodesHint: '',
     searchCustomerNodes: 'Search Customer Nodes',
     searchCustomerNodesPlaceholder: 'Node, customer, email, subscription rule, port, SNI, or path',
     customerNodeProtocolFilter: 'Protocol',
@@ -756,7 +756,7 @@ const copy = {
     addCustomerNode: 'Add Customer Node',
     editCustomerNode: 'Edit Customer Node',
     deleteCustomerNode: 'Delete Customer Node',
-    operatorCreateHint: 'Protocol keys, client credentials, share links, and QR codes are generated from templates; ordinary creation only needs customer, expiry, and traffic fields.',
+    operatorCreateHint: '',
     protocolTemplate: 'Protocol Template',
     protocolTemplateOptions: {
       'vless-reality-vision': 'VLESS Reality Recommended',
@@ -828,7 +828,7 @@ const copy = {
     generatedProtocolMaterial: 'Protocol material is generated automatically',
     advancedToggle: 'Advanced Config',
     advancedFeatures: 'Advanced Features',
-    advancedHint: 'Change these only when taking over an existing inbound or overriding template defaults.',
+    advancedHint: '',
     generatedCredential: 'Client credential generated automatically',
     customerNodeName: 'Customer Node Name',
     customerName: 'Customer Name',
@@ -3527,25 +3527,12 @@ export function NodesPage({
           <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
             {t.operationalOverview}
           </p>
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
-            {(activeWorkspace === 'customerNodes'
-              ? language === 'zh'
-                ? ['选承载主机', '创建客户节点', '复制订阅链接', '重置/续费']
-                : ['Pick host', 'Create node', 'Copy subscription', 'Reset / renew']
-              : language === 'zh'
-                ? ['接入服务器', '检查遥测', '应用配置', '回滚审计']
-                : ['Enroll host', 'Check telemetry', 'Apply config', 'Rollback audit']
-            ).map((step, index) => (
-              <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
-                {index + 1}. {step}
-              </span>
-            ))}
-          </div>
         </ResponsiveSection>
 
         <section className="nodes-control-band island-card p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {showWorkspaceSwitcher ? (
+          {showWorkspaceSwitcher || activeWorkspace === 'hosts' ? (
+            <div className={cn('flex flex-wrap items-center gap-3', showWorkspaceSwitcher ? 'justify-between' : 'justify-end')}>
+              {showWorkspaceSwitcher ? (
               <div className="nodes-workspace-switcher flex flex-wrap gap-2">
                 <WorkspaceButton active={activeWorkspace === 'hosts'} label={t.hostsTab} onClick={() => setUnlockedWorkspace('hosts')} />
                 <WorkspaceButton
@@ -3554,20 +3541,15 @@ export function NodesPage({
                   onClick={() => setUnlockedWorkspace('customerNodes')}
                 />
               </div>
-            ) : (
-              <div>
-                <p className="text-xs font-bold uppercase text-slate-500 dark:text-white/40">
-                  {activeWorkspace === 'hosts' ? t.hostsTab : t.customerNodesTab}
-                </p>
-              </div>
-            )}
-            {activeWorkspace === 'hosts' ? (
-              <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'install' })}>
-                <Terminal className="h-3.5 w-3.5" />
-                {t.openInstall}
-              </GlowButton>
-            ) : null}
-          </div>
+              ) : null}
+              {activeWorkspace === 'hosts' ? (
+                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => setDrawer({ type: 'install' })}>
+                  <Terminal className="h-3.5 w-3.5" />
+                  {t.openInstall}
+                </GlowButton>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="nodes-summary-metric-grid mt-3 grid grid-cols-3 gap-2 max-md:grid-cols-1">
             <SummaryMetric icon={ServerCog} label={t.hostSummary} value={String(visibleAgents.length)} />
@@ -3889,7 +3871,9 @@ export function NodesPage({
                 <UserRound className="h-4 w-4 text-blue-500 dark:text-primary" />
                 <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customerNodesTitle}</h4>
               </div>
+            {t.customerNodesHint ? (
               <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/45">{t.customerNodesHint}</p>
+            ) : null}
             </div>
             <GlowButton
               className="gap-2 px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
@@ -4514,7 +4498,7 @@ export function NodesPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleCustomerSubmit}>
-          <DrawerSection hint={t.operatorCreateHint} title={t.customerBasics}>
+          <DrawerSection hint={t.operatorCreateHint || undefined} title={t.customerBasics}>
             <SimpleNodeWizard
               labels={{
                 assignedHost: t.assignedHost,
@@ -4578,7 +4562,9 @@ export function NodesPage({
             </summary>
             {customerAdvancedOpen ? (
             <div className="mt-3 space-y-3">
-              <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
+              {t.advancedHint ? (
+                <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
+              ) : null}
               <DrawerSection title={t.advancedProfileSection}>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <SelectField

@@ -43,6 +43,56 @@
     linear-gradient(90deg, rgba(255, 106, 58, 0.05) 1px, transparent 1px);
 }
 
+.ou-shell-color-block {
+  position: absolute;
+  width: clamp(10rem, 22vw, 24rem);
+  aspect-ratio: 1.9 / 1;
+  border: 1px solid rgba(7, 17, 31, 0.12);
+  background: rgba(30, 58, 255, 0.18);
+  opacity: 0.82;
+  transform: translate3d(0, 0, 0) rotate(-8deg);
+  animation: ouColorBlockSlide 16s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+  will-change: transform;
+}
+
+.ou-shell-color-block-primary {
+  top: 8%;
+  left: 6%;
+  background: rgba(30, 58, 255, 0.16);
+}
+
+.ou-shell-color-block-accent {
+  top: 26%;
+  right: -4%;
+  width: clamp(9rem, 18vw, 20rem);
+  background: rgba(255, 61, 24, 0.16);
+  animation-delay: -5s;
+}
+
+.ou-shell-color-block-signal {
+  right: 18%;
+  bottom: 10%;
+  width: clamp(8rem, 16vw, 18rem);
+  background: rgba(217, 255, 0, 0.16);
+  animation-delay: -9s;
+}
+
+.dark .ou-shell-color-block {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .ou-shell-color-block-primary {
+  background: rgba(107, 124, 255, 0.18);
+}
+
+.dark .ou-shell-color-block-accent {
+  background: rgba(255, 106, 58, 0.18);
+}
+
+.dark .ou-shell-color-block-signal {
+  background: rgba(234, 255, 90, 0.16);
+}
+
 .ou-shell-ribbon {
   position: absolute;
   inset: auto -8vw 1.25rem;
@@ -313,6 +363,18 @@ button:not([disabled]):not([aria-disabled='true']):active {
   }
 }
 
+@keyframes ouColorBlockSlide {
+  0% {
+    transform: translate3d(-4vw, -2vh, 0) rotate(-8deg);
+  }
+  50% {
+    transform: translate3d(3vw, 2vh, 0) rotate(4deg);
+  }
+  100% {
+    transform: translate3d(6vw, -1vh, 0) rotate(9deg);
+  }
+}
+
 @keyframes ouRibbonScroll {
   0% {
     transform: translate3d(0, 0, 0);
@@ -324,6 +386,7 @@ button:not([disabled]):not([aria-disabled='true']):active {
 
 @media (prefers-reduced-motion: reduce) {
   .ou-shell-backdrop,
+  .ou-shell-color-block,
   .ou-shell-ribbon,
   .ou-page-enter,
   .ou-card-enter,
@@ -349,6 +412,7 @@ button:not([disabled]):not([aria-disabled='true']):active {
     transition: none;
   }
 
+  .ou-shell-color-block,
   .ou-shell-ribbon,
   .ou-nav-item:hover,
   .ou-command-pill:hover,

@@ -211,6 +211,7 @@ describe('AppShell', () => {
     expect(app).toHaveClass('ou-shell');
     expect(background).toHaveClass('ou-shell');
     expect(document.querySelector('.ou-shell-backdrop')).not.toBeNull();
+    expect(document.querySelectorAll('.ou-shell-color-block')).toHaveLength(3);
     expect(document.querySelector('.ou-shell-ribbon')).not.toBeNull();
   });
 

@@ -178,13 +178,13 @@ describe('NodesPage', () => {
     );
 
     const overview = screen.getByRole('region', { name: 'Operational Overview' });
-    expect(within(overview).getByText(/Enroll host/)).toBeInTheDocument();
-    expect(within(overview).getByText(/Check telemetry/)).toBeInTheDocument();
-    expect(within(overview).getByText(/Apply config/)).toBeInTheDocument();
-    expect(within(overview).getByText(/Rollback audit/)).toBeInTheDocument();
     expect(within(overview).getByText('Total Hosts')).toBeInTheDocument();
     expect(within(overview).getByText('Online Hosts')).toBeInTheDocument();
     expect(within(overview).getByText('Customer Nodes', { selector: 'p' })).toBeInTheDocument();
+    expect(within(overview).queryByText(/Enroll host/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/Check telemetry/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/Apply config/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/Rollback audit/)).not.toBeInTheDocument();
   });
 
   it('renders a customer-node operational overview band when the workspace is locked to customer nodes', () => {
@@ -204,10 +204,13 @@ describe('NodesPage', () => {
     );
 
     const overview = screen.getByRole('region', { name: 'Operational Overview' });
-    expect(within(overview).getByText(/Pick host/)).toBeInTheDocument();
-    expect(within(overview).getByText(/Create node/)).toBeInTheDocument();
-    expect(within(overview).getByText(/Copy subscription/)).toBeInTheDocument();
-    expect(within(overview).getByText(/Reset \/ renew/)).toBeInTheDocument();
+    expect(within(overview).getByText('Total Hosts')).toBeInTheDocument();
+    expect(within(overview).getByText('Online Hosts')).toBeInTheDocument();
+    expect(within(overview).getByText('Customer Nodes', { selector: 'p' })).toBeInTheDocument();
+    expect(within(overview).queryByText(/Pick host/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/Create node/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/Copy subscription/)).not.toBeInTheDocument();
+    expect(within(overview).queryByText(/Reset \/ renew/)).not.toBeInTheDocument();
   });
 
   it('keeps the nodes workspace focused on status and actions instead of explanatory workflow cards', () => {

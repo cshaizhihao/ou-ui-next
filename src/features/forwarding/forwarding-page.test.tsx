@@ -492,7 +492,9 @@ describe('ForwardingPage', () => {
 
     expect(cockpit).toHaveClass('min-h-0');
     expect(shellGrid).toHaveClass('min-h-0');
-    expect(rail).toHaveClass('overflow-y-auto', 'overscroll-contain');
+    expect(rail).toHaveClass('overflow-visible');
+    expect(rail).not.toHaveClass('overflow-y-auto', 'overscroll-contain');
+    expect(rail.className).not.toContain('max-h');
     expect(workspace).toHaveClass('min-h-0');
     expect(workspaceShell).toHaveClass('min-h-0');
     expect(cockpit.outerHTML).not.toContain('h-screen');

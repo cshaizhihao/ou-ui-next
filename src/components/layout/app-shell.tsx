@@ -3383,6 +3383,9 @@ export function AppShell({ ready }: AppShellProps) {
         inert={quickActionsOpen ? true : undefined}
       >
         <div aria-hidden="true" className="ou-shell-backdrop">
+          <span className="ou-shell-color-block ou-shell-color-block-primary" />
+          <span className="ou-shell-color-block ou-shell-color-block-accent" />
+          <span className="ou-shell-color-block ou-shell-color-block-signal" />
           <div className="ou-shell-grid" />
           <div className="ou-shell-ribbon">Control Plane Operations Host Delivery Audit</div>
         </div>
