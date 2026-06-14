@@ -880,6 +880,76 @@ describe('TasksPage', () => {
     );
   });
 
+  it('shows runtime artifacts and related Agent evidence inside the failure evidence drawer', async () => {
+    const user = userEvent.setup();
+    const failedTask: DeployTask = {
+      ...task,
+      status: 'failed',
+      summary: 'Apply port forwarding policy',
+      failureReason: 'port_conflict: 0.0.0.0:443 is already in use',
+      attempts: 2,
+      rollbackTaskId: 'task-forward-rollback-001',
+      metadata: {
+        retryable: false,
+        listenPort: 443,
+        targetEndpoint: '10.0.0.7:8443'
+      },
+      steps: [
+        { id: 'compile', label: 'Compile forwarding config', status: 'succeeded' },
+        { id: 'preflight-port', label: 'Check listen port availability', status: 'failed' }
+      ]
+    };
+    const failedConfigRevision: RuntimeConfigRevision = {
+      ...configRevision,
+      status: 'failed',
+      failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
+    };
+    const failedPreflightPlan: RuntimePreflightPlan = {
+      ...currentPreflightPlan,
+      status: 'failed',
+      failureReason: 'port_conflict: 0.0.0.0:443 is already in use',
+      checks: [
+        {
+          id: 'port-conflict',
+          label: 'Check listen port availability',
+          status: 'failed',
+          severity: 'critical'
+        }
+      ]
+    };
+    const verifiedSnapshot: RuntimeSnapshot = {
+      ...currentRuntimeSnapshot,
+      status: 'verified'
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedTask]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[failedConfigRevision]}
+        preflightPlans={[failedPreflightPlan]}
+        runtimeSnapshots={[verifiedSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Failure Evidence' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
+
+    expect(within(dialog).getByText('Runtime Release')).toBeInTheDocument();
+    expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('Related Agent Logs')).toBeInTheDocument();
+    expect(within(dialog).getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
+    expect(within(dialog).getByText('Related Log Archives')).toBeInTheDocument();
+    expect(within(dialog).getByText('agent-log-archive-test')).toBeInTheDocument();
+  });
+
   it('copies remediation plans only for selected failed tasks', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
