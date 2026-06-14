@@ -189,6 +189,8 @@ const copy = {
     agentLogArchiveBytes: (bytes: number, language: AppLanguage) => `${formatNumber(bytes, language)} 字节`,
     configRevision: '配置版本',
     preflight: '预检',
+    preflightChecks: '预检检查',
+    noPreflightChecks: '未记录预检检查',
     snapshot: '快照',
     pendingArtifact: '等待产物生成',
     emptyTitle: '暂无执行记录',
@@ -198,6 +200,11 @@ const copy = {
       `变更 +${formatNumber(added, language)} / ~${formatNumber(changed, language)} / -${formatNumber(removed, language)}`,
     preflightDetail: (checks: number, agentId: string, language: AppLanguage) =>
       `${formatNumber(checks, language)} ${copy.zh.checksUnit} · ${agentId}`,
+    preflightSeverity: {
+      info: '信息',
+      warning: '警告',
+      critical: '关键'
+    },
     snapshotDetail: (reason: string, agentId: string) => `${reason} · ${agentId}`,
     agentLogDetail: (agentId: string, taskId: string, commandId: string, chunkSeq: number, language: AppLanguage) =>
       `${agentId} · 任务 ${taskId} · 命令 ${commandId} · 片段 ${formatNumber(chunkSeq, language)}`,
@@ -395,6 +402,8 @@ const copy = {
     agentLogArchiveBytes: (bytes: number, language: AppLanguage) => `${formatNumber(bytes, language)} bytes`,
     configRevision: 'Config Revision',
     preflight: 'Preflight',
+    preflightChecks: 'Preflight Checks',
+    noPreflightChecks: 'No preflight checks recorded',
     snapshot: 'Snapshot',
     pendingArtifact: 'Pending Artifact',
     emptyTitle: 'No execution records',
@@ -404,6 +413,11 @@ const copy = {
       `Diff +${formatNumber(added, language)} / ~${formatNumber(changed, language)} / -${formatNumber(removed, language)}`,
     preflightDetail: (checks: number, agentId: string, language: AppLanguage) =>
       `${formatNumber(checks, language)} ${copy.en.checksUnit} · ${agentId}`,
+    preflightSeverity: {
+      info: 'Info',
+      warning: 'Warning',
+      critical: 'Critical'
+    },
     snapshotDetail: (reason: string, agentId: string) => `${reason} · ${agentId}`,
     agentLogDetail: (agentId: string, taskId: string, commandId: string, chunkSeq: number, language: AppLanguage) =>
       `${agentId} · Task ${taskId} · Command ${commandId} · Chunk ${formatNumber(chunkSeq, language)}`,
@@ -1137,6 +1151,60 @@ function RuntimeReleaseTimeline({ bundle, language }: { bundle: RuntimeReleaseBu
   );
 }
 
+function PreflightChecksEvidence({
+  preflightPlan,
+  language
+}: {
+  preflightPlan?: RuntimePreflightPlan;
+  language: AppLanguage;
+}) {
+  const t = copy[language];
+
+  if (!preflightPlan) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {t.preflightChecks}
+        </p>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {preflightPlan.checks.map((check) => (
+          <div
+            className="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/[0.04] md:grid-cols-[minmax(0,1fr)_auto]"
+            key={check.id}
+          >
+            <div className="min-w-0">
+              <p className="break-words text-sm font-semibold text-slate-800 dark:text-white/80">{check.label}</p>
+              <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">{check.id}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              <StatusPill status={check.status} language={language} />
+              <span
+                className={
+                  check.severity === 'critical'
+                    ? 'rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold uppercase text-red-600 dark:bg-red-500/10 dark:text-red-200'
+                    : check.severity === 'warning'
+                      ? 'rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-bold uppercase text-orange-600 dark:bg-orange-500/10 dark:text-orange-200'
+                      : 'rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70'
+                }
+              >
+                {t.preflightSeverity[check.severity]}
+              </span>
+            </div>
+          </div>
+        ))}
+        {preflightPlan.checks.length === 0 ? (
+          <p className="text-xs font-semibold text-slate-500 dark:text-white/45">{t.noPreflightChecks}</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function RelatedAgentLogsEvidence({
   chunks,
   language
@@ -1428,6 +1496,8 @@ function TaskFailureDrawer({
           ) : null}
 
           {bundle ? <RuntimeReleaseTimeline bundle={bundle} language={language} /> : null}
+
+          <PreflightChecksEvidence preflightPlan={bundle?.preflightPlan} language={language} />
 
           <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
             <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">

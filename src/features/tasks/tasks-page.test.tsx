@@ -944,6 +944,9 @@ describe('TasksPage', () => {
     expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
     expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
     expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('Preflight Checks')).toBeInTheDocument();
+    expect(within(dialog).getByText('port-conflict')).toBeInTheDocument();
+    expect(within(dialog).getByText('Critical')).toBeInTheDocument();
     expect(within(dialog).getByText('Related Agent Logs')).toBeInTheDocument();
     expect(within(dialog).getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
     expect(within(dialog).getByText('Related Log Archives')).toBeInTheDocument();
