@@ -1431,6 +1431,53 @@ describe('SubscriptionMixerPage', () => {
     expect(within(formatPreview as HTMLElement).getByText('Mihomo / Clash / Sing-box')).toBeInTheDocument();
   });
 
+  it('wraps long export generation evidence instead of truncating publishable subscription artifacts', async () => {
+    const user = userEvent.setup();
+    const longExportFile: SubscriptionExportFile = {
+      id: 'export-sub-client-acme-long-evidence',
+      subscriptionClientId: subscriptionClient.id,
+      exportProfileId: 'profile-acme-long-evidence',
+      exportProfileName: 'Acme Long Evidence',
+      subId: subscriptionClient.subId,
+      name:
+        'Acme 香港 Premium 订阅 - northbound-production-rollout-window-2026-06-14-super-long-evidence-artifact-for-customer-review',
+      templateName:
+        'mihomo-compatible-production-template-with-very-long-provider-and-routing-policy-name.yaml',
+      selectedTags: ['premium', 'streaming', 'production-rollout'],
+      selectedProviderIds: [
+        'provider-source-hk-premium-super-long-runtime-export-reference-2026-06-14'
+      ],
+      formats: ['mihomo', 'clash'],
+      trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+      expiresAt: subscriptionClient.expiresAt,
+      accessTokenPreview: 'ou_acme_long_evidence_token_preview'
+    };
+
+    renderPage({
+      subscriptionClients: [subscriptionClient],
+      subscriptionExportFiles: [longExportFile]
+    });
+
+    await user.click(screen.getByRole('button', { name: '导出文件' }));
+    await user.click(screen.getByRole('checkbox', { name: '选择当前导出文件' }));
+
+    const preflight = screen.getByRole('region', { name: '生成影响预检' });
+    const exportPreview = within(preflight).getByText('导出预览').closest('div');
+    const longEvidence = within(exportPreview as HTMLElement).getByText(
+      `${longExportFile.name} · ${longExportFile.templateName}`
+    );
+
+    expect(exportPreview).not.toBeNull();
+    expect(exportPreview).toHaveClass('subscription-distribution-evidence-card');
+    expect(longEvidence).toHaveClass('break-all', 'whitespace-normal');
+    expect(longEvidence).not.toHaveClass('truncate');
+    expect(exportPreview?.outerHTML).not.toContain('truncate');
+    expect(preflight.outerHTML).toContain('#1E3AFF');
+    expect(preflight.outerHTML).toContain('#DCE1FF');
+    expect(preflight.outerHTML).not.toContain('amber-');
+    expect(preflight.outerHTML).not.toContain('purple-');
+  });
+
   it('copies the public export subscription URL using the matching subscription identity secure path', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
