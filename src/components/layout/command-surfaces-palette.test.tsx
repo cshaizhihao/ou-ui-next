@@ -192,6 +192,31 @@ describe('command surfaces fauvist palette', () => {
     expect(within(filteredResult).getByText('1 个动作')).toBeInTheDocument();
   });
 
+  it('stacks quick action result metadata and commands into touch-safe mobile rows', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="zh"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const firstResult = document.getElementById('quick-action-result-forwarding-acme') as HTMLElement;
+    const resultButton = within(firstResult).getByRole('button', { name: '端口转发网络 打开 端口转发' });
+    const metadataRail = within(firstResult).getByText('端口转发').parentElement;
+    const commandButton = within(firstResult).getByRole('button', { name: '应用 端口转发网络' });
+    const commandRail = commandButton.parentElement;
+
+    expect(firstResult).toHaveClass('max-sm:flex-col');
+    expect(resultButton).toHaveClass('max-sm:flex-col', 'max-sm:items-start', 'max-sm:gap-3');
+    expect(metadataRail).toHaveClass('max-sm:flex-wrap', 'max-sm:self-stretch');
+    expect(commandRail).toHaveClass('max-sm:mt-0', 'max-sm:flex-wrap', 'max-sm:border-t');
+    expect(commandButton).toHaveClass('max-sm:min-h-11', 'max-sm:flex-1');
+  });
+
   it('localizes quick action result command counts in English', () => {
     render(
       <QuickActionPalette

@@ -377,7 +377,7 @@ export function QuickActionPalette({
                 return (
                   <div
                     className={cn(
-                      'group flex w-full min-w-0 items-stretch gap-2 border transition-colors hover:border-[#1E3AFF]/30 hover:bg-[#DCE1FF]/55 focus-within:border-[#1E3AFF]/30 focus-within:bg-[#DCE1FF]/55 dark:hover:border-[#1E3AFF]/35 dark:hover:bg-[#1E3AFF]/10 dark:focus-within:border-[#1E3AFF]/35 dark:focus-within:bg-[#1E3AFF]/10',
+                      'group flex w-full min-w-0 items-stretch gap-2 border transition-colors hover:border-[#1E3AFF]/30 hover:bg-[#DCE1FF]/55 focus-within:border-[#1E3AFF]/30 focus-within:bg-[#DCE1FF]/55 dark:hover:border-[#1E3AFF]/35 dark:hover:bg-[#1E3AFF]/10 dark:focus-within:border-[#1E3AFF]/35 dark:focus-within:bg-[#1E3AFF]/10 max-sm:flex-col max-sm:gap-0',
                       item.id === activeItem?.id
                         ? 'border-[#1E3AFF] bg-[#DCE1FF] dark:border-[#1E3AFF]/45 dark:bg-[#1E3AFF]/14'
                         : 'border-transparent'
@@ -389,7 +389,7 @@ export function QuickActionPalette({
                     <button
                       aria-label={`${item.title} ${item.description}`}
                       aria-current={item.id === activeItem?.id ? true : undefined}
-                      className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55 max-sm:flex-col max-sm:items-start max-sm:gap-3"
                       onClick={() => onSelect(item)}
                       type="button"
                     >
@@ -399,7 +399,7 @@ export function QuickActionPalette({
                           {item.description}
                         </span>
                       </span>
-                      <span className="flex flex-shrink-0 items-center gap-2">
+                      <span className="flex flex-shrink-0 items-center gap-2 max-sm:self-stretch max-sm:flex-wrap">
                         <span className="rounded-full border border-[#FF3D18] px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-[#FF3D18] dark:border-[#FF6A3A]/35 dark:text-[#FFB197]">
                           {item.group}
                         </span>
@@ -416,11 +416,11 @@ export function QuickActionPalette({
                       </span>
                     </button>
                     {commands.length > 0 && onRunCommand ? (
-                      <span className="m-2 flex flex-shrink-0 items-center gap-2">
+                      <span className="m-2 flex flex-shrink-0 items-center gap-2 max-sm:mt-0 max-sm:flex-wrap max-sm:border-t max-sm:border-[#07111F]/12 max-sm:pt-2 dark:max-sm:border-[#E2E8F0]/10">
                         {commands.map((command) => (
                           <button
                             aria-label={`${command.label} ${item.title}`}
-                            className="ou-mini-button flex min-w-14 touch-manipulation items-center justify-center border border-[#FF3D18] bg-[#FF3D18]/[0.12] px-3 text-xs font-semibold text-[#FF3D18] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F] dark:focus-visible:ring-primary/55 max-sm:min-h-11"
+                            className="ou-mini-button flex min-w-14 touch-manipulation items-center justify-center border border-[#FF3D18] bg-[#FF3D18]/[0.12] px-3 text-xs font-semibold text-[#FF3D18] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F] dark:focus-visible:ring-primary/55 max-sm:min-h-11 max-sm:flex-1"
                             key={`${command.kind}:${command.targetId}:${command.label}`}
                             onClick={() => onRunCommand(item, command)}
                             type="button"
