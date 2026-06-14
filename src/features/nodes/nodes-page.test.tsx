@@ -309,6 +309,73 @@ describe('NodesPage', () => {
     expect(within(detail).getByRole('button', { name: '编辑当前主机' })).toBeInTheDocument();
   });
 
+  it('surfaces registration and readiness evidence directly in the selected host panel', () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            version: '1.2.3-agent',
+            platform: 'linux-x64',
+            runtimeHostName: 'edge-hkg-01',
+            capabilities: ['host-agent', 'xray', 'telemetry', 'self-update'],
+            telemetry: {
+              ...createAgent().telemetry,
+              sampleGapDetected: true,
+              sampleGapSeconds: 45,
+              sampleGapReason: 'stale_telemetry_sample',
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'missing',
+                  enabled: false,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                }
+              ]
+            }
+          },
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            telemetry: {
+              ...createAgent().telemetry,
+              latencyMs: 86
+            }
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const detail = screen.getByRole('region', { name: '当前主机' });
+
+    expect(within(detail).getByText('edge-hkg-01')).toBeInTheDocument();
+    expect(within(detail).getByText('1.2.3-agent')).toBeInTheDocument();
+    expect(within(detail).getByText('linux-x64')).toBeInTheDocument();
+    expect(within(detail).getByText('host-agent · xray · telemetry · self-update')).toBeInTheDocument();
+    expect(within(detail).getByText('缺口 45秒')).toBeInTheDocument();
+    expect(within(detail).getByText('1 异常 / 2')).toBeInTheDocument();
+  });
+
   it('switches the detail pane when an operator chooses a host from the resource rail', async () => {
     const user = userEvent.setup();
 
@@ -840,7 +907,7 @@ describe('NodesPage', () => {
     expect(recoveryPanel).not.toBeNull();
     expect((recoveryPanel as HTMLElement).outerHTML).toContain('orange-');
     expect((recoveryPanel as HTMLElement).outerHTML).not.toContain('amber-');
-    expect(screen.getByText('Gap 5.0min')).toBeInTheDocument();
+    expect(screen.getAllByText('Gap 5.0min').length).toBeGreaterThan(0);
   });
 
   it('shows a no-sample gap after the first telemetry window instead of waiting indefinitely', async () => {
@@ -933,7 +1000,7 @@ describe('NodesPage', () => {
 
     await openHostAdvancedDetails(user, 'en');
 
-    expect(screen.getByText('1 Issues / 3')).toBeInTheDocument();
+    expect(screen.getAllByText('1 Issues / 3').length).toBeGreaterThan(0);
     expect(screen.getByText('Agent')).toBeInTheDocument();
     expect(screen.getByText('Xray')).toBeInTheDocument();
     expect(screen.getByText('Forwarding')).toBeInTheDocument();

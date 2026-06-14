@@ -3707,6 +3707,27 @@ export function NodesPage({
                       <InfoField label={t.memory} value={selectedHostPreviewHasTelemetry ? formatTelemetryPercentValue(selectedHostPreview, selectedHostPreview.telemetry.memoryPercent) : '-'} />
                       <InfoField label={t.serviceHealthLabel} value={selectedHostPreviewHasTelemetry ? t.statusLabels[selectedHostPreview.status] : t.serviceWaiting} />
                     </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <InfoField
+                        label={t.runtimeHostName}
+                        value={selectedHostPreviewEdit?.runtimeHostName || selectedHostPreview.runtimeHostName || selectedHostPreview.id}
+                      />
+                      <InfoField label={t.versionLabel} value={selectedHostPreview.version} />
+                      <InfoField label={t.platformLabel} value={selectedHostPreview.platform} />
+                      <InfoField label={t.capabilitiesLabel} value={selectedHostPreview.capabilities.join(' · ')} />
+                      <InfoField
+                        label={t.sampleStatus}
+                        value={
+                          selectedHostPreviewHasTelemetry || selectedHostPreview.telemetry.sampleGapDetected
+                            ? formatSamplingStatus(selectedHostPreview, language, t)
+                            : t.waitingTelemetry
+                        }
+                      />
+                      <InfoField
+                        label={t.serviceHealthLabel}
+                        value={selectedHostPreviewHasTelemetry ? formatRuntimeServiceHealth(selectedHostPreview, t) : t.serviceWaiting}
+                      />
+                    </div>
                     <div className="mt-4 flex flex-wrap justify-end gap-2">
                       <button
                         aria-label={language === 'zh' ? '编辑当前主机' : 'Edit selected host'}
