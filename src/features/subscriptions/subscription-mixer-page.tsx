@@ -3385,23 +3385,23 @@ export function SubscriptionMixerPage({
                   <Table label={t.tableLabel(t.sourcesTab)} minWidth="1120px">
                     <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                       <tr>
-                        <th className="w-12 px-5 py-3">{t.selectSource}</th>
-                        <th className="px-5 py-3">{t.sourceName}</th>
-                        <th className="px-5 py-3">{t.sourceUrl}</th>
-                        <th className="px-5 py-3">{t.syncPolicy}</th>
-                        <th className="px-5 py-3">{t.syncBudget}</th>
-                        <th className="px-5 py-3">{t.dedupePolicy}</th>
-                        <th className="px-5 py-3">{t.sourceNodes}</th>
-                        <th className="px-5 py-3">{t.sourceTraffic}</th>
-                        <th className="px-5 py-3">{t.lastSync}</th>
-                        <th className="px-5 py-3">{t.sourceStatus}</th>
-                        <th className="px-5 py-3 text-right">{t.actions}</th>
+                        <th className="w-12 px-3 py-2.5">{t.selectSource}</th>
+                        <th className="px-3 py-2.5">{t.sourceName}</th>
+                        <th className="px-3 py-2.5">{t.sourceUrl}</th>
+                        <th className="px-3 py-2.5">{t.syncPolicy}</th>
+                        <th className="px-3 py-2.5">{t.syncBudget}</th>
+                        <th className="px-3 py-2.5">{t.dedupePolicy}</th>
+                        <th className="px-3 py-2.5">{t.sourceNodes}</th>
+                        <th className="px-3 py-2.5">{t.sourceTraffic}</th>
+                        <th className="px-3 py-2.5">{t.lastSync}</th>
+                        <th className="px-3 py-2.5">{t.sourceStatus}</th>
+                        <th className="px-3 py-2.5 text-right">{t.actions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                       {filteredSources.map((source) => (
-                        <tr key={source.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                          <td className="px-5 py-4">
+                        <tr key={source.id} className="subscription-ops-source-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                          <td className="px-3 py-2.5">
                             <input
                               aria-label={`${t.selectSource} ${source.name}`}
                               checked={selectedSourceIds.includes(source.id)}
@@ -3410,15 +3410,15 @@ export function SubscriptionMixerPage({
                               type="checkbox"
                             />
                           </td>
-                          <td className="px-5 py-4 text-sm font-bold text-slate-900 dark:text-white">{source.name}</td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5 text-sm font-bold text-slate-900 dark:text-white">{source.name}</td>
+                          <td className="px-3 py-2.5">
                             <p className="font-mono text-[11px] text-slate-500 dark:text-white/45">{source.url}</p>
                             <p className="mt-1 font-mono text-[11px] text-slate-400 dark:text-white/35">{source.userAgent ?? 'OU-UI-Next/1.0'}</p>
                           </td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                             {formatNumber(source.refreshIntervalMinutes ?? source.rateLimitPerMinute, language)} min
                           </td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                             {source.syncBudget ? (
                               <>
                                 <p>
@@ -3442,9 +3442,9 @@ export function SubscriptionMixerPage({
                               '-'
                             )}
                           </td>
-                          <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{source.dedupeKey}</td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatNumber(source.nodeCount, language)}</td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-slate-600 dark:text-white/60">{source.dedupeKey}</td>
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">{formatNumber(source.nodeCount, language)}</td>
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                             {source.traffic ? (
                               <>
                                 <p>
@@ -3462,8 +3462,8 @@ export function SubscriptionMixerPage({
                               '-'
                             )}
                           </td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">{formatDateTime(source.lastSyncAt, language)}</td>
-                          <td className="px-5 py-4 text-xs font-bold uppercase text-slate-500 dark:text-white/50">
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">{formatDateTime(source.lastSyncAt, language)}</td>
+                          <td className="px-3 py-2.5 text-xs font-bold uppercase text-slate-500 dark:text-white/50">
                             <p>{source.status}</p>
                             {source.syncWarnings?.length ? (
                               <div className="mt-1 space-y-1 normal-case text-orange-600 dark:text-orange-300/80">
@@ -3473,7 +3473,7 @@ export function SubscriptionMixerPage({
                               </div>
                             ) : null}
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5">
                             <div className="flex justify-end gap-2">
                               <IconButton label={t.syncNow} onClick={() => syncSource(source)}>
                                 <RefreshCcw className="h-3.5 w-3.5" />
@@ -3626,18 +3626,18 @@ export function SubscriptionMixerPage({
                 <Table label={t.tableLabel(t.inventoryTab)} minWidth="1040px">
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
-                      <th className="w-12 px-5 py-3">{t.selectInventoryNode}</th>
-                      <th className="px-5 py-3">{t.nodeName}</th>
-                      <th className="px-5 py-3">{t.protocol}</th>
-                      <th className="px-5 py-3">{t.server}</th>
-                      <th className="px-5 py-3">{t.tags}</th>
-                      <th className="px-5 py-3">{t.origin}</th>
+                      <th className="w-12 px-3 py-2.5">{t.selectInventoryNode}</th>
+                      <th className="px-3 py-2.5">{t.nodeName}</th>
+                      <th className="px-3 py-2.5">{t.protocol}</th>
+                      <th className="px-3 py-2.5">{t.server}</th>
+                      <th className="px-3 py-2.5">{t.tags}</th>
+                      <th className="px-3 py-2.5">{t.origin}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                     {filteredInventoryNodes.map((node) => (
-                      <tr key={node.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                        <td className="px-5 py-4">
+                      <tr key={node.id} className="subscription-ops-inventory-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                        <td className="px-3 py-2.5">
                           <input
                             aria-label={`${t.selectInventoryNode} ${node.name}`}
                             checked={selectedInventoryNodeIds.includes(node.id)}
@@ -3646,14 +3646,14 @@ export function SubscriptionMixerPage({
                             type="checkbox"
                           />
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{node.name}</p>
                           <p className="mt-1 text-[11px] font-semibold uppercase text-slate-500 dark:text-white/45">{node.status ?? 'unknown'} / {formatNumber(node.latencyMs, language)} ms</p>
                         </td>
-                        <td className="px-5 py-4 text-xs font-bold uppercase text-slate-700 dark:text-white/70">{node.protocol}</td>
-                        <td className="px-5 py-4 font-mono text-xs text-slate-700 dark:text-white/70">{node.server}:{node.port}</td>
-                        <td className="px-5 py-4"><TagList tags={node.tags} /></td>
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5 text-xs font-bold uppercase text-slate-700 dark:text-white/70">{node.protocol}</td>
+                        <td className="px-3 py-2.5 font-mono text-xs text-slate-700 dark:text-white/70">{node.server}:{node.port}</td>
+                        <td className="px-3 py-2.5"><TagList tags={node.tags} /></td>
+                        <td className="px-3 py-2.5">
                           <p className="font-mono text-[11px] text-slate-500 dark:text-white/45">{node.sourceId}</p>
                           {node.inboundTag ? <p className="mt-1 font-mono text-[11px] text-slate-400 dark:text-white/35">{node.inboundTag}</p> : null}
                         </td>
@@ -3807,19 +3807,19 @@ export function SubscriptionMixerPage({
                   <Table label={t.tableLabel(profileT.tab)} minWidth="1040px">
                     <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                       <tr>
-                        <th className="w-12 px-5 py-3">{profileT.selectProfile}</th>
-                        <th className="px-5 py-3">{profileT.profileName}</th>
-                        <th className="px-5 py-3">{profileT.profileClient}</th>
-                        <th className="px-5 py-3">{profileT.outputFormats}</th>
-                        <th className="px-5 py-3">{profileT.proxyGroups}</th>
-                        <th className="px-5 py-3">{t.filter}</th>
-                        <th className="px-5 py-3 text-right">{t.actions}</th>
+                        <th className="w-12 px-3 py-2.5">{profileT.selectProfile}</th>
+                        <th className="px-3 py-2.5">{profileT.profileName}</th>
+                        <th className="px-3 py-2.5">{profileT.profileClient}</th>
+                        <th className="px-3 py-2.5">{profileT.outputFormats}</th>
+                        <th className="px-3 py-2.5">{profileT.proxyGroups}</th>
+                        <th className="px-3 py-2.5">{t.filter}</th>
+                        <th className="px-3 py-2.5 text-right">{t.actions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                       {filteredExportProfiles.map((profile) => (
-                        <tr key={profile.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                          <td className="px-5 py-4">
+                        <tr key={profile.id} className="subscription-ops-profile-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                          <td className="px-3 py-2.5">
                             <input
                               aria-label={`${profileT.selectProfile} ${profile.name}`}
                               checked={selectedProfileIds.includes(profile.id)}
@@ -3828,20 +3828,20 @@ export function SubscriptionMixerPage({
                               type="checkbox"
                             />
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5">
                             <p className="text-sm font-bold text-slate-900 dark:text-white">{profile.name}</p>
                             <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-white/45">{profile.templateName}</p>
                           </td>
-                          <td className="px-5 py-4 text-xs font-bold uppercase text-slate-700 dark:text-white/70">{profile.client}</td>
-                          <td className="px-5 py-4"><TagList tags={profile.outputFormats} /></td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5 text-xs font-bold uppercase text-slate-700 dark:text-white/70">{profile.client}</td>
+                          <td className="px-3 py-2.5"><TagList tags={profile.outputFormats} /></td>
+                          <td className="px-3 py-2.5">
                             <TagList tags={profile.proxyGroups.map((group) => `${group.name}:${group.strategy}`)} />
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5">
                             <p className="text-[11px] text-slate-500 dark:text-white/45">{profile.includeFilter || '-'}</p>
                             <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{profile.excludeFilter || '-'}</p>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5">
                             <div className="flex justify-end gap-2">
                               <IconButton label={t.edit} onClick={() => openProfileDrawer(profile)}>
                                 <Pencil className="h-3.5 w-3.5" />
@@ -3952,20 +3952,20 @@ export function SubscriptionMixerPage({
                   <Table label={t.tableLabel(t.exportsTab)} minWidth="1080px">
                     <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                       <tr>
-                        <th className="w-12 px-5 py-3">{t.selectExportFile}</th>
-                        <th className="px-5 py-3">{t.exportName}</th>
-                        <th className="px-5 py-3">{t.template}</th>
-                        <th className="px-5 py-3">{t.formats}</th>
-                        <th className="px-5 py-3">{t.tags}</th>
-                        <th className="px-5 py-3">{t.trafficLimit}</th>
-                        <th className="px-5 py-3">{t.accessToken}</th>
-                        <th className="px-5 py-3 text-right">{t.actions}</th>
+                        <th className="w-12 px-3 py-2.5">{t.selectExportFile}</th>
+                        <th className="px-3 py-2.5">{t.exportName}</th>
+                        <th className="px-3 py-2.5">{t.template}</th>
+                        <th className="px-3 py-2.5">{t.formats}</th>
+                        <th className="px-3 py-2.5">{t.tags}</th>
+                        <th className="px-3 py-2.5">{t.trafficLimit}</th>
+                        <th className="px-3 py-2.5">{t.accessToken}</th>
+                        <th className="px-3 py-2.5 text-right">{t.actions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-white/10">
                       {filteredExportFiles.map((file) => (
-                        <tr key={file.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                          <td className="px-5 py-4">
+                        <tr key={file.id} className="subscription-ops-export-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                          <td className="px-3 py-2.5">
                             <input
                               aria-label={`${t.selectExportFile} ${file.name}`}
                               checked={selectedExportFileIds.includes(file.id)}
@@ -3974,22 +3974,22 @@ export function SubscriptionMixerPage({
                               type="checkbox"
                             />
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5">
                             <p className="text-sm font-bold text-slate-900 dark:text-white">{file.name}</p>
                             <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-white/45">{file.subId}</p>
                             {file.exportProfileName ? (
                               <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">{file.exportProfileName}</p>
                             ) : null}
                           </td>
-                          <td className="px-5 py-4 font-mono text-xs text-slate-700 dark:text-white/70">{file.templateName}</td>
-                          <td className="px-5 py-4"><TagList tags={file.formats.map((format) => getClientFormatLabel(format, language))} /></td>
-                          <td className="px-5 py-4"><TagList tags={file.selectedTags} /></td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-700 dark:text-white/70">
+                          <td className="px-3 py-2.5 font-mono text-xs text-slate-700 dark:text-white/70">{file.templateName}</td>
+                          <td className="px-3 py-2.5"><TagList tags={file.formats.map((format) => getClientFormatLabel(format, language))} /></td>
+                          <td className="px-3 py-2.5"><TagList tags={file.selectedTags} /></td>
+                          <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
                             <p>{formatBytes(file.trafficLimitBytes)}</p>
                             <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{formatDateTime(file.expiresAt, language)}</p>
                           </td>
-                          <td className="px-5 py-4 font-mono text-[11px] text-slate-500 dark:text-white/45">{file.accessTokenPreview}</td>
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500 dark:text-white/45">{file.accessTokenPreview}</td>
+                          <td className="px-3 py-2.5 text-right">
                             <div className="flex justify-end gap-2">
                               <button
                                 className={neutralActionButtonClass}
@@ -4679,21 +4679,21 @@ function ProviderTable({
     <Table label={t.tableLabel(t.providersTab)} minWidth="1280px">
       <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
         <tr>
-          <th className="w-12 px-5 py-3">{t.selectProvider}</th>
-          <th className="px-5 py-3">{t.providerName}</th>
-          <th className="px-5 py-3">{t.providerUrl}</th>
-          <th className="px-5 py-3">{t.filter}</th>
-          <th className="px-5 py-3">{t.excludeFilter}</th>
-          <th className="px-5 py-3">{t.regionFilter}</th>
-          <th className="px-5 py-3">{t.processMode}</th>
-          <th className="px-5 py-3">{t.overrideRule}</th>
-          <th className="px-5 py-3">{t.actions}</th>
+          <th className="w-12 px-3 py-2.5">{t.selectProvider}</th>
+          <th className="px-3 py-2.5">{t.providerName}</th>
+          <th className="px-3 py-2.5">{t.providerUrl}</th>
+          <th className="px-3 py-2.5">{t.filter}</th>
+          <th className="px-3 py-2.5">{t.excludeFilter}</th>
+          <th className="px-3 py-2.5">{t.regionFilter}</th>
+          <th className="px-3 py-2.5">{t.processMode}</th>
+          <th className="px-3 py-2.5">{t.overrideRule}</th>
+          <th className="px-3 py-2.5">{t.actions}</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-200 dark:divide-white/10">
         {providers.map((provider) => (
-          <tr key={provider.id} className="transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-            <td className="px-5 py-4">
+          <tr key={provider.id} className="subscription-ops-provider-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+            <td className="px-3 py-2.5">
               <input
                 aria-label={`${t.selectProvider} ${provider.name}`}
                 checked={selectedProviderIds.includes(provider.id)}
@@ -4702,17 +4702,17 @@ function ProviderTable({
                 type="checkbox"
               />
             </td>
-            <td className="px-5 py-4">
+            <td className="px-3 py-2.5">
               <p className="text-sm font-bold text-slate-900 dark:text-white">{provider.name}</p>
               <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-white/45">{provider.externalSubscriptionId}</p>
             </td>
-            <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{createProxyProviderUrl(provider)}</td>
-            <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{provider.filter}</td>
-            <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{provider.excludeFilter}</td>
-            <td className="px-5 py-4"><TagList tags={splitComma(provider.geoIpFilter)} /></td>
-            <td className="px-5 py-4 text-xs font-bold uppercase text-slate-700 dark:text-white/70">{provider.processMode}</td>
-            <td className="px-5 py-4 font-mono text-[11px] text-slate-600 dark:text-white/60">{provider.overrideRule}</td>
-            <td className="px-5 py-4">
+            <td className="px-3 py-2.5 font-mono text-[11px] text-slate-600 dark:text-white/60">{createProxyProviderUrl(provider)}</td>
+            <td className="px-3 py-2.5 font-mono text-[11px] text-slate-600 dark:text-white/60">{provider.filter}</td>
+            <td className="px-3 py-2.5 font-mono text-[11px] text-slate-600 dark:text-white/60">{provider.excludeFilter}</td>
+            <td className="px-3 py-2.5"><TagList tags={splitComma(provider.geoIpFilter)} /></td>
+            <td className="px-3 py-2.5 text-xs font-bold uppercase text-slate-700 dark:text-white/70">{provider.processMode}</td>
+            <td className="px-3 py-2.5 font-mono text-[11px] text-slate-600 dark:text-white/60">{provider.overrideRule}</td>
+            <td className="px-3 py-2.5">
               <div className="flex flex-wrap gap-2">
                 <button
                   aria-label={`${t.copyProviderUrl} ${provider.name}`}

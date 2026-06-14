@@ -470,6 +470,87 @@ describe('SubscriptionMixerPage', () => {
     expect(layoutHtml).not.toContain('col-span');
   });
 
+  it('keeps every subscription distribution data table dense across workspaces', async () => {
+    const user = userEvent.setup();
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, backupSubscriptionClient],
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-acme-mihomo',
+          name: 'Acme Mihomo',
+          client: 'mihomo',
+          sourceIds: [source.id, backupSource.id],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['uri', 'clash', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml',
+          proxyGroups: [
+            {
+              id: 'proxy-group-acme',
+              name: 'Acme Premium',
+              strategy: 'url-test',
+              filterTags: ['premium', 'streaming']
+            }
+          ],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ],
+      subscriptionExportFiles: [
+        {
+          id: 'export-sub-client-acme-profile',
+          subscriptionClientId: subscriptionClient.id,
+          exportProfileId: 'profile-acme-mihomo',
+          exportProfileName: 'Acme Mihomo',
+          subId: subscriptionClient.subId,
+          name: 'Acme 香港 Premium 订阅 - Acme Mihomo Export',
+          templateName: 'mihomo-compatible.yaml',
+          selectedTags: ['premium', 'streaming'],
+          selectedProviderIds: ['provider-source-hk-premium'],
+          formats: ['plain', 'clash', 'mihomo'],
+          accessTokenPreview: subscriptionClient.accessTokenPreview,
+          trafficLimitBytes: subscriptionClient.trafficLimitBytes,
+          expiresAt: subscriptionClient.expiresAt
+        }
+      ],
+      proxyProviders: [
+        {
+          id: 'provider-source-hk-premium',
+          name: '香港 Premium Provider',
+          externalSubscriptionId: source.id,
+          filter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          geoIpFilter: 'CN,HK,SG,JP,US,EU',
+          processMode: 'server',
+          overrideRule: 'source:source-hk-premium;dedupe:server-port'
+        }
+      ]
+    });
+
+    async function expectDenseTable(workspaceButton: string, tableName: string, rowText: string, rowClass: string) {
+      await user.click(screen.getByRole('button', { name: workspaceButton }));
+      const tableRegion = screen.getByRole('region', { name: tableName });
+      const row = within(tableRegion).getByText(rowText).closest('tr');
+
+      expect(tableRegion.outerHTML).toContain('px-3');
+      expect(tableRegion.outerHTML).toContain('py-2.5');
+      expect(tableRegion.outerHTML).not.toContain('px-5 py-4');
+      expect(tableRegion.outerHTML).not.toContain('px-5 py-3');
+      expect(row).not.toBeNull();
+      expect(row).toHaveClass(rowClass, 'transition-colors');
+      expect(row).not.toHaveClass('px-5', 'py-4');
+    }
+
+    await expectDenseTable('外部订阅源', '外部订阅源 数据表', '香港 Premium 源', 'subscription-ops-source-row');
+    await expectDenseTable('节点库存', '节点库存 数据表', 'HK Premium VLESS 01', 'subscription-ops-inventory-row');
+    await expectDenseTable('代理集合', '代理集合 数据表', '香港 Premium Provider', 'subscription-ops-provider-row');
+    await expectDenseTable('导出配置', '导出配置 数据表', 'Acme Mihomo', 'subscription-ops-profile-row');
+    await expectDenseTable('导出文件', '导出文件 数据表', 'Acme 香港 Premium 订阅 - Acme Mihomo Export', 'subscription-ops-export-row');
+  });
+
   it('does not pad the subscription workspace with explanatory lineage or workflow filler', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
