@@ -169,6 +169,51 @@ describe('TelegramNotificationSettingsPage', () => {
     expect(layoutHtml).not.toContain('col-span');
   });
 
+  it('does not render explanatory Telegram filler copy while keeping credential safety text', () => {
+    const settings = {
+      ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+      enabled: true,
+      botTokenSet: true,
+      adminChatIds: ['999000111'],
+      lastTestAt: '2026-06-06T10:03:00.000Z'
+    };
+    const { unmount } = render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[createDelivery({ status: 'delivered' })]}
+        language="en"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: 'Telegram Notifications' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Notification Acceptance Gates' })).toBeInTheDocument();
+    expect(screen.getByText('Saved tokens are write-only. Enter a new token only when rotating credentials.')).toBeInTheDocument();
+    expect(screen.queryByText(/Review Bot configuration/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Check the Bot/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Collapse credential/i)).not.toBeInTheDocument();
+
+    unmount();
+
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[createDelivery({ status: 'delivered' })]}
+        language="zh"
+        policies={[createPolicy()]}
+        settings={settings}
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: 'Telegram 通知' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '通知验收门禁' })).toBeInTheDocument();
+    expect(screen.getByText('已保存 Token 不会回显。仅在轮换凭据时填写新 Token。')).toBeInTheDocument();
+    expect(screen.queryByText(/集中查看 Bot 配置/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/先确认 Bot/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/把凭据/)).not.toBeInTheDocument();
+  });
+
   it('surfaces Telegram notification acceptance gates on the control rail', () => {
     const settings = {
       ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),

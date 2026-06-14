@@ -62,9 +62,7 @@ type TelegramAcceptanceGate = {
 const copy = {
   zh: {
     title: 'Telegram 通知',
-    subtitle: '集中查看 Bot 配置、客户绑定、默认策略和投递证据。',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先确认 Bot、管理员 Chat、客户绑定和投递证据，再保存凭据或执行通知烟测。',
     notificationPath: '通知链路',
     pathBot: 'Bot 配置',
     pathAdminChat: '管理员 Chat',
@@ -102,7 +100,6 @@ const copy = {
     telegramControlRail: 'Telegram 控制轨',
     notificationDeliveryWorkspace: '通知投递工作区',
     notificationAcceptanceGates: '通知验收门禁',
-    notificationAcceptanceGatesHint: '把凭据、策略、绑定、投递健康和烟测证据压缩到同一条放行线。',
     botCredentialGate: 'Bot 凭据',
     botCredentialGateDetail: 'Token 与管理员 Chat 必须同时就绪',
     policyCoverageGate: '策略覆盖',
@@ -126,9 +123,7 @@ const copy = {
   },
   en: {
     title: 'Telegram Notifications',
-    subtitle: 'Review Bot configuration, customer bindings, default policy, and delivery evidence.',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint: 'Check the Bot, admin chats, customer bindings, and delivery evidence before saving credentials or running notification smoke.',
     notificationPath: 'Notification Path',
     pathBot: 'Bot Settings',
     pathAdminChat: 'Admin Chat',
@@ -166,7 +161,6 @@ const copy = {
     telegramControlRail: 'Telegram control rail',
     notificationDeliveryWorkspace: 'Notification delivery workspace',
     notificationAcceptanceGates: 'Notification Acceptance Gates',
-    notificationAcceptanceGatesHint: 'Collapse credential, policy, binding, delivery health, and smoke evidence into one release line.',
     botCredentialGate: 'Bot Credential',
     botCredentialGateDetail: 'Token and admin chat must both be ready',
     policyCoverageGate: 'Policy Coverage',
@@ -371,11 +365,9 @@ export function TelegramNotificationSettingsPage({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
-            <p className="mt-1 text-xs font-semibold text-[#35405A] dark:text-white/50">{t.subtitle}</p>
             <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
               {t.operationalOverview}
             </p>
-            <p className="mt-2 max-w-3xl text-xs leading-6 text-[#35405A] dark:text-white/50">{t.operationalOverviewHint}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={settings.botTokenSet ? 'green' : 'red'} value={settings.botTokenSet ? t.tokenReady : t.tokenMissing} />
@@ -684,7 +676,6 @@ function TelegramAcceptanceGatePanel({
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.notificationAcceptanceGates}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.notificationAcceptanceGatesHint}</p>
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {gates.map((gate) => (
