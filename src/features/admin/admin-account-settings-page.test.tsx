@@ -93,15 +93,181 @@ describe('AdminAccountSettingsPage', () => {
     expect(backupPanel).toHaveClass('account-safety-backup-panel');
     expect(sessionsPanel).toHaveClass('account-safety-sessions-panel');
     expect(currentSession).toHaveClass('account-safety-session-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('blue-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('orange-');
-    expect(within(backupPanel).getByText('Failed Tasks').closest('div')?.outerHTML).toContain('orange-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#D9FF00');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).toContain('#00A878');
+    expect(within(backupPanel).getByText('Failed Tasks').closest('div')?.outerHTML).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('blue-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('orange-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('sky-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('indigo-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('rose-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
+  });
+
+  it('uses compact structured grids instead of oversized or masonry-like safety cards', () => {
+    render(
+      <AdminAccountSettingsPage
+        controlPlaneBackupPreflightResult={{
+          status: 'warning',
+          schemaLabel: 'Schema v1',
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          auditLogCount: 4,
+          conflictCount: 2,
+          conflictPreview: ['agent-hkg-01', 'forward-hkg-443'],
+          redactionPassed: true,
+          restoreCommand: 'sudo ou-ui restore-control-plane-backup --stdin',
+          notes: ['resource_conflicts.require_confirmation']
+        }}
+        controlPlaneBackupSummary={{
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          failedTasks: 1,
+          auditLogCount: 4,
+          latestAuditHash: 'sha256:latest-audit-anchor',
+          operatorSessionCount: 2
+        }}
+        controlPlaneMode="http"
+        currentOperatorSessionId="operator-session-current"
+        language="en"
+        loginUsername="admin"
+        operatorGroupId="owner"
+        operatorSessions={[createSession(), createSession({ id: 'operator-session-remote' })]}
+        resourceGroupId="group-premium"
+        onCopyControlPlaneBackup={vi.fn()}
+        onPreflightControlPlaneBackup={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Account settings cockpit' });
+    const shellGrid = cockpit.querySelector('.account-safety-shell-grid');
+    const rail = within(cockpit).getByRole('complementary', { name: 'Account control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Control-plane safety workspace' });
+    const workspaceGrid = workspace.querySelector('.account-safety-dashboard-grid');
+    const backupPanel = within(workspace).getByRole('group', { name: 'Control-plane Backup' });
+    const sessionsPanel = within(workspace).getByRole('group', { name: 'Operator Sessions' });
+    const compactMetricGrid = backupPanel.querySelector('.account-safety-compact-metrics-grid');
+    const preflight = within(backupPanel).getByRole('region', { name: 'Restore Preflight Result' });
+    const pageHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
+
+    expect(shellGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(workspaceGrid).toHaveClass('account-safety-dashboard-grid');
+    expect(workspaceGrid).toHaveClass('items-start');
+    expect(workspaceGrid).toHaveClass('2xl:grid-cols-[minmax(0,1.3fr)_minmax(22rem,0.7fr)]');
+    expect(rail.querySelectorAll('.account-safety-identity-row')).toHaveLength(4);
+    expect(rail.querySelector('.account-safety-identity-list')).toHaveClass('gap-2');
+    expect(backupPanel).toHaveClass('p-4');
+    expect(sessionsPanel).toHaveClass('p-4');
+    expect(compactMetricGrid).toHaveClass('grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]');
+    expect(backupPanel.querySelector('.account-safety-backup-metric')).toHaveClass('p-2.5');
+    expect(backupPanel.querySelector('.account-safety-backup-field')).toHaveClass('p-3');
+    expect(preflight).toHaveClass('p-3');
+    expect(pageHtml).not.toContain('masonry');
+    expect(pageHtml).not.toContain('columns-');
+    expect(pageHtml).not.toContain('p-5');
+  });
+
+  it('keeps long account safety evidence readable in the fauvist safety system', () => {
+    const longAuditHash =
+      'sha256:9c42f0de1c6b4b2d9ff001e3affff3d1800a87807111f35405a' +
+      '9c42f0de1c6b4b2d9ff001e3affff3d1800a87807111f35405a';
+    const longRestoreCommand =
+      'sudo ou-ui restore-control-plane-backup --stdin --require-audit-anchor sha256:9c42f0de1c6b4b2d9ff001e3affff3d1800a87807111f35405a --dry-run';
+    const longSession = createSession({
+      id:
+        'operator-session-prod-us-east-1-admin-rollout-2026-06-14-super-long-session-anchor',
+      actor: 'operator:admin-production-reviewer-with-long-audit-context',
+      requestId:
+        'req-admin-account-session-revoke-prod-us-east-1-2026-06-14-control-plane-safety-long-id',
+      userAgent:
+        'OU-UI Next Production Browser Smoke / admin safety workspace / rollback evidence review / long client fingerprint'
+    });
+
+    render(
+      <AdminAccountSettingsPage
+        controlPlaneBackupPreflightResult={{
+          status: 'warning',
+          schemaLabel: 'Schema v1 production acceptance bundle',
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          auditLogCount: 4,
+          conflictCount: 2,
+          conflictPreview: [
+            'agent-prod-us-east-1-control-plane-managed-host-primary-long-conflict',
+            'forward-prod-us-east-1-tcp-443-customer-node-primary-long-conflict'
+          ],
+          redactionPassed: true,
+          restoreCommand: longRestoreCommand,
+          notes: [
+            'resource conflicts require operator confirmation before restore because production forwarding and customer subscription identities overlap'
+          ]
+        }}
+        controlPlaneBackupSummary={{
+          inventoryResources: 18,
+          runtimeArtifacts: 3,
+          failedTasks: 1,
+          auditLogCount: 4,
+          latestAuditHash: longAuditHash,
+          operatorSessionCount: 1
+        }}
+        controlPlaneMode="http"
+        currentOperatorSessionId={longSession.id}
+        language="en"
+        loginUsername="admin-production-super-long-login-identity"
+        operatorGroupId="operator-group-owner-production-rollback-approval-long-boundary"
+        operatorSessions={[longSession]}
+        resourceGroupId="resource-group-premium-customer-production-long-boundary"
+        onCopyControlPlaneBackup={vi.fn()}
+        onPreflightControlPlaneBackup={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Account settings cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Account control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Control-plane safety workspace' });
+    const backupPanel = within(workspace).getByRole('group', { name: 'Control-plane Backup' });
+    const sessionsPanel = within(workspace).getByRole('group', { name: 'Operator Sessions' });
+    const sessionRow = within(sessionsPanel).getByRole('article', {
+      name: `${longSession.username} ${longSession.actor}`
+    });
+    const preflight = within(backupPanel).getByRole('region', { name: 'Restore Preflight Result' });
+    const pageHtml = `${rail.outerHTML}${workspace.outerHTML}`;
+
+    expect(rail.querySelector('.account-safety-identity-card')).toBeInTheDocument();
+    expect(rail.querySelector('.account-safety-command-card')).toBeInTheDocument();
+    expect(backupPanel.querySelectorAll('.account-safety-backup-metric')).toHaveLength(10);
+    expect(backupPanel.querySelectorAll('.account-safety-backup-field')).toHaveLength(2);
+    expect(preflight).toHaveClass('account-safety-preflight-card');
+    expect(sessionRow.querySelectorAll('.account-safety-session-meta')).toHaveLength(4);
+    expect(within(rail).getByText('operator-group-owner-production-rollback-approval-long-boundary')).toHaveClass(
+      'break-all'
+    );
+    expect(within(backupPanel).getByText(longAuditHash)).toHaveClass('break-all');
+    expect(within(preflight).getByText(longRestoreCommand)).toHaveClass('break-all');
+    expect(within(preflight).getByText(/resource conflicts require operator confirmation/)).toHaveClass('break-words');
+    expect(within(sessionRow).getByText(new RegExp(longSession.requestId))).toHaveClass('break-all');
+    expect(within(sessionRow).getByText(new RegExp(longSession.userAgent ?? ''))).toHaveClass('break-words');
+    expect(pageHtml).toContain('#1E3AFF');
+    expect(pageHtml).toContain('#FF3D18');
+    expect(pageHtml).toContain('#D9FF00');
+    expect(pageHtml).toContain('#00A878');
+    expect(pageHtml).not.toContain('truncate');
+    expect(pageHtml).not.toContain('blue-');
+    expect(pageHtml).not.toContain('orange-');
+    expect(pageHtml).not.toContain('amber-');
+    expect(pageHtml).not.toContain('purple-');
+    expect(pageHtml).not.toContain('sky-');
+    expect(pageHtml).not.toContain('indigo-');
+    expect(pageHtml).not.toContain('cyan-');
+    expect(pageHtml).not.toContain('rose-');
   });
 
   it('surfaces account identity, server credential commands, and operator session revocation', async () => {
@@ -252,7 +418,10 @@ describe('AdminAccountSettingsPage', () => {
     const result = screen.getByRole('region', { name: 'Restore Preflight Result' });
     expect(result).toBeInTheDocument();
     expect(within(result).getByText('Needs Manual Review')).toBeInTheDocument();
-    expect(result.outerHTML).toContain('orange-');
+    expect(result.outerHTML).toContain('#FF3D18');
+    expect(result.outerHTML).toContain('#D9FF00');
+    expect(result.outerHTML).not.toContain('orange-');
+    expect(result.outerHTML).not.toContain('amber-');
     expect(within(result).getByText('Sensitive Data Redacted')).toBeInTheDocument();
     expect(within(result).getByText('Dry-run only, no restore executed')).toBeInTheDocument();
     expect(within(result).getByText('agent-hkg-01')).toBeInTheDocument();

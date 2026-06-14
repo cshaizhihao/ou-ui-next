@@ -231,24 +231,24 @@ export function AdminAccountSettingsPage({
   return (
     <ResponsivePage className="admin-account-cockpit space-y-5 md:space-y-6">
       <section className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 text-xs text-slate-500 dark:text-white/50">{t.subtitle}</p>
+        <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
+        <p className="mt-1 text-xs text-[#35405A] dark:text-white/55">{t.subtitle}</p>
       </section>
 
       <WorkspaceCockpit aria-label={t.accountSettingsCockpit} className="account-safety-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="account-safety-shell-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={t.accountControlRail}
-            className="account-safety-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="account-safety-rail border-b border-[#07111F]/20 bg-[#EAF3D1]/72 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-4 flex items-center gap-2">
-                  <UserRound className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.identity}</h4>
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="account-safety-identity-card border border-[#1E3AFF]/45 bg-[#FFFDF5]/82 p-3 shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/28 dark:bg-white/[0.035]">
+                <div className="mb-3 flex items-center gap-2">
+                  <UserRound className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+                  <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.identity}</h4>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="account-safety-identity-list grid grid-cols-1 gap-2">
                   <IdentityMetric icon={KeyRound} label={t.username} value={loginUsername} />
                   <IdentityMetric icon={ShieldCheck} label={t.operatorGroup} value={operatorGroupId} />
                   <IdentityMetric icon={ShieldCheck} label={t.resourceGroup} value={resourceGroupId} />
@@ -256,16 +256,16 @@ export function AdminAccountSettingsPage({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="account-safety-command-card border border-[#07111F] bg-[#FFFDF5]/82 p-3 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.resetTitle}</h4>
+                      <TerminalSquare className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+                      <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.resetTitle}</h4>
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-white/45">{t.resetHint}</p>
+                    <p className="mt-2 break-words text-[11px] leading-5 text-[#35405A] dark:text-white/52">{t.resetHint}</p>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+                  <span className="rounded-full border border-[#1E3AFF]/35 bg-[#DCE1FF] px-3 py-1 text-[10px] font-bold text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#1E3AFF]/15 dark:text-[#DDE3FF]">
                     {activeSessions}/{operatorSessions.length}
                   </span>
                 </div>
@@ -283,9 +283,9 @@ export function AdminAccountSettingsPage({
                   />
                 </div>
 
-                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-950 p-4 dark:border-white/10">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/40">{t.commandLabel}</p>
-                  <code className="block break-all font-mono text-xs font-semibold text-emerald-300">
+                <div className="mt-3 border border-[#07111F] bg-[#07111F] p-3 dark:border-[#6B7CFF]/25">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#D9FF00]">{t.commandLabel}</p>
+                  <code className="block break-all font-mono text-xs font-semibold text-[#FDFFF1]">
                     {commandOptions[selectedCommand]}
                   </code>
                 </div>
@@ -294,16 +294,16 @@ export function AdminAccountSettingsPage({
           </aside>
 
           <WorkspaceCockpitScroller aria-label={t.controlPlaneSafetyWorkspace} className="account-safety-workspace min-h-0">
-            <div className="space-y-4 p-4">
+            <div className="account-safety-dashboard-grid grid items-start gap-3 p-3 2xl:grid-cols-[minmax(0,1.3fr)_minmax(22rem,0.7fr)]">
               {controlPlaneBackupSummary && onCopyControlPlaneBackup ? (
-                <GlassCard aria-label={t.backupTitle} className="account-safety-backup-panel p-5" role="group">
-                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <GlassCard aria-label={t.backupTitle} className="account-safety-backup-panel p-4" role="group">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <DatabaseBackup className="h-4 w-4 text-blue-500 dark:text-primary" />
-                        <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.backupTitle}</h4>
+                        <DatabaseBackup className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+                        <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.backupTitle}</h4>
                       </div>
-                      <p className="mt-2 max-w-3xl text-xs text-slate-500 dark:text-white/45">{t.backupHint}</p>
+                      <p className="mt-2 max-w-3xl break-words text-xs text-[#35405A] dark:text-white/52">{t.backupHint}</p>
                     </div>
                     <GlowButton
                       className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold"
@@ -314,7 +314,7 @@ export function AdminAccountSettingsPage({
                     </GlowButton>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                  <div className="account-safety-compact-metrics-grid grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
                     <BackupMetric label={t.backupInventory} value={controlPlaneBackupSummary.inventoryResources} />
                     <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupSummary.runtimeArtifacts} />
                     <BackupMetric label={t.backupFailedTasks} tone="signal" value={controlPlaneBackupSummary.failedTasks} />
@@ -322,45 +322,35 @@ export function AdminAccountSettingsPage({
                     <BackupMetric label={t.backupOperatorSessions} value={controlPlaneBackupSummary.operatorSessionCount} />
                   </div>
 
-                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                        {t.restoreCommand}
-                      </p>
-                      <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-emerald-300">
-                        sudo ou-ui restore-control-plane-backup --stdin
-                      </code>
-                    </div>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                        {t.latestAuditHash}
-                      </p>
-                      <code className="block break-all font-mono text-xs font-semibold text-slate-800 dark:text-white/75">
-                        {controlPlaneBackupSummary.latestAuditHash ?? 'n/a'}
-                      </code>
-                    </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <BackupEvidenceField
+                      label={t.restoreCommand}
+                      tone="command"
+                      value="sudo ou-ui restore-control-plane-backup --stdin"
+                    />
+                    <BackupEvidenceField label={t.latestAuditHash} value={controlPlaneBackupSummary.latestAuditHash ?? 'n/a'} />
                   </div>
 
-                  <p className="mt-3 text-[11px] text-slate-500 dark:text-white/45">{t.redactionHint}</p>
+                  <p className="mt-3 break-words text-[11px] text-[#35405A] dark:text-white/52">{t.redactionHint}</p>
 
                   {onPreflightControlPlaneBackup ? (
-                    <div className="mt-5 rounded-lg border border-slate-200 p-4 dark:border-white/10">
+                    <div className="mt-4 border border-[#1E3AFF]/35 bg-[#DCE1FF]/32 p-3 dark:border-[#6B7CFF]/24 dark:bg-[#1E3AFF]/[0.07]">
                       <div className="flex items-center gap-2">
-                        <FileSearch className="h-4 w-4 text-blue-500 dark:text-primary" />
-                        <h5 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightTitle}</h5>
+                        <FileSearch className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+                        <h5 className="text-sm font-bold text-[#07111F] dark:text-white">{t.restorePreflightTitle}</h5>
                       </div>
-                      <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.restorePreflightHint}</p>
-                      <label className="mt-4 block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      <p className="mt-2 break-words text-xs text-[#35405A] dark:text-white/52">{t.restorePreflightHint}</p>
+                      <label className="mt-4 block text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/48">
                         {t.pasteControlPlaneBackup}
                         <textarea
-                          className="mt-2 min-h-32 w-full resize-y rounded-lg border border-slate-200 bg-white/80 p-3 font-mono text-xs text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-white/10 dark:bg-slate-950/60 dark:text-white/75 dark:focus:border-primary dark:focus:ring-primary/20"
+                          className="mt-2 min-h-32 w-full resize-y border border-[#07111F]/20 bg-[#FFFDF5] p-3 font-mono text-xs text-[#07111F] outline-none transition focus:border-[#1E3AFF] focus:ring-2 focus:ring-[#1E3AFF]/20 dark:border-[#6B7CFF]/24 dark:bg-[#07111F]/70 dark:text-white/82 dark:focus:border-[#6B7CFF] dark:focus:ring-[#6B7CFF]/20"
                           onChange={(event) => setBackupRestoreText(event.target.value)}
                           placeholder={t.pasteControlPlaneBackupPlaceholder}
                           value={backupRestoreText}
                         />
                       </label>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-[11px] text-slate-500 dark:text-white/45">{t.dryRunOnly}</p>
+                        <p className="text-[11px] text-[#35405A] dark:text-white/52">{t.dryRunOnly}</p>
                         <GlowButton
                           className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={backupRestoreText.trim().length === 0}
@@ -373,30 +363,32 @@ export function AdminAccountSettingsPage({
                       {controlPlaneBackupPreflightResult ? (
                         <section
                           aria-label={t.restorePreflightResult}
-                          className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                          className="account-safety-preflight-card mt-3 border border-[#FF3D18] bg-[#FFD8C6]/62 p-3 shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#FF6A3A]/28 dark:bg-[#FF3D18]/[0.10]"
                         >
                           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                            <h6 className="text-sm font-bold text-slate-800 dark:text-white">{t.restorePreflightResult}</h6>
+                            <h6 className="text-sm font-bold text-[#07111F] dark:text-white">{t.restorePreflightResult}</h6>
                             <SessionPill
                               label={t.restorePreflightStatus[controlPlaneBackupPreflightResult.status]}
                               tone={controlPlaneBackupPreflightResult.status === 'ready' ? 'green' : controlPlaneBackupPreflightResult.status === 'warning' ? 'signal' : 'slate'}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                          <div className="account-safety-compact-metrics-grid grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
                             <BackupMetric label={t.schema} value={controlPlaneBackupPreflightResult.schemaLabel} />
                             <BackupMetric label={t.backupInventory} value={controlPlaneBackupPreflightResult.inventoryResources} />
                             <BackupMetric label={t.backupRuntimeArtifacts} value={controlPlaneBackupPreflightResult.runtimeArtifacts} />
                             <BackupMetric label={t.backupAuditLogs} value={controlPlaneBackupPreflightResult.auditLogCount} />
                             <BackupMetric label={t.conflicts} tone="signal" value={controlPlaneBackupPreflightResult.conflictCount} />
                           </div>
-                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-white/60">
-                            <p>{controlPlaneBackupPreflightResult.redactionPassed ? t.sensitiveRedacted : t.sensitiveFound}</p>
+                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-[#35405A] dark:text-white/62">
+                            <p className="break-words">
+                              {controlPlaneBackupPreflightResult.redactionPassed ? t.sensitiveRedacted : t.sensitiveFound}
+                            </p>
                             {controlPlaneBackupPreflightResult.restoreCommand ? (
-                              <code className="block break-all rounded-lg bg-slate-950 p-3 font-mono text-emerald-300">
+                              <code className="block break-all border border-[#07111F] bg-[#07111F] p-3 font-mono text-[#FDFFF1]">
                                 {controlPlaneBackupPreflightResult.restoreCommand}
                               </code>
                             ) : null}
-                            <p>{t.dryRunOnly}</p>
+                            <p className="break-words">{t.dryRunOnly}</p>
                             {controlPlaneBackupPreflightResult.conflictPreview.length > 0 ? (
                               <ul className="space-y-1">
                                 {controlPlaneBackupPreflightResult.conflictPreview.map((conflict) => (
@@ -419,23 +411,23 @@ export function AdminAccountSettingsPage({
                 </GlassCard>
               ) : null}
 
-              <GlassCard aria-label={t.sessions} className="account-safety-sessions-panel p-5" role="group">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <GlassCard aria-label={t.sessions} className="account-safety-sessions-panel p-4" role="group">
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <LogOut className="h-4 w-4 text-blue-500 dark:text-primary" />
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.sessions}</h4>
+                      <LogOut className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+                      <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.sessions}</h4>
                     </div>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-white/45">{t.sessionsHint}</p>
+                    <p className="mt-2 break-words text-xs text-[#35405A] dark:text-white/52">{t.sessionsHint}</p>
                   </div>
                 </div>
 
                 {operatorSessionsLoading ? (
-                  <p className="text-xs text-slate-500 dark:text-white/45">{t.sessionsLoading}</p>
+                  <p className="text-xs text-[#35405A] dark:text-white/52">{t.sessionsLoading}</p>
                 ) : operatorSessionsError ? (
                   <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
                 ) : operatorSessions.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/10 dark:text-white/45">
+                  <div className="border border-dashed border-[#07111F]/25 p-4 text-xs text-[#35405A] dark:border-[#6B7CFF]/25 dark:text-white/52">
                     {t.sessionsEmpty}
                   </div>
                 ) : (
@@ -447,16 +439,16 @@ export function AdminAccountSettingsPage({
                       return (
                         <article
                           aria-label={`${session.username} ${session.actor}`}
-                          className="account-safety-session-row rounded-lg border border-slate-200 p-4 dark:border-white/10"
+                          className="account-safety-session-row border border-[#07111F]/22 bg-[#FFFDF5]/76 p-3 transition-[border-color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#1E3AFF] motion-reduce:transition-none dark:border-[#6B7CFF]/22 dark:bg-white/[0.035] dark:hover:border-[#6B7CFF]/38"
                           key={session.id}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="break-all text-sm font-bold text-slate-900 dark:text-white">
+                              <p className="break-all text-sm font-bold text-[#07111F] dark:text-white">
                                 {session.username}
-                                <span className="text-slate-500 dark:text-white/45"> · {session.actor}</span>
+                                <span className="text-[#35405A] dark:text-white/48"> {session.actor}</span>
                               </p>
-                              <p className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-white/45">{session.id}</p>
+                              <p className="mt-1 break-all font-mono text-[11px] text-[#35405A] dark:text-white/50">{session.id}</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {isCurrentSession ? <SessionPill label={t.currentSession} tone="blue" /> : null}
@@ -464,18 +456,22 @@ export function AdminAccountSettingsPage({
                             </div>
                           </div>
 
-                          <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-slate-500 dark:text-white/45">
-                            <p className="break-all">{t.sourceIp} {session.sourceIp}</p>
-                            <p className="break-all">
+                          <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-[#35405A] dark:text-white/52">
+                            <p className="account-safety-session-meta break-all">{t.sourceIp} {session.sourceIp}</p>
+                            <p className="account-safety-session-meta break-words">
                               {t.issuedAt} {formatDateTime(session.issuedAt, language)} · {t.expiresAt}{' '}
                               {formatDateTime(session.expiresAt, language)}
                             </p>
-                            <p className="break-all">{t.requestId} {session.requestId}</p>
-                            {session.userAgent ? <p className="break-all">{t.userAgent} {session.userAgent}</p> : null}
+                            <p className="account-safety-session-meta break-all">{t.requestId} {session.requestId}</p>
+                            {session.userAgent ? (
+                              <p className="account-safety-session-meta break-words">
+                                {t.userAgent} {session.userAgent}
+                              </p>
+                            ) : null}
                           </div>
 
                           {onRevokeOperatorSession ? (
-                            <div className="mt-4 flex justify-end">
+                            <div className="mt-3 flex justify-end">
                               <GlowButton
                                 className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
                                 disabled={disabled}
@@ -502,17 +498,41 @@ export function AdminAccountSettingsPage({
 function BackupMetric({ label, tone, value }: { label: string; tone?: 'signal'; value: number | string }) {
   const metricClass =
     tone === 'signal'
-      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
-      : 'border-slate-200 dark:border-white/10';
-  const labelClass = tone === 'signal' ? 'text-orange-700 dark:text-orange-200' : 'text-slate-500 dark:text-white/40';
+      ? 'border-[#FF3D18]/45 bg-[#FFD8C6]/72 text-[#07111F] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/[0.12] dark:text-white/82'
+      : 'border-[#1E3AFF]/24 bg-[#FFFDF5]/80 text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-white/[0.035] dark:text-white/78';
+  const labelClass = tone === 'signal' ? 'text-[#C92810] dark:text-[#FFB299]' : 'text-[#35405A] dark:text-white/48';
 
   return (
-    <div className={`min-w-0 rounded-lg border p-3 ${metricClass}`}>
+    <div className={`account-safety-backup-metric min-w-0 border p-2.5 ${metricClass}`}>
       <span className="sr-only">{label} {value}</span>
-      <p className={`truncate text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>
+      <p className={`break-words text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>
         {label}
       </p>
-      <p className="mt-2 break-all font-mono text-lg font-black text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-2 break-all font-mono text-lg font-black text-current">{value}</p>
+    </div>
+  );
+}
+
+function BackupEvidenceField({
+  label,
+  tone = 'neutral',
+  value
+}: {
+  label: string;
+  tone?: 'command' | 'neutral';
+  value: string;
+}) {
+  const fieldClass =
+    tone === 'command'
+      ? 'border-[#1E3AFF]/40 bg-[#DCE1FF]/58 text-[#07111F] dark:border-[#6B7CFF]/24 dark:bg-[#1E3AFF]/[0.10] dark:text-[#E7EBFF]'
+      : 'border-[#00A878]/38 bg-[#D9FF00]/[0.20] text-[#07111F] dark:border-[#00A878]/28 dark:bg-[#00A878]/[0.11] dark:text-[#D8FFF0]';
+
+  return (
+    <div className={`account-safety-backup-field min-w-0 border p-3 ${fieldClass}`}>
+      <p className="mb-2 break-words text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/48">
+        {label}
+      </p>
+      <code className="block break-all font-mono text-xs font-semibold text-current">{value}</code>
     </div>
   );
 }
@@ -527,12 +547,12 @@ function IdentityMetric({
   value: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-slate-200 p-3 dark:border-white/10">
-      <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+    <div className="account-safety-identity-row min-w-0 border border-[#07111F]/18 bg-[#FFFDF5]/64 px-2.5 py-2 text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-white/[0.035] dark:text-white/78">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/48">
         <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-        <span className="truncate">{label}</span>
+        <span className="break-words">{label}</span>
       </div>
-      <p className="truncate font-mono text-sm font-bold text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1 break-all font-mono text-xs font-bold text-current">{value}</p>
     </div>
   );
 }
@@ -542,8 +562,8 @@ function CommandButton({ active, label, onClick }: { active: boolean; label: str
     <button
       className={
         active
-          ? 'rounded-lg bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'rounded-lg border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
+          ? 'rounded-full border border-[#1E3AFF] bg-[#1E3AFF] px-4 py-2 text-xs font-bold text-white shadow-[0_8px_14px_-10px_rgba(30,58,255,0.5)] dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]'
+          : 'rounded-full border border-[#07111F]/20 bg-[#FFFDF5]/75 px-4 py-2 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF] hover:text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04] dark:text-white/55 dark:hover:text-[#DDE3FF]'
       }
       onClick={onClick}
       type="button"
@@ -556,12 +576,12 @@ function CommandButton({ active, label, onClick }: { active: boolean; label: str
 function SessionPill({ label, tone }: { label: string; tone: 'blue' | 'green' | 'signal' | 'slate' }) {
   const className =
     tone === 'blue'
-      ? 'bg-blue-50 text-blue-600 dark:bg-primary/15 dark:text-primary'
+      ? 'border-[#1E3AFF]/35 bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#1E3AFF]/15 dark:text-[#DDE3FF]'
       : tone === 'green'
-        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300'
+        ? 'border-[#00A878]/35 bg-[#00A878]/[0.12] text-[#006B50] dark:border-[#00A878]/25 dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]'
         : tone === 'signal'
-          ? 'bg-orange-50 text-orange-700 dark:bg-orange-400/10 dark:text-orange-200'
-          : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
+          ? 'border-[#FF3D18]/45 bg-[#FFD8C6] text-[#C92810] dark:border-[#FF6A3A]/28 dark:bg-[#FF3D18]/[0.12] dark:text-[#FFB299]'
+          : 'border-[#07111F]/18 bg-[#EAF3D1] text-[#35405A] dark:border-[#6B7CFF]/20 dark:bg-white/[0.06] dark:text-white/68';
 
-  return <span className={`${className} rounded-full px-3 py-1 text-[10px] font-bold uppercase`}>{label}</span>;
+  return <span className={`${className} rounded-full border px-3 py-1 text-[10px] font-bold uppercase`}>{label}</span>;
 }
