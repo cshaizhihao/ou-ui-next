@@ -432,6 +432,70 @@ describe('NodesPage', () => {
     expect(within(readiness).getByText('1 异常 / 2')).toBeInTheDocument();
   });
 
+  it('keeps selected Agent readiness gates readable in the narrow action pane', () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            capabilities: ['host-agent', 'xray', 'telemetry', 'self-update'],
+            telemetry: {
+              ...createAgent().telemetry,
+              sampleGapDetected: true,
+              sampleGapSeconds: 300,
+              sampleGapReason: 'stale_telemetry_sample',
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'missing',
+                  enabled: false,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-forwarding.service',
+                  moduleKind: 'port-forwarding',
+                  status: 'failed',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                }
+              ]
+            }
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const detail = screen.getByRole('region', { name: '当前主机' });
+    const readiness = within(detail).getByRole('region', { name: 'Agent 纳管就绪度' });
+    const gateGrid = readiness.querySelector('.nodes-agent-readiness-grid');
+
+    expect(gateGrid).not.toBeNull();
+    expect(gateGrid).toHaveClass('grid-cols-1', 'lg:grid-cols-3');
+    expect(gateGrid).not.toHaveClass('sm:grid-cols-3');
+    expect(within(readiness).getByText('Agent 通道')).not.toHaveClass('truncate');
+    expect(within(readiness).getByText('运行服务')).not.toHaveClass('truncate');
+    expect(within(readiness).getByText('2 异常 / 3')).not.toHaveClass('truncate');
+  });
+
   it('localizes selected Agent onboarding readiness gates in English', () => {
     render(
       <NodesPage

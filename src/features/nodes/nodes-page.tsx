@@ -5177,7 +5177,7 @@ function SelectedAgentReadiness({
               : t.agentReadinessWaiting}
         </span>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <div className="nodes-agent-readiness-grid mt-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
         <AgentReadinessGate
           icon={Network}
           label={t.agentReadinessAgentLink}
@@ -5222,12 +5222,12 @@ function AgentReadinessGate({
           : 'border-[#07111F]/25 bg-[#EAF3D1] text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.04] dark:text-white/55';
 
   return (
-    <div className={cn('min-w-0 border p-3', toneClass)}>
-      <div className="flex items-center gap-2">
-        <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-        <p className="truncate text-[10px] font-black uppercase tracking-[0.14em]">{label}</p>
+    <div className={cn('min-w-0 border p-3 transition duration-200 motion-safe:hover:-translate-y-0.5', toneClass)}>
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+        <p className="min-w-0 text-[10px] font-black uppercase leading-4 tracking-[0.08em] [overflow-wrap:anywhere]">{label}</p>
       </div>
-      <p className="mt-2 truncate text-sm font-black" title={value}>
+      <p className="mt-2 text-sm font-black leading-5 [overflow-wrap:anywhere]" title={value}>
         {value}
       </p>
     </div>
