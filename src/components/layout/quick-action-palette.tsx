@@ -65,6 +65,12 @@ const copy = {
       commands: '可执行命令',
       matches: '当前匹配'
     },
+    shortcutsLabel: '控制面搜索快捷键',
+    shortcuts: {
+      open: '打开结果',
+      run: '执行动作',
+      close: '关闭'
+    },
     actionCount: (count: number) => `${count} 个动作`
   },
   en: {
@@ -80,6 +86,12 @@ const copy = {
       objects: 'Searchable Objects',
       commands: 'Executable Commands',
       matches: 'Current Matches'
+    },
+    shortcutsLabel: 'Control Plane Search Shortcuts',
+    shortcuts: {
+      open: 'Open result',
+      run: 'Run action',
+      close: 'Close'
     },
     actionCount: (count: number) => `${count} ${count === 1 ? 'action' : 'actions'}`
   }
@@ -174,6 +186,11 @@ export function QuickActionPalette({
     { label: t.scope.objects, value: items.length, tone: 'blue' },
     { label: t.scope.commands, value: totalCommandCount, tone: 'orange' },
     { label: t.scope.matches, value: visibleItems.length, tone: 'verify' }
+  ] as const;
+  const shortcutHints = [
+    { key: 'Enter', label: t.shortcuts.open },
+    { key: 'Ctrl Enter', label: t.shortcuts.run },
+    { key: 'Esc', label: t.shortcuts.close }
   ] as const;
 
   useEffect(() => {
@@ -337,6 +354,20 @@ export function QuickActionPalette({
               </div>
             ))}
           </section>
+
+          <ul
+            aria-label={t.shortcutsLabel}
+            className="mb-3 flex flex-wrap items-center gap-2 border border-[#07111F]/12 bg-[#FFFDF5] p-2 text-[10px] font-semibold text-[#35405A] dark:border-[#E2E8F0]/10 dark:bg-white/[0.03] dark:text-[#D8E0FF]/70"
+          >
+            {shortcutHints.map((shortcut) => (
+              <li className="flex min-h-7 items-center gap-1.5" key={shortcut.key}>
+                <kbd className="rounded-full border border-[#07111F]/18 bg-[#07111F]/[0.06] px-2 py-1 font-mono text-[10px] font-bold leading-none text-[#07111F] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#F4F8FF]">
+                  {shortcut.key}
+                </kbd>
+                <span>{shortcut.label}</span>
+              </li>
+            ))}
+          </ul>
 
           {visibleItems.length > 0 ? (
             <div aria-label={t.results} className="space-y-2" id="quick-action-results" role="list">

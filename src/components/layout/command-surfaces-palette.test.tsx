@@ -121,6 +121,50 @@ describe('command surfaces fauvist palette', () => {
     expect(scope).toHaveTextContent('2');
   });
 
+  it('surfaces localized keyboard hints for quick action search', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="zh"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const shortcuts = screen.getByRole('list', { name: '控制面搜索快捷键' });
+
+    expect(within(shortcuts).getByText('Enter')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('打开结果')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Ctrl Enter')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('执行动作')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Esc')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('关闭')).toBeInTheDocument();
+  });
+
+  it('localizes quick action keyboard hints in English', () => {
+    render(
+      <QuickActionPalette
+        items={quickActionItems}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onRunCommand={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const shortcuts = screen.getByRole('list', { name: 'Control Plane Search Shortcuts' });
+
+    expect(within(shortcuts).getByText('Enter')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Open result')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Ctrl Enter')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Run action')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Esc')).toBeInTheDocument();
+    expect(within(shortcuts).getByText('Close')).toBeInTheDocument();
+  });
+
   it('surfaces executable command counts on each quick action result', () => {
     render(
       <QuickActionPalette
