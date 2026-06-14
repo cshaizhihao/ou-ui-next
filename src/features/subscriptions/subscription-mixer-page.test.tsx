@@ -802,8 +802,11 @@ describe('SubscriptionMixerPage', () => {
 
     const clientTableRegion = screen.getByRole('region', { name: '订阅身份 数据表' });
     expect(clientTableRegion).toHaveAttribute('tabindex', '0');
-    expect(clientTableRegion).toHaveClass('overflow-x-auto', 'focus-visible:ring-2');
-    expect(within(clientTableRegion).getByText('表格可横向滚动，键盘聚焦后可用方向键或触控板查看隐藏列。')).toBeInTheDocument();
+    expect(clientTableRegion).toHaveClass('subscription-data-table-region', 'overflow-x-auto', 'focus-visible:ring-2');
+    expect(within(clientTableRegion).queryByText('表格可横向滚动，键盘聚焦后可用方向键或触控板查看隐藏列。')).not.toBeInTheDocument();
+    const clientTable = within(clientTableRegion).getByRole('table');
+    expect(clientTable).toHaveClass('subscription-data-table');
+    expect(clientTable).toHaveStyle({ minWidth: '920px' });
 
     expect(screen.getByRole('button', { name: '批量复制订阅链接' })).toHaveClass('focus-visible:ring-2');
     expect(screen.getByRole('button', { name: '批量复制全部格式链接' })).toHaveClass('focus-visible:ring-2');

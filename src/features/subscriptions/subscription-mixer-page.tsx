@@ -274,7 +274,6 @@ const copy = {
     providersTab: '代理集合',
     exportsTab: '导出文件',
     tableLabel: (title: string) => `${title} 数据表`,
-    tableScrollHint: '表格可横向滚动，键盘聚焦后可用方向键或触控板查看隐藏列。',
     addClient: '新增订阅身份',
     importSource: '导入订阅源',
     clientCount: '订阅身份',
@@ -554,7 +553,6 @@ const copy = {
     providersTab: 'Proxy Providers',
     exportsTab: 'Export Files',
     tableLabel: (title: string) => `${title} Data Table`,
-    tableScrollHint: 'Table can scroll horizontally; focus it with the keyboard, then use arrow keys or a trackpad to reveal hidden columns.',
     addClient: 'Add Identity',
     importSource: 'Import Source',
     clientCount: 'Identities',
@@ -3224,7 +3222,7 @@ export function SubscriptionMixerPage({
               {filteredClients.length === 0 ? (
                 <EmptyState label={t.clientFilterEmpty} />
               ) : (
-                <Table label={t.tableLabel(t.clientsTab)} minWidth="980px" scrollHint={t.tableScrollHint}>
+                <Table label={t.tableLabel(t.clientsTab)} minWidth="920px">
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
                       <th className="w-12 px-3 py-2.5">{t.selectClient}</th>
@@ -3384,7 +3382,7 @@ export function SubscriptionMixerPage({
                       t={t}
                     />
                   ) : null}
-                  <Table label={t.tableLabel(t.sourcesTab)} minWidth="1120px" scrollHint={t.tableScrollHint}>
+                  <Table label={t.tableLabel(t.sourcesTab)} minWidth="1120px">
                     <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                       <tr>
                         <th className="w-12 px-5 py-3">{t.selectSource}</th>
@@ -3625,7 +3623,7 @@ export function SubscriptionMixerPage({
                     {t.bulkCopyInventoryNodeLinks}
                   </button>
                 </div>
-                <Table label={t.tableLabel(t.inventoryTab)} minWidth="1040px" scrollHint={t.tableScrollHint}>
+                <Table label={t.tableLabel(t.inventoryTab)} minWidth="1040px">
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
                       <th className="w-12 px-5 py-3">{t.selectInventoryNode}</th>
@@ -3806,7 +3804,7 @@ export function SubscriptionMixerPage({
                         : profileT.bulkDeleteProfiles}
                     </button>
                   </div>
-                  <Table label={t.tableLabel(profileT.tab)} minWidth="1040px" scrollHint={t.tableScrollHint}>
+                  <Table label={t.tableLabel(profileT.tab)} minWidth="1040px">
                     <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                       <tr>
                         <th className="w-12 px-5 py-3">{profileT.selectProfile}</th>
@@ -3951,7 +3949,7 @@ export function SubscriptionMixerPage({
                       t={t}
                     />
                   ) : null}
-                  <Table label={t.tableLabel(t.exportsTab)} minWidth="1080px" scrollHint={t.tableScrollHint}>
+                  <Table label={t.tableLabel(t.exportsTab)} minWidth="1080px">
                     <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                       <tr>
                         <th className="w-12 px-5 py-3">{t.selectExportFile}</th>
@@ -4678,7 +4676,7 @@ function ProviderTable({
   const t = copy[language];
 
   return (
-    <Table label={t.tableLabel(t.providersTab)} minWidth="1280px" scrollHint={t.tableScrollHint}>
+    <Table label={t.tableLabel(t.providersTab)} minWidth="1280px">
       <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
         <tr>
           <th className="w-12 px-5 py-3">{t.selectProvider}</th>
@@ -4867,16 +4865,15 @@ function DataSection({ children, hint, title }: { children: ReactNode; hint?: st
   );
 }
 
-function Table({ children, label, minWidth, scrollHint }: { children: ReactNode; label: string; minWidth: string; scrollHint: string }) {
+function Table({ children, label, minWidth }: { children: ReactNode; label: string; minWidth: string }) {
   return (
     <div
       aria-label={label}
-      className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40"
+      className="subscription-data-table-region overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 dark:focus-visible:ring-primary/40"
       role="region"
       tabIndex={0}
     >
-      <p className="sr-only">{scrollHint}</p>
-      <table className="w-full text-left" style={{ minWidth }}>
+      <table className="subscription-data-table w-full text-left" style={{ minWidth }}>
         {children}
       </table>
     </div>
