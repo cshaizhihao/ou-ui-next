@@ -2382,7 +2382,7 @@ function latencyToneClass(
   }
 
   if (latencyStatus === 'yellow') {
-    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+    return 'bg-orange-400 shadow-[0_0_4px_rgba(249,115,22,0.42)]';
   }
 
   if (latencyStatus === 'red') {
@@ -2401,7 +2401,7 @@ function latencyToneClass(
   }
 
   if (latencyMs <= yellowMax) {
-    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+    return 'bg-orange-400 shadow-[0_0_4px_rgba(249,115,22,0.42)]';
   }
 
   return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
@@ -2413,7 +2413,7 @@ function lossToneClass(packetLossPercent: number) {
   }
 
   if (packetLossPercent <= 5) {
-    return 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.4)]';
+    return 'bg-orange-400 shadow-[0_0_4px_rgba(249,115,22,0.42)]';
   }
 
   return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
@@ -2498,7 +2498,7 @@ function runtimeServiceBadgeTone(status: NonNullable<Agent['telemetry']['runtime
   }
 
   if (status === 'inactive' || status === 'missing') {
-    return 'border-amber-300/25 bg-amber-400/10 text-amber-200';
+    return 'border-orange-300/25 bg-orange-400/10 text-orange-200';
   }
 
   return 'border-red-300/25 bg-red-400/10 text-red-200';
@@ -3671,7 +3671,7 @@ export function NodesPage({
                       >
                         <span className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs font-black">{agent.publicAddress}</span>
-                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'degraded' ? 'bg-amber-500' : 'bg-slate-400')} />
+                          <span className={cn('h-2 w-2 rounded-full', agent.status === 'online' ? 'bg-emerald-500' : agent.status === 'degraded' ? 'bg-orange-500' : 'bg-slate-400')} />
                         </span>
                         <span className="mt-1 block truncate font-mono text-[11px] font-semibold opacity-65">{t.statusLabels[agent.status]}</span>
                       </button>
@@ -5125,7 +5125,7 @@ function ManagedHostCard({
     agent.status === 'online'
       ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]'
       : agent.status === 'degraded'
-        ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.75)]'
+        ? 'bg-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.72)]'
         : agent.status === 'provisioning'
           ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.75)]'
           : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.75)]';
@@ -5413,7 +5413,7 @@ function ManagedHostCard({
           <span
             className={cn(
               'ml-1 max-w-[5rem] truncate font-semibold',
-              !telemetryReported ? 'text-white/45' : sampleGapDetected ? 'text-amber-300' : 'text-emerald-300'
+              !telemetryReported ? 'text-white/45' : sampleGapDetected ? 'text-orange-300' : 'text-emerald-300'
             )}
           >
             {sampleStatus}
@@ -5425,7 +5425,7 @@ function ManagedHostCard({
           <span
             className={cn(
               'ml-1 max-w-[6rem] truncate font-semibold',
-              !telemetryReported ? 'text-white/45' : serviceIssueCount > 0 ? 'text-amber-300' : 'text-emerald-300'
+              !telemetryReported ? 'text-white/45' : serviceIssueCount > 0 ? 'text-orange-300' : 'text-emerald-300'
             )}
           >
             {serviceHealthSummary}

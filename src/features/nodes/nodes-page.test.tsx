@@ -459,6 +459,70 @@ describe('NodesPage', () => {
     expect(hostCockpitMarkup).not.toContain('background-clip:text');
   });
 
+  it('uses signal orange instead of amber for managed host runtime caution states', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            status: 'degraded',
+            telemetry: {
+              ...createAgent().telemetry,
+              latencyMs: 160,
+              latencyStatus: 'yellow',
+              latencySamplesMs: [42, 160],
+              packetLossPercent: 3,
+              packetLossSamplesPercent: [0, 3],
+              sampleGapDetected: true,
+              sampleGapReason: 'stale_telemetry_sample',
+              sampleGapSeconds: 300,
+              expectedSamplingIntervalSeconds: 30,
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'missing',
+                  enabled: false,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                }
+              ]
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="en"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user, 'en');
+
+    const hostCard = screen.getByRole('heading', { name: 'Metered Host' }).closest('article');
+    expect(hostCard).not.toBeNull();
+    const hostCockpitMarkup = (hostCard as HTMLElement).outerHTML;
+
+    expect(within(hostCard as HTMLElement).getByText('Degraded')).toBeInTheDocument();
+    expect(within(hostCard as HTMLElement).getByText('Missing')).toBeInTheDocument();
+    expect(hostCockpitMarkup).toContain('orange-');
+    expect(hostCockpitMarkup).not.toContain('amber-');
+  });
+
   it('frames the first workspace switch as a cockpit control bar with workspace tabs and action lanes', () => {
     render(
       <NodesPage
