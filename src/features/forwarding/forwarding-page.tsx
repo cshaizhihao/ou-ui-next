@@ -1489,17 +1489,17 @@ export function ForwardingPage({
                       <th className="px-3 py-2.5 text-right">{t.actions}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                  <tbody className="divide-y divide-[#07111F]/15 dark:divide-white/10">
                     {filteredRules.map((rule) => (
                       <tr
                         key={rule.id}
-                        className="forwarding-ops-rule-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
+                        className="forwarding-ops-rule-row transition-colors hover:bg-[#EAF3D1]/45 dark:hover:bg-white/[0.03]"
                       >
                         <td className="px-3 py-2.5 align-top">
                           <input
                             aria-label={t.selectRule(rule.name)}
                             checked={selectedRuleIds.includes(rule.id)}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                            className="h-4 w-4 rounded border-[#07111F]/30 text-[#1E3AFF] accent-[#1E3AFF]"
                             onChange={() => toggleRuleSelection(rule.id)}
                             type="checkbox"
                           />
@@ -1510,10 +1510,10 @@ export function ForwardingPage({
                               <ArrowRightLeft className="h-4 w-4" />
                             </span>
                             <div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white">{rule.name}</p>
-                              <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{rule.ownerName}</p>
+                              <p className="text-sm font-bold text-[#07111F] dark:text-white">{rule.name}</p>
+                              <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">{rule.ownerName}</p>
                               <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/50">
+                                <span className="inline-flex rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[10px] font-bold uppercase text-[#35405A] dark:bg-white/10 dark:text-white/50">
                                   {rule.enabled ? t.ruleStateLabels.enabled : t.ruleStateLabels.disabled}
                                 </span>
                                 <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
@@ -1554,30 +1554,30 @@ export function ForwardingPage({
                             ))}
                           </div>
                         </td>
-                        <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="px-3 py-2.5 font-mono text-xs font-semibold text-[#07111F] dark:text-white/70">
                           {rule.targetAddress}:{rule.targetPort}
                         </td>
                         <td className="px-3 py-2.5">
-                          <p className="text-xs font-bold text-slate-800 dark:text-white/80">
+                          <p className="text-xs font-bold text-[#07111F] dark:text-white/80">
                             {t.strategyOptions[rule.strategy]}
                           </p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                          <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">
                             {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
                           </p>
                         </td>
                         <td className="px-3 py-2.5">
-                          <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
+                          <p className="text-xs font-semibold text-[#07111F] dark:text-white/70">
                             {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
                           </p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                          <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">
                             {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
                           </p>
                         </td>
                         <td className="px-3 py-2.5">
-                          <p className="text-xs font-bold text-slate-800 dark:text-white/80">
+                          <p className="text-xs font-bold text-[#07111F] dark:text-white/80">
                             {rule.rateLimitMbps} {t.unitMbps}
                           </p>
-                          <p className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-white/60">
+                          <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/60">
                             {t.rateLimitModeOptions[rule.rateLimitMode]} / {t.rateLimitDirectionOptions[rule.rateLimitDirection]}
                           </p>
                         </td>
@@ -1659,10 +1659,10 @@ export function ForwardingPage({
                 </ul>
               </div>
             ) : null}
-            <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+            <div className="forwarding-entry-node-picker border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/20">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.entryNodes}</p>
-                <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/10 dark:text-primary">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{t.entryNodes}</p>
+                <span className="rounded-full border border-[#1E3AFF] bg-[#DCE1FF] px-2.5 py-1 text-[10px] font-bold text-[#1E3AFF] dark:bg-primary/10 dark:text-primary">
                   {t.selected} {draft.entryNodeIds.length}
                 </span>
               </div>
@@ -1670,11 +1670,11 @@ export function ForwardingPage({
                 {agents.map((agent) => (
                   <label
                     key={agent.id}
-                    className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10"
+                    className="flex cursor-pointer items-center justify-between gap-3 border border-[#07111F]/20 px-3 py-2 transition hover:bg-[#EAF3D1]/45 dark:border-white/10 dark:hover:bg-white/[0.04]"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-xs font-bold text-slate-800 dark:text-white/80">{agent.name}</span>
-                      <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/40">
+                      <span className="block truncate text-xs font-bold text-[#07111F] dark:text-white/80">{agent.name}</span>
+                      <span className="mt-0.5 block truncate text-[10px] text-[#35405A] dark:text-white/40">
                         {agent.region} / {agent.publicAddress}
                       </span>
                     </span>
@@ -1733,16 +1733,16 @@ export function ForwardingPage({
               options={rateLimitDirectionOptions}
             />
           </div>
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.enabled}</span>
+          <label className="forwarding-enabled-toggle flex cursor-pointer items-center justify-between gap-3 border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/20">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{t.enabled}</span>
             <GlassToggle aria-label={t.enabled} checked={draft.enabled} onChange={() => updateDraft({ enabled: !draft.enabled })} />
           </label>
           <details
-            className="forwarding-advanced-options rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10"
+            className="forwarding-advanced-options border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/10"
             onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
             open={advancedOpen}
           >
-            <summary className="cursor-pointer text-xs font-black text-slate-800 dark:text-white">{t.advancedOptions}</summary>
+            <summary className="cursor-pointer text-xs font-black text-[#07111F] dark:text-white">{t.advancedOptions}</summary>
             {advancedOpen ? (
             <div className="forwarding-advanced-options-body mt-3 space-y-3">
               <InputField label={t.name} value={draft.name} onChange={(value) => updateDraft({ name: value })} />
@@ -2046,18 +2046,18 @@ function ForwardingRuntimeEvidenceCard({
 
 function getPortStatusClass(status: PortAllocationStatus) {
   if (status === 'allocated') {
-    return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200';
+    return 'border border-[#00A878] bg-[#00A878]/10 text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/15 dark:text-[#7FF3C9]';
   }
 
   if (status === 'paused') {
-    return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/60';
+    return 'border border-[#07111F]/20 bg-[#FFFDF5] text-[#35405A] dark:border-white/10 dark:bg-white/10 dark:text-white/60';
   }
 
   if (status === 'conflict' || status === 'failed') {
-    return 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200';
+    return 'border border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/15 dark:text-red-200';
   }
 
-  return 'bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-200';
+  return 'border border-[#FF3D18]/35 bg-[#FF3D18]/10 text-[#C9220C] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]';
 }
 
 function StatusPill({ label, status }: { label: string; status: PortAllocationStatus }) {
@@ -2085,7 +2085,7 @@ function IconButton({
       className={
         danger
           ? 'rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50 dark:border-red-400/30 dark:hover:bg-red-400/10'
-          : 'rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 dark:border-white/10 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-primary'
+          : 'rounded-full border border-[#07111F]/25 p-2 text-[#35405A] transition hover:bg-[#DCE1FF] hover:text-[#1E3AFF] dark:border-white/10 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-primary'
       }
       onClick={onClick}
       type="button"
@@ -2111,19 +2111,19 @@ function InputField({
   value: string;
 }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
+    <label className="block border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/20">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</span>
       <span className="mt-2 flex items-center gap-2">
         <input
           aria-label={label}
-          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
+          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/60 dark:text-white"
           min={type === 'number' ? 0 : undefined}
           onChange={(event) => onChange(event.target.value)}
           step={type === 'number' ? step : undefined}
           type={type}
           value={value}
         />
-        {suffix ? <span className="text-[10px] font-bold text-slate-400 dark:text-white/35">{suffix}</span> : null}
+        {suffix ? <span className="text-[10px] font-bold text-[#35405A]/70 dark:text-white/35">{suffix}</span> : null}
       </span>
     </label>
   );
@@ -2141,11 +2141,11 @@ function SelectField({
   value: string;
 }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
+    <label className="block border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-black/20">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</span>
       <select
         aria-label={label}
-        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -2169,10 +2169,10 @@ function FormSection({
   title: string;
 }) {
   return (
-    <section className="space-y-3 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
+    <section className="space-y-3 border-t border-[#07111F]/15 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
       <div>
-        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</h4>
-        {hint ? <p className="mt-1 text-xs leading-6 text-slate-500 dark:text-white/45">{hint}</p> : null}
+        <h4 className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{title}</h4>
+        {hint ? <p className="mt-1 text-xs leading-6 text-[#35405A] dark:text-white/45">{hint}</p> : null}
       </div>
       <div className="space-y-3">{children}</div>
     </section>
@@ -2182,7 +2182,7 @@ function FormSection({
 function GhostButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
-      className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:text-white/60"
+      className="rounded-full border border-[#07111F]/25 px-4 py-2 text-xs font-bold text-[#35405A] transition hover:bg-[#FFFDF5] hover:text-[#1E3AFF] dark:border-white/10 dark:text-white/60"
       onClick={onClick}
       type="button"
     >

@@ -601,6 +601,63 @@ describe('ForwardingPage', () => {
     expect(advancedBody).not.toHaveClass('mt-4', 'space-y-4');
   });
 
+  it('keeps forwarding rule rows and create drawer forms on square design-system controls', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[createRule({ id: 'forward-a' })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const rulePanel = screen.getByRole('complementary', { name: 'Rule management panel' });
+    const tableBody = rulePanel.querySelector('tbody');
+    const ruleRow = within(rulePanel).getByText('HKG HTTPS Forward').closest('tr');
+    const rowCheckbox = within(ruleRow as HTMLElement).getByRole('checkbox', { name: 'Select HKG HTTPS Forward' });
+    const ruleState = within(ruleRow as HTMLElement).getByText('Enabled');
+
+    expect(tableBody).toHaveClass('divide-[#07111F]/15');
+    expect(ruleRow).toHaveClass('hover:bg-[#EAF3D1]/45');
+    expect(rowCheckbox).toHaveClass('accent-[#1E3AFF]');
+    expect(ruleState).toHaveClass('border-[#07111F]/20', 'bg-[#FFFDF5]', 'text-[#35405A]');
+
+    const rowHtml = ruleRow?.outerHTML ?? '';
+    expect(rowHtml).not.toContain('bg-slate');
+    expect(rowHtml).not.toContain('text-slate');
+    expect(rowHtml).not.toContain('border-slate');
+    expect(rowHtml).not.toContain('bg-blue');
+    expect(rowHtml).not.toContain('text-blue');
+    expect(rowHtml).not.toContain('emerald-');
+    expect(rowHtml).not.toContain('rounded-lg');
+
+    await user.click(screen.getByRole('button', { name: 'Create Forward Rule' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Create Forward Rule' });
+    const ownerField = within(dialog).getByLabelText('Customer').closest('label');
+    const entryNodePicker = within(dialog).getByText('Entry Hosts').closest('.forwarding-entry-node-picker');
+    const enabledToggle = within(dialog).getByText('Enabled').closest('label');
+    const advancedOptions = within(dialog).getByText('Advanced Config').closest('details');
+
+    expect(ownerField).toHaveClass('border-[#07111F]/20', 'bg-[#FFFDF5]');
+    expect(entryNodePicker).toHaveClass('forwarding-entry-node-picker', 'border-[#07111F]/20', 'bg-[#FFFDF5]');
+    expect(enabledToggle).toHaveClass('forwarding-enabled-toggle', 'border-[#07111F]/20', 'bg-[#FFFDF5]');
+    expect(advancedOptions).toHaveClass('forwarding-advanced-options', 'border-[#07111F]/20', 'bg-[#FFFDF5]');
+
+    const dialogHtml = dialog.outerHTML;
+    expect(dialogHtml).not.toContain('border-slate');
+    expect(dialogHtml).not.toContain('text-slate');
+    expect(dialogHtml).not.toContain('bg-slate');
+    expect(dialogHtml).not.toContain('bg-blue');
+    expect(dialogHtml).not.toContain('text-blue');
+    expect(dialogHtml).not.toContain('rounded-lg');
+    expect(dialogHtml).not.toContain('rounded-xl');
+  });
+
   it('blocks duplicate entry bindings before submitting a new forwarding rule', async () => {
     const user = userEvent.setup();
     const onCreateForwarding = vi.fn();
