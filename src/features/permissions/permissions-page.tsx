@@ -1019,19 +1019,19 @@ export function PermissionsPage({
   }
 
   return (
-    <ResponsivePage className="space-y-5 md:space-y-6">
+    <ResponsivePage className="space-y-3 md:space-y-4">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-[#07111F] bg-[#FFFDF5] p-5 shadow-[0_18px_55px_rgba(7,17,31,0.08)] backdrop-blur-2xl dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-[#07111F]/18 max-md:bg-[#FFFDF5]/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-[#6B7CFF]/15 max-md:dark:bg-[#07111F]/88"
+        className="permissions-operational-overview stagger-1 overflow-hidden border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_18px_55px_rgba(7,17,31,0.08)] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:border-[#07111F]/18 max-md:bg-[#FFFDF5]/92 max-md:p-3 max-md:shadow-sm max-md:dark:border-[#6B7CFF]/15 max-md:dark:bg-[#07111F]/88"
       >
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-3xl">
             <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-[#1E3AFF] dark:text-primary">
               {t.operationalOverview}
             </p>
             <h3 className="mt-3 text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
             <p className="mt-2 max-w-4xl text-xs leading-6 text-[#536078] dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-[#536078] dark:text-white/70">
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-[#536078] dark:text-white/70">
               {t.operationalSteps.map((step, index) => (
                 <span
                   className="shrink-0 rounded-full border border-[#07111F]/18 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
@@ -1041,7 +1041,7 @@ export function PermissionsPage({
                 </span>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-[#536078] dark:text-white/65">
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-[#536078] dark:text-white/65">
               <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/35 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.scopedForwarding} {formatNumber(forwardingRules.length)}
               </span>
@@ -1054,7 +1054,7 @@ export function PermissionsPage({
             </div>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:w-[30rem] xl:grid-cols-2">
             <SummaryCard icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
             <SummaryCard icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
             <SummaryCard icon={LockKeyhole} label={t.quotaPolicies} value={`${activeQuotaPolicies}/${quotaPolicies.length}`} />
@@ -1065,16 +1065,16 @@ export function PermissionsPage({
       </section>
 
       <WorkspaceCockpit aria-label={t.permissionsSafetyCockpit} className="permissions-safety-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="permissions-safety-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={t.permissionsControlRail}
-            className="permissions-safety-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="permissions-safety-rail border-b border-[#07111F]/16 bg-[#EAF3D1]/45 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/88 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center border border-blue-200 bg-white text-blue-600 dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
                     <ShieldCheck className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
@@ -1084,7 +1084,7 @@ export function PermissionsPage({
                     </p>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-2">
+                <div className="mt-3 grid gap-2">
                   <ControlRailMetric icon={UsersRound} label={t.subjects} value={formatNumber(grants.length)} />
                   <ControlRailMetric icon={ShieldCheck} label={t.delegatedRoles} value={formatNumber(privilegedGrants)} />
                   <ControlRailMetric
@@ -1097,8 +1097,8 @@ export function PermissionsPage({
 
               <PermissionSafetyGatePanel gates={safetyGates} t={t} />
 
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-4 flex items-center gap-2">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/88 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-3 flex items-center gap-2">
                   <LockKeyhole className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.quotaTitle}</h4>
                 </div>
@@ -1116,8 +1116,8 @@ export function PermissionsPage({
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-4 flex items-center gap-2">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/88 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-3 flex items-center gap-2">
                   <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.scopeTitle}</h4>
                 </div>
@@ -1128,8 +1128,8 @@ export function PermissionsPage({
                 <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/45">{t.operationalOverviewHint}</p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-4 flex items-center gap-2">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/88 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-3 flex items-center gap-2">
                   <KeyRound className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <p className="text-sm font-bold text-slate-800 dark:text-white">{t.sessionsTitle}</p>
                 </div>
@@ -1155,10 +1155,10 @@ export function PermissionsPage({
           </aside>
 
           <WorkspaceCockpitScroller aria-label={t.permissionsEvidenceWorkspace} className="permissions-safety-workspace min-h-0">
-            <div className="space-y-5 p-4">
-      <section className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <GlassCard aria-label={t.matrixTitle} className="permissions-safety-grants-panel p-5" role="group">
-          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="permissions-safety-workspace-stack space-y-3 p-3">
+      <section className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
+        <GlassCard aria-label={t.matrixTitle} className="permissions-safety-grants-panel p-3" role="group">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
               <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.matrixTitle}</h4>
@@ -1168,7 +1168,7 @@ export function PermissionsPage({
             </span>
           </div>
 
-          <div className="mb-4 rounded-xl border border-[#07111F]/18 bg-[#EAF3D1]/35 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="mb-3 border border-[#07111F]/18 bg-[#EAF3D1]/35 p-3 dark:border-white/10 dark:bg-white/[0.03]">
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
               <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
@@ -1230,7 +1230,7 @@ export function PermissionsPage({
 
           <div className="space-y-3">
             {visibleGrants.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[#07111F]/30 p-5 text-sm font-semibold text-[#536078] dark:border-white/10 dark:text-white/45">
+              <div className="border border-dashed border-[#07111F]/30 p-3 text-sm font-semibold text-[#536078] dark:border-white/10 dark:text-white/45">
                 {t.noMatchingGrants}
               </div>
             ) : (
@@ -1238,7 +1238,7 @@ export function PermissionsPage({
                 <article
                   aria-label={grant.id}
                   key={grant.id}
-                  className="permissions-safety-grant-row rounded-xl border border-[#07111F]/18 p-4 transition-colors hover:bg-[#EAF3D1]/35 dark:border-white/10 dark:hover:bg-white/[0.03]"
+                  className="permissions-safety-grant-row min-h-[76px] border border-[#07111F]/18 p-3 transition-colors hover:bg-[#EAF3D1]/35 dark:border-white/10 dark:hover:bg-white/[0.03]"
                 >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -1253,7 +1253,7 @@ export function PermissionsPage({
                     <GlassToggle aria-label={`${grant.id} enabled`} checked readOnly />
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+                  <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
                     {permissionOrder.map((permission) => (
                       <PermissionCell
                         key={permission}
@@ -1264,7 +1264,7 @@ export function PermissionsPage({
                     ))}
                   </div>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                     <p className="min-w-0 text-xs text-[#536078] dark:text-white/50">
                       {t.rowHint}
                     </p>
@@ -1282,9 +1282,9 @@ export function PermissionsPage({
           </div>
         </GlassCard>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 2xl:grid-cols-1">
-          <GlassCard className="p-5">
-            <div className="mb-4 flex items-center gap-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 2xl:grid-cols-1">
+          <GlassCard className="p-3">
+            <div className="mb-3 flex items-center gap-2">
               <LockKeyhole className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
               <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.quotaTitle}</h4>
             </div>
@@ -1302,14 +1302,14 @@ export function PermissionsPage({
             </p>
           </GlassCard>
 
-          <GlassCard className="p-5">
-            <div className="mb-4 flex items-center gap-2">
+          <GlassCard className="p-3">
+            <div className="mb-3 flex items-center gap-2">
               <KeyRound className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
               <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.scopeTitle}</h4>
             </div>
             <div className="space-y-3">
               {forwardingRules.slice(0, 4).map((rule) => (
-                <div key={rule.id} className="rounded-xl border border-[#07111F]/18 p-3 dark:border-white/10">
+                <div key={rule.id} className="border border-[#07111F]/18 p-2.5 dark:border-white/10">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-[#07111F] dark:text-white/80">{rule.name}</p>
@@ -1326,8 +1326,8 @@ export function PermissionsPage({
             </div>
           </GlassCard>
 
-          <GlassCard aria-label={t.sessionsTitle} className="permissions-safety-sessions-panel p-5" role="region">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <GlassCard aria-label={t.sessionsTitle} className="permissions-safety-sessions-panel p-3" role="region">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <KeyRound className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
@@ -1345,12 +1345,12 @@ export function PermissionsPage({
             ) : operatorSessionsError ? (
               <p className="text-xs text-red-600 dark:text-red-300">{operatorSessionsError}</p>
             ) : operatorSessions.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
+              <div className="border border-dashed border-[#07111F]/30 p-3 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
                 {t.sessionsEmpty}
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-xl border border-[#07111F]/18 bg-[#EAF3D1]/35 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="border border-[#07111F]/18 bg-[#EAF3D1]/35 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,0.36fr)]">
                     <label className="block rounded-lg border border-[#07111F]/18 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
@@ -1387,7 +1387,7 @@ export function PermissionsPage({
                       </select>
                     </label>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-bold uppercase tracking-widest text-[#536078] dark:text-white/40">
                       {t.matchingSessions} {visibleOperatorSessions.length} / {operatorSessions.length}
                     </p>
@@ -1441,7 +1441,7 @@ export function PermissionsPage({
                 ) : null}
 
                 {visibleOperatorSessions.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
+                  <div className="border border-dashed border-[#07111F]/30 p-3 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
                     {t.noMatchingSessions}
                   </div>
                 ) : null}
@@ -1454,7 +1454,7 @@ export function PermissionsPage({
                   return (
                     <article
                       aria-label={session.id}
-                      className="permissions-safety-session-row rounded-xl border border-[#07111F]/18 p-4 dark:border-white/10"
+                      className="permissions-safety-session-row min-h-[76px] border border-[#07111F]/18 p-3 dark:border-white/10"
                       key={session.id}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1489,7 +1489,7 @@ export function PermissionsPage({
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 gap-2 text-[11px] text-[#536078] dark:text-white/45">
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-[#536078] dark:text-white/45">
                         <p className="break-all">
                           {t.sessionSource} {session.sourceIp}
                         </p>
@@ -1514,7 +1514,7 @@ export function PermissionsPage({
                       </div>
 
                       {onRevokeOperatorSession ? (
-                        <div className="mt-4 flex justify-end">
+                        <div className="mt-3 flex justify-end">
                           <GlowButton
                             className="px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={disabled}
@@ -1533,8 +1533,8 @@ export function PermissionsPage({
         </div>
       </section>
 
-      <GlassCard aria-label={t.agentCredentialsTitle} className="permissions-safety-credentials-panel stagger-3 p-5" role="group">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <GlassCard aria-label={t.agentCredentialsTitle} className="permissions-safety-credentials-panel stagger-3 p-3" role="group">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <KeyRound className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
@@ -1548,7 +1548,7 @@ export function PermissionsPage({
         </div>
 
         {visibleAgentCredentials.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
+          <div className="border border-dashed border-[#07111F]/30 p-3 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
             {t.agentCredentialsEmpty}
           </div>
         ) : (
@@ -1636,7 +1636,7 @@ export function PermissionsPage({
                               {t.credentialSession} {credential.sessionId ?? t.credentialNoSession}
                             </p>
                             {boundSession ? (
-                              <div className="space-y-1 rounded-xl border border-[#07111F]/18 bg-white/50 p-3 dark:border-white/10 dark:bg-white/5">
+                              <div className="space-y-1 border border-[#07111F]/18 bg-white/50 p-2.5 dark:border-white/10 dark:bg-white/5">
                                 <p>
                                   <span className={agentSessionStatusClassName(boundSession.status)}>
                                     {t.agentSessionStatus[boundSession.status]}
@@ -1725,8 +1725,8 @@ export function PermissionsPage({
         )}
       </GlassCard>
 
-      <GlassCard aria-label={t.quotaReadModelTitle} className="permissions-safety-quota-panel stagger-3 p-5" role="group">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <GlassCard aria-label={t.quotaReadModelTitle} className="permissions-safety-quota-panel stagger-3 p-3" role="group">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.quotaReadModelTitle}</h4>
             <p className="mt-1 max-w-4xl text-xs text-[#536078] dark:text-white/50">{t.quotaReadModelHint}</p>
@@ -1750,7 +1750,7 @@ export function PermissionsPage({
         </div>
 
         {visibleQuotaPolicies.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#07111F]/30 p-4 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
+          <div className="border border-dashed border-[#07111F]/30 p-3 text-xs text-[#536078] dark:border-white/10 dark:text-white/45">
             {t.quotaPoliciesEmpty}
           </div>
         ) : (
@@ -1865,11 +1865,11 @@ export function PermissionsPage({
 
 function SummaryCard({ label, value, icon: Icon }: { label: string; value: string; icon: typeof UsersRound }) {
   return (
-    <GlassCard className="p-5">
-      <div className="flex items-center justify-between">
+    <GlassCard aria-label={label} className="permissions-summary-card min-h-[76px] p-3" role="group">
+      <div className="flex h-full items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
-          <p className="mt-3 text-xl font-black text-[#07111F] dark:text-[#F4F8FF]">{value}</p>
+          <p className="mt-2 text-lg font-black text-[#07111F] dark:text-[#F4F8FF]">{value}</p>
         </div>
         <Icon className="h-5 w-5 text-[#1E3AFF] dark:text-[#6B7CFF]" />
       </div>
@@ -1879,7 +1879,11 @@ function SummaryCard({ label, value, icon: Icon }: { label: string; value: strin
 
 function ControlRailMetric({ label, value, icon: Icon }: { label: string; value: string; icon: typeof UsersRound }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+    <div
+      aria-label={label}
+      className="permissions-safety-metric flex min-h-[76px] items-center justify-between gap-3 border border-[#07111F]/16 bg-white/72 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.025]"
+      role="group"
+    >
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
         <span className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
@@ -1898,7 +1902,7 @@ function PermissionSafetyGatePanel({ gates, t }: { gates: PermissionSafetyGate[]
       className="permissions-safety-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.permissionSafetyGates}</p>
         <p className="mt-1 text-[11px] leading-5 text-white/82">{t.permissionSafetyGatesHint}</p>
       </div>
@@ -1921,7 +1925,7 @@ function PermissionSafetyGateRow({ gate }: { gate: PermissionSafetyGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -1954,8 +1958,8 @@ function PermissionCell({
     <div
       className={
         enabled
-          ? 'rounded-xl border border-[#1E3AFF]/20 bg-[#DCE1FF]/55 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/15'
-          : 'rounded-xl border border-[#07111F]/18 bg-[#FFFDF5] p-3 opacity-50 dark:border-white/10'
+          ? 'border border-[#1E3AFF]/20 bg-[#DCE1FF]/55 p-2.5 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/15'
+          : 'border border-[#07111F]/18 bg-[#FFFDF5] p-2.5 opacity-50 dark:border-white/10'
       }
     >
       <p className="text-[10px] font-bold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>

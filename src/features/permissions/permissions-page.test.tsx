@@ -308,6 +308,63 @@ describe('PermissionsPage', () => {
     expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
   });
 
+  it('keeps the permissions safety cockpit compact without masonry or oversized cards', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId="operator-session-current"
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: 'Operational Overview' });
+    const cockpit = screen.getByRole('region', { name: 'Permissions safety cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Permissions control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Permissions evidence workspace' });
+    const grantsPanel = within(workspace).getByRole('group', { name: 'Access Grants' });
+    const sessionsPanel = within(workspace).getByRole('region', { name: 'Operator Sessions' });
+    const credentialsPanel = within(workspace).getByRole('group', { name: 'Agent Runtime Credentials' });
+    const quotaReadModelPanel = within(workspace).getByRole('group', { name: 'Live Quota Read Model' });
+    const grantRow = within(grantsPanel).getByRole('article', { name: 'grant-owner-forward-acme' });
+    const sessionRow = within(sessionsPanel).getByRole('article', { name: 'operator-session-current' });
+    const railMetric = within(rail).getByRole('group', { name: 'Subjects' });
+    const summaryCard = within(overview).getByRole('group', { name: 'Subjects' });
+
+    expect(overview).toHaveClass('permissions-operational-overview', 'p-3');
+    expect(summaryCard).toHaveClass('permissions-summary-card', 'min-h-[76px]', 'p-3');
+    expect(cockpit.firstElementChild).toHaveClass(
+      'permissions-safety-cockpit-grid',
+      'xl:grid-cols-[18rem_minmax(0,1fr)]'
+    );
+    expect(rail).toHaveClass('p-3');
+    expect(workspace.firstElementChild).toHaveClass('permissions-safety-workspace-stack', 'space-y-3', 'p-3');
+    expect(grantsPanel).toHaveClass('p-3');
+    expect(sessionsPanel).toHaveClass('p-3');
+    expect(credentialsPanel).toHaveClass('p-3');
+    expect(quotaReadModelPanel).toHaveClass('p-3');
+    expect(grantRow).toHaveClass('min-h-[76px]', 'p-3');
+    expect(sessionRow).toHaveClass('min-h-[76px]', 'p-3');
+    expect(railMetric).toHaveClass('permissions-safety-metric', 'min-h-[76px]', 'px-3', 'py-2.5');
+
+    const markup = `${overview.outerHTML}${cockpit.outerHTML}`;
+    expect(markup).not.toContain('masonry');
+    expect(markup).not.toContain('columns-');
+    expect(markup).not.toContain('grid-flow-row-dense');
+    expect(markup).not.toContain('row-span');
+    expect(markup).not.toContain('xl:grid-cols-[21rem_minmax(0,1fr)]');
+    expect(markup).not.toContain('rounded-[1.5rem]');
+  });
+
   it('renders an operational overview band with workflow cues and rollups', () => {
     render(
       <PermissionsPage
