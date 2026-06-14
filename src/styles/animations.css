@@ -290,6 +290,13 @@ button:not([disabled]):not([aria-disabled='true']):active {
   animation-delay: 280ms;
 }
 
+.dashboard-connectivity-label {
+  paint-order: stroke;
+  stroke: #07111f;
+  stroke-linejoin: round;
+  stroke-width: 4px;
+}
+
 @keyframes ouPageEnter {
   from {
     opacity: 0;
@@ -360,6 +367,23 @@ button:not([disabled]):not([aria-disabled='true']):active {
   }
   100% {
     background-position: 10% 0%, 88% 8%, 42% 88%;
+  }
+}
+
+@keyframes ouGlobalBackdropSlide {
+  0% {
+    background-position:
+      0% 0%,
+      100% 0%,
+      50% 100%,
+      0 0;
+  }
+  100% {
+    background-position:
+      10% 8%,
+      88% 12%,
+      42% 90%,
+      0 0;
   }
 }
 

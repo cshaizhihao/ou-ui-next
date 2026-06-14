@@ -77,6 +77,7 @@ body {
     linear-gradient(225deg, rgba(255, 61, 24, 0.17) 0%, rgba(255, 61, 24, 0.17) 20%, transparent 20%),
     linear-gradient(315deg, rgba(217, 255, 0, 0.2) 0%, rgba(217, 255, 0, 0.2) 17%, transparent 17%),
     linear-gradient(180deg, #fffdf5 0%, #fdfff1 46%, #eaf3d1 100%);
+  background-size: 118% 118%, 124% 124%, 120% 120%, 100% 100%;
   color: var(--ou-text);
   font-family:
     'Cabinet Grotesk',
@@ -92,6 +93,7 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  animation: ouGlobalBackdropSlide 22s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
   transition:
     background-color 260ms var(--ou-transition),
     color 260ms var(--ou-transition);
@@ -103,6 +105,7 @@ body {
     linear-gradient(225deg, rgba(255, 106, 58, 0.18) 0%, rgba(255, 106, 58, 0.18) 20%, transparent 20%),
     linear-gradient(315deg, rgba(234, 255, 90, 0.16) 0%, rgba(234, 255, 90, 0.16) 17%, transparent 17%),
     linear-gradient(180deg, #07111f 0%, #101827 30%, #192238 100%);
+  background-size: 118% 118%, 124% 124%, 120% 120%, 100% 100%;
 }
 
 body::before {
@@ -235,6 +238,7 @@ button {
 
   body,
   .app-container {
+    animation: none;
     transition: none;
   }
 }

@@ -221,7 +221,7 @@ const copy = {
     bulkResume: '批量恢复',
     bulkDelete: '批量删除',
     forwardingBulkImpactPreflight: '转发批量影响预检',
-    forwardingBulkImpactHint: '基于已选转发规则的客户、入口主机、端口绑定、配额和运行时守护状态预估批量操作影响。',
+    forwardingBulkImpactHint: '',
     forwardingBulkImpactCustomers: '受影响客户',
     forwardingBulkImpactEntryHosts: '入口主机',
     forwardingBulkImpactPortBindings: '端口绑定',
@@ -233,7 +233,7 @@ const copy = {
     forwardingBulkImpactRiskPreview: '风险提示',
     forwardingBulkImpactNoRisk: '暂无守护或端口风险',
     runtimeReadiness: '运行时就绪度',
-    runtimeReadinessHint: '把转发规则按可下发、需处理和等待运行服务证据分组，避免在批量操作前漏看守护边界。',
+    runtimeReadinessHint: '',
     runtimeReadinessReady: '就绪',
     runtimeReadinessReadyDetail: '具备入口绑定和运行服务证据。',
     runtimeReadinessIssues: '异常',
@@ -383,7 +383,7 @@ const copy = {
     bulkResume: 'Bulk Resume',
     bulkDelete: 'Bulk Delete',
     forwardingBulkImpactPreflight: 'Forwarding Bulk Impact Preflight',
-    forwardingBulkImpactHint: 'Estimate bulk-action impact from selected customers, entry hosts, port bindings, quota, and runtime guardrails.',
+    forwardingBulkImpactHint: '',
     forwardingBulkImpactCustomers: 'Affected Customers',
     forwardingBulkImpactEntryHosts: 'Entry Hosts',
     forwardingBulkImpactPortBindings: 'Port Bindings',
@@ -395,7 +395,7 @@ const copy = {
     forwardingBulkImpactRiskPreview: 'Risk Notes',
     forwardingBulkImpactNoRisk: 'No guardrail or port risks',
     runtimeReadiness: 'Runtime Readiness',
-    runtimeReadinessHint: 'Groups forwarding rules by ready-to-deploy, needs attention, and waiting for runtime evidence before bulk changes.',
+    runtimeReadinessHint: '',
     runtimeReadinessReady: 'Ready',
     runtimeReadinessReadyDetail: 'Has entry bindings and runtime service evidence.',
     runtimeReadinessIssues: 'Issues',
@@ -1317,11 +1317,11 @@ export function ForwardingPage({
 
         <WorkspaceCockpitScroller
           aria-label={t.forwardingRulesWorkspace}
-          className="forwarding-ops-workspace min-h-0"
+          className="forwarding-ops-workspace min-h-0 overflow-visible"
         >
           <div className="forwarding-workspace-shell min-h-0 p-3">
         <section
-          className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-hidden"
+          className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-visible"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
           role="complementary"
         >
@@ -1814,9 +1814,11 @@ function ForwardingBulkImpactPreflight({
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-primary">
             {t.forwardingBulkImpactPreflight}
           </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/60">
-            {t.forwardingBulkImpactHint}
-          </p>
+          {t.forwardingBulkImpactHint ? (
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/60">
+              {t.forwardingBulkImpactHint}
+            </p>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-2">
             {summary.entryHostLabels.slice(0, 4).map((label) => (
               <span
@@ -1892,7 +1894,7 @@ function ForwardingRuntimeReadinessPanel({
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.runtimeReadiness}</p>
-        <p className="mt-1 text-[11px] leading-4 text-white/82">{t.runtimeReadinessHint}</p>
+        {t.runtimeReadinessHint ? <p className="mt-1 text-[11px] leading-4 text-white/82">{t.runtimeReadinessHint}</p> : null}
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {metrics.map((metric) => (

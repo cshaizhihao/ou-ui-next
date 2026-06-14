@@ -298,7 +298,6 @@ const copy = {
     controlPathCustomerNode: '客户节点',
     emptyHostTitle: '主机空态',
     emptyHostAction: '先生成安装命令',
-    emptyHostHint: '把第一台服务器接入 Master，等 Agent 回传遥测后再创建客户节点和下发配置。',
     hostsTab: '受控主机',
     customerNodesTab: '客户节点',
     installTitle: '主机代理一键安装',
@@ -357,7 +356,6 @@ const copy = {
     trafficAccountingMode: '流量计算类型',
     monthlyResetDay: '流量重置日期',
     currentUsedTraffic: '当前已用流量',
-    currentUsedTrafficHint: '可用于补录历史用量或修正 Agent 初次接管前的统计。',
     trafficSource: '流量统计来源',
     telemetrySourceValue: 'Agent 实时回传（以回传值为准）',
     sampleStatus: '采样',
@@ -409,7 +407,6 @@ const copy = {
     expiresAt: '到期时间',
     pingTarget: '延迟监测目标',
     pingInterval: 'Ping 间隔',
-    pingIntervalHint: '后台每 30 秒监测一次，延迟 1-100 绿 / 101-200 黄 / 200+ 红',
     cpuCores: '核',
     memory: '内存',
     disk: '磁盘',
@@ -478,7 +475,6 @@ const copy = {
     applyCustomerNodeResetPolicy: '应用重置周期',
     bulkDeleteCustomerNodes: '批量删除',
     customerNodeBulkImpactPreflight: '客户节点批量影响预检',
-    customerNodeBulkImpactHint: '基于已选客户节点的主机、入站端口、流量、到期和运行时守护状态预估批量操作影响。',
     customerNodeBulkImpactCustomers: '受影响客户',
     customerNodeBulkImpactHosts: '受控主机',
     customerNodeBulkImpactPorts: '入站端口',
@@ -611,7 +607,6 @@ const copy = {
     controlPathCustomerNode: 'Customer Node',
     emptyHostTitle: 'Host Empty State',
     emptyHostAction: 'Generate the install command first',
-    emptyHostHint: 'Enroll the first server into Master, wait for Agent telemetry, then create customer nodes and deploy config.',
     hostsTab: 'Managed Hosts',
     customerNodesTab: 'Customer Nodes',
     installTitle: 'Host Agent One-Click Install',
@@ -670,7 +665,6 @@ const copy = {
     trafficAccountingMode: 'Traffic Accounting',
     monthlyResetDay: 'Reset Day',
     currentUsedTraffic: 'Current Used Traffic',
-    currentUsedTrafficHint: 'Use this to backfill history or correct the first Agent takeover.',
     trafficSource: 'Traffic Source',
     telemetrySourceValue: 'Agent live telemetry (source of truth)',
     sampleStatus: 'Sampling',
@@ -722,7 +716,6 @@ const copy = {
     expiresAt: 'Expires At',
     pingTarget: 'Latency Check Target',
     pingInterval: 'Check Interval',
-    pingIntervalHint: 'Runs every 30 seconds; latency bands are 1-100 green / 101-200 yellow / 200+ red',
     cpuCores: 'cores',
     memory: 'Memory',
     disk: 'Disk',
@@ -791,7 +784,6 @@ const copy = {
     applyCustomerNodeResetPolicy: 'Apply Reset Policy',
     bulkDeleteCustomerNodes: 'Bulk Delete',
     customerNodeBulkImpactPreflight: 'Customer Node Bulk Impact Preflight',
-    customerNodeBulkImpactHint: 'Estimate bulk-action impact from selected customer nodes, assigned hosts, inbound ports, traffic, expiry, and runtime guardrails.',
     customerNodeBulkImpactCustomers: 'Affected Customers',
     customerNodeBulkImpactHosts: 'Managed Hosts',
     customerNodeBulkImpactPorts: 'Inbound Ports',
@@ -3576,7 +3568,7 @@ export function NodesPage({
           </div>
           {visibleAgents.length === 0 ? (
             <section aria-label={t.emptyHostTitle} className="island-card">
-              <OperationalEmptyState actionLabel={t.emptyHostAction} hint={t.emptyHostHint} label={t.noAgent} />
+              <OperationalEmptyState actionLabel={t.emptyHostAction} label={t.noAgent} />
             </section>
           ) : (
             <div className="grid gap-3 xl:grid-cols-[17rem_minmax(0,1fr)]">
@@ -4333,7 +4325,6 @@ export function NodesPage({
                 }
               />
             </div>
-            <p className="text-[10px] leading-5 text-slate-500 dark:text-white/40">{t.currentUsedTrafficHint}</p>
             <InputField
               label={t.expiresAt}
               type="date"
@@ -4345,7 +4336,6 @@ export function NodesPage({
               value={getHostEdit(selectedHost).pingTarget}
               onChange={(value) => updateHost(selectedHost, { pingTarget: value })}
             />
-            <InfoField label={t.pingInterval} value={t.pingIntervalHint} />
             <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
               {t.probeSection}
             </p>
@@ -4910,12 +4900,11 @@ function ControlPathStrip({
   );
 }
 
-function OperationalEmptyState({ actionLabel, hint, label }: { actionLabel: string; hint: string; label: string }) {
+function OperationalEmptyState({ actionLabel, label }: { actionLabel: string; label: string }) {
   return (
     <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <p className="text-sm font-black text-slate-900 dark:text-white">{label}</p>
-        <p className="mt-2 max-w-2xl text-xs font-semibold leading-6 text-slate-500 dark:text-white/50">{hint}</p>
       </div>
       <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 dark:border-primary/25 dark:bg-primary/10 dark:text-primary">
         {actionLabel}
@@ -4985,9 +4974,6 @@ function CustomerNodeBulkImpactPreflight({
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#C92810] dark:text-[#FFB299]">
             {t.customerNodeBulkImpactPreflight}
-          </p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
-            {t.customerNodeBulkImpactHint}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.hostLabels.slice(0, 4).map((label) => (

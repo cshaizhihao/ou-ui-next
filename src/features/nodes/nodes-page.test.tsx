@@ -257,6 +257,7 @@ describe('NodesPage', () => {
     expect(within(controlPath).getByText('Agent 通道')).toBeInTheDocument();
     expect(within(controlPath).getByText('客户节点')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '主机空态' })).toHaveTextContent('先生成安装命令');
+    expect(screen.getByRole('region', { name: '主机空态' })).not.toHaveTextContent('把第一台服务器接入 Master');
     expect(screen.getByRole('button', { name: '生成安装命令' })).toBeInTheDocument();
   });
 
@@ -1167,6 +1168,10 @@ describe('NodesPage', () => {
     await openHostAdvancedDetails(user);
 
     await user.click(screen.getByRole('button', { name: '编辑主机' }));
+    const dialog = screen.getByRole('dialog', { name: '编辑主机' });
+    expect(dialog).not.toHaveTextContent('可用于补录历史用量');
+    expect(dialog).not.toHaveTextContent('后台每 30 秒监测一次');
+
     await user.clear(screen.getByLabelText('主机别名'));
     await user.type(screen.getByLabelText('主机别名'), 'poll-only-renamed');
     await user.click(screen.getByRole('button', { name: '保存' }));
@@ -1753,6 +1758,7 @@ describe('NodesPage', () => {
     expect(within(preflight).getByText('守护风险 1')).toBeInTheDocument();
     expect(within(preflight).getByText('已过期/即将到期 1')).toBeInTheDocument();
     expect(within(preflight).getByText('已停用 1')).toBeInTheDocument();
+    expect(preflight).not.toHaveTextContent('基于已选客户节点');
 
     const customerPreview = within(preflight).getByText('客户预览').closest('div');
     const nodePreview = within(preflight).getByText('节点预览').closest('div');

@@ -746,7 +746,7 @@ export function DashboardPage({
                         <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.14 + index * 0.04} />
                         <circle cx={node.cx} cy="92" r="16" fill="#F4F8FF" />
                         <circle cx={node.cx} cy="92" r="8" fill={index === 0 ? '#6B7CFF' : index === 1 ? '#D9FF00' : '#FF3D18'} />
-                        <text x={node.cx} y="154" textAnchor="middle" className="fill-[#f4f8ff] text-[13px] font-black">
+                        <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[#F8FAFC] text-[13px] font-black">
                           {node.label}
                         </text>
                       </g>
