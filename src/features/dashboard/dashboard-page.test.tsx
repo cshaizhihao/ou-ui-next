@@ -432,6 +432,31 @@ describe('DashboardPage', () => {
     expect(releaseEvidence).toHaveTextContent('captured');
   });
 
+  it('surfaces rollback readiness as a first-screen release evidence boundary', () => {
+    renderPage();
+
+    const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
+    const rollbackBoundary = releaseEvidence.querySelector('[data-release-rollback-state="ready"]');
+
+    expect(rollbackBoundary).not.toBeNull();
+    expect(rollbackBoundary).toHaveTextContent('回滚可用');
+    expect(rollbackBoundary).toHaveTextContent('task-release-001');
+    expect(rollbackBoundary).toHaveTextContent('forward.apply');
+    expect(rollbackBoundary).toHaveTextContent('succeeded');
+  });
+
+  it('localizes rollback readiness on the release evidence rail in English', () => {
+    renderPage({ language: 'en' });
+
+    const releaseEvidence = screen.getByRole('region', { name: 'Release Evidence' });
+    const rollbackBoundary = releaseEvidence.querySelector('[data-release-rollback-state="ready"]');
+
+    expect(rollbackBoundary).not.toBeNull();
+    expect(rollbackBoundary).toHaveTextContent('Rollback Ready');
+    expect(rollbackBoundary).toHaveTextContent('task-release-001');
+    expect(rollbackBoundary).toHaveTextContent('forward.apply');
+  });
+
   it('uses a fauvist control surface without dashboard decorative orb layers', () => {
     renderPage();
 

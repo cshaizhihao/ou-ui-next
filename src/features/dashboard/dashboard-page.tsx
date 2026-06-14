@@ -182,6 +182,12 @@ const copy = {
     latestPreflightPlan: '最新预检计划',
     latestSnapshot: '最新快照',
     noReleaseEvidence: '暂无发布证据',
+    rollbackBoundary: '回滚边界',
+    rollbackReady: '回滚可用',
+    rollbackLocked: '回滚不可用',
+    rollbackWaiting: '等待执行记录',
+    rollbackReadyDescription: '最近执行保留可回滚快照与审计线索。',
+    rollbackLockedDescription: '最近执行未开放回滚，需进入发布证据工作区确认。',
     auditAlertEvidence: 'Audit & Alerts',
     auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
       `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
@@ -386,6 +392,12 @@ const copy = {
     latestPreflightPlan: 'Latest Preflight Plan',
     latestSnapshot: 'Latest Snapshot',
     noReleaseEvidence: 'No release evidence available',
+    rollbackBoundary: 'Rollback Boundary',
+    rollbackReady: 'Rollback Ready',
+    rollbackLocked: 'Rollback Locked',
+    rollbackWaiting: 'Waiting for execution record',
+    rollbackReadyDescription: 'Latest execution retains rollback snapshot and audit cues.',
+    rollbackLockedDescription: 'Latest execution has no open rollback. Review release evidence before recovery.',
     auditAlertEvidence: 'Audit & Alerts',
     auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
       `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
@@ -749,6 +761,7 @@ export function DashboardPage({
                 <EvidenceChip label="Preflight" value={formatNumber(preflightPlans.length, language)} />
                 <EvidenceChip label="Snapshot" value={formatNumber(runtimeSnapshots.length, language)} />
               </div>
+              <ReleaseRollbackBoundary task={latestTask} t={t} />
               <div className="mt-4 grid gap-2">
                 <ReleaseEvidenceRow label={t.latestConfigRevision} record={latestConfigRevision} fallbackLabel={t.noReleaseEvidence} />
                 <ReleaseEvidenceRow label={t.latestPreflightPlan} record={latestPreflightPlan} fallbackLabel={t.noReleaseEvidence} />
@@ -916,6 +929,45 @@ function getReleaseStatusTone(status?: string) {
     default:
       return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
   }
+}
+
+function ReleaseRollbackBoundary({ task, t }: { task?: DeployTask; t: DashboardCopy }) {
+  const state = task ? (task.rollbackAvailable ? 'ready' : 'locked') : 'waiting';
+  const statusLabel = task ? (task.rollbackAvailable ? t.rollbackReady : t.rollbackLocked) : t.rollbackWaiting;
+  const description = task ? (task.rollbackAvailable ? t.rollbackReadyDescription : t.rollbackLockedDescription) : t.latestExecutionEmpty;
+  const stateClasses =
+    state === 'ready'
+      ? 'border-[#07111F] bg-[#D9FF00]/40 text-[#07111F] dark:border-[#EAFF5A]/30 dark:bg-[#EAFF5A]/14 dark:text-[#F4FFC5]'
+      : 'border-[#07111F]/25 bg-[#DCE1FF]/72 text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12 dark:text-[#F4F8FF]';
+
+  return (
+    <div
+      className={cn(
+        'mt-3 rounded-2xl border px-3 py-2.5 motion-safe:animate-[ou-panel-in_180ms_ease-out]',
+        stateClasses
+      )}
+      data-release-rollback-state={state}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{t.rollbackBoundary}</p>
+          <p className="mt-1 text-sm font-black">{statusLabel}</p>
+        </div>
+        {task ? (
+          <span className="rounded-full border border-[#07111F]/25 bg-[#FFFDF5] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#F4F8FF]/78">
+            {task.status}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 text-[11px] font-semibold leading-4 opacity-80">{description}</p>
+      {task ? (
+        <div className="mt-2 grid gap-1 font-mono text-[10px] font-black uppercase tracking-widest opacity-78 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <span className="truncate">{task.id}</span>
+          <span className="truncate sm:text-right">{task.operation}</span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function ReleaseEvidenceRow({
