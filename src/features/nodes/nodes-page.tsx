@@ -4050,7 +4050,7 @@ export function NodesPage({
                       {t.bulkEnableCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-amber-200 px-3 text-xs font-bold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-amber-400/30 dark:text-amber-300 dark:hover:bg-amber-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-200 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-orange-400/30 dark:text-orange-300 dark:hover:bg-orange-400/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={() => updateSelectedCustomerNodesEnabled(false)}
                       type="button"
@@ -4058,7 +4058,7 @@ export function NodesPage({
                       {t.bulkDisableCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-rose-400/30 dark:text-rose-300 dark:hover:bg-rose-400/10"
+                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={bulkCustomerNodeDeleteConfirming ? deleteSelectedCustomerNodes : () => setBulkCustomerNodeDeleteConfirming(true)}
                       type="button"
@@ -4926,7 +4926,7 @@ function CustomerNodeBulkImpactPreflight({
   return (
     <section
       aria-label={t.customerNodeBulkImpactPreflight}
-      className="border-b border-blue-200 bg-blue-50/55 px-4 py-4 dark:border-blue-300/15 dark:bg-blue-400/[0.045]"
+      className="border-b border-orange-200 bg-orange-50/60 px-4 py-4 dark:border-orange-300/20 dark:bg-orange-400/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
@@ -4939,14 +4939,14 @@ function CustomerNodeBulkImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.hostLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.hostLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.hostLabels.length - 4, language)}
               </span>
             ) : null}
@@ -5025,9 +5025,9 @@ function CustomerNodeBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}

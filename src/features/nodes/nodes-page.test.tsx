@@ -1153,6 +1153,8 @@ describe('NodesPage', () => {
     expect(preflight.outerHTML).not.toContain('cyan-');
     expect(preflight.outerHTML).not.toContain('purple-');
     expect(preflight.outerHTML).not.toContain('violet-');
+    expect(preflight.outerHTML).not.toContain('amber-');
+    expect(preflight.outerHTML).not.toContain('rose-');
     expect(preflight.outerHTML).not.toContain('background-clip:text');
     expect(within(preflight).getByText('受影响客户 2')).toBeInTheDocument();
     expect(within(preflight).getByText('受控主机 2')).toBeInTheDocument();
@@ -1172,6 +1174,9 @@ describe('NodesPage', () => {
     expect(within(nodePreview as HTMLElement).getByText('Acme Premium VLESS')).toBeInTheDocument();
     expect(within(nodePreview as HTMLElement).getByText('Beta VLESS Edge')).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/Beta VLESS Edge/)).toBeInTheDocument();
+    expect((riskPreview as HTMLElement).outerHTML).toContain('orange-');
+    expect((riskPreview as HTMLElement).outerHTML).not.toContain('amber-');
+    expect((riskPreview as HTMLElement).outerHTML).not.toContain('rose-');
   });
 
   it('uses the primary blue control-plane palette for customer-node bulk reset controls', async () => {
@@ -1269,7 +1274,12 @@ describe('NodesPage', () => {
     );
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
-    await user.click(screen.getByRole('button', { name: 'Bulk Disable' }));
+    const bulkDisableButton = screen.getByRole('button', { name: 'Bulk Disable' });
+
+    expect(bulkDisableButton.outerHTML).toContain('orange-');
+    expect(bulkDisableButton.outerHTML).not.toContain('amber-');
+    expect(bulkDisableButton.outerHTML).not.toContain('rose-');
+    await user.click(bulkDisableButton);
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Disable 2 selected customer nodes'));
     expect(onSaveCustomerNode).not.toHaveBeenCalled();
@@ -1442,7 +1452,11 @@ describe('NodesPage', () => {
     );
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
-    await user.click(screen.getByRole('button', { name: 'Bulk Delete' }));
+    const bulkDeleteButton = screen.getByRole('button', { name: 'Bulk Delete' });
+
+    expect(bulkDeleteButton.outerHTML).toContain('red-');
+    expect(bulkDeleteButton.outerHTML).not.toContain('rose-');
+    await user.click(bulkDeleteButton);
 
     expect(onDeleteCustomerNode).not.toHaveBeenCalled();
 
