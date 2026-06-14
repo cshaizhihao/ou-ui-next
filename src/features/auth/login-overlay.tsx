@@ -22,8 +22,11 @@ const copy = {
   zh: {
     title: 'OU-UI Next 控制面板',
     subtitle: '初始化安全连接',
-    usernamePlaceholder: '用户名',
-    passwordPlaceholder: '密码',
+    usernameLabel: '用户名',
+    passwordLabel: '密码',
+    usernamePlaceholder: '输入管理员用户名',
+    passwordPlaceholder: '输入管理员密码',
+    recoveryHint: '使用管理员凭据进入生产控制面。',
     error: '访问拒绝：认证失败',
     submit: '安全登录',
     languageSwitcher: '语言切换'
@@ -31,8 +34,11 @@ const copy = {
   en: {
     title: 'OU-UI Next Control Panel',
     subtitle: 'Initialize secure connection',
-    usernamePlaceholder: 'Username',
-    passwordPlaceholder: 'Password',
+    usernameLabel: 'Username',
+    passwordLabel: 'Password',
+    usernamePlaceholder: 'Enter admin username',
+    passwordPlaceholder: 'Enter admin password',
+    recoveryHint: 'Use administrator credentials to enter the production control plane.',
     error: 'Access denied: authentication failed',
     submit: 'Secure Login',
     languageSwitcher: 'Language switcher'
@@ -61,6 +67,9 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   const [isCheckingSession, setIsCheckingSession] = useState(
     runtimeConfig.controlPlaneMode === 'http' && Boolean(runtimeConfig.controlPlaneBaseUrl)
   );
+  const usernameInputId = 'operator-login-username';
+  const passwordInputId = 'operator-login-password';
+  const recoveryHintId = 'operator-login-recovery';
 
   useEffect(() => {
     document.title = authenticated || runtimeConfig.disableInAppLogin ? appDocumentTitle : t.title;
@@ -201,20 +210,48 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
           </div>
 
           <div className="space-y-4">
-            <GlassInput
-              className="font-mono"
-              placeholder={t.usernamePlaceholder}
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-            />
-            <GlassInput
-              className="font-mono"
-              placeholder={t.passwordPlaceholder}
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
+            <p id={recoveryHintId} className="text-center text-xs font-semibold leading-5 text-[#35405A] dark:text-white/70">
+              {t.recoveryHint}
+            </p>
+            <div className="space-y-2">
+              <label
+                className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#07111F] dark:text-white/80"
+                htmlFor={usernameInputId}
+              >
+                {t.usernameLabel}
+              </label>
+              <GlassInput
+                aria-describedby={recoveryHintId}
+                aria-invalid={hasError}
+                autoComplete="username"
+                className="font-mono"
+                id={usernameInputId}
+                placeholder={t.usernamePlaceholder}
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label
+                className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#07111F] dark:text-white/80"
+                htmlFor={passwordInputId}
+              >
+                {t.passwordLabel}
+              </label>
+              <GlassInput
+                aria-describedby={recoveryHintId}
+                aria-invalid={hasError}
+                autoComplete="current-password"
+                className="font-mono"
+                id={passwordInputId}
+                placeholder={t.passwordPlaceholder}
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
             <p
+              role={hasError ? 'alert' : undefined}
               className={cn(
                 'mt-2 text-center text-[10px] font-bold tracking-wide text-red-500',
                 !hasError && 'hidden'

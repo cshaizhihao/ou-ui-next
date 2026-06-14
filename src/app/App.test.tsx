@@ -9,8 +9,8 @@ type TestUser = ReturnType<typeof userEvent.setup>;
 async function login() {
   const user = userEvent.setup();
 
-  await user.type(screen.getByPlaceholderText('用户名'), 'admin');
-  await user.type(screen.getByPlaceholderText('密码'), 'admin');
+  await user.type(screen.getByRole('textbox', { name: '用户名' }), 'admin');
+  await user.type(screen.getByLabelText('密码'), 'admin');
   await user.click(screen.getByRole('button', { name: '安全登录' }));
 
   return user;
@@ -61,8 +61,8 @@ describe('App', () => {
 
     expect(screen.getByText('OU-UI NEXT')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'OU-UI Next 控制面板' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('用户名')).toHaveClass('glass-input');
-    expect(screen.getByPlaceholderText('密码')).toHaveClass('glass-input');
+    expect(screen.getByRole('textbox', { name: '用户名' })).toHaveClass('glass-input');
+    expect(screen.getByLabelText('密码')).toHaveClass('glass-input');
     expect(screen.getByRole('button', { name: '安全登录' })).toHaveClass('btn-glow');
     expect(document.querySelector('.language-switch-login')).toBeInTheDocument();
     expect(document.querySelector('.bg-env')).toBeInTheDocument();
@@ -73,8 +73,8 @@ describe('App', () => {
     await switchLoginToEnglish();
 
     expect(screen.getByRole('heading', { name: 'OU-UI Next Control Panel' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Username')).toHaveClass('glass-input');
-    expect(screen.getByPlaceholderText('Password')).toHaveClass('glass-input');
+    expect(screen.getByRole('textbox', { name: 'Username' })).toHaveClass('glass-input');
+    expect(screen.getByLabelText('Password')).toHaveClass('glass-input');
     expect(screen.getByRole('button', { name: 'Secure Login' })).toHaveClass('btn-glow');
     expect(screen.queryByRole('heading', { name: 'OU-UI Next 控制面板' })).not.toBeInTheDocument();
   });

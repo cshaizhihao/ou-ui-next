@@ -413,8 +413,8 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
     });
 
     await runBrowserCheck(config, page, report, 'operator browser login', async () => {
-      await page.getByPlaceholder(/用户名|Username/i).fill(config.username, { timeout: config.timeoutMs });
-      await page.getByPlaceholder(/密码|Password/i).fill(config.password, { timeout: config.timeoutMs });
+      await page.getByLabel(/用户名|Username/i).fill(config.username, { timeout: config.timeoutMs });
+      await page.getByLabel(/密码|Password/i).fill(config.password, { timeout: config.timeoutMs });
       await page.getByRole('button', { name: /安全登录|Secure Login/i }).click({ timeout: config.timeoutMs });
       await waitForVisible(
         page.getByRole('heading', { name: /运营态势|Operations Overview|Master Control Plane Overview/i }).first(),

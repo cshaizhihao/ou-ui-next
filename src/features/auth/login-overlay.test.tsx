@@ -58,13 +58,45 @@ describe('LoginOverlay', () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText('用户名'), 'admin');
-    await user.type(screen.getByPlaceholderText('密码'), 'admin');
+    await user.type(screen.getByRole('textbox', { name: '用户名' }), 'admin');
+    await user.type(screen.getByLabelText('密码'), 'admin');
     await user.click(screen.getByRole('button', { name: '安全登录' }));
 
     expect(onAuthenticated).toHaveBeenCalledWith({
       operatorSessionId: 'operator-session-local-current'
     });
+  });
+
+  it('exposes production login fields with visible labels, autofill hints, and alert recovery semantics', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <LoginOverlay
+        authenticated={false}
+        language="zh"
+        onAuthenticated={vi.fn()}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    const usernameField = screen.getByRole('textbox', { name: '用户名' });
+    const passwordField = screen.getByLabelText('密码');
+
+    expect(usernameField).toHaveAttribute('autocomplete', 'username');
+    expect(usernameField).toHaveAttribute('aria-describedby', 'operator-login-recovery');
+    expect(passwordField).toHaveAttribute('type', 'password');
+    expect(passwordField).toHaveAttribute('autocomplete', 'current-password');
+    expect(passwordField).toHaveAttribute('aria-describedby', 'operator-login-recovery');
+    expect(screen.getByText('使用管理员凭据进入生产控制面。')).toHaveAttribute('id', 'operator-login-recovery');
+
+    await user.type(usernameField, 'admin');
+    await user.type(passwordField, 'wrong-password');
+    await user.click(screen.getByRole('button', { name: '安全登录' }));
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('访问拒绝：认证失败');
+    expect(usernameField).toHaveAttribute('aria-invalid', 'true');
+    expect(passwordField).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('reuses an existing server-side operator session in HTTP mode', async () => {
@@ -168,9 +200,9 @@ describe('LoginOverlay', () => {
       />
     );
 
-    await screen.findByPlaceholderText('用户名');
-    await user.type(screen.getByPlaceholderText('用户名'), 'operator_001');
-    await user.type(screen.getByPlaceholderText('密码'), 'operator-password-001');
+    await screen.findByRole('textbox', { name: '用户名' });
+    await user.type(screen.getByRole('textbox', { name: '用户名' }), 'operator_001');
+    await user.type(screen.getByLabelText('密码'), 'operator-password-001');
     await user.click(screen.getByRole('button', { name: '安全登录' }));
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1));
