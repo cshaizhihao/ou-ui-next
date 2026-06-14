@@ -837,6 +837,20 @@ describe('AppShell', () => {
     expect(launchpadQuickActionButton).toHaveClass('max-md:hidden');
   });
 
+  it('reserves enough mobile scroll clearance for the fixed bottom navigation', async () => {
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    const main = document.querySelector('main');
+    const workspaceScrollRegion = main?.querySelector('.relative.flex-1.overflow-y-auto');
+
+    expect(mobileNavigation).toHaveClass('bottom-3');
+    expect(main).toHaveClass('max-md:pb-28');
+    expect(workspaceScrollRegion).toHaveClass('max-md:pb-28');
+  });
+
   it('exposes quick action results as a list without nesting buttons inside options', async () => {
     const user = userEvent.setup();
 

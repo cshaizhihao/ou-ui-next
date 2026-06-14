@@ -3390,7 +3390,7 @@ export function AppShell({ ready }: AppShellProps) {
           <div className="ou-shell-ribbon">Control Plane Operations Host Delivery Audit</div>
         </div>
         <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
-        <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-20">
+        <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-28">
           <Topbar
             title={activeNav.label}
             subtitle={activeNav.description}
@@ -3403,7 +3403,7 @@ export function AppShell({ ready }: AppShellProps) {
             onToggleTheme={toggleTheme}
             quickActionButtonRef={quickActionButtonRef}
           />
-          <div className="relative flex-1 overflow-y-auto p-8 max-md:px-3 max-md:pb-3 max-md:pt-3">
+          <div className="relative flex-1 overflow-y-auto p-8 max-md:px-3 max-md:pb-28 max-md:pt-3">
             {taskMutationState.status !== 'idle' ? (
               <div
                 role={taskMutationState.status === 'failed' ? 'alert' : 'status'}
