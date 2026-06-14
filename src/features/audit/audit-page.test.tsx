@@ -123,6 +123,57 @@ describe('AuditPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('keeps the audit evidence cockpit compact and rejects masonry-style layout', () => {
+    render(
+      <AuditPage
+        auditLogs={[deniedAuditLog, succeededAuditLog]}
+        language="en"
+        onVerifyAuditLogs={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Audit evidence cockpit' });
+    const cockpitGrid = cockpit.firstElementChild as HTMLElement;
+    const rail = within(cockpit).getByRole('complementary', { name: 'Audit evidence control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Audit ledger workspace' });
+    const workspaceStack = workspace.firstElementChild as HTMLElement;
+    const ledger = within(workspace).getByRole('group', { name: 'Change Ledger' });
+    const deniedRow = within(ledger).getByRole('article', {
+      name: 'Forwarding apply denied by quota guard'
+    });
+    const gates = within(rail).getByRole('region', { name: 'Audit Evidence Gates' });
+    const gateRow = within(gates).getByRole('group', { name: 'Hash Chain' });
+    const totalCard = within(rail).getByRole('group', { name: 'Total audit records' });
+    const layoutHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
+
+    expect(cockpitGrid).toHaveClass('audit-evidence-cockpit-grid');
+    expect(cockpitGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(rail).not.toHaveClass('p-4');
+    expect(workspaceStack).toHaveClass('space-y-3');
+    expect(workspaceStack).toHaveClass('p-3');
+    expect(ledger).toHaveClass('p-3');
+    expect(ledger).not.toHaveClass('p-5');
+    expect(deniedRow).toHaveClass('p-3');
+    expect(deniedRow).not.toHaveClass('rounded-xl');
+    expect(gateRow).toHaveClass('audit-evidence-gate-row');
+    expect(gateRow).toHaveClass('min-h-[76px]');
+    expect(gateRow).toHaveClass('px-3');
+    expect(gateRow).toHaveClass('py-2.5');
+    expect(gateRow).not.toHaveClass('min-h-20');
+    expect(gateRow).not.toHaveClass('px-4');
+    expect(gateRow).not.toHaveClass('py-3');
+    expect(totalCard).toHaveClass('audit-summary-card');
+    expect(totalCard).toHaveClass('min-h-[76px]');
+    expect(totalCard).toHaveClass('p-3');
+    expect(totalCard).not.toHaveClass('rounded-xl');
+    expect(layoutHtml).not.toContain('masonry');
+    expect(layoutHtml).not.toContain('columns-');
+    expect(layoutHtml).not.toContain('grid-flow-row-dense');
+    expect(layoutHtml).not.toContain('row-span');
+    expect(layoutHtml).not.toContain('col-span');
+  });
+
   it('surfaces audit evidence gates on the control rail', () => {
     const rollbackAuditLog: AuditLog = {
       ...succeededAuditLog,

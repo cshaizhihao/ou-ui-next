@@ -473,15 +473,15 @@ function AuditSummaryCard({
   return (
     <div
       aria-label={ariaLabel}
-      className={`rounded-xl border p-4 transition hover:-translate-y-0.5 hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] ${cardClass}`}
+      className={`audit-summary-card min-h-[76px] border p-3 transition hover:shadow-[0_10px_26px_-24px_rgba(15,23,42,0.22)] ${cardClass}`}
       role="group"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
-          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+          <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${labelClass}`}>{label}</p>
+          <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{value}</p>
         </div>
-        <Icon className={`h-5 w-5 ${iconClass}`} />
+        <Icon className={`h-4 w-4 ${iconClass}`} />
       </div>
     </div>
   );
@@ -489,10 +489,10 @@ function AuditSummaryCard({
 
 function AuditEvidencePath({ labels }: { labels: readonly string[] }) {
   return (
-    <div className="mt-4 grid grid-cols-2 gap-2">
+    <div className="mt-3 grid grid-cols-2 gap-2">
       {labels.map((label, index) => (
         <div
-          className="rounded-lg border border-[#1E3AFF]/30 bg-[#DCE1FF]/50 px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04]"
+          className="border border-[#1E3AFF]/30 bg-[#DCE1FF]/50 px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04]"
           key={label}
         >
           <p className="font-mono text-[10px] font-black text-[#1E3AFF] dark:text-[#DDE3FF]">
@@ -512,7 +512,7 @@ function AuditEvidenceGatePanel({ gates, t }: { gates: AuditEvidenceGate[]; t: A
       className="audit-evidence-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.auditEvidenceGates}</p>
         <p className="mt-1 text-[11px] leading-5 text-white/82">{t.auditEvidenceGatesHint}</p>
       </div>
@@ -535,7 +535,7 @@ function AuditEvidenceGateRow({ gate }: { gate: AuditEvidenceGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="audit-evidence-gate-row group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -786,14 +786,14 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
       </section>
 
       <WorkspaceCockpit aria-label={t.auditEvidenceCockpit} className="audit-evidence-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="audit-evidence-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={t.auditEvidenceControlRail}
-            className="audit-evidence-rail border-b border-[#07111F]/20 bg-[#EAF3D1]/70 p-4 dark:border-[#6B7CFF]/20 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="audit-evidence-rail border-b border-[#07111F]/20 bg-[#EAF3D1]/70 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-[#1E3AFF]/40 bg-[#FFFDF5]/75 p-4 dark:border-[#6B7CFF]/25 dark:bg-white/[0.03]">
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="border border-[#1E3AFF]/40 bg-[#FFFDF5]/75 p-3 dark:border-[#6B7CFF]/25 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.evidencePath}</p>
@@ -836,8 +836,8 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
               </div>
 
               {auditLogs.length > 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                  <div className="grid grid-cols-1 gap-3">
+                <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="grid grid-cols-1 gap-2">
                     <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                         {t.searchLogs}
@@ -925,11 +925,11 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
           </aside>
 
           <WorkspaceCockpitScroller aria-label={t.auditLedgerWorkspace} className="audit-evidence-workspace min-h-0">
-            <div className="space-y-4 p-4">
+            <div className="space-y-3 p-3">
               {auditVerification || auditVerificationError ? (
                 <div
                   aria-label={t.auditChainStatus}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/80 p-4 dark:border-white/10 dark:bg-white/[0.04]"
+                  className="flex flex-wrap items-center justify-between gap-3 border border-slate-200 bg-white/80 p-3 dark:border-white/10 dark:bg-white/[0.04]"
                   role="status"
                 >
                   <div className="flex min-w-0 items-start gap-3">
@@ -964,8 +964,8 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                 </div>
               ) : null}
 
-              <GlassCard aria-label={t.ledgerTitle} className="audit-evidence-ledger p-5" role="group">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <GlassCard aria-label={t.ledgerTitle} className="audit-evidence-ledger p-3" role="group">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <FileSearch className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
                     <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.ledgerTitle}</h4>
@@ -975,11 +975,11 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                   </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {filteredLogs.map((log) => (
                     <article
                       aria-label={log.message}
-                      className="audit-evidence-row rounded-xl border border-[#07111F]/20 bg-[#FFFDF5]/70 p-4 transition hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:shadow-[0_14px_38px_-30px_rgba(15,23,42,0.22)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.03] dark:hover:border-[#6B7CFF]/40"
+                      className="audit-evidence-row border border-[#07111F]/20 bg-[#FFFDF5]/70 p-3 transition hover:border-[#1E3AFF] hover:shadow-[0_10px_26px_-24px_rgba(15,23,42,0.22)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.03] dark:hover:border-[#6B7CFF]/40"
                       key={log.id}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -998,10 +998,10 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                           </span>
                         </div>
                       </div>
-                      <p className="mt-3 text-xs text-slate-500 dark:text-white/50">
+                      <p className="mt-2 text-xs text-slate-500 dark:text-white/50">
                         {t.actor} {log.actor} · {t.source} {log.sourceIp} · {t.task} {log.taskId}
                       </p>
-                      <div className="mt-4 flex justify-end">
+                      <div className="mt-3 flex justify-end">
                         <button
                           aria-label={t.viewEvidence}
                           className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#1E3AFF] px-3 py-2 text-xs font-bold text-[#1E3AFF] transition-colors hover:bg-[#DCE1FF] dark:border-[#6B7CFF]/35 dark:text-[#DDE3FF] dark:hover:border-[#6B7CFF]/40"
@@ -1015,13 +1015,13 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                     </article>
                   ))}
                   {auditLogs.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
+                    <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
                       <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
                       <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
                     </div>
                   ) : null}
                   {auditLogs.length > 0 && filteredLogs.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+                    <div className="border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
                       {t.noMatchingLogs}
                     </div>
                   ) : null}
