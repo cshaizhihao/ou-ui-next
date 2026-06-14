@@ -210,15 +210,15 @@ export function TelegramNotificationSettingsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4">
+      <section aria-label={t.operationalOverview} className="stagger-1 space-y-4 rounded-xl border border-[#07111F] bg-[#FFFDF5] p-5 shadow-[0_16px_38px_-30px_rgba(7,17,31,0.18)] dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-            <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/50">{t.subtitle}</p>
-            <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-primary">
+            <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
+            <p className="mt-1 text-xs font-semibold text-[#35405A] dark:text-white/50">{t.subtitle}</p>
+            <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
               {t.operationalOverview}
             </p>
-            <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+            <p className="mt-2 max-w-3xl text-xs leading-6 text-[#35405A] dark:text-white/50">{t.operationalOverviewHint}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={settings.botTokenSet ? 'green' : 'red'} value={settings.botTokenSet ? t.tokenReady : t.tokenMissing} />
@@ -226,18 +226,18 @@ export function TelegramNotificationSettingsPage({
           </div>
         </div>
 
-        <GlassCard className="p-5">
+        <GlassCard className="border-[#07111F] bg-[#FFFDF5] p-5 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-2xl">
               <div className="flex items-center gap-2">
-                <BellRing className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.notificationPath}</p>
+                <BellRing className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+                <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.notificationPath}</p>
               </div>
               <NotificationPath
                 labels={[t.pathBot, t.pathAdminChat, t.pathBinding, t.pathDelivery]}
               />
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-xs font-black text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70">
+            <div className="rounded-xl border border-[#07111F]/25 bg-[#DCE1FF] px-4 py-3 text-xs font-black text-[#07111F] shadow-sm dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
               {t.policyEnabled} {formatNumber(enabledPolicyCount, language)} / {formatNumber(policies.length, language)}
             </div>
           </div>
@@ -251,13 +251,13 @@ export function TelegramNotificationSettingsPage({
           <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.58fr)]">
             <section
               aria-label={t.deliveryEvidence}
-              className="rounded-xl border border-slate-200 bg-slate-50/82 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+              className="rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-white/40">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#35405A] dark:text-white/40">
                   {t.deliveryEvidence}
                 </p>
-                <p className="text-xs font-black text-slate-700 dark:text-white/65">
+                <p className="text-xs font-black text-[#07111F] dark:text-white/65">
                   {t.failedDeliveries} {formatNumber(failedDeliveryCount, language)} / {formatNumber(deliveries.length, language)}
                 </p>
               </div>
@@ -268,17 +268,17 @@ export function TelegramNotificationSettingsPage({
                   ))}
                 </div>
               ) : (
-                <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-white/45">{t.noDeliveries}</p>
+                <p className="mt-3 text-sm font-semibold text-[#35405A] dark:text-white/45">{t.noDeliveries}</p>
               )}
             </section>
-            <div className="rounded-xl border border-slate-200 bg-white/62 p-4 dark:border-white/10 dark:bg-black/10">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-white/40">
+            <div className="rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#35405A] dark:text-white/40">
                 {t.latestDelivery}
               </p>
-              <p className="mt-2 text-sm font-black text-slate-900 dark:text-white">
+              <p className="mt-2 text-sm font-black text-[#07111F] dark:text-white">
                 {latestDelivery ? latestDelivery.notificationType : t.noDeliveries}
               </p>
-              <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">
+              <p className="mt-2 text-xs leading-6 text-[#35405A] dark:text-white/50">
                 {latestDelivery?.renderedPreviewRedacted ?? t.noPreview}
               </p>
             </div>
@@ -286,41 +286,41 @@ export function TelegramNotificationSettingsPage({
         </GlassCard>
       </section>
 
-      <GlassCard className="stagger-2 p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:hover:shadow-black/20">
+      <GlassCard className="stagger-2 border-[#07111F] bg-[#FFFDF5] p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:hover:shadow-black/20">
         <div className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-600 dark:bg-primary/15 dark:text-primary">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]">
             <Bot className="h-4 w-4" />
           </span>
-          <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.panelTitle}</h4>
+          <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.panelTitle}</h4>
         </div>
 
         <form className="mt-5 space-y-4" onSubmit={submitSettings}>
-          <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 transition duration-150 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:border-white/10 dark:bg-white/[0.04] dark:focus-within:border-primary/60 dark:focus-within:ring-primary/10">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
               {t.botToken}
             </span>
             <input
               aria-label={t.botToken}
               autoComplete="off"
-              className="mt-1 min-h-9 w-full bg-transparent font-mono text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/30"
+              className="mt-1 min-h-9 w-full bg-transparent font-mono text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/72 dark:text-white dark:placeholder:text-white/30"
               disabled={saveDisabled}
               onChange={(event) => setDraft((current) => ({ ...current, botToken: event.target.value }))}
               type="password"
               value={draft.botToken}
             />
-            <span className="mt-1 block text-[11px] font-semibold leading-5 text-slate-500 dark:text-white/45">
+            <span className="mt-1 block text-[11px] font-semibold leading-5 text-[#35405A] dark:text-white/45">
               {t.botTokenHint}
             </span>
           </label>
 
-          <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 transition duration-150 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:border-white/10 dark:bg-white/[0.04] dark:focus-within:border-primary/60 dark:focus-within:ring-primary/10">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 transition duration-150 focus-within:border-[#1E3AFF] focus-within:ring-2 focus-within:ring-[#DCE1FF] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:focus-within:border-[#6B7CFF]/60 dark:focus-within:ring-[#6B7CFF]/10">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
               {t.chatId}
             </span>
             <input
               aria-label={t.chatId}
               autoComplete="off"
-              className="mt-1 min-h-9 w-full bg-transparent font-mono text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/30"
+              className="mt-1 min-h-9 w-full bg-transparent font-mono text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/72 dark:text-white dark:placeholder:text-white/30"
               disabled={saveDisabled}
               onChange={(event) => setDraft((current) => ({ ...current, chatId: event.target.value }))}
               value={draft.chatId}
@@ -338,7 +338,7 @@ export function TelegramNotificationSettingsPage({
             </GlowButton>
             {status === 'saved' ? (
               <p
-                className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200"
+                className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#00A878] bg-[#FFFDF5] px-3 text-xs font-bold text-[#007D5E] dark:border-[#35E68E]/20 dark:bg-[#101827] dark:text-[#9EF4C4]"
                 role="status"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -347,7 +347,7 @@ export function TelegramNotificationSettingsPage({
             ) : null}
             {status === 'failed' ? (
               <p
-                className="inline-flex min-h-9 items-center rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200"
+                className="inline-flex min-h-9 items-center rounded-lg border border-[#FF3D18] bg-[#FFD8C6] px-3 text-xs font-bold text-[#B93C17] dark:border-[#FF6A3A]/20 dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]"
                 role="alert"
               >
                 {t.failed}
@@ -370,16 +370,16 @@ function maskIdentifier(value: string) {
 
 function NotificationPath({ labels }: { labels: string[] }) {
   return (
-    <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+    <ol className="mt-3 grid grid-cols-1 gap-2 rounded-xl border border-[#1E3AFF] bg-[#DCE1FF]/55 p-3 sm:grid-cols-4 dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12">
       {labels.map((label, index) => (
         <li className="flex min-w-0 items-center gap-2" key={label}>
           <span
             aria-hidden="true"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#1E3AFF] bg-[#DCE1FF] text-[11px] font-black text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/14 dark:text-[#DDE3FF]"
           >
             {index + 1}
           </span>
-          <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{label}</span>
+          <span className="truncate text-xs font-black text-[#07111F] dark:text-white/80">{label}</span>
         </li>
       ))}
     </ol>
@@ -398,13 +398,13 @@ function OverviewMetric({
   value: string;
 }) {
   return (
-    <article aria-label={label} className="rounded-xl border border-slate-200 bg-white/55 p-4 dark:border-white/10 dark:bg-black/10">
+    <article aria-label={label} className="rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-4 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-        <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</p>
+        <Icon className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
       </div>
-      <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
-      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-500 dark:text-white/50">{detail}</p>
+      <p className="mt-2 text-xl font-black text-[#07111F] dark:text-white">{value}</p>
+      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-[#35405A] dark:text-white/50">{detail}</p>
     </article>
   );
 }
@@ -419,27 +419,27 @@ function DeliveryRow({
   const risky = delivery.status === 'failed' || delivery.status === 'dead_letter';
 
   return (
-    <div className="grid gap-3 rounded-xl border border-slate-200 bg-white/74 p-3 dark:border-white/10 dark:bg-white/[0.04] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+    <div className="grid gap-3 rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {risky ? <AlertTriangle className="h-3.5 w-3.5 text-orange-500" /> : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
-          <p className="truncate text-xs font-black text-slate-800 dark:text-white/80">{delivery.notificationType}</p>
+          {risky ? <AlertTriangle className="h-3.5 w-3.5 text-[#FF3D18]" /> : <CheckCircle2 className="h-3.5 w-3.5 text-[#00A878]" />}
+          <p className="truncate text-xs font-black text-[#07111F] dark:text-white/80">{delivery.notificationType}</p>
           <StatusPill tone={risky ? 'red' : 'green'} value={delivery.status} />
         </div>
-        <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">
+        <p className="mt-1 truncate text-[11px] font-semibold text-[#35405A] dark:text-white/45">
           {delivery.renderedPreviewRedacted ?? delivery.templateId}
         </p>
       </div>
-      <p className="font-mono text-[11px] font-bold text-slate-500 dark:text-white/45">{formatDateTime(delivery.updatedAt, language)}</p>
+      <p className="font-mono text-[11px] font-bold text-[#35405A] dark:text-white/45">{formatDateTime(delivery.updatedAt, language)}</p>
     </div>
   );
 }
 
 function StatusPill({ tone, value }: { tone: 'green' | 'red' | 'slate'; value: string }) {
   const toneClass = {
-    green: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200',
-    red: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-200',
-    slate: 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70'
+    green: 'border border-[#00A878] bg-[#FFFDF5] text-[#007D5E] dark:border-[#35E68E]/20 dark:bg-[#101827] dark:text-[#9EF4C4]',
+    red: 'border border-[#FF3D18] bg-[#FFD8C6] text-[#B93C17] dark:border-[#FF6A3A]/20 dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]',
+    slate: 'border border-[#07111F]/20 bg-[#FFFDF5] text-[#35405A] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/70'
   }[tone];
 
   return <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase ${toneClass}`}>{value}</span>;

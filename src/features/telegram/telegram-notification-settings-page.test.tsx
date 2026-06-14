@@ -129,6 +129,37 @@ describe('TelegramNotificationSettingsPage', () => {
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
+
+  it('uses the fauvist control-plane palette across the Telegram notification workspace', () => {
+    render(
+      <TelegramNotificationSettingsPage
+        bindings={[createBinding()]}
+        deliveries={[createDelivery()]}
+        language="zh"
+        policies={[createPolicy()]}
+        settings={{
+          ...createDefaultTelegramBotSettings('2026-06-06T10:00:00.000Z'),
+          enabled: true,
+          botTokenSet: true,
+          adminChatIds: ['999000111']
+        }}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    const notificationPath = within(overview).getByRole('list');
+    const deliveryEvidence = screen.getByRole('region', { name: '投递证据' });
+    const botPanel = screen.getByRole('button', { name: '保存' }).closest('form')?.parentElement;
+    const botTokenField = screen.getByLabelText('Bot Token').closest('label');
+    const chatIdField = screen.getByLabelText('Chat ID').closest('label');
+
+    expect(overview).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(notificationPath).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]/55');
+    expect(deliveryEvidence).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+    expect(botPanel).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(botTokenField).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+    expect(chatIdField).toHaveClass('border-[#07111F]/25', 'bg-[#FFFDF5]');
+  });
 });
 
 function createPolicy(overrides: Partial<TelegramNotificationPolicy> = {}): TelegramNotificationPolicy {
