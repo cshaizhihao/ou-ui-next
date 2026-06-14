@@ -114,6 +114,44 @@ describe('RoutingPage', () => {
     expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
   });
 
+  it('keeps the routing policy cockpit compact without masonry or oversized cards', () => {
+    render(<RoutingPage language="en" policies={policies} onRunTask={vi.fn()} />);
+
+    const cockpit = screen.getByRole('region', { name: 'Routing policy cockpit' });
+    const cockpitGrid = cockpit.querySelector('.routing-policy-cockpit-grid');
+    const rail = within(cockpit).getByRole('complementary', { name: 'Routing control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Routing policy workspace' });
+    const workspaceStack = workspace.querySelector('.routing-policy-workspace-stack');
+    const matrix = within(workspace).getByRole('group', { name: 'Policy List' });
+    const filterPanel = matrix.querySelector('.routing-policy-filter-panel');
+    const policyRow = within(matrix).getByRole('article', { name: 'HK streaming proxy' });
+    const railMetric = within(rail).getByRole('group', { name: 'Policy Count' });
+    const overviewCard = document.querySelector('.routing-summary-card');
+    const emptyStateHtml = cockpit.outerHTML;
+
+    expect(cockpitGrid).toBeInTheDocument();
+    expect(cockpitGrid as HTMLElement).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(rail).not.toHaveClass('p-4');
+    expect(workspaceStack).toBeInTheDocument();
+    expect(workspaceStack as HTMLElement).toHaveClass('space-y-3', 'p-3');
+    expect(matrix).toHaveClass('routing-policy-matrix-panel', 'p-3');
+    expect(matrix).not.toHaveClass('p-5', 'rounded-xl');
+    expect(filterPanel).toBeInTheDocument();
+    expect(filterPanel as HTMLElement).toHaveClass('p-3');
+    expect(filterPanel as HTMLElement).not.toHaveClass('p-4', 'rounded-xl');
+    expect(policyRow).toHaveClass('routing-policy-row', 'min-h-[76px]', 'p-3');
+    expect(policyRow).not.toHaveClass('rounded-xl');
+    expect(railMetric).toHaveClass('routing-rail-metric', 'min-h-[76px]', 'px-3', 'py-2.5');
+    expect(railMetric).not.toHaveClass('rounded-xl');
+    expect(overviewCard).toHaveClass('routing-summary-card', 'min-h-[76px]', 'p-3');
+    expect(overviewCard).not.toHaveClass('rounded-xl', 'p-4');
+    expect(emptyStateHtml).not.toContain('masonry');
+    expect(emptyStateHtml).not.toContain('columns-');
+    expect(emptyStateHtml).not.toContain('grid-flow-row-dense');
+    expect(emptyStateHtml).not.toContain('row-span');
+  });
+
   it('filters route policies by query action and risk before compiling the visible policy scope', async () => {
     const user = userEvent.setup();
     const onRunTask = vi.fn();

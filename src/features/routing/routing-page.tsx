@@ -454,45 +454,45 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
   }
 
   return (
-    <ResponsivePage className="space-y-5 md:space-y-6">
+    <ResponsivePage className="space-y-3 md:space-y-4">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:border-slate-200 max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-slate-950/88"
+        className="stagger-1 overflow-hidden border border-[#07111F]/25 bg-[#FFFDF5]/92 p-3 shadow-[0_14px_38px_-32px_rgba(7,17,31,0.26)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.03] dark:shadow-black/20"
       >
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 max-w-3xl">
-            <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,0.34fr)] xl:items-start">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-primary">
               {t.operationalOverview}
             </p>
-            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-            <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
+            <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500 dark:text-white/50">{t.subtitle}</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-600 dark:text-white/70">
               {t.workflowSteps.map((step, index) => (
                 <span
-                  className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
+                  className="shrink-0 rounded-full border border-[#07111F]/18 bg-white/80 px-2.5 py-1 shadow-sm dark:border-white/10 dark:bg-white/[0.04]"
                   key={step}
                 >
                   {index + 1}. {step}
                 </span>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewTotalPolicies} {formatNumber(policies.length, language)}
               </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewVisiblePolicies} {formatNumber(filteredPolicies.length, language)}
               </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewRiskyPolicies} {formatNumber(highRiskCount, language)}
               </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+              <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/45 px-2.5 py-1 dark:border-white/10 dark:bg-white/[0.03]">
                 {t.overviewSelectedPolicies} {formatNumber(selectedPolicies.length, language)}
               </span>
             </div>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-2 gap-2 xl:grid-cols-1 2xl:grid-cols-2">
             <RoutingSummaryCard icon={Network} label={t.overviewTotalPolicies} value={formatNumber(policies.length, language)} />
             <RoutingSummaryCard icon={Search} label={t.overviewVisiblePolicies} value={formatNumber(filteredPolicies.length, language)} />
             <RoutingSummaryCard icon={ShieldAlert} label={t.overviewRiskyPolicies} value={formatNumber(highRiskCount, language)} />
@@ -502,20 +502,20 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
       </section>
 
       <WorkspaceCockpit aria-label={t.routingPolicyCockpit} className="routing-policy-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="routing-policy-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={t.routingControlRail}
-            className="routing-policy-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="routing-policy-rail border-b border-[#07111F]/18 bg-[#EAF3D1]/45 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-4 flex items-center gap-2">
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/82 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-3 flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.compileScope}</h4>
                 </div>
-                <p className="text-xs leading-6 text-slate-500 dark:text-white/50">{t.submitDescription}</p>
-                <div className="mt-5 space-y-2">
+                <p className="text-xs leading-5 text-slate-500 dark:text-white/50">{t.submitDescription}</p>
+                <div className="mt-3 space-y-2">
                   <Metric icon={Network} label={t.policyCount} value={formatNumber(policies.length)} />
                   <Metric icon={Network} label={t.visibleHits} value={formatNumber(visibleHits, language)} />
                   <Metric
@@ -526,14 +526,14 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                   />
                 </div>
                 <button
-                  className="mt-5 w-full rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 transition hover:bg-orange-100 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
+                  className="mt-3 w-full border border-[#FF3D18]/35 bg-[#FFD8C6]/70 px-3 py-2 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6] dark:border-[#FFB299]/20 dark:bg-[#FF3D18]/10 dark:text-[#FFB299]"
                   onClick={() => setRiskFilter('high')}
                   type="button"
                 >
                   {t.highRiskFilter} · {formatNumber(highRiskCount, language)}
                 </button>
                 <GlowButton
-                  className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-3 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={taskMutationBusy || filteredPolicies.length === 0}
                   onClick={compileVisiblePolicies}
                 >
@@ -543,12 +543,12 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
 
               <RoutingCompileGatePanel gates={compileGates} t={t} />
 
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/82 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-2">
                   <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.matrixTitle}</p>
                 </div>
-                <div className="mt-4 grid gap-2">
+                <div className="mt-3 grid gap-2">
                   <Metric icon={Search} label={t.matchingPolicies} value={`${formatNumber(filteredPolicies.length, language)} / ${formatNumber(policies.length, language)}`} />
                   <Metric icon={ShieldCheck} label={t.selectedPolicies} value={formatNumber(selectedPolicies.length, language)} />
                 </div>
@@ -558,14 +558,14 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
           </aside>
 
           <WorkspaceCockpitScroller aria-label={t.routingPolicyWorkspace} className="routing-policy-workspace min-h-0">
-            <div className="space-y-4 p-4">
-              <GlassCard aria-label={t.matrixTitle} className="routing-policy-matrix-panel p-5" role="group">
-                <div className="mb-4 flex items-center gap-2">
+            <div className="routing-policy-workspace-stack space-y-3 p-3">
+              <GlassCard aria-label={t.matrixTitle} className="routing-policy-matrix-panel p-3" role="group">
+                <div className="mb-3 flex items-center gap-2">
                   <GitBranch className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.matrixTitle}</h4>
                 </div>
 
-                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="routing-policy-filter-panel mb-3 border border-[#07111F]/18 bg-[#EAF3D1]/35 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                   <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,0.32fr)_minmax(10rem,0.32fr)]">
                     <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
@@ -668,14 +668,14 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
 
                 <div aria-label="Filtered Route Policies" className="space-y-3">
                   {filteredPolicies.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
+                    <div className="border border-dashed border-[#07111F]/30 p-3 text-sm font-semibold text-slate-500 dark:border-white/10 dark:text-white/45">
                       {t.noMatchingPolicies}
                     </div>
                   ) : (
                     filteredPolicies.map((policy) => (
                       <article
                         aria-label={policy.name}
-                        className="routing-policy-row rounded-xl border border-slate-200 p-3 dark:border-white/10"
+                        className="routing-policy-row min-h-[76px] border border-[#07111F]/18 p-3 transition-colors hover:bg-[#EAF3D1]/35 dark:border-white/10 dark:hover:bg-white/[0.03]"
                         key={policy.id}
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -738,11 +738,11 @@ function RoutingSummaryCard({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+    <div className="routing-summary-card min-h-[76px] border border-[#07111F]/18 bg-white/55 p-3 dark:border-white/10 dark:bg-black/10">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p>
         </div>
         <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
       </div>
@@ -771,7 +771,11 @@ function Metric({
       : 'text-slate-500 dark:text-white/40';
 
   return (
-    <div aria-label={label} className={`flex items-center justify-between rounded-xl border p-3 ${toneClassName}`} role="group">
+    <div
+      aria-label={label}
+      className={`routing-rail-metric flex min-h-[76px] items-center justify-between border px-3 py-2.5 ${toneClassName}`}
+      role="group"
+    >
       <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${labelClassName}`}>
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -845,9 +849,9 @@ function RoutingCompileImpactPreflight({
   return (
     <section
       aria-label={t.compileImpactPreflight}
-      className="mb-4 rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-300/20 dark:bg-orange-400/[0.055]"
+      className="mb-3 border border-[#FF3D18]/35 bg-[#FFD8C6]/55 p-3 dark:border-[#FFB299]/20 dark:bg-orange-400/[0.055]"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.compileImpactPreflight}
@@ -899,7 +903,7 @@ function RoutingCompileImpactPreflight({
           />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
         <RoutingCompileImpactPreview
           title={t.compileImpactTargetPreview}
           values={summary.targetGroupLabels.slice(0, 5)}
@@ -922,7 +926,7 @@ function RoutingCompileImpactPreflight({
 
 function RoutingCompileImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/15 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -942,7 +946,7 @@ function RoutingCompileImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
       <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
