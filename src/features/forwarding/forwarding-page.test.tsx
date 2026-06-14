@@ -306,6 +306,87 @@ describe('ForwardingPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
+  it('keeps the forwarding cockpit compact without waterfall card layout patterns', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({
+            id: 'forward-b',
+            name: 'LAX Backup Forward',
+            enabled: false,
+            bindingCount: 2,
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-hkg-01.service']
+              },
+              {
+                agentId: 'agent-lax-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-b-agent-lax-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const shellGrid = cockpit.querySelector('.forwarding-cockpit-grid');
+    const rail = within(cockpit).getByRole('complementary', { name: 'Forwarding control rail' });
+    const overviewPanel = within(rail).getByRole('region', { name: 'Operational Overview' });
+    const metricGrid = overviewPanel.querySelector('.forwarding-overview-metric-grid');
+    const metricCards = overviewPanel.querySelectorAll('.forwarding-overview-metric');
+    const readinessPanel = within(cockpit).getByRole('region', { name: 'Runtime Readiness' });
+    const readinessCards = readinessPanel.querySelectorAll('.forwarding-readiness-metric');
+    const evidence = within(cockpit).getByRole('group', { name: 'Runtime evidence for HKG HTTPS Forward' });
+    const runtimePath = within(cockpit).getByRole('group', { name: 'Runtime Path HKG HTTPS Forward' });
+
+    expect(shellGrid).not.toBeNull();
+    expect(shellGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(overviewPanel).toHaveClass('p-3');
+    expect(metricGrid).not.toBeNull();
+    expect(metricGrid).toHaveClass('forwarding-overview-metric-grid', 'grid-cols-2', 'xl:grid-cols-1');
+    expect(metricCards).toHaveLength(4);
+    metricCards.forEach((metric) => {
+      expect(metric).toHaveClass('min-h-[76px]', 'p-3');
+      expect(metric).not.toHaveClass('rounded-2xl', 'p-4');
+    });
+    expect(readinessPanel).toHaveClass('forwarding-readiness-panel', 'mt-3');
+    expect(readinessCards).toHaveLength(3);
+    readinessCards.forEach((metric) => {
+      expect(metric).toHaveClass('min-h-[76px]', 'px-3', 'py-2.5');
+      expect(metric).not.toHaveClass('min-h-24', 'px-4', 'py-3');
+    });
+    expect(evidence).toHaveClass('max-w-[17rem]', 'p-2.5');
+    expect(evidence).not.toHaveClass('max-w-[19rem]', 'rounded-xl', 'p-3');
+    expect(runtimePath).toHaveClass('p-2.5');
+    expect(runtimePath).not.toHaveClass('rounded-xl', 'p-3');
+    expect(cockpit.outerHTML).not.toContain('masonry');
+    expect(cockpit.outerHTML).not.toContain('columns-');
+    expect(cockpit.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(cockpit.outerHTML).not.toContain('row-span');
+    expect(cockpit.outerHTML).not.toContain('col-span');
+  });
+
   it('surfaces runtime readiness on the forwarding control rail', () => {
     render(
       <ForwardingPage

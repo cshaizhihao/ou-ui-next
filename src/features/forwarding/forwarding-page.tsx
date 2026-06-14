@@ -1251,24 +1251,24 @@ export function ForwardingPage({
       </ResponsiveSection>
 
       <WorkspaceCockpit aria-label={t.forwardingCockpit} className="forwarding-ops-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside
-          className="forwarding-control-rail forwarding-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+          className="forwarding-control-rail forwarding-ops-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
           aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
           role="complementary"
         >
           <section
-            className="stagger-2 forwarding-control-band forwarding-ops-overview-panel island-card p-5"
+            className="stagger-2 forwarding-control-band forwarding-ops-overview-panel island-card p-3"
             aria-label={t.operationalOverview}
             role="region"
           >
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="max-w-2xl">
                 <div className="flex items-center gap-2">
                   <Router className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
                 </div>
-                <p className="mt-2 text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
+                <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
               </div>
               <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openCreateDrawer}>
                 <Plus className="h-3.5 w-3.5" />
@@ -1276,12 +1276,12 @@ export function ForwardingPage({
               </GlowButton>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="forwarding-overview-metric-grid mt-3 grid grid-cols-2 gap-2 xl:grid-cols-1">
               {overviewMetrics.map((metric) => (
                 <OverviewMetric key={metric.label} {...metric} />
               ))}
             </div>
-            <div className="mt-3 rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+            <div className="mt-2 border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.billingDirection}</p>
               <p className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{formatBillingDirectionSummary(visibleRules, t)}</p>
             </div>
@@ -1328,7 +1328,7 @@ export function ForwardingPage({
           aria-label={t.forwardingRulesWorkspace}
           className="forwarding-ops-workspace min-h-0"
         >
-          <div className="p-4">
+          <div className="p-3 lg:p-4">
         <section
           className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-hidden"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
@@ -1338,7 +1338,7 @@ export function ForwardingPage({
             <EmptyState label={t.noRules} />
           ) : (
             <>
-            <div className="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+            <div className="border-b border-slate-200 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/[0.02]">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(12rem,0.3fr)]">
                 <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.searchRules}</span>
@@ -1480,7 +1480,7 @@ export function ForwardingPage({
                 <table className="w-full min-w-[1220px] text-left">
                   <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
-                      <th className="px-5 py-3">
+                      <th className="px-4 py-2.5">
                         <input
                           aria-label={t.selectVisibleRules}
                           checked={filteredRules.length > 0 && selectedVisibleCount === filteredRules.length}
@@ -1489,13 +1489,13 @@ export function ForwardingPage({
                           type="checkbox"
                         />
                       </th>
-                      <th className="px-5 py-3">{t.name}</th>
-                      <th className="px-5 py-3">{t.binding}</th>
-                      <th className="px-5 py-3">{t.target}</th>
-                      <th className="px-5 py-3">{t.policy}</th>
-                      <th className="px-5 py-3">{t.quota}</th>
-                      <th className="px-5 py-3">{t.limiter}</th>
-                      <th className="px-5 py-3 text-right">{t.actions}</th>
+                      <th className="px-4 py-2.5">{t.name}</th>
+                      <th className="px-4 py-2.5">{t.binding}</th>
+                      <th className="px-4 py-2.5">{t.target}</th>
+                      <th className="px-4 py-2.5">{t.policy}</th>
+                      <th className="px-4 py-2.5">{t.quota}</th>
+                      <th className="px-4 py-2.5">{t.limiter}</th>
+                      <th className="px-4 py-2.5 text-right">{t.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -1504,7 +1504,7 @@ export function ForwardingPage({
                         key={rule.id}
                         className="forwarding-ops-rule-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
                       >
-                        <td className="px-5 py-4 align-top">
+                        <td className="px-4 py-3 align-top">
                           <input
                             aria-label={t.selectRule(rule.name)}
                             checked={selectedRuleIds.includes(rule.id)}
@@ -1513,7 +1513,7 @@ export function ForwardingPage({
                             type="checkbox"
                           />
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-start gap-3">
                             <span className="mt-1 rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:bg-primary/10 dark:text-primary">
                               <ArrowRightLeft className="h-4 w-4" />
@@ -1549,7 +1549,7 @@ export function ForwardingPage({
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <div className="space-y-2">
                             {rule.bindings.map((binding) => (
                               <ForwardingRuntimePath
@@ -1563,10 +1563,10 @@ export function ForwardingPage({
                             ))}
                           </div>
                         </td>
-                        <td className="px-5 py-4 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700 dark:text-white/70">
                           {rule.targetAddress}:{rule.targetPort}
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <p className="text-xs font-bold text-slate-800 dark:text-white/80">
                             {t.strategyOptions[rule.strategy]}
                           </p>
@@ -1574,7 +1574,7 @@ export function ForwardingPage({
                             {t.tunnelModeOptions[rule.tunnelMode]} / {t.billingOptions[rule.billingDirection]}
                           </p>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <p className="text-xs font-semibold text-slate-700 dark:text-white/70">
                             {formatBytes(rule.usedBytes)} / {formatBytes(rule.quotaBytes)}
                           </p>
@@ -1582,7 +1582,7 @@ export function ForwardingPage({
                             {t.billingOptions[rule.billingDirection]} / {t.monthlyResetDay} {rule.monthlyResetDay}
                           </p>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <p className="text-xs font-bold text-slate-800 dark:text-white/80">
                             {rule.rateLimitMbps} {t.unitMbps}
                           </p>
@@ -1591,7 +1591,7 @@ export function ForwardingPage({
                           </p>
                           <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">{t.runtimeLimitsHint}</p>
                         </td>
-                        <td className="px-5 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
                             <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
                               <Pencil className="h-3.5 w-3.5" />
@@ -1821,9 +1821,9 @@ function ForwardingBulkImpactPreflight({
   return (
     <section
       aria-label={t.forwardingBulkImpactPreflight}
-      className="mt-3 rounded-xl border border-[#1E3AFF] bg-[#D9FF00]/[0.18] p-4 shadow-[0_16px_36px_-32px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/35 dark:bg-[#D9FF00]/[0.08]"
+      className="mt-3 border border-[#1E3AFF] bg-[#D9FF00]/[0.18] p-3 shadow-[0_16px_36px_-32px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/35 dark:bg-[#D9FF00]/[0.08]"
     >
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-primary">
             {t.forwardingBulkImpactPreflight}
@@ -1831,7 +1831,7 @@ function ForwardingBulkImpactPreflight({
           <p className="mt-1 max-w-3xl text-xs leading-5 text-[#35405A] dark:text-white/60">
             {t.forwardingBulkImpactHint}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             {summary.entryHostLabels.slice(0, 4).map((label) => (
               <span
                 className="rounded-full border border-[#1E3AFF] bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/30 dark:bg-white/[0.04] dark:text-white/75"
@@ -1847,7 +1847,7 @@ function ForwardingBulkImpactPreflight({
             ) : null}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[34rem]">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[30rem]">
           <ForwardingBulkImpactMetric
             label={t.forwardingBulkImpactCustomers}
             value={formatNumber(summary.customerLabels.length, language)}
@@ -1872,7 +1872,7 @@ function ForwardingBulkImpactPreflight({
           />
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
         <ForwardingBulkImpactPreview
           title={t.forwardingBulkImpactCustomerPreview}
           values={summary.customerLabels.slice(0, 5)}
@@ -1901,12 +1901,12 @@ function ForwardingRuntimeReadinessPanel({
   return (
     <section
       aria-label={t.runtimeReadiness}
-      className="stagger-2 mt-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      className="stagger-2 forwarding-readiness-panel mt-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.runtimeReadiness}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.runtimeReadinessHint}</p>
+        <p className="mt-1 text-[11px] leading-4 text-white/82">{t.runtimeReadinessHint}</p>
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {metrics.map((metric) => (
@@ -1927,7 +1927,7 @@ function ForwardingRuntimeReadinessMetricCard({ metric }: { metric: ForwardingRu
   return (
     <article
       aria-label={metric.label}
-      className="group relative min-h-24 overflow-hidden px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="forwarding-readiness-metric group relative min-h-[76px] overflow-hidden px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -1935,11 +1935,11 @@ function ForwardingRuntimeReadinessMetricCard({ metric }: { metric: ForwardingRu
           <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">
             {metric.label}
           </p>
-          <p className="mt-1 max-w-[14rem] text-[11px] leading-5 text-[#35405A] dark:text-white/55">
+          <p className="mt-1 max-w-[13rem] text-[11px] leading-4 text-[#35405A] dark:text-white/55">
             {metric.detail}
           </p>
         </div>
-        <span className={`min-w-14 border border-current px-2.5 py-1 text-center text-lg font-black ${stateClass[metric.state]}`}>
+        <span className={`min-w-12 border border-current px-2 py-0.5 text-center text-base font-black ${stateClass[metric.state]}`}>
           {metric.value}
         </span>
       </div>
@@ -1953,7 +1953,7 @@ function ForwardingRuntimeReadinessMetricCard({ metric }: { metric: ForwardingRu
 
 function ForwardingBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#07111F]/25 bg-[#FFFDF5]/90 px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
+    <div className="min-w-0 border border-[#07111F]/25 bg-[#FFFDF5]/90 px-2.5 py-2 dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/45">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-white">{value}</p>
       <span className="sr-only">
@@ -1973,7 +1973,7 @@ function ForwardingBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#07111F]/25 bg-[#FFFDF5]/80 p-3 dark:border-[#6B7CFF]/25 dark:bg-white/[0.025]">
+    <div className="min-w-0 border border-[#07111F]/25 bg-[#FFFDF5]/80 p-2.5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">{title}</p>
       <div className={warning ? 'mt-2 space-y-1 text-[#FF3D18] dark:text-[#EAFF5A]' : 'mt-2 space-y-1 text-[#07111F] dark:text-white/70'}>
         {values.map((value) => (
@@ -2013,7 +2013,7 @@ function ForwardingRuntimeEvidenceCard({
   return (
     <div
       aria-label={t.runtimeEvidenceForRule(rule.name)}
-      className="forwarding-runtime-evidence-card mt-3 max-w-[19rem] rounded-xl border border-[#1E3AFF] bg-[#DCE1FF]/70 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/[0.08]"
+      className="forwarding-runtime-evidence-card mt-2 max-w-[17rem] border border-[#1E3AFF] bg-[#DCE1FF]/70 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/[0.08]"
       role="group"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -2038,7 +2038,7 @@ function ForwardingRuntimeEvidenceCard({
           {guardrailText}
         </span>
       </div>
-      <div className="mt-2 space-y-1">
+      <div className="mt-1.5 space-y-1">
         {(runtimeServices.length > 0 ? runtimeServices : [t.runtimeEvidenceNoService]).slice(0, 3).map((service) => (
           <p
             className="break-all font-mono text-[10px] font-semibold leading-4 text-[#35405A] dark:text-white/55"
@@ -2229,7 +2229,7 @@ function ForwardingRuntimePath({
   return (
     <div
       aria-label={`${t.runtimePath} ${ruleName}`}
-      className="forwarding-runtime-path-card rounded-xl border border-[#07111F]/25 bg-[#FFFDF5]/80 p-3 shadow-sm shadow-slate-950/5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04] dark:shadow-none"
+      className="forwarding-runtime-path-card border border-[#07111F]/25 bg-[#FFFDF5]/80 p-2.5 shadow-sm shadow-slate-950/5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04] dark:shadow-none"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -2242,12 +2242,12 @@ function ForwardingRuntimePath({
         <StatusPill label={statusLabel} status={binding.status} />
       </div>
 
-      <div className="mt-3 grid gap-2 text-[11px] md:grid-cols-[minmax(7rem,0.8fr)_minmax(9rem,1fr)]">
+      <div className="mt-2 grid gap-2 text-[11px] md:grid-cols-[minmax(7rem,0.8fr)_minmax(9rem,1fr)]">
         <RuntimePathField label={t.runtimePathEntry} value={entryEndpoint} />
         <RuntimePathField label={t.runtimePathTarget} value={targetEndpoint} />
       </div>
 
-      <div className="mt-3 min-w-0 rounded-lg border border-[#07111F]/20 bg-[#DCE1FF]/45 px-2.5 py-2 dark:border-[#6B7CFF]/25 dark:bg-black/20">
+      <div className="mt-2 min-w-0 border border-[#07111F]/20 bg-[#DCE1FF]/45 px-2.5 py-2 dark:border-[#6B7CFF]/25 dark:bg-black/20">
         <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#35405A] dark:text-white/45">
           {t.runtimePathService}
         </p>
@@ -2261,7 +2261,7 @@ function ForwardingRuntimePath({
 
 function RuntimePathField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#07111F]/20 bg-[#FFFDF5]/90 px-2.5 py-2 dark:border-[#6B7CFF]/25 dark:bg-black/20">
+    <div className="min-w-0 border border-[#07111F]/20 bg-[#FFFDF5]/90 px-2.5 py-2 dark:border-[#6B7CFF]/25 dark:bg-black/20">
       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#35405A] dark:text-white/45">{label}</p>
       <p className="mt-1 truncate font-mono text-[11px] font-semibold text-[#07111F] dark:text-white/70">{value}</p>
     </div>
@@ -2278,10 +2278,10 @@ function OverviewMetric({ label, value, detail, tone }: ForwardingOverviewMetric
       ? 'text-[#C9220C] dark:text-[#FFB197]'
       : 'text-slate-500 dark:text-white/45';
   return (
-    <article aria-label={label} role="group" className={`ou-surface-muted rounded-2xl p-4 ${metricClass}`}>
+    <article aria-label={label} role="group" className={`forwarding-overview-metric ou-surface-muted min-h-[76px] p-3 ${metricClass}`}>
       <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelClass}`}>{label}</p>
-      <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-white/60">{detail}</p>
+      <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-1.5 text-xs leading-5 text-slate-600 dark:text-white/60">{detail}</p>
     </article>
   );
 }
