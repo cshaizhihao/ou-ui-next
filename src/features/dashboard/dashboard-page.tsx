@@ -167,6 +167,10 @@ const copy = {
     releaseEvidence: 'Release Evidence',
     releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
       `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
+    latestConfigRevision: '最新配置版本',
+    latestPreflightPlan: '最新预检计划',
+    latestSnapshot: '最新快照',
+    noReleaseEvidence: '暂无发布证据',
     auditAlertEvidence: 'Audit & Alerts',
     auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
       `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
@@ -359,6 +363,10 @@ const copy = {
     releaseEvidence: 'Release Evidence',
     releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
       `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
+    latestConfigRevision: 'Latest Config Revision',
+    latestPreflightPlan: 'Latest Preflight Plan',
+    latestSnapshot: 'Latest Snapshot',
+    noReleaseEvidence: 'No release evidence available',
     auditAlertEvidence: 'Audit & Alerts',
     auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
       `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
@@ -471,6 +479,9 @@ export function DashboardPage({
   const topologyActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
   const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
   const latestTask = tasks[0];
+  const latestConfigRevision = getLatestReleaseRecord(configRevisions, (revision) => revision.createdAt);
+  const latestPreflightPlan = getLatestReleaseRecord(preflightPlans, (plan) => plan.createdAt);
+  const latestRuntimeSnapshot = getLatestReleaseRecord(runtimeSnapshots, (snapshot) => snapshot.capturedAt);
 
   const cockpitCards = [
     {
@@ -638,6 +649,11 @@ export function DashboardPage({
                 <EvidenceChip label="Preflight" value={formatNumber(preflightPlans.length, language)} />
                 <EvidenceChip label="Snapshot" value={formatNumber(runtimeSnapshots.length, language)} />
               </div>
+              <div className="mt-4 grid gap-2">
+                <ReleaseEvidenceRow label={t.latestConfigRevision} record={latestConfigRevision} fallbackLabel={t.noReleaseEvidence} />
+                <ReleaseEvidenceRow label={t.latestPreflightPlan} record={latestPreflightPlan} fallbackLabel={t.noReleaseEvidence} />
+                <ReleaseEvidenceRow label={t.latestSnapshot} record={latestRuntimeSnapshot} fallbackLabel={t.noReleaseEvidence} />
+              </div>
               <p className="mt-4 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
                 {latestTask ? `${t.latestExecution}: ${latestTask.status}` : t.latestExecutionEmpty}
               </p>
@@ -723,6 +739,75 @@ function EmptySignal({ label }: { label: string }) {
   return (
     <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs font-semibold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/45">
       {label}
+    </div>
+  );
+}
+
+function getLatestReleaseRecord<T>(items: readonly T[], getTimestamp: (item: T) => string | undefined) {
+  return items.reduce<T | undefined>((latest, current) => {
+    if (!latest) {
+      return current;
+    }
+
+    const latestTimestamp = getTimestamp(latest);
+    const currentTimestamp = getTimestamp(current);
+
+    if (!latestTimestamp) {
+      return currentTimestamp ? current : latest;
+    }
+
+    if (!currentTimestamp) {
+      return latest;
+    }
+
+    return currentTimestamp > latestTimestamp ? current : latest;
+  }, undefined);
+}
+
+function getReleaseStatusTone(status?: string) {
+  switch (status) {
+    case 'applied':
+    case 'passed':
+    case 'verified':
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-100';
+    case 'preflight_ready':
+    case 'captured':
+      return 'bg-blue-50 text-blue-700 dark:bg-primary/15 dark:text-primary';
+    case 'rolled_back':
+    case 'restored':
+      return 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-100';
+    case 'failed':
+    case 'expired':
+      return 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-100';
+    case 'compiled':
+    case 'pending':
+    default:
+      return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
+  }
+}
+
+function ReleaseEvidenceRow({
+  label,
+  record,
+  fallbackLabel
+}: {
+  label: string;
+  record?: { id: string; status: string };
+  fallbackLabel: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{label}</p>
+          <p className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{record?.id ?? fallbackLabel}</p>
+        </div>
+        {record ? (
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
+            {record.status}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

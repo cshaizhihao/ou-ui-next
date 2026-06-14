@@ -373,4 +373,17 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('region', { name: '审计与告警' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '管理主机' })).toBeInTheDocument();
   });
+
+  it('surfaces the latest release evidence chain directly on the home control plane', () => {
+    renderPage();
+
+    const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
+
+    expect(releaseEvidence).toHaveTextContent('cfg-dashboard-001');
+    expect(releaseEvidence).toHaveTextContent('applied');
+    expect(releaseEvidence).toHaveTextContent('preflight-dashboard-001');
+    expect(releaseEvidence).toHaveTextContent('passed');
+    expect(releaseEvidence).toHaveTextContent('snapshot-dashboard-001');
+    expect(releaseEvidence).toHaveTextContent('captured');
+  });
 });
