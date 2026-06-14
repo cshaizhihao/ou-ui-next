@@ -174,6 +174,50 @@ describe('AuditPage', () => {
     expect(layoutHtml).not.toContain('col-span');
   });
 
+  it('does not render explanatory audit filler copy in the control plane', () => {
+    const { unmount } = render(
+      <AuditPage
+        auditLogs={[deniedAuditLog, succeededAuditLog]}
+        language="en"
+        onVerifyAuditLogs={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 4, name: 'Change Ledger' })).toBeInTheDocument();
+    expect(screen.getByText('Evidence path')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Audit Evidence Gates' })).toBeInTheDocument();
+    expect(screen.queryByText(/Track change creation/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Review log volume/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Keep hash chain/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Inspect request context/i)).not.toBeInTheDocument();
+
+    unmount();
+
+    render(<AuditPage auditLogs={[]} language="en" />);
+
+    expect(screen.getByText('No audit events yet')).toBeInTheDocument();
+    expect(screen.queryByText(/Audit records will appear/i)).not.toBeInTheDocument();
+  });
+
+  it('does not render explanatory audit filler copy in Chinese', () => {
+    render(
+      <AuditPage
+        auditLogs={[deniedAuditLog, succeededAuditLog]}
+        language="zh"
+        onVerifyAuditLogs={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 4, name: '变更账本' })).toBeInTheDocument();
+    expect(screen.getByText('证据路径')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '审计证据门禁' })).toBeInTheDocument();
+    expect(screen.queryByText(/记录变更创建/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/先看日志规模/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/把哈希链/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/集中查看请求上下文/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/创建或推进任务后/)).not.toBeInTheDocument();
+  });
+
   it('surfaces audit evidence gates on the control rail', () => {
     const rollbackAuditLog: AuditLog = {
       ...succeededAuditLog,

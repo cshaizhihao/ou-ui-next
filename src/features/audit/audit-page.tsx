@@ -21,15 +21,12 @@ type AuditPageProps = {
 const copy = {
   zh: {
     title: '审计日志',
-    subtitle: '记录变更创建、状态推进、回滚与失败原因，确保关键变更有据可查。',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先看日志规模、严重级别与拒绝事件，再筛选证据并验证审计链。',
     auditEvidenceCockpit: '审计证据 cockpit',
     auditEvidenceControlRail: '审计证据控制栏',
     auditLedgerWorkspace: '审计账本工作区',
     evidencePath: '证据路径',
     auditEvidenceGates: '审计证据门禁',
-    auditEvidenceGatesHint: '把哈希链、拒绝事件、回滚线索和导出准备度收敛到同一组证据门禁。',
     hashChainGate: '哈希链',
     hashChainGateDetail: (completeCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(completeCount, language)} 完整 / ${formatNumber(totalCount, language)} 总记录`,
@@ -81,7 +78,6 @@ const copy = {
     noMatchingLogs: '没有匹配的审计记录',
     viewEvidence: '查看审计证据',
     evidenceTitle: '审计证据',
-    evidenceDescription: '集中查看请求上下文、拒绝原因、前后状态和链式哈希锚点。',
     evidenceSummary: '证据摘要',
     evidenceContext: '上下文',
     evidenceIntegrity: '链式完整性',
@@ -104,7 +100,6 @@ const copy = {
     currentHash: '当前哈希',
     userAgent: 'User Agent',
     emptyTitle: '暂无审计事件',
-    emptyDescription: '创建或推进任务后，这里会自动生成对应的审计记录。',
     severity: {
       info: '信息',
       warning: '警告',
@@ -148,15 +143,12 @@ const copy = {
   },
   en: {
     title: 'Audit Log',
-    subtitle: 'Track change creation, status progression, rollback events, and failure reasons with a clear audit trail.',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint: 'Review log volume, severity mix, and denied changes before filtering evidence or verifying the chain.',
     auditEvidenceCockpit: 'Audit evidence cockpit',
     auditEvidenceControlRail: 'Audit evidence control rail',
     auditLedgerWorkspace: 'Audit ledger workspace',
     evidencePath: 'Evidence path',
     auditEvidenceGates: 'Audit Evidence Gates',
-    auditEvidenceGatesHint: 'Keep hash chain, denied events, rollback trace, and export readiness in one evidence gate stack.',
     hashChainGate: 'Hash Chain',
     hashChainGateDetail: (completeCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(completeCount, language)} complete / ${formatNumber(totalCount, language)} total`,
@@ -208,7 +200,6 @@ const copy = {
     noMatchingLogs: 'No matching audit records',
     viewEvidence: 'View Audit Evidence',
     evidenceTitle: 'Audit Evidence',
-    evidenceDescription: 'Inspect request context, denial reason, before/after state, and chained hash anchors.',
     evidenceSummary: 'Evidence Summary',
     evidenceContext: 'Context',
     evidenceIntegrity: 'Chain Integrity',
@@ -231,7 +222,6 @@ const copy = {
     currentHash: 'Current Hash',
     userAgent: 'User Agent',
     emptyTitle: 'No audit events yet',
-    emptyDescription: 'Audit records will appear here automatically after changes are created or advanced.',
     severity: {
       info: 'Info',
       warning: 'Warning',
@@ -514,7 +504,6 @@ function AuditEvidenceGatePanel({ gates, t }: { gates: AuditEvidenceGate[]; t: A
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.auditEvidenceGates}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.auditEvidenceGatesHint}</p>
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {gates.map((gate) => (
@@ -617,7 +606,7 @@ function AuditEvidenceDrawer({
 
   return (
     <ConfigDrawer
-      description={log ? `${t.actions[log.action]} · ${log.targetLabel}` : t.evidenceDescription}
+      description={log ? `${t.actions[log.action]} · ${log.targetLabel}` : undefined}
       open={open}
       title={t.evidenceTitle}
       onClose={onClose}
@@ -770,7 +759,6 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
             {t.operationalOverview}
           </p>
           <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-          <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500 dark:text-white/50">{t.subtitle}</p>
           <div className="audit-operational-overview-strip mt-3 grid grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2 text-[11px] font-bold text-slate-600 dark:text-white/65">
             <span className="rounded-full border border-[#1E3AFF] bg-[#DCE1FF] px-3 py-1.5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.03]">
               {t.matchingLogs} {formatNumber(filteredLogs.length)} / {formatNumber(auditLogs.length)}
@@ -799,9 +787,6 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                   <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.evidencePath}</p>
                 </div>
                 <AuditEvidencePath labels={t.workflowSteps} />
-                <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-white/50">
-                  {t.operationalOverviewHint}
-                </p>
               </div>
 
               <AuditEvidenceGatePanel gates={auditEvidenceGates} t={t} />
@@ -1017,7 +1002,6 @@ export function AuditPage({ auditLogs, language = 'zh', onVerifyAuditLogs }: Aud
                   {auditLogs.length === 0 ? (
                     <div className="audit-ledger-empty-state border border-dashed border-[#07111F]/24 bg-[#FFFDF5]/70 p-3 text-center dark:border-white/10 dark:bg-white/[0.025]">
                       <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
                     </div>
                   ) : null}
                   {auditLogs.length > 0 && filteredLogs.length === 0 ? (
