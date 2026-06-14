@@ -833,6 +833,109 @@ describe('NodesPage', () => {
     expect(advancedToggle).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.22]', 'text-[#07111F]');
   });
 
+  it('keeps the host workspace compact in fixed grids instead of oversized card bands', () => {
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            status: 'degraded'
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const overview = screen.getByRole('region', { name: '运营总览' });
+    const controlBand = overview.querySelector('.nodes-control-band');
+    const summaryGrid = overview.querySelector('.nodes-summary-metric-grid');
+    const firstSummaryMetric = overview.querySelector('.nodes-summary-metric');
+    const hostRail = screen.getByRole('complementary', { name: '主机资源' });
+    const selectedDetail = screen.getByRole('region', { name: '当前主机' });
+    const currentMetricGrid = selectedDetail.querySelector('.nodes-current-host-metric-grid');
+    const inventoryGrid = selectedDetail.querySelector('.nodes-current-host-inventory-grid');
+    const hostWorkspaceHtml = `${overview.outerHTML}${hostRail.outerHTML}${selectedDetail.outerHTML}`;
+
+    expect(controlBand).toHaveClass('p-4');
+    expect(controlBand).not.toHaveClass('p-5');
+    expect(summaryGrid).toHaveClass('grid-cols-3');
+    expect(firstSummaryMetric).toHaveClass('min-h-[76px]', 'p-3');
+    expect(hostRail).toHaveClass('p-3', 'xl:max-w-[18rem]');
+    expect(selectedDetail).toHaveClass('p-3');
+    expect(currentMetricGrid).toHaveClass('grid-cols-1', 'md:grid-cols-3');
+    expect(inventoryGrid).toHaveClass('grid-cols-2', 'xl:grid-cols-3');
+    expect(currentMetricGrid?.outerHTML).toContain('nodes-compact-info-field');
+    expect(currentMetricGrid?.outerHTML).toContain('min-h-[58px]');
+    expect(inventoryGrid?.outerHTML).toContain('nodes-compact-info-field');
+    expect(hostWorkspaceHtml).not.toContain('masonry');
+    expect(hostWorkspaceHtml).not.toContain('columns-');
+    expect(hostWorkspaceHtml).not.toContain('grid-flow-row-dense');
+    expect(hostWorkspaceHtml).not.toContain('row-span');
+    expect(hostWorkspaceHtml).not.toContain('col-span-2');
+  });
+
+  it('opens advanced host diagnostics as a compact fixed grid without a card wall', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[
+          createAgent(),
+          {
+            ...createAgent(),
+            id: 'agent-secondary-01',
+            name: 'Secondary Host',
+            publicAddress: '203.0.113.8',
+            status: 'degraded'
+          },
+          {
+            ...createAgent(),
+            id: 'agent-provisioning-03',
+            name: 'Provisioning Host',
+            publicAddress: '203.0.113.9',
+            status: 'provisioning'
+          }
+        ]}
+        inbounds={[createInbound()]}
+        language="zh"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await openHostAdvancedDetails(user);
+
+    const advancedDetails = screen.getByRole('group', { name: '高级详情' });
+    const advancedGrid = advancedDetails.querySelector('.nodes-advanced-host-grid');
+    const firstHostCard = within(advancedDetails).getByRole('heading', { name: 'Metered Host' }).closest('article');
+
+    expect(advancedGrid).not.toBeNull();
+    expect(advancedGrid).toHaveClass('gap-3', 'md:grid-cols-2');
+    expect(advancedGrid).not.toHaveClass('gap-5', '2xl:grid-cols-3', 'xl:grid-cols-2');
+    expect(firstHostCard).toHaveClass('nodes-managed-host-card', 'p-3', 'gap-3');
+    expect(firstHostCard).not.toHaveClass('max-w-[24rem]', 'p-5', 'gap-4');
+    expect(advancedGrid?.outerHTML).not.toContain('masonry');
+    expect(advancedGrid?.outerHTML).not.toContain('columns-');
+    expect(advancedGrid?.outerHTML).not.toContain('grid-flow-row-dense');
+    expect(advancedGrid?.outerHTML).not.toContain('row-span');
+    expect(advancedGrid?.outerHTML).not.toContain('col-span');
+  });
+
   it('collapses the full managed host card stack into advanced details by default', async () => {
     const user = userEvent.setup();
 

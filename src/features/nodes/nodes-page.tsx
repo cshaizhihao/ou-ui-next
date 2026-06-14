@@ -3525,7 +3525,7 @@ export function NodesPage({
           </div>
         </ResponsiveSection>
 
-        <section className="nodes-control-band island-card p-5">
+        <section className="nodes-control-band island-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             {showWorkspaceSwitcher ? (
               <div className="nodes-workspace-switcher flex flex-wrap gap-2">
@@ -3551,7 +3551,7 @@ export function NodesPage({
             ) : null}
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="nodes-summary-metric-grid mt-4 grid grid-cols-3 gap-2 max-md:grid-cols-1">
             <SummaryMetric icon={ServerCog} label={t.hostSummary} value={String(visibleAgents.length)} />
             <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
             <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
@@ -3579,8 +3579,8 @@ export function NodesPage({
               <OperationalEmptyState actionLabel={t.emptyHostAction} hint={t.emptyHostHint} label={t.noAgent} />
             </section>
           ) : (
-            <div className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
-              <aside className="nodes-cockpit-rail island-card border-[#07111F] bg-[#FFFDF5] p-4 xl:sticky xl:top-0 xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
+            <div className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1fr)]">
+              <aside className="nodes-cockpit-rail island-card border-[#07111F] bg-[#FFFDF5] p-3 xl:sticky xl:top-0 xl:max-w-[18rem] xl:self-start" aria-label={language === 'zh' ? '主机资源' : 'Host resources'}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
@@ -3698,7 +3698,7 @@ export function NodesPage({
                 {selectedHostPreview && selectedHostPreviewEdit ? (
                   <section
                     aria-label={language === 'zh' ? '当前主机' : 'Selected host'}
-                    className="nodes-current-host-hero island-card overflow-hidden border-[#1E3AFF] bg-[#DCE1FF]/70 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12"
+                    className="nodes-current-host-hero island-card overflow-hidden border-[#1E3AFF] bg-[#DCE1FF]/70 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -3716,21 +3716,21 @@ export function NodesPage({
                         {t.statusLabels[selectedHostPreview.status]}
                       </span>
                     </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
-                      <InfoField label={t.latency} value={selectedHostPreviewHasTelemetry ? `${Math.round(selectedHostPreview.telemetry.latencyMs)} ms` : '-'} />
-                      <InfoField label={t.memory} value={selectedHostPreviewHasTelemetry ? formatTelemetryPercentValue(selectedHostPreview, selectedHostPreview.telemetry.memoryPercent) : '-'} />
-                      <InfoField label={t.serviceHealthLabel} value={selectedHostPreviewHasTelemetry ? t.statusLabels[selectedHostPreview.status] : t.serviceWaiting} />
+                    <div className="nodes-current-host-metric-grid mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                      <CompactInfoField label={t.latency} value={selectedHostPreviewHasTelemetry ? `${Math.round(selectedHostPreview.telemetry.latencyMs)} ms` : '-'} />
+                      <CompactInfoField label={t.memory} value={selectedHostPreviewHasTelemetry ? formatTelemetryPercentValue(selectedHostPreview, selectedHostPreview.telemetry.memoryPercent) : '-'} />
+                      <CompactInfoField label={t.serviceHealthLabel} value={selectedHostPreviewHasTelemetry ? t.statusLabels[selectedHostPreview.status] : t.serviceWaiting} />
                     </div>
                     <SelectedAgentReadiness agent={selectedHostPreview} t={t} />
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      <InfoField
+                    <div className="nodes-current-host-inventory-grid mt-3 grid grid-cols-2 gap-2 xl:grid-cols-3 max-md:grid-cols-1">
+                      <CompactInfoField
                         label={t.runtimeHostName}
                         value={selectedHostPreviewEdit?.runtimeHostName || selectedHostPreview.runtimeHostName || selectedHostPreview.id}
                       />
-                      <InfoField label={t.versionLabel} value={selectedHostPreview.version} />
-                      <InfoField label={t.platformLabel} value={selectedHostPreview.platform} />
-                      <InfoField label={t.capabilitiesLabel} value={selectedHostPreview.capabilities.join(' · ')} />
-                      <InfoField
+                      <CompactInfoField label={t.versionLabel} value={selectedHostPreview.version} />
+                      <CompactInfoField label={t.platformLabel} value={selectedHostPreview.platform} />
+                      <CompactInfoField label={t.capabilitiesLabel} value={selectedHostPreview.capabilities.join(' · ')} />
+                      <CompactInfoField
                         label={t.sampleStatus}
                         value={
                           selectedHostPreviewHasTelemetry || selectedHostPreview.telemetry.sampleGapDetected
@@ -3738,12 +3738,12 @@ export function NodesPage({
                             : t.waitingTelemetry
                         }
                       />
-                      <InfoField
+                      <CompactInfoField
                         label={t.lastReport}
                         value={formatTelemetryTimestamp(selectedHostPreview, language)}
                       />
                     </div>
-                    <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <button
                         aria-label={language === 'zh' ? '编辑当前主机' : 'Edit selected host'}
                         className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 text-xs font-bold text-[#35405A] transition hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/70 dark:hover:text-[#DDE3FF]"
@@ -3836,7 +3836,7 @@ export function NodesPage({
                         <EmptyState label={t.noMatchingHosts} />
                       </section>
                     ) : (
-                      <div className="grid grid-cols-1 gap-5 border-t border-[#07111F]/12 p-4 dark:border-[#6B7CFF]/18 2xl:grid-cols-3 xl:grid-cols-2">
+                      <div className="nodes-advanced-host-grid grid grid-cols-1 gap-3 border-t border-[#07111F]/12 p-3 dark:border-[#6B7CFF]/18 md:grid-cols-2">
                         {filteredHostAgents.map((agent) => (
                           <ManagedHostCard
                             key={agent.id}
@@ -4843,13 +4843,13 @@ function SummaryMetric({
   icon: typeof ServerCog;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+    <div className="nodes-summary-metric min-h-[76px] rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p>
         </div>
-        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
+        <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
       </div>
     </div>
   );
@@ -4873,7 +4873,7 @@ function ControlPathStrip({
   return (
     <section
       aria-label={label}
-      className="mt-4 rounded-xl border border-slate-200 bg-slate-50/82 p-3 dark:border-white/10 dark:bg-white/[0.03]"
+      className="mt-3 rounded-lg border border-slate-200 bg-slate-50/82 p-3 dark:border-white/10 dark:bg-white/[0.03]"
     >
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40">{label}</p>
       <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
@@ -5298,15 +5298,15 @@ function ManagedHostCard({
 
   return (
     <article
-      className="island-card group flex w-full max-w-[24rem] cursor-pointer flex-col gap-4 p-5 text-[#35405A] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:shadow-[0_18px_44px_-30px_rgba(30,58,255,0.34)] dark:text-white/75 dark:hover:border-[#6B7CFF]/25 dark:hover:shadow-[0_18px_50px_-32px_rgba(30,58,255,0.45)]"
+      className="nodes-managed-host-card island-card group flex w-full cursor-pointer flex-col gap-3 p-3 text-[#35405A] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:shadow-[0_14px_34px_-28px_rgba(30,58,255,0.28)] dark:text-white/75 dark:hover:border-[#6B7CFF]/25 dark:hover:shadow-[0_16px_42px_-32px_rgba(30,58,255,0.4)]"
       onClick={onEdit}
     >
-      <div className="flex items-center justify-between border-b border-slate-200/80 pb-3 dark:border-white/10">
+      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5 dark:border-white/10">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[#1E3AFF] transition-colors group-hover:border-[#1E3AFF] group-hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF] dark:group-hover:border-[#6B7CFF]/35 dark:group-hover:text-[#DCE1FF]">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[#1E3AFF] transition-colors group-hover:border-[#1E3AFF] group-hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF] dark:group-hover:border-[#6B7CFF]/35 dark:group-hover:text-[#DCE1FF]">
             <Globe2 className="h-4 w-4" strokeWidth={1.5} />
           </div>
-          <h3 className="max-w-[140px] truncate text-[15px] font-semibold tracking-normal text-slate-900 dark:text-white">{hostEdit.name}</h3>
+          <h3 className="max-w-[12rem] truncate text-sm font-semibold tracking-normal text-slate-900 dark:text-white">{hostEdit.name}</h3>
           <span className="flex-shrink-0 rounded border border-[#1E3AFF]/35 bg-[#DCE1FF] px-1.5 py-0.5 font-mono text-[10px] text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF]">
             {addressFamily}
           </span>
@@ -5360,7 +5360,7 @@ function ManagedHostCard({
         <span className="font-mono text-slate-700 dark:text-white/70">{hostEdit.runtimeHostName}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 text-[10px] dark:border-white/10 dark:bg-white/[0.03]">
+      <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2 text-[10px] dark:border-white/10 dark:bg-white/[0.03]">
         <div className="min-w-0">
           <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.lastReport}</p>
           <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
@@ -5393,7 +5393,7 @@ function ManagedHostCard({
       </div>
 
       {agent.status === 'provisioning' ? (
-        <div className="rounded-xl border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
+        <div className="rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-2.5 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
             <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.versionLabel}</span>
             <span className="font-mono text-slate-800 dark:text-white/85">{agent.version}</span>
@@ -5417,7 +5417,7 @@ function ManagedHostCard({
 
       {telemetryReported ? (
         <>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <HostMetric
               detail={`${agent.telemetry.cpuCores ?? 1}${t.cpuCores}`}
               icon={Cpu}
@@ -5460,7 +5460,7 @@ function ManagedHostCard({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-x-6 border-y border-slate-200/80 py-4 dark:border-white/10">
+          <div className="grid grid-cols-2 gap-x-4 border-y border-slate-200/80 py-3 dark:border-white/10">
             <TrafficMetric
               icon={Download}
               label={t.download}
@@ -5504,7 +5504,7 @@ function ManagedHostCard({
           </div>
         </>
       ) : (
-        <div className="rounded-xl border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-4 text-xs font-semibold text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]">
+        <div className="rounded-lg border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-3 text-xs font-semibold text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
             {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
@@ -5849,6 +5849,15 @@ function InfoField({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-words font-semibold text-slate-700 dark:text-white/70">{value}</p>
+    </div>
+  );
+}
+
+function CompactInfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="nodes-compact-info-field min-h-[58px] rounded-lg border border-[#07111F]/18 bg-[#FFFDF5]/74 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase leading-4 tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</p>
+      <p className="mt-1 break-words text-xs font-black leading-5 text-[#07111F] dark:text-white/78">{value}</p>
     </div>
   );
 }
