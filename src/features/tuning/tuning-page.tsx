@@ -478,29 +478,29 @@ export function TuningPage({
   }
 
   return (
-    <ResponsivePage className="space-y-5 md:space-y-6">
+    <ResponsivePage className="space-y-3 md:space-y-4">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/86 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:rounded-2xl max-md:bg-white/92 max-md:p-4 max-md:shadow-sm max-md:dark:bg-slate-950/88"
+        className="stagger-1 overflow-hidden border border-[#07111F]/25 bg-[#FFFDF5]/92 p-3 shadow-[0_14px_38px_-30px_rgba(7,17,31,0.28)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:bg-white/92 max-md:shadow-sm max-md:dark:bg-slate-950/88"
       >
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-3xl">
             <p className="font-mono text-[10px] font-black uppercase tracking-[0.22em] text-blue-600 dark:text-primary">
               {t.operationalOverview}
             </p>
-            <h3 className="mt-3 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
+            <h3 className="mt-2 text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
             <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
               <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.tuningPath}</p>
             </div>
             <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
-            <p className="mt-3 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">
+            <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">
               {t.operationalOverviewHint}
             </p>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:w-[34rem] xl:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:w-[30rem] xl:grid-cols-1 2xl:grid-cols-2">
             <TuningSummaryCard
               icon={ShieldCheck}
               label={t.riskProfiles}
@@ -512,7 +512,7 @@ export function TuningPage({
               label={t.latestExecution}
               value={recentTask ? t.statusLabels[recentTask.status] : t.ready}
             />
-            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
+            <div className="tuning-summary-card min-h-[76px] border border-orange-200 bg-orange-50 p-3 text-xs font-black text-orange-700 shadow-sm dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200">
               {t.auditState}: {recentTask ? t.statusLabels[recentTask.status] : t.ready}
             </div>
           </div>
@@ -520,16 +520,16 @@ export function TuningPage({
       </section>
 
       <WorkspaceCockpit aria-label={t.systemTuningCockpit} className="tuning-ops-cockpit stagger-2">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[21rem_minmax(0,1fr)]">
+        <div className="tuning-ops-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
           <aside
             aria-label={t.tuningControlRail}
-            className="tuning-ops-rail border-b border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+            className="tuning-ops-rail border-b border-[#07111F]/20 bg-[#EAF3D1]/45 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
             role="complementary"
           >
-            <div className="flex flex-col gap-4 xl:sticky xl:top-0">
-              <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center border border-blue-200 bg-white text-blue-600 shadow-sm dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
                     <ServerCog className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
@@ -541,7 +541,7 @@ export function TuningPage({
                 </div>
                 <select
                   aria-label={t.targetHost}
-                  className="ou-select mt-4 min-h-10 w-full rounded-lg border border-slate-200 bg-white/90 px-3 text-sm font-bold text-slate-800 outline-none transition focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
+                  className="ou-select mt-3 min-h-10 w-full border border-slate-200 bg-white/90 px-3 text-sm font-bold text-slate-800 outline-none transition focus-visible:ring-2 focus-visible:ring-blue-300 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus-visible:ring-primary/40"
                   disabled={agents.length === 0}
                   onChange={(event) => setSelectedAgentId(event.target.value)}
                   value={targetAgentId}
@@ -553,11 +553,11 @@ export function TuningPage({
                     </option>
                   ))}
                 </select>
-                <div className="mt-4 grid gap-2">
+                <div className="mt-3 grid gap-2">
                   <Metric label={t.hostStatus} value={targetAgent?.status === 'online' ? t.online : t.offline} />
                   {taskMutationBusy ? (
                     <div
-                      className="flex min-h-10 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-xs font-bold text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
+                      className="flex min-h-[76px] items-center gap-2 border border-orange-200 bg-orange-50 px-3 py-2.5 text-xs font-bold text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
                       role="status"
                     >
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -598,9 +598,9 @@ export function TuningPage({
           </aside>
 
           <WorkspaceCockpitScroller aria-label={t.tuningExecutionWorkspace} className="tuning-ops-workspace min-h-0">
-            <div className="space-y-4 p-4">
-              <GlassCard className="tuning-ops-status-panel p-5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="tuning-ops-workspace-stack space-y-3 p-3">
+              <GlassCard className="tuning-ops-status-panel p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -608,28 +608,28 @@ export function TuningPage({
                     </div>
                     <TuningPath labels={[t.pathProfile, t.pathAgent, t.pathAuditTask]} />
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70">
+                  <div className="min-h-[44px] border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-black text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70">
                     {t.auditState}: {recentTask ? t.statusLabels[recentTask.status] : t.ready}
                   </div>
                 </div>
-                <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
                   <Metric label={t.riskProfiles} value={t.highRiskSummary(highRiskProfileCount, profiles.length)} />
                   <Metric label={t.parameters} value={String(parameterCount)} />
                   <Metric label={t.latestExecution} value={recentTask ? t.statusLabels[recentTask.status] : t.ready} />
                 </div>
               </GlassCard>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(20rem,0.7fr)]">
-                <GlassCard aria-label={t.customSysctl} className="tuning-ops-custom-panel stagger-2 p-5" role="region">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(19rem,0.65fr)]">
+                <GlassCard aria-label={t.customSysctl} className="tuning-ops-custom-panel stagger-2 p-3" role="region">
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="h-4 w-4 text-blue-500 dark:text-primary" />
                     <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customSysctl}</h4>
                   </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
                     <TextInput label={t.customSysctlKey} value={customKey} onChange={setCustomKey} />
                     <TextInput label={t.customSysctlValue} value={customValue} onChange={setCustomValue} />
                     <button
-                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40 md:col-span-2"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40 md:col-span-2"
                       disabled={!customKey.trim() || !customValue.trim()}
                       onClick={addCustomParameter}
                       type="button"
@@ -639,11 +639,11 @@ export function TuningPage({
                     </button>
                   </div>
                   {customParameters.length > 0 ? (
-                    <div className="mt-4 grid gap-2">
+                    <div className="mt-3 grid gap-2">
                       {customParameters.map((parameter) => (
                         <article
                           aria-label={parameter.key}
-                          className="tuning-ops-sysctl-row grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                          className="tuning-ops-sysctl-row grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border border-slate-200 p-3 dark:border-white/10"
                           key={parameter.key}
                         >
                           <div className="min-w-0">
@@ -656,7 +656,7 @@ export function TuningPage({
                           </div>
                           <button
                             aria-label={t.removeSysctl(parameter.key)}
-                            className="rounded-lg p-2 text-slate-400 transition hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 dark:hover:bg-orange-400/10 dark:hover:text-orange-200"
+                            className="p-2 text-slate-400 transition hover:bg-orange-50 hover:text-orange-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 dark:hover:bg-orange-400/10 dark:hover:text-orange-200"
                             onClick={() => removeCustomParameter(parameter.key)}
                             type="button"
                           >
@@ -667,7 +667,7 @@ export function TuningPage({
                     </div>
                   ) : null}
                   <GlowButton
-                    className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-3 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={dispatchDisabled || customParameters.length === 0}
                     onClick={() => dispatchProfile(customProfile)}
                   >
@@ -678,12 +678,12 @@ export function TuningPage({
                 <ExecutionStatusCard language={language} task={recentTask} />
               </div>
 
-              <GlassCard className="tuning-ops-status-panel stagger-2 p-5">
+              <GlassCard className="tuning-ops-status-panel stagger-2 p-3">
                 <div className="flex items-center gap-2">
                   <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
                   <h4 className="text-sm font-bold text-slate-800 dark:text-white">{t.executionStatus}</h4>
                 </div>
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
                   <Boundary icon={ShieldCheck} label="BBR" value="install_or_enable_bbr" />
                   <Boundary icon={Network} label="TCP" value="apply_tcp_buffers" />
                   <Boundary icon={SlidersHorizontal} label="sysctl" value="apply_sysctl" />
@@ -699,12 +699,12 @@ export function TuningPage({
 
 function TuningPath({ labels }: { labels: string[] }) {
   return (
-    <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+    <ol className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
       {labels.map((label, index) => (
         <li className="flex min-w-0 items-center gap-2" key={label}>
           <span
             aria-hidden="true"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+            className="grid h-7 w-7 shrink-0 place-items-center border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
           >
             {index + 1}
           </span>
@@ -725,11 +725,11 @@ function TuningSummaryCard({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/50 p-4 dark:border-white/10 dark:bg-black/10">
+    <div className="tuning-summary-card min-h-[76px] border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-2 truncate text-xl font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="mt-2 truncate text-lg font-black text-slate-900 dark:text-white">{value}</p>
         </div>
         <Icon className="h-5 w-5 shrink-0 text-blue-500 dark:text-primary" />
       </div>
@@ -739,7 +739,7 @@ function TuningSummaryCard({
 
 function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
+    <label className="block border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <input
         aria-label={label}
@@ -767,13 +767,13 @@ function TuningToolCard({
   children: ReactNode;
 }) {
   return (
-    <GlassCard aria-label={title} className="tuning-ops-tool-panel stagger-2 p-5" role="group">
+    <GlassCard aria-label={title} className="tuning-ops-tool-panel stagger-2 p-3" role="group">
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
         <h4 className="text-sm font-bold text-slate-900 dark:text-white">{title}</h4>
       </div>
-      <div className="mt-4 space-y-3">{children}</div>
-      <GlowButton className="mt-5 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={disabled} onClick={onApply}>
+      <div className="mt-3 space-y-2">{children}</div>
+      <GlowButton className="mt-3 w-full text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={disabled} onClick={onApply}>
         {buttonLabel}
       </GlowButton>
     </GlassCard>
@@ -784,10 +784,10 @@ function TuningReleaseGatePanel({ gates, t }: { gates: TuningReleaseGate[]; t: T
   return (
     <section
       aria-label={t.systemTuningReleaseGates}
-      className="tuning-release-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      className="tuning-release-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-30px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
       role="region"
     >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-3 py-2.5 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.systemTuningReleaseGates}</p>
         <p className="mt-1 text-[11px] leading-5 text-white/82">{t.systemTuningReleaseGatesHint}</p>
       </div>
@@ -810,7 +810,7 @@ function TuningReleaseGateRow({ gate }: { gate: TuningReleaseGate }) {
   return (
     <article
       aria-label={gate.label}
-      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      className="group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">
@@ -834,7 +834,7 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
   const t = copy[language];
 
   return (
-    <GlassCard aria-label={t.executionStatus} className="tuning-ops-status-panel stagger-2 p-5" role="region">
+    <GlassCard aria-label={t.executionStatus} className="tuning-ops-status-panel stagger-2 p-3" role="region">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-blue-500 dark:text-primary" />
@@ -842,7 +842,7 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
         </div>
         {task ? (
           <span
-            className={`inline-flex min-h-8 items-center gap-2 rounded-lg border px-3 text-xs font-bold ${getStatusTone(task.status)}`}
+            className={`inline-flex min-h-8 items-center gap-2 border px-3 text-xs font-bold ${getStatusTone(task.status)}`}
           >
             <StatusIcon status={task.status} />
             {t.statusLabels[task.status]}
@@ -850,14 +850,14 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
         ) : null}
       </div>
       {task ? (
-        <div className="mt-4 space-y-4">
+        <div className="mt-3 space-y-3">
           <div>
             <p className="text-xs font-bold text-slate-800 dark:text-white/80">{task.targetLabel}</p>
             <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">{task.updatedAt}</p>
           </div>
           {task.failureReason ? (
             <div
-              className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-xs font-bold text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
+              className="border border-orange-200 bg-orange-50 p-3 text-xs font-bold text-orange-700 dark:border-orange-400/20 dark:bg-orange-400/10 dark:text-orange-200"
               role="alert"
             >
               <span className="uppercase tracking-widest">{t.failure}: </span>
@@ -872,7 +872,7 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
               <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                 {task.steps.map((step) => (
                   <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10"
+                    className="flex items-center justify-between gap-3 border border-slate-200 p-3 dark:border-white/10"
                     key={step.id}
                   >
                     <span className="text-xs font-semibold text-slate-700 dark:text-white/70">{step.label}</span>
@@ -886,7 +886,7 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
           ) : null}
         </div>
       ) : (
-        <p className="mt-4 text-sm font-semibold text-slate-500 dark:text-white/45">{t.noExecution}</p>
+        <p className="mt-3 text-sm font-semibold text-slate-500 dark:text-white/45">{t.noExecution}</p>
       )}
     </GlassCard>
   );
@@ -894,7 +894,11 @@ function ExecutionStatusCard({ language, task }: { language: AppLanguage; task: 
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-slate-200 p-3 dark:border-white/10">
+    <div
+      aria-label={label}
+      className="tuning-ops-metric flex min-h-[76px] items-center justify-between border border-slate-200 px-3 py-2.5 dark:border-white/10"
+      role="group"
+    >
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
       <span className="text-sm font-black text-slate-900 dark:text-white">{value}</span>
     </div>
@@ -903,7 +907,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Boundary({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Gauge }) {
   return (
-    <div className="rounded-lg border border-slate-200 p-3 dark:border-white/10">
+    <div className="min-h-[76px] border border-slate-200 p-3 dark:border-white/10">
       <Icon className="mb-2 h-4 w-4 text-blue-500 dark:text-primary" />
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 font-mono text-xs font-bold text-slate-800 dark:text-white/80">{value}</p>

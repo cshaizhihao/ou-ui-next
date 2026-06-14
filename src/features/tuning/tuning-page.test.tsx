@@ -262,6 +262,52 @@ describe('TuningPage', () => {
     expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
   });
 
+  it('keeps the system tuning cockpit compact without masonry or oversized cards', async () => {
+    const user = userEvent.setup();
+
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('Custom sysctl key'), 'net.ipv4.tcp_fin_timeout');
+    await user.type(screen.getByLabelText('Custom sysctl value'), '15');
+    await user.click(screen.getByRole('button', { name: 'Add sysctl' }));
+
+    const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
+    const cockpitGrid = cockpit.querySelector('.tuning-ops-cockpit-grid');
+    const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Tuning execution workspace' });
+    const workspaceStack = workspace.querySelector('.tuning-ops-workspace-stack');
+    const statusPanel = within(workspace).getAllByRole('region', { name: 'Execution Status' })[0];
+    const customPanel = within(workspace).getByRole('region', { name: 'Custom sysctl' });
+    const bbrPanel = within(rail).getByRole('group', { name: 'BBR Configuration' });
+    const customRow = within(customPanel).getByRole('article', { name: 'net.ipv4.tcp_fin_timeout' });
+    const railMetric = within(rail).getByRole('group', { name: 'Host Status' });
+    const summaryCard = document.querySelector('.tuning-summary-card');
+    const layoutHtml = cockpit.outerHTML;
+
+    expect(cockpitGrid).toBeInTheDocument();
+    expect(cockpitGrid as HTMLElement).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
+    expect(rail).toHaveClass('p-3');
+    expect(rail).not.toHaveClass('p-4');
+    expect(workspaceStack).toBeInTheDocument();
+    expect(workspaceStack as HTMLElement).toHaveClass('space-y-3', 'p-3');
+    expect(statusPanel).toHaveClass('tuning-ops-status-panel', 'p-3');
+    expect(statusPanel).not.toHaveClass('p-5', 'rounded-xl');
+    expect(customPanel).toHaveClass('tuning-ops-custom-panel', 'p-3');
+    expect(customPanel).not.toHaveClass('p-5', 'rounded-xl');
+    expect(bbrPanel).toHaveClass('tuning-ops-tool-panel', 'p-3');
+    expect(bbrPanel).not.toHaveClass('p-5', 'rounded-xl');
+    expect(customRow).toHaveClass('tuning-ops-sysctl-row', 'min-h-[76px]', 'p-3');
+    expect(customRow).not.toHaveClass('rounded-xl');
+    expect(railMetric).toHaveClass('tuning-ops-metric', 'min-h-[76px]', 'px-3', 'py-2.5');
+    expect(railMetric).not.toHaveClass('rounded-xl');
+    expect(summaryCard).toHaveClass('tuning-summary-card', 'min-h-[76px]', 'p-3');
+    expect(summaryCard).not.toHaveClass('rounded-xl', 'p-4');
+    expect(layoutHtml).not.toContain('masonry');
+    expect(layoutHtml).not.toContain('columns-');
+    expect(layoutHtml).not.toContain('grid-flow-row-dense');
+    expect(layoutHtml).not.toContain('row-span');
+  });
+
   it('renders practical BBR TCP and custom sysctl controls without template search clutter', () => {
     render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
 
