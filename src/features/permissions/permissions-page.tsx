@@ -41,6 +41,7 @@ const permissionOrder: ResourcePermission[] = ['read', 'operate', 'configure', '
 type GrantResourceTypeFilter = 'all' | PermissionGrant['resourceType'];
 type GrantPermissionFilter = 'all' | ResourcePermission;
 type OperatorSessionStatusFilter = 'all' | OperatorSessionStatus;
+type PermissionSafetyGateState = 'ready' | 'issues' | 'waiting';
 const grantResourceTypes: PermissionGrant['resourceType'][] = ['agent', 'node', 'tunnel', 'tunnel-group', 'subscription', 'forward-rule'];
 const operatorSessionStatuses: OperatorSessionStatus[] = ['active', 'revoked', 'expired'];
 
@@ -232,6 +233,27 @@ const copy = {
     permissionsSafetyCockpit: '权限安全 cockpit',
     permissionsControlRail: '权限控制轨',
     permissionsEvidenceWorkspace: '权限证据工作区',
+    permissionSafetyGates: '权限安全门禁',
+    permissionSafetyGatesHint: '把授权面、配额护栏、会话健康、凭证暴露和提交准备度压缩到同一条安全放行线。',
+    grantSurfaceGate: '授权面',
+    grantSurfaceGateDetail: (privilegedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(privilegedCount, language)} 个 grant 权限 / ${formatNumber(totalCount, language)} 条授权`,
+    quotaGuardrailGate: '配额护栏',
+    quotaGuardrailGateDetail: (blockedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(blockedCount, language)} 个超限或停用 / ${formatNumber(totalCount, language)} 个配额策略`,
+    sessionHealthGate: '会话健康',
+    sessionHealthGateDetail: (atRiskCount: number, activeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(atRiskCount, language)} 个风险会话 / ${formatNumber(activeCount, language)} 活跃 / ${formatNumber(totalCount, language)} 总会话`,
+    credentialExposureGate: '凭证暴露',
+    credentialExposureGateDetail: (activeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(activeCount, language)} 个活跃凭证 / ${formatNumber(totalCount, language)} 个脱敏摘要`,
+    dispatchReadinessGate: '提交准备度',
+    dispatchReadinessGateDetail: '权限、配额、会话和凭证操作会写入执行记录，并保留审计证据',
+    gateStateLabel: {
+      ready: '就绪',
+      issues: '异常',
+      waiting: '等待'
+    },
     operator: 'operator',
     group: 'group',
     resourceTypeLabels: {
@@ -438,6 +460,27 @@ const copy = {
     permissionsSafetyCockpit: 'Permissions safety cockpit',
     permissionsControlRail: 'Permissions control rail',
     permissionsEvidenceWorkspace: 'Permissions evidence workspace',
+    permissionSafetyGates: 'Permission Safety Gates',
+    permissionSafetyGatesHint: 'Collapse grant surface, quota guardrails, session health, credential exposure, and dispatch readiness into one safety line.',
+    grantSurfaceGate: 'Grant Surface',
+    grantSurfaceGateDetail: (privilegedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(privilegedCount, language)} grant-capable / ${formatNumber(totalCount, language)} total grants`,
+    quotaGuardrailGate: 'Quota Guardrail',
+    quotaGuardrailGateDetail: (blockedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(blockedCount, language)} exceeded or disabled / ${formatNumber(totalCount, language)} quota policies`,
+    sessionHealthGate: 'Session Health',
+    sessionHealthGateDetail: (atRiskCount: number, activeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(atRiskCount, language)} at-risk / ${formatNumber(activeCount, language)} active / ${formatNumber(totalCount, language)} total sessions`,
+    credentialExposureGate: 'Credential Exposure',
+    credentialExposureGateDetail: (activeCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(activeCount, language)} active credentials / ${formatNumber(totalCount, language)} sanitized summaries`,
+    dispatchReadinessGate: 'Dispatch Readiness',
+    dispatchReadinessGateDetail: 'Permission, quota, session, and credential operations write execution records with audit evidence',
+    gateStateLabel: {
+      ready: 'Ready',
+      issues: 'Issues',
+      waiting: 'Waiting'
+    },
     operator: 'operator',
     group: 'group',
     resourceTypeLabels: {
@@ -452,6 +495,12 @@ const copy = {
 } as const;
 
 type PermissionsCopy = (typeof copy)[AppLanguage];
+type PermissionSafetyGate = {
+  detail: string;
+  label: string;
+  state: PermissionSafetyGateState;
+  value: string;
+};
 type OperatorSessionBulkImpactSummary = {
   clientLabels: string[];
   expiringSessionCount: number;
@@ -689,6 +738,81 @@ function createAgentCredentialOperationImpactSummary(
   };
 }
 
+function createPermissionSafetyGates({
+  activeAgentCredentials,
+  activeOperatorSessions,
+  agentCredentials,
+  grants,
+  language,
+  operatorSessions,
+  privilegedGrants,
+  quotaPolicies,
+  t,
+  taskMutationBusy
+}: {
+  activeAgentCredentials: number;
+  activeOperatorSessions: number;
+  agentCredentials: AgentCredentialSummary[];
+  grants: PermissionGrant[];
+  language: AppLanguage;
+  operatorSessions: OperatorSessionSummary[];
+  privilegedGrants: number;
+  quotaPolicies: QuotaPolicy[];
+  t: PermissionsCopy;
+  taskMutationBusy: boolean;
+}): PermissionSafetyGate[] {
+  const now = Date.now();
+  const blockedQuotaCount = quotaPolicies.filter(
+    (policy) => policy.enforcementState === 'exceeded' || policy.enforcementState === 'disabled_by_quota'
+  ).length;
+  const atRiskSessionCount = operatorSessions.filter((session) => {
+    const expiresAt = Date.parse(session.expiresAt);
+    return session.status === 'active' && Number.isFinite(expiresAt) && expiresAt <= now + operatorSessionExpirySoonMs;
+  }).length;
+  const grantSurfaceState: PermissionSafetyGateState =
+    grants.length === 0 ? 'waiting' : privilegedGrants > 0 ? 'issues' : 'ready';
+  const quotaGuardrailState: PermissionSafetyGateState =
+    quotaPolicies.length === 0 ? 'waiting' : blockedQuotaCount > 0 ? 'issues' : 'ready';
+  const sessionHealthState: PermissionSafetyGateState =
+    activeOperatorSessions === 0 ? 'waiting' : atRiskSessionCount > 0 ? 'issues' : 'ready';
+  const credentialExposureState: PermissionSafetyGateState =
+    agentCredentials.length === 0 ? 'waiting' : activeAgentCredentials > 0 ? 'ready' : 'issues';
+  const dispatchReadinessState: PermissionSafetyGateState = taskMutationBusy ? 'waiting' : 'ready';
+
+  return [
+    {
+      detail: t.grantSurfaceGateDetail(privilegedGrants, grants.length, language),
+      label: t.grantSurfaceGate,
+      state: grantSurfaceState,
+      value: t.gateStateLabel[grantSurfaceState]
+    },
+    {
+      detail: t.quotaGuardrailGateDetail(blockedQuotaCount, quotaPolicies.length, language),
+      label: t.quotaGuardrailGate,
+      state: quotaGuardrailState,
+      value: t.gateStateLabel[quotaGuardrailState]
+    },
+    {
+      detail: t.sessionHealthGateDetail(atRiskSessionCount, activeOperatorSessions, operatorSessions.length, language),
+      label: t.sessionHealthGate,
+      state: sessionHealthState,
+      value: t.gateStateLabel[sessionHealthState]
+    },
+    {
+      detail: t.credentialExposureGateDetail(activeAgentCredentials, agentCredentials.length, language),
+      label: t.credentialExposureGate,
+      state: credentialExposureState,
+      value: t.gateStateLabel[credentialExposureState]
+    },
+    {
+      detail: t.dispatchReadinessGateDetail,
+      label: t.dispatchReadinessGate,
+      state: dispatchReadinessState,
+      value: t.gateStateLabel[dispatchReadinessState]
+    }
+  ];
+}
+
 export function PermissionsPage({
   agentCredentials = [],
   agentSessions = [],
@@ -780,6 +904,18 @@ export function PermissionsPage({
     () => [...agentCredentials].sort(compareAgentCredentials),
     [agentCredentials]
   );
+  const safetyGates = createPermissionSafetyGates({
+    activeAgentCredentials,
+    activeOperatorSessions,
+    agentCredentials,
+    grants,
+    language,
+    operatorSessions,
+    privilegedGrants,
+    quotaPolicies,
+    t,
+    taskMutationBusy
+  });
   const agentSessionByKey = useMemo(() => {
     const entries = agentSessions.map((session) => [createAgentSessionKey(session.agentId, session.sessionId), session] as const);
     return new Map(entries);
@@ -958,6 +1094,8 @@ export function PermissionsPage({
                   />
                 </div>
               </div>
+
+              <PermissionSafetyGatePanel gates={safetyGates} t={t} />
 
               <div className="rounded-xl border border-slate-200 bg-white/75 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="mb-4 flex items-center gap-2">
@@ -1750,6 +1888,56 @@ function ControlRailMetric({ label, value, icon: Icon }: { label: string; value:
       </div>
       <span className="shrink-0 text-sm font-black text-slate-900 dark:text-white">{value}</span>
     </div>
+  );
+}
+
+function PermissionSafetyGatePanel({ gates, t }: { gates: PermissionSafetyGate[]; t: PermissionsCopy }) {
+  return (
+    <section
+      aria-label={t.permissionSafetyGates}
+      className="permissions-safety-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white shadow-[inset_0_-3px_0_#D9FF00] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
+        <p className="text-xs font-black uppercase tracking-widest">{t.permissionSafetyGates}</p>
+        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.permissionSafetyGatesHint}</p>
+      </div>
+      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
+        {gates.map((gate) => (
+          <PermissionSafetyGateRow gate={gate} key={gate.label} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PermissionSafetyGateRow({ gate }: { gate: PermissionSafetyGate }) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
+    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
+  } satisfies Record<PermissionSafetyGateState, string>;
+
+  return (
+    <article
+      aria-label={gate.label}
+      className="group relative min-h-20 px-4 py-3 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
+      role="group"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
+        </div>
+        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
+          {gate.value}
+        </span>
+      </div>
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
+      />
+    </article>
   );
 }
 

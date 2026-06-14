@@ -273,6 +273,41 @@ describe('PermissionsPage', () => {
     expect(markup).not.toContain('background-clip:text');
   });
 
+  it('surfaces permission safety gates on the control rail', () => {
+    render(
+      <PermissionsPage
+        agentCredentials={agentCredentials}
+        agentSessions={agentSessions}
+        currentOperatorSessionId="operator-session-current"
+        grants={permissionGrants}
+        language="en"
+        operatorSessions={operatorSessions}
+        quotaPolicies={quotaPolicies}
+        forwardingRules={[]}
+        onResetQuota={vi.fn()}
+        onRevokeAgentCredential={vi.fn()}
+        onRevokeOperatorSession={vi.fn()}
+        onRotateAgentCredential={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Permissions safety cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Permissions control rail' });
+    const gates = within(rail).getByRole('region', { name: 'Permission Safety Gates' });
+
+    expect(gates).toHaveClass('permissions-safety-gate-panel');
+    expect(gates.outerHTML).toContain('#1E3AFF');
+    expect(gates.outerHTML).toContain('#FF3D18');
+    expect(gates.outerHTML).toContain('#D9FF00');
+    expect(gates.outerHTML).toContain('#00A878');
+    expect(within(gates).getByRole('group', { name: 'Grant Surface' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Quota Guardrail' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Session Health' })).toHaveTextContent('Issues');
+    expect(within(gates).getByRole('group', { name: 'Credential Exposure' })).toHaveTextContent('Ready');
+    expect(within(gates).getByRole('group', { name: 'Dispatch Readiness' })).toHaveTextContent('Ready');
+  });
+
   it('renders an operational overview band with workflow cues and rollups', () => {
     render(
       <PermissionsPage
