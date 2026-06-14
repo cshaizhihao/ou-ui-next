@@ -341,6 +341,21 @@ describe('AuditPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"hash": "sha256:current-anchor"'));
   });
 
+  it('does not pad audit drawers with empty before and after evidence cards', async () => {
+    const user = userEvent.setup();
+
+    render(<AuditPage auditLogs={[succeededAuditLog]} language="en" />);
+
+    await user.click(screen.getByRole('button', { name: 'View Audit Evidence' }));
+    const drawer = screen.getByRole('dialog', { name: 'Audit Evidence' });
+
+    expect(within(drawer).getByText('Subscription source synchronized')).toBeInTheDocument();
+    expect(drawer.querySelectorAll('.audit-evidence-json-card')).toHaveLength(0);
+    expect(within(drawer).queryByText('Before')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('After')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('No additional evidence')).not.toBeInTheDocument();
+  });
+
   it('keeps long audit drawer evidence readable in the fauvist evidence system', async () => {
     const user = userEvent.setup();
     const longHash =

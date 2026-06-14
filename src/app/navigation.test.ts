@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { getNavigationGroups, type NavigationEntry, type PageId } from './navigation';
 
 function flattenEntryPageIds(entries: NavigationEntry[]): PageId[] {
@@ -39,5 +41,14 @@ describe('navigation groups', () => {
     expect(coreIds).not.toContain('audit');
     expect(advancedIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
     expect(advancedIds).not.toContain('permissions');
+  });
+
+  it('does not keep the removed access and quota workspace as a hidden frontend module', () => {
+    const projectRoot = process.cwd();
+    const removedWorkspacePath = resolve(projectRoot, 'src/features/permissions');
+    const glassCss = readFileSync(resolve(projectRoot, 'src/styles/glass.css'), 'utf8');
+
+    expect(existsSync(removedWorkspacePath)).toBe(false);
+    expect(glassCss).not.toContain('permissions-safety');
   });
 });

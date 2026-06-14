@@ -86,7 +86,6 @@ const copy = {
     before: '变更前',
     after: '变更后',
     copyEvidence: '复制审计证据',
-    noEvidence: '暂无额外证据',
     id: 'ID',
     action: '动作',
     operation: '操作',
@@ -208,7 +207,6 @@ const copy = {
     before: 'Before',
     after: 'After',
     copyEvidence: 'Copy Audit Evidence',
-    noEvidence: 'No additional evidence',
     id: 'ID',
     action: 'Action',
     operation: 'Operation',
@@ -574,19 +572,19 @@ function EvidenceField({
   );
 }
 
-function EvidenceJsonBlock({ label, value, emptyText }: { label: string; value: unknown; emptyText: string }) {
+function EvidenceJsonBlock({ label, value }: { label: string; value: unknown }) {
   const formattedValue = stringifyEvidenceValue(value);
+
+  if (!formattedValue) {
+    return null;
+  }
 
   return (
     <div className="audit-evidence-json-card border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_12px_32px_-28px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]">
       <p className="text-xs font-black uppercase tracking-widest text-[#35405A] dark:text-white/48">{label}</p>
-      {formattedValue ? (
-        <pre className="audit-evidence-json-value mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words border border-[#07111F]/30 bg-[#07111F] p-3 text-[11px] leading-5 text-[#FDFFF1] dark:border-[#6B7CFF]/25 dark:bg-[#07111F]">
-          {formattedValue}
-        </pre>
-      ) : (
-        <p className="mt-3 break-words text-sm font-semibold text-[#35405A] dark:text-white/52">{emptyText}</p>
-      )}
+      <pre className="audit-evidence-json-value mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words border border-[#07111F]/30 bg-[#07111F] p-3 text-[11px] leading-5 text-[#FDFFF1] dark:border-[#6B7CFF]/25 dark:bg-[#07111F]">
+        {formattedValue}
+      </pre>
     </div>
   );
 }
@@ -685,8 +683,8 @@ function AuditEvidenceDrawer({
             </div>
           </div>
 
-          <EvidenceJsonBlock emptyText={t.noEvidence} label={t.before} value={log.before} />
-          <EvidenceJsonBlock emptyText={t.noEvidence} label={t.after} value={log.after} />
+          <EvidenceJsonBlock label={t.before} value={log.before} />
+          <EvidenceJsonBlock label={t.after} value={log.after} />
 
           <div className="flex justify-end">
             <button
