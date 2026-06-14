@@ -259,6 +259,8 @@ describe('ForwardingPage', () => {
     expect(container.outerHTML).not.toContain('cyan-');
     expect(container.outerHTML).not.toContain('purple-');
     expect(container.outerHTML).not.toContain('violet-');
+    expect(container.outerHTML).not.toContain('amber-');
+    expect(container.outerHTML).not.toContain('rose-');
     expect(container.outerHTML).not.toContain('background-clip:text');
   });
 
@@ -297,6 +299,8 @@ describe('ForwardingPage', () => {
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('cyan-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('purple-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('rose-');
     expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`).not.toContain('background-clip:text');
   });
 
@@ -542,6 +546,9 @@ describe('ForwardingPage', () => {
     expect(within(bindingPreview as HTMLElement).getByText(/LAX Entry/)).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/forward_rule_quota_exceeded/)).toBeInTheDocument();
     expect(within(riskPreview as HTMLElement).getByText(/forward_rule_disabled_by_policy/)).toBeInTheDocument();
+    expect(preflight.outerHTML).toContain('orange-');
+    expect(preflight.outerHTML).not.toContain('amber-');
+    expect(preflight.outerHTML).not.toContain('rose-');
   });
 
   it('migrates selected filtered forwarding rules to a replacement entry host', async () => {

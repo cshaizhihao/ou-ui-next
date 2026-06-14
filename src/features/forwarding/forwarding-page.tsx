@@ -1328,7 +1328,7 @@ export function ForwardingPage({
                     {t.bulkResume}
                   </button>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-400/30 dark:text-rose-200 dark:hover:bg-rose-400/10"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400/30 dark:text-red-200 dark:hover:bg-red-400/10"
                     disabled={selectedRules.length === 0 || taskMutationBusy}
                     onClick={bulkDeleteConfirming ? deleteSelectedRules : () => setBulkDeleteConfirming(true)}
                     type="button"
@@ -1417,17 +1417,17 @@ export function ForwardingPage({
                                 </span>
                                 <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
                                 {rule.runtimeDisabledByPolicy ? (
-                                  <span className="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase text-rose-600 dark:bg-rose-500/15 dark:text-rose-200">
+                                  <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase text-red-600 dark:bg-red-500/15 dark:text-red-200">
                                     {t.quotaSuspended}
                                   </span>
                                 ) : rule.quotaExceeded ? (
-                                  <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase text-amber-600 dark:bg-amber-500/15 dark:text-amber-200">
+                                  <span className="inline-flex rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase text-orange-600 dark:bg-orange-500/15 dark:text-orange-200">
                                     {t.quotaExceeded}
                                   </span>
                                 ) : null}
                               </div>
                               {rule.guardrailReason ? (
-                                <p className="mt-1 font-mono text-[10px] text-rose-500 dark:text-rose-300">
+                                <p className="mt-1 font-mono text-[10px] text-orange-600 dark:text-orange-300">
                                   {rule.guardrailReason}
                                 </p>
                               ) : null}
@@ -1723,11 +1723,11 @@ function ForwardingBulkImpactPreflight({
   return (
     <section
       aria-label={t.forwardingBulkImpactPreflight}
-      className="mt-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-300/15 dark:bg-blue-400/[0.045]"
+      className="mt-3 rounded-xl border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-300/15 dark:bg-orange-400/[0.045]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-200">
+          <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">
             {t.forwardingBulkImpactPreflight}
           </p>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">
@@ -1736,14 +1736,14 @@ function ForwardingBulkImpactPreflight({
           <div className="mt-3 flex flex-wrap gap-2">
             {summary.entryHostLabels.slice(0, 4).map((label) => (
               <span
-                className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/70"
+                className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/70"
                 key={label}
               >
                 {label}
               </span>
             ))}
             {summary.entryHostLabels.length > 4 ? (
-              <span className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-blue-300/20 dark:bg-white/[0.04] dark:text-white/50">
+              <span className="rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:border-orange-300/20 dark:bg-white/[0.04] dark:text-white/50">
                 +{formatNumber(summary.entryHostLabels.length - 4, language)}
               </span>
             ) : null}
@@ -1795,7 +1795,7 @@ function ForwardingBulkImpactPreflight({
 
 function ForwardingBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/80 px-3 py-2 dark:border-blue-300/15 dark:bg-white/[0.035]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/80 px-3 py-2 dark:border-orange-300/15 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
       <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
       <span className="sr-only">
@@ -1815,9 +1815,9 @@ function ForwardingBulkImpactPreview({
   warning?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-blue-200 bg-white/70 p-3 dark:border-blue-300/15 dark:bg-white/[0.025]">
+    <div className="min-w-0 rounded-lg border border-orange-200 bg-white/70 p-3 dark:border-orange-300/15 dark:bg-white/[0.025]">
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-amber-700 dark:text-amber-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <div className={warning ? 'mt-2 space-y-1 text-orange-700 dark:text-orange-200' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
         {values.map((value) => (
           <p className="truncate text-xs font-bold" key={value} title={value}>
             {value}
@@ -1838,10 +1838,10 @@ function getPortStatusClass(status: PortAllocationStatus) {
   }
 
   if (status === 'conflict' || status === 'failed') {
-    return 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-200';
+    return 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-200';
   }
 
-  return 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-200';
+  return 'bg-orange-50 text-orange-600 dark:bg-orange-500/15 dark:text-orange-200';
 }
 
 function StatusPill({ label, status }: { label: string; status: PortAllocationStatus }) {
@@ -1868,7 +1868,7 @@ function IconButton({
       aria-label={label}
       className={
         danger
-          ? 'rounded-full border border-rose-200 p-2 text-rose-500 transition hover:bg-rose-50 dark:border-rose-400/30 dark:hover:bg-rose-400/10'
+          ? 'rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50 dark:border-red-400/30 dark:hover:bg-red-400/10'
           : 'rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 dark:border-white/10 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-primary'
       }
       onClick={onClick}
