@@ -323,6 +323,66 @@ describe('TasksPage', () => {
     expect(layoutHtml).not.toContain('col-span');
   });
 
+  it('keeps execution empty states compact inside the release evidence workspace', () => {
+    render(
+      <TasksPage
+        tasks={[]}
+        agentLogArchives={[]}
+        agentLogChunks={[]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const workspace = screen.getByRole('region', { name: 'Release evidence workspace' });
+    const pipeline = within(workspace).getByRole('group', { name: 'Release Pipeline' });
+    const releaseEmptyState = within(pipeline).getByText('No execution records').closest('.tasks-release-empty-state');
+    const agentLogEmptyState = within(workspace).getByText('No runtime logs retained').closest('.tasks-agent-log-empty-state');
+    const archiveEmptyState = within(workspace).getByText('No log archives yet').closest('.tasks-agent-archive-empty-state');
+
+    for (const emptyState of [releaseEmptyState, agentLogEmptyState, archiveEmptyState]) {
+      expect(emptyState).toHaveClass('p-3');
+      expect(emptyState).not.toHaveClass('p-8', 'p-5', 'rounded-xl');
+    }
+  });
+
+  it('keeps filtered execution evidence empty states compact instead of oversized cards', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TasksPage
+        tasks={[task]}
+        agentLogArchives={[agentLogArchive]}
+        agentLogChunks={[agentLogChunk]}
+        configRevisions={[configRevision]}
+        preflightPlans={[currentPreflightPlan]}
+        runtimeSnapshots={[currentRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Tasks' }), 'missing execution');
+    await user.type(screen.getByRole('searchbox', { name: 'Search Agent Logs' }), 'missing log');
+    await user.type(screen.getByRole('searchbox', { name: 'Search Log Archives' }), 'missing archive');
+
+    const workspace = screen.getByRole('region', { name: 'Release evidence workspace' });
+    const pipeline = within(workspace).getByRole('group', { name: 'Release Pipeline' });
+    const releaseEmptyState = within(pipeline).getByText('No matching execution records').closest('.tasks-release-empty-state');
+    const agentLogEmptyState = within(workspace).getByText('No runtime logs retained').closest('.tasks-agent-log-empty-state');
+    const archiveEmptyState = within(workspace).getByText('No log archives yet').closest('.tasks-agent-archive-empty-state');
+
+    for (const emptyState of [releaseEmptyState, agentLogEmptyState, archiveEmptyState]) {
+      expect(emptyState).toHaveClass('p-3');
+      expect(emptyState).not.toHaveClass('p-8', 'p-5', 'rounded-xl');
+    }
+  });
+
   it('surfaces execution release gates on the control rail', () => {
     render(
       <TasksPage

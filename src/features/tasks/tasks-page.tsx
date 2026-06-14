@@ -1170,6 +1170,23 @@ function EvidenceSummaryTile({ label, value }: { label: string; value: string })
   );
 }
 
+function TasksEmptyState({
+  className,
+  description,
+  title
+}: {
+  className: string;
+  description?: string;
+  title: string;
+}) {
+  return (
+    <div className={`${className} border border-dashed border-[#07111F]/24 bg-[#FFFDF5]/70 p-3 text-center dark:border-white/10 dark:bg-white/[0.025]`}>
+      <p className="text-sm font-bold text-slate-700 dark:text-white/70">{title}</p>
+      {description ? <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-white/45">{description}</p> : null}
+    </div>
+  );
+}
+
 function ExecutionReleaseGatePanel({
   gates,
   t
@@ -1963,14 +1980,10 @@ function AgentLogPanel({
           </article>
         ))}
         {chunks.length === 0 ? (
-          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
-            <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogsEmpty}</p>
-          </div>
+          <TasksEmptyState className="tasks-agent-log-empty-state" title={t.agentLogsEmpty} />
         ) : null}
         {chunks.length > 0 && filteredChunks.length === 0 ? (
-          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
-            <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogsEmpty}</p>
-          </div>
+          <TasksEmptyState className="tasks-agent-log-empty-state" title={t.agentLogsEmpty} />
         ) : null}
       </div>
     </GlassCard>
@@ -2106,14 +2119,10 @@ function AgentLogArchivePanel({
           </article>
         ))}
         {archives.length === 0 ? (
-          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
-            <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogArchivesEmpty}</p>
-          </div>
+          <TasksEmptyState className="tasks-agent-archive-empty-state" title={t.agentLogArchivesEmpty} />
         ) : null}
         {archives.length > 0 && filteredArchives.length === 0 ? (
-          <div className="border border-dashed border-slate-300 p-5 text-center dark:border-white/10">
-            <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.agentLogArchivesEmpty}</p>
-          </div>
+          <TasksEmptyState className="tasks-agent-archive-empty-state" title={t.agentLogArchivesEmpty} />
         ) : null}
       </div>
     </GlassCard>
@@ -2586,15 +2595,14 @@ export function TasksPage({
                     </article>
                   ))}
                   {tasks.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
-                      <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.emptyTitle}</p>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-white/45">{t.emptyDescription}</p>
-                    </div>
+                    <TasksEmptyState
+                      className="tasks-release-empty-state"
+                      description={t.emptyDescription}
+                      title={t.emptyTitle}
+                    />
                   ) : null}
                   {tasks.length > 0 && releaseBundles.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-white/10">
-                      <p className="text-sm font-bold text-slate-700 dark:text-white/70">{t.noMatchingTasks}</p>
-                    </div>
+                    <TasksEmptyState className="tasks-release-empty-state" title={t.noMatchingTasks} />
                   ) : null}
                 </div>
               </GlassCard>
