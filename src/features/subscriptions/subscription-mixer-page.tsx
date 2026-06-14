@@ -17,7 +17,6 @@ import {
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import {
-  MobileSummaryRail,
   ResponsivePage,
   ResponsiveSection,
   WorkspaceCockpit,
@@ -266,10 +265,10 @@ type ExportProfileDraft = {
 const copy = {
   zh: {
     title: '订阅管理',
-    subtitle: '按 3X-UI 的客户订阅身份和 miaomiaowu 的订阅链路拆分：订阅身份、外部订阅源、节点库存、代理集合和导出文件独立维护。',
+    subtitle: '订阅身份、外部订阅源、节点库存、代理集合、导出文件。',
     operationalOverview: '运营总览',
-    operationalOverviewHint: '先看订阅规模、库存覆盖、导出配置、可发布导出和风险来源，再进入工作区或批量操作。',
-    operationalOverviewSteps: ['审阅订阅规模', '核对库存覆盖', '确认导出配置', '检查发布链路'],
+    operationalOverviewHint: '',
+    operationalOverviewSteps: [],
     clientsTab: '订阅身份',
     sourcesTab: '外部订阅源',
     inventoryTab: '节点库存',
@@ -286,7 +285,7 @@ const copy = {
     quickLinkNodeCount: (count: string) => `${count} 个节点`,
     quickLinkQrLabel: (name: string) => `${name} 订阅二维码`,
     clientTitle: '客户订阅规则',
-    clientHint: '订阅身份以 subId 为入口，聚合客户可见节点、协议、流量、到期、IP 限制和输出格式。',
+    clientHint: '',
     customerName: '客户名称',
     displayName: '规则名称',
     subId: 'Sub ID',
@@ -416,7 +415,7 @@ const copy = {
     providerImpactRelatedExports: '关联导出文件',
     providerImpactProviderPreview: '代理集合预览',
     pipelineReadiness: '订阅链路就绪',
-    pipelineReadinessHint: '端到端检查来源、库存、代理集合、导出文件和订阅身份是否形成可发布链路。',
+    pipelineReadinessHint: '',
     pipelineCompleteness: '链路完整度',
     pipelinePublishableExports: '可发布导出',
     pipelineUsableNodes: '可用节点',
@@ -424,7 +423,7 @@ const copy = {
     pipelineStageSummary: (sources: string, nodes: string, providers: string, exports: string, clients: string) =>
       `来源 ${sources} · 库存 ${nodes} · 代理集合 ${providers} · 导出 ${exports} · 身份 ${clients}`,
     distributionGates: '订阅分发门禁',
-    distributionGatesHint: '发布前核对来源、库存、导出产物和订阅入口四个边界，避免把不可用订阅交给客户。',
+    distributionGatesHint: '',
     distributionGateReady: '就绪',
     distributionGateIssues: '异常',
     distributionGateWaiting: '等待',
@@ -553,11 +552,10 @@ const copy = {
   },
   en: {
     title: 'Subscription Management',
-    subtitle: 'Split subscriptions into 3X-UI-style client identities and miaomiaowu-style source, inventory, provider, and export-file layers.',
+    subtitle: 'Identities, external sources, inventory, proxy providers, and export files.',
     operationalOverview: 'Operational Overview',
-    operationalOverviewHint:
-      'Review subscription scale, inventory coverage, export profiles, publishable exports, and risk sources before you enter a workspace or batch anything.',
-    operationalOverviewSteps: ['Review scale', 'Check inventory', 'Confirm exports', 'Verify readiness'],
+    operationalOverviewHint: '',
+    operationalOverviewSteps: [],
     clientsTab: 'Identities',
     sourcesTab: 'External Sources',
     inventoryTab: 'Node Inventory',
@@ -574,7 +572,7 @@ const copy = {
     quickLinkNodeCount: (count: string) => `${count} nodes`,
     quickLinkQrLabel: (name: string) => `${name} Subscription QR Code`,
     clientTitle: 'Client Subscription Rules',
-    clientHint: 'Each subId aggregates visible nodes, protocol, quota, expiry, IP limits, routing rules, and output formats.',
+    clientHint: '',
     customerName: 'Customer Name',
     displayName: 'Rule Name',
     subId: 'Sub ID',
@@ -708,7 +706,7 @@ const copy = {
     providerImpactRelatedExports: 'Related Export Files',
     providerImpactProviderPreview: 'Provider Preview',
     pipelineReadiness: 'Subscription Pipeline Ready',
-    pipelineReadinessHint: 'End-to-end check that sources, inventory, proxy providers, export files, and identities form a publishable path.',
+    pipelineReadinessHint: '',
     pipelineCompleteness: 'Pipeline Completeness',
     pipelinePublishableExports: 'Publishable Exports',
     pipelineUsableNodes: 'Usable Nodes',
@@ -716,7 +714,7 @@ const copy = {
     pipelineStageSummary: (sources: string, nodes: string, providers: string, exports: string, clients: string) =>
       `Sources ${sources} · Inventory ${nodes} · Providers ${providers} · Exports ${exports} · Identities ${clients}`,
     distributionGates: 'Subscription Distribution Gates',
-    distributionGatesHint: 'Check source, inventory, export artifact, and subscription-entry boundaries before publishing customer links.',
+    distributionGatesHint: '',
     distributionGateReady: 'Ready',
     distributionGateIssues: 'Issues',
     distributionGateWaiting: 'Waiting',
@@ -3001,14 +2999,25 @@ export function SubscriptionMixerPage({
   return (
     <ResponsivePage>
       <ResponsiveSection className="stagger-1">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white">{t.title}</h3>
-        <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.subtitle}</p>
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[11px] font-black text-slate-600 [scrollbar-width:none] dark:text-white/65 max-md:-mx-1 max-md:px-1 max-md:[&::-webkit-scrollbar]:hidden">
-          {(language === 'zh' ? ['导入节点源', '绑定订阅身份', '选择客户端格式', '复制导出链接'] : ['Import sources', 'Bind clients', 'Choose formats', 'Copy exports']).map((step, index) => (
-            <span className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.04]" key={step}>
-              {index + 1}. {step}
-            </span>
-          ))}
+        <div className="flex flex-wrap items-end justify-between gap-3 border border-[#07111F]/18 bg-[#FFFDF5]/78 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
+            <p className="mt-1 text-xs font-semibold text-[#35405A] dark:text-white/58">{t.subtitle}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-right max-md:w-full max-md:text-left">
+            <div className="border border-[#1E3AFF]/30 bg-[#DCE1FF]/55 px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#35405A] dark:text-white/58">{t.clientCount}</p>
+              <p className="mt-1 text-base font-black text-[#07111F] dark:text-white">{formatNumber(clients.length, language)}</p>
+            </div>
+            <div className="border border-[#00A878]/35 bg-[#00A878]/[0.10] px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#35405A] dark:text-white/58">{t.inventoryCount}</p>
+              <p className="mt-1 text-base font-black text-[#07111F] dark:text-white">{formatNumber(inventoryNodes.length, language)}</p>
+            </div>
+            <div className="border border-[#FF3D18]/30 bg-[#FFD8C6]/42 px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#35405A] dark:text-white/58">{t.exportCount}</p>
+              <p className="mt-1 text-base font-black text-[#07111F] dark:text-white">{formatNumber(exportFiles.length, language)}</p>
+            </div>
+          </div>
         </div>
       </ResponsiveSection>
 
@@ -3019,22 +3028,11 @@ export function SubscriptionMixerPage({
             className="subscription-ops-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
           >
             <div className="flex flex-col gap-3 xl:sticky xl:top-0">
-              <div className="border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-blue-500 dark:text-primary" />
-                  <p className="text-sm font-semibold text-slate-800 dark:text-white">{t.operationalOverview}</p>
+                  <CheckCircle2 className="h-4 w-4 text-[#1E3AFF] dark:text-[#9EACFF]" />
+                  <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.operationalOverview}</p>
                 </div>
-                <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/50">{t.operationalOverviewHint}</p>
-                <MobileSummaryRail className="mt-3">
-                  {t.operationalOverviewSteps.map((step, index) => (
-                    <span
-                      className="shrink-0 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[11px] font-black text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65"
-                      key={step}
-                    >
-                      {index + 1}. {step}
-                    </span>
-                  ))}
-                </MobileSummaryRail>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
@@ -4966,7 +4964,9 @@ function PipelineReadinessPanel({
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{t.pipelineReadiness}</p>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.pipelineReadinessHint}</p>
+          {t.pipelineReadinessHint ? (
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.pipelineReadinessHint}</p>
+          ) : null}
           <p className="mt-3 text-xs font-bold text-slate-700 dark:text-white/70">{stageSummary}</p>
           {summary.exportLabels.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -5010,7 +5010,9 @@ function SubscriptionDistributionGatePanel({
     >
       <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
         <p className="text-xs font-black uppercase tracking-widest">{t.distributionGates}</p>
-        <p className="mt-1 text-[11px] leading-5 text-white/82">{t.distributionGatesHint}</p>
+        {t.distributionGatesHint ? (
+          <p className="mt-1 text-[11px] leading-5 text-white/82">{t.distributionGatesHint}</p>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
         {gates.map((gate) => (

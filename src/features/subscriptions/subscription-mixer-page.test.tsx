@@ -470,6 +470,50 @@ describe('SubscriptionMixerPage', () => {
     expect(layoutHtml).not.toContain('col-span');
   });
 
+  it('does not pad the subscription workspace with explanatory lineage or workflow filler', () => {
+    renderPage({
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient, backupSubscriptionClient],
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-acme-mihomo',
+          name: 'Acme Mihomo',
+          client: 'mihomo',
+          sourceIds: [source.id, backupSource.id],
+          includeFilter: 'premium|streaming',
+          excludeFilter: 'expired|test',
+          regionFilter: ['hk', 'sg'],
+          outputFormats: ['uri', 'clash', 'mihomo'],
+          templateName: 'mihomo-compatible.yaml',
+          proxyGroups: [],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-02T00:00:00.000Z'
+        }
+      ]
+    });
+
+    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const pageHtml = cockpit.parentElement?.outerHTML ?? cockpit.outerHTML;
+
+    expect(screen.getByRole('heading', { name: '订阅管理' })).toBeInTheDocument();
+    expect(pageHtml).not.toContain('3X-UI');
+    expect(pageHtml).not.toContain('miaomiaowu');
+    expect(pageHtml).not.toContain('先看订阅规模');
+    expect(pageHtml).not.toContain('导入节点源');
+    expect(pageHtml).not.toContain('绑定订阅身份');
+    expect(pageHtml).not.toContain('选择客户端格式');
+    expect(pageHtml).not.toContain('复制导出链接');
+    expect(pageHtml).not.toContain('审阅订阅规模');
+    expect(pageHtml).not.toContain('核对库存覆盖');
+    expect(pageHtml).not.toContain('确认导出配置');
+    expect(pageHtml).not.toContain('检查发布链路');
+    expect(pageHtml).not.toContain('订阅身份以 subId 为入口');
+    expect(pageHtml).not.toContain('端到端检查');
+    expect(pageHtml).not.toContain('发布前核对');
+    expect(pageHtml).not.toContain('避免把不可用订阅交给客户');
+  });
+
   it('surfaces subscription distribution gates on the control rail', () => {
     renderPage({
       subscriptionSources: [
