@@ -234,6 +234,23 @@ describe('TuningPage', () => {
     expect(cockpitHtml).not.toContain('background-clip:text');
   });
 
+  it('keeps the full tuning surface on the fauvist palette without slate fallback drift', () => {
+    render(<TuningPage agents={agents} language="en" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    const pageHtml = document.body.innerHTML;
+
+    expect(pageHtml).toContain('#1E3AFF');
+    expect(pageHtml).toContain('#FFFDF5');
+    expect(pageHtml).toContain('#07111F');
+    expect(pageHtml).not.toContain('slate-');
+    expect(pageHtml).not.toContain('blue-');
+    expect(pageHtml).not.toContain('orange-');
+    expect(pageHtml).not.toContain('amber-');
+    expect(pageHtml).not.toContain('rose-');
+    expect(pageHtml).not.toContain('purple-');
+    expect(pageHtml).not.toContain('violet-');
+  });
+
   it('surfaces system tuning release gates on the control rail', () => {
     const failedTask = createTask({
       id: 'task-tune-failed',

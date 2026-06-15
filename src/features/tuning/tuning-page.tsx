@@ -510,7 +510,7 @@ export function TuningPage({
     <ResponsivePage className="space-y-3 md:space-y-4">
       <section
         aria-label={t.operationalOverview}
-        className="stagger-1 overflow-hidden border border-[#07111F]/25 bg-[#FFFDF5]/92 p-3 shadow-[0_14px_38px_-30px_rgba(7,17,31,0.28)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:bg-white/92 max-md:shadow-sm max-md:dark:bg-slate-950/88"
+        className="stagger-1 overflow-hidden border border-[#07111F]/25 bg-[#FFFDF5]/92 p-3 shadow-[0_14px_38px_-30px_rgba(7,17,31,0.28)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)] max-md:bg-white/92 max-md:shadow-sm max-md:dark:bg-[#07111F]/88"
       >
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-3xl">
