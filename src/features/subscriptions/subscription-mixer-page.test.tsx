@@ -1483,6 +1483,45 @@ describe('SubscriptionMixerPage', () => {
     );
   });
 
+  it('creates export proxy groups from selected inventory nodes for editable subscription files', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      onSaveExportProfile
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Node Inventory' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select HK Premium VLESS 01' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select SG Backup VMess 01' }));
+    await user.click(screen.getByRole('button', { name: 'Add Profile' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+
+    await user.click(within(drawer).getByRole('button', { name: 'Add Selected Nodes' }));
+    expect(within(drawer).getByText('HK Premium VLESS 01')).toBeInTheDocument();
+    expect(within(drawer).getByText('SG Backup VMess 01')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Save' }));
+
+    expect(onSaveExportProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proxyGroups: [
+          expect.objectContaining({
+            name: 'Selected Inventory Nodes',
+            strategy: 'select',
+            filterTags: expect.arrayContaining(['premium', 'streaming', 'backup', 'standard']),
+            nodeIds: ['inventory-source-hk-premium-vless-01', 'inventory-source-sg-backup-vmess-01']
+          })
+        ]
+      }),
+      'create'
+    );
+  });
+
   it('filters export profiles before confirming bulk deletion', async () => {
     const user = userEvent.setup();
     const onDeleteExportProfile = vi.fn();

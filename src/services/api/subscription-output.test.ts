@@ -341,6 +341,61 @@ describe('subscription-output', () => {
     expect(output.headers['x-ou-ui-node-count']).toBe('1');
   });
 
+  it('pins export profile proxy groups to explicit inventory node ids before tag filters', () => {
+    const hkNode: SubscriptionInventoryNode = {
+      id: 'node-hk-selected',
+      sourceId: 'source-hk-premium',
+      name: 'HK Selected VLESS',
+      protocol: 'vless',
+      server: '198.51.100.18',
+      port: 443,
+      latencyMs: 76,
+      tags: ['premium', 'streaming'],
+      status: 'online',
+      rawUrl: 'vless://00000000-0000-4000-8000-000000000010@198.51.100.18:443#HK%20Selected'
+    };
+    const testNode: SubscriptionInventoryNode = {
+      ...hkNode,
+      id: 'node-hk-not-selected',
+      name: 'HK Not Selected Test',
+      tags: ['premium', 'test'],
+      rawUrl: 'vless://00000000-0000-4000-8000-000000000011@198.51.100.19:443#HK%20Not%20Selected'
+    };
+    const output = renderPublicSubscriptionOutput({
+      client,
+      externalNodes: [hkNode, testNode],
+      exportProfile: {
+        id: 'profile-pinned-group',
+        name: 'Pinned Group Profile',
+        client: 'mihomo',
+        sourceIds: [],
+        includeFilter: '',
+        excludeFilter: '',
+        regionFilter: [],
+        outputFormats: ['mihomo'],
+        templateName: 'pinned-group.yaml',
+        proxyGroups: [
+          {
+            id: 'proxy-group-selected',
+            name: 'Selected Inventory Nodes',
+            strategy: 'select',
+            filterTags: ['premium'],
+            nodeIds: ['node-hk-selected']
+          }
+        ],
+        includeTrafficHeaders: true,
+        updatedAt: '2026-06-04T00:00:00.000Z'
+      },
+      format: 'mihomo',
+      inbounds: []
+    });
+
+    const selectedGroup = output.body.slice(output.body.indexOf('name: "Selected Inventory Nodes"'));
+
+    expect(selectedGroup).toContain('HK Selected VLESS');
+    expect(selectedGroup).not.toContain('HK Not Selected Test');
+  });
+
   it('applies export profile source, include, exclude and region filters to final subscription nodes', () => {
     const hkNode: SubscriptionInventoryNode = {
       id: 'inventory-source-hk-premium-vless-01',

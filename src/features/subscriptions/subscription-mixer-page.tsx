@@ -259,6 +259,7 @@ type ExportProfileDraft = {
   proxyGroupName: string;
   proxyGroupStrategy: ProxyGroupTemplate['strategy'];
   proxyGroupFilterTags: string;
+  proxyGroupNodeIds: string[];
   includeTrafficHeaders: boolean;
 };
 
@@ -850,6 +851,9 @@ const profileCopy = {
     proxyGroupName: '代理组名称',
     proxyGroupStrategy: '代理组策略',
     proxyGroupTags: '代理组标签',
+    proxyGroupNodes: '组内节点',
+    addSelectedNodes: '加入已选节点',
+    noProxyGroupNodes: '未指定节点',
     sourceScope: '可见订阅源',
     allSources: '全部订阅源'
   },
@@ -875,6 +879,9 @@ const profileCopy = {
     proxyGroupName: 'Proxy Group Name',
     proxyGroupStrategy: 'Proxy Group Strategy',
     proxyGroupTags: 'Proxy Group Tags',
+    proxyGroupNodes: 'Group Nodes',
+    addSelectedNodes: 'Add Selected Nodes',
+    noProxyGroupNodes: 'No pinned nodes',
     sourceScope: 'Visible Sources',
     allSources: 'All Sources'
   }
@@ -924,6 +931,7 @@ function createDefaultExportProfileDraft(): ExportProfileDraft {
     proxyGroupName: 'Premium Auto',
     proxyGroupStrategy: 'url-test',
     proxyGroupFilterTags: 'premium,streaming',
+    proxyGroupNodeIds: [],
     includeTrafficHeaders: true
   };
 }
@@ -944,6 +952,7 @@ function createDraftFromExportProfile(profile: SubscriptionExportProfile): Expor
     proxyGroupName: firstGroup?.name ?? 'Premium Auto',
     proxyGroupStrategy: firstGroup?.strategy ?? 'url-test',
     proxyGroupFilterTags: firstGroup?.filterTags.join(',') ?? '',
+    proxyGroupNodeIds: firstGroup?.nodeIds ?? [],
     includeTrafficHeaders: profile.includeTrafficHeaders
   };
 }
@@ -967,7 +976,8 @@ function createExportProfileMetadataFromDraft(draft: ExportProfileDraft): Subscr
         id: `proxy-group-${proxyGroupName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'default'}`,
         name: proxyGroupName,
         strategy: draft.proxyGroupStrategy,
-        filterTags: splitComma(draft.proxyGroupFilterTags)
+        filterTags: splitComma(draft.proxyGroupFilterTags),
+        nodeIds: draft.proxyGroupNodeIds.length > 0 ? draft.proxyGroupNodeIds : undefined
       }
     ],
     includeTrafficHeaders: draft.includeTrafficHeaders
@@ -2360,6 +2370,22 @@ export function SubscriptionMixerPage({
     setProfileDeleteConfirming(false);
     setProfileDraft(profile ? createDraftFromExportProfile(profile) : createDefaultExportProfileDraft());
     setDrawer({ type: 'profile', id: profile?.id });
+  }
+
+  function addSelectedInventoryNodesToProfileGroup() {
+    if (selectedInventoryNodes.length === 0) {
+      return;
+    }
+
+    const selectedTags = Array.from(new Set(selectedInventoryNodes.flatMap((node) => node.tags))).slice(0, 12);
+
+    setProfileDraft((current) => ({
+      ...current,
+      proxyGroupName: language === 'zh' ? '已选库存节点' : 'Selected Inventory Nodes',
+      proxyGroupStrategy: 'select',
+      proxyGroupFilterTags: selectedTags.join(','),
+      proxyGroupNodeIds: selectedInventoryNodes.map((node) => node.id)
+    }));
   }
 
   function openSubscriptionLinkDrawer(client: SubscriptionClientIdentity) {
@@ -4522,6 +4548,22 @@ export function SubscriptionMixerPage({
               value={profileDraft.regionFilter}
               onChange={(value) => setProfileDraft((current) => ({ ...current, regionFilter: value }))}
             />
+          </div>
+
+          <div className={subscriptionDrawerCommandPanelClass}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{profileT.proxyGroups}</p>
+              <button
+                className={compactCommandActionButtonClass}
+                disabled={selectedInventoryNodes.length === 0}
+                onClick={addSelectedInventoryNodesToProfileGroup}
+                type="button"
+              >
+                <Layers3 className="h-3.5 w-3.5" />
+                {profileT.addSelectedNodes}
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             <InputField
               label={profileT.proxyGroupName}
               value={profileDraft.proxyGroupName}
@@ -4543,6 +4585,28 @@ export function SubscriptionMixerPage({
               value={profileDraft.proxyGroupFilterTags}
               onChange={(value) => setProfileDraft((current) => ({ ...current, proxyGroupFilterTags: value }))}
             />
+            </div>
+            <div className="mt-3 border border-[#07111F]/16 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.proxyGroupNodes}</p>
+              {profileDraft.proxyGroupNodeIds.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {profileDraft.proxyGroupNodeIds.map((nodeId) => {
+                    const node = inventoryNodes.find((item) => item.id === nodeId);
+
+                    return (
+                      <span
+                        className="max-w-full border border-[#1E3AFF]/30 bg-[#DCE1FF]/62 px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]"
+                        key={nodeId}
+                      >
+                        {node?.name ?? nodeId}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs font-semibold text-[#35405A] dark:text-white/55">{profileT.noProxyGroupNodes}</p>
+              )}
+            </div>
           </div>
 
           <div className={subscriptionDrawerNeutralPanelClass}>

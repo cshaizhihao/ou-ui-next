@@ -210,7 +210,8 @@ const taskMetadataSchema = z
           id: z.string().trim().min(1).max(160),
           name: z.string().trim().min(1).max(160),
           strategy: proxyGroupStrategySchema,
-          filterTags: z.array(z.string().trim().min(1).max(120)).optional()
+          filterTags: z.array(z.string().trim().min(1).max(120)).optional(),
+          nodeIds: z.array(z.string().trim().min(1).max(160)).optional()
         })
       )
       .optional(),

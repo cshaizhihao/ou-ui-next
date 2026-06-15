@@ -47,6 +47,7 @@ export type ProxyGroupTemplate = {
   name: string;
   strategy: 'select' | 'url-test' | 'fallback' | 'load-balance';
   filterTags: string[];
+  nodeIds?: string[];
 };
 
 export type SubscriptionExportProfile = {
@@ -363,7 +364,10 @@ function readProxyGroups(metadata: Record<string, unknown> | undefined): ProxyGr
         strategy: readProxyGroupStrategy(group.strategy),
         filterTags: Array.isArray(group.filterTags)
           ? group.filterTags.filter((tag): tag is string => typeof tag === 'string' && tag.trim() !== '').map((tag) => tag.trim())
-          : []
+          : [],
+        nodeIds: Array.isArray(group.nodeIds)
+          ? group.nodeIds.filter((id): id is string => typeof id === 'string' && id.trim() !== '').map((id) => id.trim())
+          : undefined
       };
     })
     .filter((group): group is ProxyGroupTemplate => Boolean(group));

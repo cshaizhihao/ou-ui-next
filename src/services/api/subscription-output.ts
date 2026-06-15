@@ -630,8 +630,10 @@ function createProfileProxyGroups(
 
   return profile.proxyGroups.map((group) => {
     const healthChecked = group.strategy === 'url-test' || group.strategy === 'fallback' || group.strategy === 'load-balance';
+    const groupNodeIds = new Set(group.nodeIds ?? []);
     const groupProxyNames = nodes
       .filter((node) => {
+        if (groupNodeIds.size > 0) return groupNodeIds.has(node.id);
         if (group.filterTags.length === 0) return true;
         const searchable = [node.name, node.protocol, ...node.tags].join(' ').toLowerCase();
         return group.filterTags.some((tag) => searchable.includes(tag.toLowerCase()));
