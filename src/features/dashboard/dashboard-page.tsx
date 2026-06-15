@@ -787,7 +787,7 @@ export function DashboardPage({
         <section aria-label={t.controlSurfaceRegion} className="grid min-w-0 gap-3">
           <GlassCard className="dashboard-control-plane-surface relative isolate min-h-0 self-start overflow-hidden !border-[#07111F] !bg-[#FFFDF5] p-0 !shadow-[0_16px_42px_-34px_rgba(7,17,31,0.32)] dark:!border-[#6B7CFF]/25 dark:!bg-[#07111F] dark:!shadow-black/40">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.26)_0%,rgba(30,58,255,0.26)_25%,transparent_25%),linear-gradient(225deg,rgba(255,61,24,0.2)_0%,rgba(255,61,24,0.2)_22%,transparent_22%),linear-gradient(315deg,rgba(217,255,0,0.22)_0%,rgba(217,255,0,0.22)_18%,transparent_18%),linear-gradient(180deg,#FFFDF5_0%,#FDFFF1_100%)] dark:bg-[linear-gradient(135deg,rgba(107,124,255,0.2)_0%,rgba(107,124,255,0.2)_25%,transparent_25%),linear-gradient(225deg,rgba(255,106,58,0.18)_0%,rgba(255,106,58,0.18)_22%,transparent_22%),linear-gradient(315deg,rgba(234,255,90,0.16)_0%,rgba(234,255,90,0.16)_18%,transparent_18%),linear-gradient(180deg,#07111F_0%,#101827_100%)]" aria-hidden="true" />
-            <div className="relative z-10 flex h-full min-h-0 flex-col justify-between gap-4 p-3 md:p-4">
+            <div className="relative z-10 flex min-h-0 flex-col gap-4 p-3 md:p-4">
               <div className="max-w-3xl">
                 <p className="text-sm font-black tracking-[0.01em] text-[#1E3AFF] dark:text-[#6B7CFF]">
                   {t.controlPlaneLabel}
@@ -798,7 +798,7 @@ export function DashboardPage({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="dashboard-control-plane-media relative min-h-[10rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.34)] dark:border-[#6B7CFF]/30 dark:bg-[#101827]">
+                <div className="dashboard-control-plane-media relative min-h-[8.5rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.34)] dark:border-[#6B7CFF]/30 dark:bg-[#101827]">
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(135deg,rgba(30,58,255,0.12),transparent_34%),linear-gradient(225deg,rgba(255,61,24,0.12),transparent_28%)] bg-[length:36px_36px,36px_36px,100%_100%,100%_100%] dark:bg-[linear-gradient(rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(135deg,rgba(107,124,255,0.14),transparent_34%),linear-gradient(225deg,rgba(255,106,58,0.12),transparent_28%)]" aria-hidden="true" />
                   <svg
                     className="dashboard-connectivity-topology relative z-10 h-44 w-full"
@@ -883,7 +883,7 @@ export function DashboardPage({
               return (
                 <div
                   key={card.label}
-                  className="group relative min-h-[78px] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.3)] transition duration-200 hover:-translate-y-0.5 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]"
+                  className="group relative min-h-[68px] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.3)] transition duration-200 hover:-translate-y-0.5 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]"
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
                   <div className="flex h-full flex-col justify-between gap-2">
@@ -1065,7 +1065,7 @@ function ResponseActionButton({ action }: { action: ResponseAction }) {
   return (
     <button
       className={cn(
-        'group min-h-[68px] rounded-lg border p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/55 active:translate-y-0 dark:focus-visible:ring-[#6B7CFF]/60',
+                'group min-h-[60px] rounded-lg border p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/55 active:translate-y-0 dark:focus-visible:ring-[#6B7CFF]/60',
         tone.card
       )}
       onClick={action.onClick}
@@ -1215,7 +1215,7 @@ function ProductionReadinessPanel({
           return (
             <div
               className={cn(
-                'group relative min-h-[72px] overflow-hidden rounded-lg border p-2 text-[#07111F] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] dark:text-[#F4F8FF]',
+                'group relative min-h-[64px] overflow-hidden rounded-lg border p-2 text-[#07111F] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] dark:text-[#F4F8FF]',
                 tone.item
               )}
               data-production-readiness-gate-state={gate.state}

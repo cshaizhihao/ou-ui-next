@@ -298,7 +298,7 @@ describe('DashboardPage', () => {
     expect(surface?.outerHTML).not.toContain('p-5');
     expect(surface?.outerHTML).not.toContain('md:p-6');
     expect(media).not.toHaveClass('min-h-40');
-    expect(media).toHaveClass('min-h-[10rem]');
+    expect(media).toHaveClass('min-h-[8.5rem]');
     expect(metricGrid).not.toBeNull();
     expect(metricGrid).toHaveClass('grid-cols-2');
     expect(metricGrid).toHaveClass('xl:grid-cols-4');
@@ -307,14 +307,16 @@ describe('DashboardPage', () => {
     expect(metricGrid?.outerHTML).not.toContain('min-h-36');
     expect(metricGrid?.outerHTML).not.toContain('min-h-[104px]');
     expect(metricGrid?.outerHTML).not.toContain('min-h-[92px]');
-    expect(metricGrid?.outerHTML).toContain('min-h-[78px]');
+    expect(metricGrid?.outerHTML).not.toContain('min-h-[78px]');
+    expect(metricGrid?.outerHTML).toContain('min-h-[68px]');
     expect(responseGrid).not.toBeNull();
     expect(responseGrid?.outerHTML).not.toContain('min-h-24');
     expect(responseGrid?.outerHTML).not.toContain('min-h-[76px]');
-    expect(responseGrid?.outerHTML).toContain('min-h-[68px]');
+    expect(responseGrid?.outerHTML).toContain('min-h-[60px]');
     expect(readinessGrid?.outerHTML).not.toContain('min-h-[104px]');
     expect(readinessGrid?.outerHTML).not.toContain('min-h-[82px]');
-    expect(readinessGrid?.outerHTML).toContain('min-h-[72px]');
+    expect(readinessGrid?.outerHTML).not.toContain('min-h-[72px]');
+    expect(readinessGrid?.outerHTML).toContain('min-h-[64px]');
     expect(overviewHtml).not.toContain('dashboard-control-plane-bento');
     expect(overviewHtml).not.toContain('masonry');
     expect(overviewHtml).not.toContain('columns-');
