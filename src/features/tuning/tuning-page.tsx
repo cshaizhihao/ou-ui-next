@@ -89,6 +89,19 @@ const copy = {
     dispatchTuningPreset: '下发调优预设',
     presetRisk: '风险',
     presetParameterCount: '参数',
+    presetTargetLabels: {
+      kernel: '内核',
+      network: '网络',
+      runtime: '运行时'
+    },
+    presetIntentLabels: {
+      congestionControl: 'BBR',
+      defaultQdisc: 'FQ',
+      tcpBuffer: 'TCP 缓冲',
+      somaxconn: '连接队列',
+      tcpMaxSynBacklog: 'SYN 队列'
+    },
+    parameterCountValue: (count: number, language: AppLanguage) => `${formatNumber(count, language)} 个参数`,
     presetNames: {
       'bbr-fq': 'BBR + FQ 预设',
       'tcp-balanced': 'TCP 均衡预设',
@@ -170,6 +183,20 @@ const copy = {
     dispatchTuningPreset: 'Dispatch Tuning Preset',
     presetRisk: 'Risk',
     presetParameterCount: 'Parameters',
+    presetTargetLabels: {
+      kernel: 'Kernel',
+      network: 'Network',
+      runtime: 'Runtime'
+    },
+    presetIntentLabels: {
+      congestionControl: 'BBR',
+      defaultQdisc: 'FQ',
+      tcpBuffer: 'TCP buffers',
+      somaxconn: 'Connection backlog',
+      tcpMaxSynBacklog: 'SYN backlog'
+    },
+    parameterCountValue: (count: number, language: AppLanguage) =>
+      `${formatNumber(count, language)} ${count === 1 ? 'parameter' : 'parameters'}`,
     presetNames: {
       'bbr-fq': 'BBR + FQ Preset',
       'tcp-balanced': 'TCP Balanced Preset',
@@ -591,7 +618,7 @@ export function TuningPage({
               </GlassCard>
 
               <div className="tuning-ops-action-grid grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.72fr)]">
-                <PresetPlanCard profile={presetProfile} t={t} />
+                <PresetPlanCard language={language} profile={presetProfile} t={t} />
                 <ExecutionStatusCard language={language} task={recentTask} />
               </div>
 
@@ -683,7 +710,9 @@ function TuningProbePanel({
   );
 }
 
-function PresetPlanCard({ profile, t }: { profile: TuningProfile; t: TuningCopy }) {
+function PresetPlanCard({ language, profile, t }: { language: AppLanguage; profile: TuningProfile; t: TuningCopy }) {
+  const intentLabels = createPresetIntentLabels(profile, t);
+
   return (
     <GlassCard aria-label={t.presetPlan} className="tuning-ops-plan-panel stagger-2 p-3" role="region">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -695,28 +724,66 @@ function PresetPlanCard({ profile, t }: { profile: TuningProfile; t: TuningCopy 
           {t.presetRisk}: {profile.riskLevel}
         </span>
       </div>
-      <div className="mt-3 grid gap-2">
-        {profile.parameters.length > 0 ? (
-          profile.parameters.map((parameter) => (
-            <article
-              aria-label={parameter.key}
-              className="tuning-ops-plan-row min-h-[54px] border border-[#07111F]/18 px-3 py-2 dark:border-white/10"
-              key={parameter.key}
-            >
-              <p className="break-all font-mono text-[11px] font-bold text-[#07111F] dark:text-white/80">
-                {parameter.key}
+      {profile.parameters.length > 0 ? (
+        <div
+          aria-label={profile.name}
+          className="tuning-ops-preset-summary mt-3 min-h-[54px] border border-[#07111F]/18 px-3 py-2 dark:border-white/10"
+          role="group"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-black text-[#07111F] dark:text-white">{profile.name}</p>
+              <p className="mt-1 font-mono text-[11px] font-semibold uppercase tracking-widest text-[#35405A] dark:text-white/45">
+                {t.presetTargetLabels[profile.target]} / {t.parameterCountValue(profile.parameters.length, language)}
               </p>
-              <p className="mt-1 break-all font-mono text-[11px] text-[#35405A] dark:text-white/45">
-                {parameter.value}
-              </p>
-            </article>
-          ))
-        ) : (
-          <p className="text-sm font-semibold text-[#35405A] dark:text-white/45">{t.presetPlanEmpty}</p>
-        )}
-      </div>
+            </div>
+            <span className="border border-[#00A878] bg-[#00A878]/[0.12] px-2.5 py-1 text-[10px] font-black uppercase text-[#006B50] dark:border-[#35E68E]/25 dark:bg-[#00A878]/[0.14] dark:text-[#9EF4C4]">
+              {profile.riskLevel}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {intentLabels.map((label) => (
+              <span
+                className="border border-[#07111F]/18 bg-[#EAF3D1]/65 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/68"
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm font-semibold text-[#35405A] dark:text-white/45">{t.presetPlanEmpty}</p>
+      )}
     </GlassCard>
   );
+}
+
+function createPresetIntentLabels(profile: TuningProfile, t: TuningCopy) {
+  const keysInProfile = new Set(profile.parameters.map((parameter) => parameter.key));
+  const labels: string[] = [];
+
+  if (keysInProfile.has(keys.congestionControl)) {
+    labels.push(t.presetIntentLabels.congestionControl);
+  }
+
+  if (keysInProfile.has(keys.defaultQdisc)) {
+    labels.push(t.presetIntentLabels.defaultQdisc);
+  }
+
+  if (keysInProfile.has(keys.tcpReceiveBuffer) || keysInProfile.has(keys.tcpWriteBuffer)) {
+    labels.push(t.presetIntentLabels.tcpBuffer);
+  }
+
+  if (keysInProfile.has(keys.somaxconn)) {
+    labels.push(t.presetIntentLabels.somaxconn);
+  }
+
+  if (keysInProfile.has(keys.tcpMaxSynBacklog)) {
+    labels.push(t.presetIntentLabels.tcpMaxSynBacklog);
+  }
+
+  return labels;
 }
 
 function TuningPresetCard({

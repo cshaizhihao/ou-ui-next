@@ -5,7 +5,7 @@ export function EnvironmentBackdrop() {
       <span className="ou-shell-color-block ou-shell-color-block-accent" />
       <span className="ou-shell-color-block ou-shell-color-block-signal" />
       <div className="ou-shell-grid" />
-      <div className="ou-shell-ribbon">Control Plane Operations Host Delivery Audit</div>
+      <div className="ou-shell-ribbon" data-ribbon="Control Plane Operations Host Delivery Audit" />
     </div>
   );
 }

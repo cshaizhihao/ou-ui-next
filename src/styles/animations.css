@@ -96,6 +96,11 @@
 .ou-shell-ribbon {
   position: absolute;
   inset: auto -8vw 1.25rem;
+  pointer-events: none;
+}
+
+.ou-shell-ribbon::before {
+  content: attr(data-ribbon);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: clamp(2.4rem, 6vw, 6rem);
   font-weight: 900;
@@ -105,11 +110,12 @@
   color: rgba(30, 58, 255, 0.08);
   white-space: nowrap;
   pointer-events: none;
+  display: block;
   animation: ouRibbonScroll 24s linear infinite;
   will-change: transform;
 }
 
-.dark .ou-shell-ribbon {
+.dark .ou-shell-ribbon::before {
   color: rgba(107, 124, 255, 0.12);
 }
 
@@ -181,7 +187,9 @@
 button:not([disabled]):not([aria-disabled='true']),
 .btn-glow,
 .glass-input,
-.glass-toggle {
+.glass-toggle,
+.ou-select,
+summary {
   transition:
     transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -199,7 +207,9 @@ button:not([disabled]):not([aria-disabled='true']),
 button:not([disabled]):not([aria-disabled='true']):hover,
 .btn-glow:hover,
 .glass-input:hover,
-.glass-toggle:hover {
+.glass-toggle:hover,
+.ou-select:hover,
+summary:hover {
   transform: translateY(-1px);
 }
 
@@ -212,7 +222,9 @@ button:not([disabled]):not([aria-disabled='true']):hover,
 button:not([disabled]):not([aria-disabled='true']):active,
 .btn-glow:active,
 .glass-input:active,
-.glass-toggle:active {
+.glass-toggle:active,
+.ou-select:active,
+summary:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -427,6 +439,8 @@ button:not([disabled]):not([aria-disabled='true']):active {
   .btn-glow,
   .glass-input,
   .glass-toggle,
+  .ou-select,
+  summary,
   .dashboard-connectivity-flow.svg-line-dash,
   .dashboard-connectivity-node {
     animation: none;
@@ -445,6 +459,8 @@ button:not([disabled]):not([aria-disabled='true']):active {
   .btn-glow:hover,
   .glass-input:hover,
   .glass-toggle:hover,
+  .ou-select:hover,
+  summary:hover,
   .ou-nav-item:active,
   .ou-command-pill:active,
   .ou-action-card:active,
@@ -455,6 +471,8 @@ button:not([disabled]):not([aria-disabled='true']):active {
   .btn-glow:active,
   .glass-input:active,
   .glass-toggle:active,
+  .ou-select:active,
+  summary:active,
   .dashboard-connectivity-node {
     transform: none;
   }

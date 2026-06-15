@@ -1229,9 +1229,9 @@ export function ForwardingPage({
 
       <WorkspaceCockpit
         aria-label={t.forwardingCockpit}
-        className="forwarding-ops-cockpit stagger-2 md:h-[calc(100dvh-11rem)] md:overflow-hidden"
+        className="forwarding-ops-cockpit stagger-2 xl:h-[calc(100dvh-10rem)] xl:overflow-hidden"
       >
-        <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 md:h-full xl:grid-cols-[18rem_minmax(0,1fr)]">
+        <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:h-full xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside
           className="forwarding-control-rail forwarding-ops-rail min-h-0 border-b border-[#07111F]/20 bg-[#FDFFF1] p-3 dark:border-white/10 dark:bg-white/[0.02] xl:overflow-y-auto xl:overscroll-contain xl:border-b-0 xl:border-r"
           aria-label={language === 'zh' ? '转发控制栏' : 'Forwarding control rail'}
@@ -1452,7 +1452,7 @@ export function ForwardingPage({
               <EmptyState label={t.noMatchingRules} />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1040px] text-left">
+                <table className="w-full min-w-[960px] text-left">
                   <thead className="bg-[#07111F] text-[10px] font-bold uppercase tracking-widest text-[#FDFFF1] dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
                       <th className="px-3 py-2.5">

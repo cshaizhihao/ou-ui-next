@@ -606,7 +606,8 @@
 .tuning-ops-sysctl-row,
 .forwarding-ops-rule-row,
 .subscription-ops-client-row,
-.customer-ops-row {
+.customer-ops-row,
+.forwarding-runtime-path-card {
   transition:
     transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
     background-color 180ms ease,
@@ -626,7 +627,8 @@
 .tuning-ops-sysctl-row:hover,
 .forwarding-ops-rule-row:hover,
 .subscription-ops-client-row:hover,
-.customer-ops-row:hover {
+.customer-ops-row:hover,
+.forwarding-runtime-path-card:hover {
   transform: translateY(-1px);
 }
 
@@ -642,7 +644,8 @@
 .tuning-ops-sysctl-row:active,
 .forwarding-ops-rule-row:active,
 .subscription-ops-client-row:active,
-.customer-ops-row:active {
+.customer-ops-row:active,
+.forwarding-runtime-path-card:active {
   transform: translateY(1px) scale(0.99);
 }
 
@@ -966,6 +969,7 @@
   .forwarding-ops-rule-row,
   .subscription-ops-client-row,
   .customer-ops-row,
+  .forwarding-runtime-path-card,
   .logo-cat {
     transition: none;
   }

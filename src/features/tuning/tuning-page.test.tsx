@@ -204,7 +204,7 @@ describe('TuningPage', () => {
     const presetPanel = within(rail).getByRole('group', { name: 'Tuning Preset Panel' });
     const presetPlan = within(workspace).getByRole('region', { name: 'Preset Execution Plan' });
     const statusPanel = within(workspace).getByRole('region', { name: 'Execution Status' });
-    const presetRow = within(presetPlan).getByRole('article', { name: 'net.ipv4.tcp_rmem' });
+    const presetSummary = within(presetPlan).getByRole('group', { name: 'TCP High Throughput Preset' });
 
     expect(cockpit).toHaveClass('tuning-ops-cockpit');
     expect(rail).toHaveClass('tuning-ops-rail');
@@ -213,7 +213,7 @@ describe('TuningPage', () => {
     expect(presetPanel).toHaveClass('tuning-ops-tool-panel');
     expect(presetPlan).toHaveClass('tuning-ops-plan-panel');
     expect(statusPanel).toHaveClass('tuning-ops-status-panel');
-    expect(presetRow).toHaveClass('tuning-ops-plan-row');
+    expect(presetSummary).toHaveClass('tuning-ops-preset-summary');
     const cockpitHtml = `${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}`;
     expect(cockpitHtml).toContain('#1E3AFF');
     expect(cockpitHtml).toContain('#DCE1FF');
@@ -352,7 +352,7 @@ describe('TuningPage', () => {
     const statusPanel = within(workspace).getAllByRole('region', { name: 'Execution Status' })[0];
     const presetPlan = within(workspace).getByRole('region', { name: 'Preset Execution Plan' });
     const presetPanel = within(rail).getByRole('group', { name: 'Tuning Preset Panel' });
-    const presetRow = within(presetPlan).getByRole('article', { name: 'net.ipv4.tcp_rmem' });
+    const presetSummary = within(presetPlan).getByRole('group', { name: 'TCP High Throughput Preset' });
     const railMetric = within(rail).getByRole('group', { name: 'Host Status' });
     const summaryGrid = document.querySelector('.tuning-summary-grid');
     const summaryCard = document.querySelector('.tuning-summary-card');
@@ -376,9 +376,9 @@ describe('TuningPage', () => {
     expect(presetPlan).not.toHaveClass('p-5', 'rounded-xl');
     expect(presetPanel).toHaveClass('tuning-ops-tool-panel', 'p-3');
     expect(presetPanel).not.toHaveClass('p-5', 'rounded-xl');
-    expect(presetRow).toHaveClass('tuning-ops-plan-row', 'min-h-[54px]', 'px-3', 'py-2');
-    expect(presetRow).not.toHaveClass('min-h-[76px]');
-    expect(presetRow).not.toHaveClass('rounded-xl');
+    expect(presetSummary).toHaveClass('min-h-[54px]', 'px-3', 'py-2');
+    expect(presetSummary).not.toHaveClass('min-h-[76px]');
+    expect(presetSummary).not.toHaveClass('rounded-xl');
     expect(railMetric).toHaveClass('tuning-ops-metric', 'min-h-[64px]', 'px-3', 'py-2');
     expect(railMetric).not.toHaveClass('min-h-[76px]');
     expect(railMetric).not.toHaveClass('rounded-xl');
@@ -410,6 +410,30 @@ describe('TuningPage', () => {
     expect(screen.queryByText('net.ipv4.tcp_wmem=4096 65536 67108864')).not.toBeInTheDocument();
     expect(screen.getByText('No tuning execution yet')).toBeInTheDocument();
     expect(screen.queryByRole('searchbox', { name: 'Search Profiles' })).not.toBeInTheDocument();
+  });
+
+  it('summarizes preset intent without exposing raw TCP buffer values in the workspace', async () => {
+    const user = userEvent.setup();
+
+    render(<TuningPage agents={agents} language="zh" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText('调优预设'), 'tcp-high-throughput');
+
+    const presetPlan = screen.getByRole('region', { name: '预设执行计划' });
+    const presetSummary = within(presetPlan).getByRole('group', { name: 'TCP 高吞吐预设' });
+
+    expect(presetSummary).toHaveTextContent('TCP 高吞吐预设');
+    expect(presetSummary).toHaveTextContent('网络');
+    expect(presetSummary).toHaveTextContent('6 个参数');
+    expect(presetSummary).toHaveTextContent('BBR');
+    expect(presetSummary).toHaveTextContent('FQ');
+    expect(presetSummary).toHaveTextContent('TCP 缓冲');
+    expect(presetSummary).toHaveTextContent('连接队列');
+    expect(presetSummary).toHaveTextContent('SYN 队列');
+    expect(presetPlan).not.toHaveTextContent('net.ipv4.tcp_rmem');
+    expect(presetPlan).not.toHaveTextContent('4096 87380 134217728');
+    expect(presetPlan).not.toHaveTextContent('net.ipv4.tcp_wmem');
+    expect(presetPlan).not.toHaveTextContent('4096 65536 134217728');
   });
 
   it('keeps tuning focused on host probe state and administrator presets without explanatory filler', () => {

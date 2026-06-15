@@ -846,9 +846,11 @@ export function DashboardPage({
                     {t.releaseEvidenceSummary(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language)}
                   </p>
                 </div>
-                <span className="rounded-full border border-[#07111F]/25 bg-[#DCE1FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
-                  {latestTask ? latestTask.status : t.latestExecutionEmpty}
-                </span>
+                {latestTask ? (
+                  <span className="rounded-full border border-[#07111F]/25 bg-[#DCE1FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
+                    {latestTask.status}
+                  </span>
+                ) : null}
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <EvidenceChip label="Config" value={formatNumber(configRevisions.length, language)} />
@@ -856,14 +858,24 @@ export function DashboardPage({
                 <EvidenceChip label="Snapshot" value={formatNumber(runtimeSnapshots.length, language)} />
               </div>
               <ReleaseRollbackBoundary task={latestTask} t={t} />
-              <div className="mt-3 grid gap-2">
-                <ReleaseEvidenceRow label={t.latestConfigRevision} record={latestConfigRevision} fallbackLabel={t.noReleaseEvidence} />
-                <ReleaseEvidenceRow label={t.latestPreflightPlan} record={latestPreflightPlan} fallbackLabel={t.noReleaseEvidence} />
-                <ReleaseEvidenceRow label={t.latestSnapshot} record={latestRuntimeSnapshot} fallbackLabel={t.noReleaseEvidence} />
-              </div>
-              <p className="mt-3 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
-                {latestTask ? `${t.latestExecution}: ${latestTask.status}` : t.latestExecutionEmpty}
-              </p>
+              {latestConfigRevision || latestPreflightPlan || latestRuntimeSnapshot ? (
+                <div className="mt-3 grid gap-2">
+                  {latestConfigRevision ? (
+                    <ReleaseEvidenceRow label={t.latestConfigRevision} record={latestConfigRevision} />
+                  ) : null}
+                  {latestPreflightPlan ? (
+                    <ReleaseEvidenceRow label={t.latestPreflightPlan} record={latestPreflightPlan} />
+                  ) : null}
+                  {latestRuntimeSnapshot ? (
+                    <ReleaseEvidenceRow label={t.latestSnapshot} record={latestRuntimeSnapshot} />
+                  ) : null}
+                </div>
+              ) : null}
+              {latestTask ? (
+                <p className="mt-3 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
+                  {t.latestExecution}: {latestTask.status}
+                </p>
+              ) : null}
             </GlassCard>
           </section>
 
@@ -878,7 +890,9 @@ export function DashboardPage({
                   {activeAlerts > 0 ? formatNumber(activeAlerts, language) : '0'}
                 </span>
               </div>
-              <p className="mt-3 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{auditLogs[0]?.message ?? t.auditEmpty}</p>
+              {auditLogs[0]?.message ? (
+                <p className="mt-3 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{auditLogs[0].message}</p>
+              ) : null}
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <EvidenceChip label="Audit" value={formatNumber(auditLogs.length, language)} />
                 <EvidenceChip label="Alerts" value={formatNumber(activeAlerts, language)} />
@@ -1153,7 +1167,7 @@ function getReleaseStatusTone(status?: string) {
 function ReleaseRollbackBoundary({ task, t }: { task?: DeployTask; t: DashboardCopy }) {
   const state = task ? (task.rollbackAvailable ? 'ready' : 'locked') : 'waiting';
   const statusLabel = task ? (task.rollbackAvailable ? t.rollbackReady : t.rollbackLocked) : t.rollbackWaiting;
-  const description = task ? (task.rollbackAvailable ? t.rollbackReadyDescription : t.rollbackLockedDescription) : t.latestExecutionEmpty;
+  const description = task ? (task.rollbackAvailable ? t.rollbackReadyDescription : t.rollbackLockedDescription) : '';
   const stateClasses =
     state === 'ready'
       ? 'border-[#07111F] bg-[#D9FF00]/40 text-[#07111F] dark:border-[#EAFF5A]/30 dark:bg-[#EAFF5A]/14 dark:text-[#F4FFC5]'
@@ -1178,7 +1192,9 @@ function ReleaseRollbackBoundary({ task, t }: { task?: DeployTask; t: DashboardC
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-[11px] font-semibold leading-4 opacity-80">{description}</p>
+      {description ? (
+        <p className="mt-2 text-[11px] font-semibold leading-4 opacity-80">{description}</p>
+      ) : null}
       {task ? (
         <div className="mt-2 grid gap-1 font-mono text-[10px] font-black uppercase tracking-widest opacity-78 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <span className="truncate">{task.id}</span>
@@ -1191,25 +1207,21 @@ function ReleaseRollbackBoundary({ task, t }: { task?: DeployTask; t: DashboardC
 
 function ReleaseEvidenceRow({
   label,
-  record,
-  fallbackLabel
+  record
 }: {
   label: string;
-  record?: { id: string; status: string };
-  fallbackLabel: string;
+  record: { id: string; status: string };
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.04]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{label}</p>
-          <p className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{record?.id ?? fallbackLabel}</p>
+          <p className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{record.id}</p>
         </div>
-        {record ? (
-          <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
-            {record.status}
-          </span>
-        ) : null}
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
+          {record.status}
+        </span>
       </div>
     </div>
   );

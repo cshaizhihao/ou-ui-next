@@ -3383,7 +3383,7 @@ export function AppShell({ ready }: AppShellProps) {
           <span className="ou-shell-color-block ou-shell-color-block-accent" />
           <span className="ou-shell-color-block ou-shell-color-block-signal" />
           <div className="ou-shell-grid" />
-          <div className="ou-shell-ribbon">Control Plane Operations Host Delivery Audit</div>
+          <div className="ou-shell-ribbon" data-ribbon="Control Plane Operations Host Delivery Audit" />
         </div>
         <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
         <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-28">

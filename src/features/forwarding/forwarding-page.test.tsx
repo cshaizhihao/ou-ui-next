@@ -501,9 +501,9 @@ describe('ForwardingPage', () => {
     const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
 
     expect(cockpit).toHaveClass('min-h-0');
-    expect(cockpit).toHaveClass('md:h-[calc(100dvh-11rem)]', 'md:overflow-hidden');
+    expect(cockpit).toHaveClass('xl:h-[calc(100dvh-10rem)]', 'xl:overflow-hidden');
     expect(shellGrid).toHaveClass('min-h-0');
-    expect(shellGrid).toHaveClass('md:h-full');
+    expect(shellGrid).toHaveClass('xl:h-full');
     expect(rail).toHaveClass('xl:overflow-y-auto', 'xl:overscroll-contain');
     expect(rail).not.toHaveClass('overflow-visible');
     expect(rail.className).not.toContain('max-h');
@@ -511,6 +511,9 @@ describe('ForwardingPage', () => {
     expect(workspace).toHaveClass('xl:overflow-y-auto', 'xl:overscroll-contain');
     expect(workspaceShell).toHaveClass('min-h-0');
     expect(cockpit.outerHTML).not.toContain('h-screen');
+    expect(cockpit.className).not.toContain('md:h-');
+    expect(cockpit.className).not.toContain('md:overflow-hidden');
+    expect(shellGrid?.className).not.toContain('md:h-full');
     expect(rail.className).not.toContain('overflow-hidden');
     expect(workspace.className).not.toContain('overflow-hidden');
     expect((workspaceShell as HTMLElement).className).not.toContain('overflow-hidden');
@@ -533,8 +536,8 @@ describe('ForwardingPage', () => {
     const table = within(workspace).getByRole('table');
 
     expect(workspaceShell).toHaveClass('max-md:pb-28');
-    expect(table).toHaveClass('min-w-[1040px]');
-    expect(table).not.toHaveClass('min-w-[1220px]', 'min-w-[1280px]');
+    expect(table).toHaveClass('min-w-[960px]');
+    expect(table).not.toHaveClass('min-w-[1040px]', 'min-w-[1220px]', 'min-w-[1280px]');
   });
 
   it('keeps the forwarding empty rule panel compact without an oversized blank card', () => {

@@ -143,7 +143,7 @@ describe('visual constitution', () => {
   it('disables shared cockpit row motion for reduced-motion users', () => {
     const glassCss = readFileSync(join(process.cwd(), 'src/styles/glass.css'), 'utf8');
     const motionSelectorBlock = glassCss.match(
-      /\.nodes-host-pill,[\s\S]*?\.customer-ops-row \{\s*transition:/u
+      /\.nodes-host-pill,[\s\S]*?\.forwarding-runtime-path-card \{\s*transition:/u
     );
     const reducedMotionBlock = glassCss.match(/@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/u);
 
@@ -160,6 +160,7 @@ describe('visual constitution', () => {
     expect(rowSelectors).toContain('tasks-release-row');
     expect(rowSelectors).toContain('nodes-customer-node-row');
     expect(rowSelectors).toContain('forwarding-ops-rule-row');
+    expect(rowSelectors).toContain('forwarding-runtime-path-card');
     expect(rowSelectors).toContain('subscription-ops-client-row');
     expect(rowSelectors).toContain('customer-ops-row');
     expect(rowSelectors.filter((selector) => !reducedSelectors.has(selector))).toEqual([]);
@@ -177,9 +178,11 @@ describe('visual constitution', () => {
     expect(animationsCss).toContain('@keyframes ouBackdropSlide');
     expect(animationsCss).toContain('@keyframes ouRibbonScroll');
     expect(animationsCss).toMatch(/@keyframes ouRibbonScroll[\s\S]*translate3d\(-42vw,\s*0,\s*0\)/u);
-    expect(animationsCss).toMatch(/\.btn-glow,[\s\S]*\.glass-toggle\s*\{[\s\S]*transition:/u);
+    expect(animationsCss).toMatch(/\.btn-glow,[\s\S]*\.ou-select,[\s\S]*summary\s*\{[\s\S]*transition:/u);
+    expect(animationsCss).toMatch(/\.btn-glow:hover,[\s\S]*\.ou-select:hover,[\s\S]*summary:hover\s*\{[\s\S]*translateY\(-1px\)/u);
+    expect(animationsCss).toMatch(/\.btn-glow:active,[\s\S]*\.ou-select:active,[\s\S]*summary:active\s*\{[\s\S]*translateY\(1px\)\s*scale\(0\.99\)/u);
     expect(animationsCss).toMatch(/button:not\(\[disabled\]\):not\(\[aria-disabled='true'\]\):active\s*\{[\s\S]*translateY\(1px\)\s*scale\(0\.99\)/u);
-    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-shell-color-block,[\s\S]*\.ou-shell-ribbon,[\s\S]*\.btn-glow/u);
+    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-shell-color-block,[\s\S]*\.ou-shell-ribbon,[\s\S]*\.btn-glow,[\s\S]*\.ou-select,[\s\S]*summary/u);
   });
 
   it('animates dashboard host connectivity with a real dashed flow and reduced-motion fallback', () => {
@@ -212,5 +215,6 @@ describe('visual constitution', () => {
     expect(document.querySelector('.bg-env')).toBeInTheDocument();
     expect(document.querySelector('.ou-shell-backdrop')).toBeInTheDocument();
     expect(document.querySelector('.ou-shell-grid')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent('Control Plane Operations Host Delivery Audit');
   });
 });

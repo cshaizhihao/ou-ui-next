@@ -495,6 +495,28 @@ describe('DashboardPage', () => {
     expect(releaseEvidence).toHaveTextContent('captured');
   });
 
+  it('compresses empty release and audit states instead of repeating placeholder filler', () => {
+    renderPage({
+      tasks: [],
+      auditLogs: [],
+      configRevisions: [],
+      preflightPlans: [],
+      runtimeSnapshots: [],
+      systemAlerts: []
+    });
+
+    const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
+    const auditAlerts = screen.getByRole('region', { name: '审计与告警' });
+
+    expect((releaseEvidence.textContent?.match(/暂无发布证据/g) ?? [])).toHaveLength(0);
+    expect((releaseEvidence.textContent?.match(/等待发布任务/g) ?? [])).toHaveLength(0);
+    expect(releaseEvidence).toHaveTextContent('Config 0 / Preflight 0 / Snapshot 0');
+    expect(releaseEvidence).toHaveTextContent('回滚边界');
+    expect(releaseEvidence.querySelectorAll('.dashboard-empty-evidence-row')).toHaveLength(0);
+    expect(auditAlerts).toHaveTextContent('Audit 0 / Alerts 0');
+    expect(auditAlerts).not.toHaveTextContent('等待第一条变更审计事件。');
+  });
+
   it('surfaces rollback readiness as a first-screen release evidence boundary', () => {
     renderPage();
 
