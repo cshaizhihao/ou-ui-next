@@ -776,6 +776,47 @@ describe('AppShell', () => {
     expect(within(mobileQuickActionButton).getByText(/\d+ 动作/)).toBeInTheDocument();
   });
 
+  it('exposes forwarding and governance workspaces from the mobile bottom navigation', async () => {
+    const user = userEvent.setup();
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    const forwardingButton = within(mobileNavigation).getByRole('button', { name: '端口转发' });
+    const governanceButton = within(mobileNavigation).getByRole('button', { name: '治理' });
+
+    expect(forwardingButton).toHaveClass('touch-manipulation', 'min-h-11');
+    expect(governanceButton).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(forwardingButton);
+
+    expect((await screen.findAllByRole('heading', { name: '端口转发', hidden: true })).length).toBeGreaterThan(0);
+  });
+
+  it('opens advanced policy pages from the mobile governance tray', async () => {
+    const user = userEvent.setup();
+    stubMobileViewport();
+
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const mobileNavigation = await screen.findByRole('navigation', { name: '手机快捷导航' });
+    const governanceButton = within(mobileNavigation).getByRole('button', { name: '治理' });
+
+    await user.click(governanceButton);
+
+    expect(governanceButton).toHaveAttribute('aria-expanded', 'true');
+
+    const tray = await screen.findByRole('region', { name: '手机治理入口' });
+    expect(tray).toHaveClass('mobile-governance-tray');
+    expect(within(tray).getByRole('button', { name: '分流策略' })).toHaveClass('touch-manipulation', 'min-h-11');
+
+    await user.click(within(tray).getByRole('button', { name: '分流策略' }));
+
+    expect((await screen.findAllByRole('heading', { name: '分流策略', hidden: true })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('region', { name: '手机治理入口' })).not.toBeInTheDocument();
+  });
+
   it('opens global quick actions with Ctrl+K and closes it with Escape', async () => {
     const user = userEvent.setup();
 

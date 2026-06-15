@@ -167,7 +167,17 @@ describe('workspace chrome fauvist palette', () => {
 
     const mobileNavigation = screen.getByRole('navigation', { name: '手机快捷导航' });
     expect(mobileNavigation).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
-    expect(within(mobileNavigation).getByRole('button', { name: '执行记录' })).toHaveClass(
+    expect(within(mobileNavigation).getByRole('button', { name: '治理' })).toHaveClass(
+      'border',
+      'border-[#D9FF00]',
+      'bg-[#D9FF00]/[0.32]',
+      'text-[#07111F]'
+    );
+    fireEvent.click(within(mobileNavigation).getByRole('button', { name: '治理' }));
+
+    const governanceTray = screen.getByRole('region', { name: '手机治理入口' });
+    expect(governanceTray).toHaveClass('mobile-governance-tray', 'border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(within(governanceTray).getByRole('button', { name: '执行记录' })).toHaveClass(
       'border-[#1E3AFF]',
       'bg-[#1E3AFF]',
       'text-white'
