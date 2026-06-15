@@ -22,6 +22,7 @@ import {
   WorkspaceCockpit,
   WorkspaceCockpitScroller
 } from '../../components/layout/responsive-page';
+import { EditableCardFrame, EditableCardStage } from '../../components/layout/editable-card-frame';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import { applySubscriptionSourceRules, selectSubscriptionInventoryNodes } from '../../domain';
@@ -859,6 +860,8 @@ const profileCopy = {
     proxyGroupNodes: '组内节点',
     addGroup: '新增组',
     addSelectedNodes: '加入已选节点',
+    editLayout: '编辑布局',
+    exitEditLayout: '退出编辑',
     noProxyGroupNodes: '未指定节点',
     sourceScope: '可见订阅源',
     allSources: '全部订阅源'
@@ -888,6 +891,8 @@ const profileCopy = {
     proxyGroupNodes: 'Group Nodes',
     addGroup: 'Add Group',
     addSelectedNodes: 'Add Selected Nodes',
+    editLayout: 'Edit Layout',
+    exitEditLayout: 'Exit Edit',
     noProxyGroupNodes: 'No pinned nodes',
     sourceScope: 'Visible Sources',
     allSources: 'All Sources'
@@ -1051,6 +1056,7 @@ const subscriptionDrawerMutedPanelClass =
   'border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 text-[#07111F] transition duration-200 ease-out dark:border-white/10 dark:bg-white/[0.03] dark:text-white';
 const subscriptionDrawerSignalPanelClass =
   'border border-[#FF3D18]/35 bg-[#FFD8C6]/62 p-3 text-[#07111F] transition duration-200 ease-out dark:border-[#FF6A3A]/28 dark:bg-[#FF3D18]/12 dark:text-[#FFD8C6]';
+const subscriptionLayoutStorageKey = 'ou-ui-next:subscription-profile-layouts';
 
 function createPreviewSecret(seed: string, length: number) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -2202,6 +2208,8 @@ export function SubscriptionMixerPage({
   const [clientDraft, setClientDraft] = useState<ClientDraft>(createDefaultClientDraft);
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
   const [profileDraft, setProfileDraft] = useState<ExportProfileDraft>(createDefaultExportProfileDraft);
+  const [profileLayoutEditing, setProfileLayoutEditing] = useState(false);
+  const profileLayoutStorageKey = `${subscriptionLayoutStorageKey}:${profileDraft.profileId || 'draft'}`;
   const filteredClients = useMemo(() => filterSubscriptionClients(clients, clientSearch), [clientSearch, clients]);
   const selectedClients = useMemo(
     () => clients.filter((client) => selectedClientIds.includes(client.id)),
@@ -2444,6 +2452,42 @@ export function SubscriptionMixerPage({
     setProfileDraft((current) => ({
       ...current,
       proxyGroups: current.proxyGroups.map((group) => (group.id === groupId ? updater(group) : group))
+    }));
+  }
+
+  function assignSelectedInventoryNodesToProfileGroup(groupId: string) {
+    if (selectedInventoryNodes.length === 0) {
+      return;
+    }
+
+    const selectedNodeIds = selectedInventoryNodes.map((node) => node.id);
+    const selectedTags = Array.from(new Set(selectedInventoryNodes.flatMap((node) => node.tags))).slice(0, 12);
+
+    setProfileDraft((current) => ({
+      ...current,
+      proxyGroups: current.proxyGroups.map((group) => {
+        if (group.id !== groupId) {
+          return group;
+        }
+
+        const nextNodeIds = Array.from(new Set([...group.nodeIds, ...selectedNodeIds]));
+        const nextFilterTags = Array.from(new Set(splitComma(group.filterTags).concat(selectedTags))).join(',');
+
+        return {
+          ...group,
+          filterTags: nextFilterTags,
+          nodeIds: nextNodeIds
+        };
+      })
+    }));
+  }
+
+  function removeNodeFromProfileGroup(groupId: string, nodeId: string) {
+    setProfileDraft((current) => ({
+      ...current,
+      proxyGroups: current.proxyGroups.map((group) =>
+        group.id === groupId ? { ...group, nodeIds: group.nodeIds.filter((item) => item !== nodeId) } : group
+      )
     }));
   }
 
@@ -4537,6 +4581,16 @@ export function SubscriptionMixerPage({
 
       <ConfigDrawer
         open={drawer.type === 'profile'}
+        headerActions={
+          <button
+            aria-pressed={profileLayoutEditing}
+            className={profileLayoutEditing ? blueActionButtonClass : compactCommandActionButtonClass}
+            onClick={() => setProfileLayoutEditing((current) => !current)}
+            type="button"
+          >
+            {profileLayoutEditing ? profileT.exitEditLayout : profileT.editLayout}
+          </button>
+        }
         returnFocusRef={returnFocusRef}
         title={profileT.drawerTitle}
         onClose={() => setDrawer({ type: 'closed' })}
@@ -4613,11 +4667,7 @@ export function SubscriptionMixerPage({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{profileT.proxyGroups}</p>
               <div className="flex flex-wrap gap-2">
-                <button
-                  className={compactCommandActionButtonClass}
-                  onClick={addManualProfileGroup}
-                  type="button"
-                >
+                <button className={compactCommandActionButtonClass} onClick={addManualProfileGroup} type="button">
                   <Plus className="h-3.5 w-3.5" />
                   {profileT.addGroup}
                 </button>
@@ -4632,69 +4682,123 @@ export function SubscriptionMixerPage({
                 </button>
               </div>
             </div>
-            <div className="mt-3 space-y-3">
-              {profileDraft.proxyGroups.map((group) => (
-                <div
-                  className="border border-[#07111F]/16 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]"
-                  key={group.id}
-                >
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#07111F]/12 pb-2 dark:border-white/10">
-                    <p className="min-w-0 break-words text-xs font-black text-[#07111F] dark:text-white">{group.name || profileT.proxyGroupName}</p>
-                    <span className="border border-[#1E3AFF]/24 bg-[#DCE1FF]/58 px-2 py-1 text-[10px] font-bold uppercase text-[#1E3AFF] dark:border-[#6B7CFF]/24 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]">
-                      {group.strategy} / {group.nodeIds.length}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <InputField
-                      label={profileT.proxyGroupName}
-                      value={group.name}
-                      onChange={(value) => updateProfileGroup(group.id, (current) => ({ ...current, name: value }))}
-                    />
-                    <SelectField
-                      label={profileT.proxyGroupStrategy}
-                      value={group.strategy}
-                      onChange={(value) =>
-                        updateProfileGroup(group.id, (current) => ({
-                          ...current,
-                          strategy: value as ProxyGroupTemplate['strategy']
-                        }))
-                      }
-                      options={[
-                        { label: 'select', value: 'select' },
-                        { label: 'url-test', value: 'url-test' },
-                        { label: 'fallback', value: 'fallback' },
-                        { label: 'load-balance', value: 'load-balance' }
-                      ]}
-                    />
-                    <InputField
-                      label={profileT.proxyGroupTags}
-                      value={group.filterTags}
-                      onChange={(value) => updateProfileGroup(group.id, (current) => ({ ...current, filterTags: value }))}
-                    />
-                  </div>
-                  <div className="mt-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.proxyGroupNodes}</p>
-                    {group.nodeIds.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {group.nodeIds.map((nodeId) => {
-                          const node = inventoryNodes.find((item) => item.id === nodeId);
-
-                          return (
-                            <span
-                              className="max-w-full border border-[#1E3AFF]/30 bg-[#DCE1FF]/62 px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]"
-                              key={nodeId}
-                            >
-                              {node?.name ?? nodeId}
-                            </span>
-                          );
-                        })}
+            <div
+              className={
+                profileLayoutEditing
+                  ? 'mt-3 overflow-auto border border-[#07111F]/16 bg-[#FFFDF5]/58 p-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.03]'
+                  : 'mt-3'
+              }
+            >
+              <EditableCardStage
+                className={profileLayoutEditing ? 'profile-layout-stage' : 'profile-layout-stage flex flex-col gap-3'}
+                defaultLayouts={Object.fromEntries(
+                  profileDraft.proxyGroups.map((group, index) => [
+                    group.id,
+                    {
+                      x: 0,
+                      y: index * 24,
+                      width: 360,
+                      height: 260
+                    }
+                  ])
+                )}
+                constrainToLayouts={profileLayoutEditing}
+                padding={24}
+                storageKey={profileLayoutStorageKey}
+              >
+                {profileDraft.proxyGroups.map((group, index) => (
+                  <EditableCardFrame
+                    className="border border-[#07111F]/16 bg-[#FFFDF5]/74 p-3 transition duration-200 ease-out motion-safe:animate-[ou-panel-in_180ms_ease-out] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] max-md:!left-0 max-md:!top-auto max-md:!h-auto max-md:!w-full max-md:!transform-none max-md:!relative"
+                    defaultLayout={{
+                      x: 0,
+                      y: index * 24,
+                      width: 360,
+                      height: 260
+                    }}
+                    isEditable={profileLayoutEditing}
+                    key={group.id}
+                    layoutKey={group.id}
+                    storageKey={profileLayoutStorageKey}
+                    title={group.name || profileT.proxyGroupName}
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#07111F]/12 pb-2 dark:border-white/10">
+                      <p className="min-w-0 break-words text-xs font-black text-[#07111F] dark:text-white">{group.name || profileT.proxyGroupName}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          className={compactCommandActionButtonClass}
+                          disabled={selectedInventoryNodes.length === 0}
+                          onClick={() => assignSelectedInventoryNodesToProfileGroup(group.id)}
+                          aria-label={`${profileT.addSelectedNodes}: ${group.name || profileT.proxyGroupName}`}
+                          type="button"
+                        >
+                          <Layers3 className="h-3.5 w-3.5" />
+                          {profileT.addSelectedNodes}
+                        </button>
+                        <span className="border border-[#1E3AFF]/24 bg-[#DCE1FF]/58 px-2 py-1 text-[10px] font-bold uppercase text-[#1E3AFF] dark:border-[#6B7CFF]/24 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]">
+                          {group.strategy} / {group.nodeIds.length}
+                        </span>
                       </div>
-                    ) : (
-                      <p className="mt-2 text-xs font-semibold text-[#35405A] dark:text-white/55">{profileT.noProxyGroupNodes}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <InputField
+                        label={profileT.proxyGroupName}
+                        value={group.name}
+                        onChange={(value) => updateProfileGroup(group.id, (current) => ({ ...current, name: value }))}
+                      />
+                      <SelectField
+                        label={profileT.proxyGroupStrategy}
+                        value={group.strategy}
+                        onChange={(value) =>
+                          updateProfileGroup(group.id, (current) => ({
+                            ...current,
+                            strategy: value as ProxyGroupTemplate['strategy']
+                          }))
+                        }
+                        options={[
+                          { label: 'select', value: 'select' },
+                          { label: 'url-test', value: 'url-test' },
+                          { label: 'fallback', value: 'fallback' },
+                          { label: 'load-balance', value: 'load-balance' }
+                        ]}
+                      />
+                      <InputField
+                        label={profileT.proxyGroupTags}
+                        value={group.filterTags}
+                        onChange={(value) => updateProfileGroup(group.id, (current) => ({ ...current, filterTags: value }))}
+                      />
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.proxyGroupNodes}</p>
+                      {group.nodeIds.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {group.nodeIds.map((nodeId) => {
+                            const node = inventoryNodes.find((item) => item.id === nodeId);
+
+                            return (
+                              <span
+                                className="inline-flex max-w-full items-center gap-2 border border-[#1E3AFF]/30 bg-[#DCE1FF]/62 px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]"
+                                key={nodeId}
+                              >
+                                {node?.name ?? nodeId}
+                                <button
+                                  aria-label={`Remove ${node?.name ?? nodeId}`}
+                                  className="rounded-full border border-[#07111F]/14 px-1.5 py-0.5 text-[10px] font-black uppercase text-[#35405A] transition hover:bg-white/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:border-white/10 dark:text-white/55 dark:hover:bg-white/[0.06]"
+                                  onClick={() => removeNodeFromProfileGroup(group.id, nodeId)}
+                                  type="button"
+                                >
+                                  x
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs font-semibold text-[#35405A] dark:text-white/55">{profileT.noProxyGroupNodes}</p>
+                      )}
+                    </div>
+                  </EditableCardFrame>
+                ))}
+              </EditableCardStage>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type {
   ProxyProviderConfig,
@@ -17,6 +17,7 @@ vi.mock('qrcode', () => ({
 }));
 
 afterEach(() => {
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -287,6 +288,62 @@ describe('SubscriptionMixerPage', () => {
     expect(within(groups).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
   });
 
+  it('keeps export profile proxy groups compact by default and only exposes layout handles in edit mode', async () => {
+    const user = userEvent.setup();
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-layout-mode',
+          name: 'Layout Mode',
+          client: 'mihomo',
+          sourceIds: [source.id],
+          includeFilter: 'premium',
+          excludeFilter: '',
+          regionFilter: ['hk'],
+          outputFormats: ['mihomo'],
+          templateName: 'layout-mode.yaml',
+          proxyGroups: [
+            {
+              id: 'proxy-group-premium-auto',
+              name: 'Premium Auto',
+              strategy: 'url-test',
+              filterTags: ['premium'],
+              nodeIds: ['inventory-source-hk-premium-vless-01']
+            }
+          ],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-04T00:00:00.000Z'
+        }
+      ]
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    const profileRow = screen.getByRole('row', { name: /Layout Mode layout-mode\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+    const groupCard = within(drawer).getByRole('group', { name: 'Premium Auto' });
+
+    expect(within(drawer).getByRole('button', { name: 'Edit Layout' })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /Move Premium Auto card/i })).not.toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: /Resize Premium Auto card/i })).not.toBeInTheDocument();
+    expect(groupCard).toHaveClass('relative');
+    expect(groupCard).toHaveStyle({
+      width: '100%',
+      height: 'auto'
+    });
+
+    await user.click(within(drawer).getByRole('button', { name: 'Edit Layout' }));
+
+    expect(within(drawer).getByRole('button', { name: 'Exit Edit' })).toBeInTheDocument();
+    expect(within(groupCard).getByRole('button', { name: /Move Premium Auto card/i })).toBeInTheDocument();
+    expect(within(groupCard).getByRole('button', { name: /Resize Premium Auto card/i })).toBeInTheDocument();
+  });
+
   it('uses the primary blue and signal orange control-plane palette in the subscription cockpit', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
@@ -324,6 +381,49 @@ describe('SubscriptionMixerPage', () => {
     expect(cockpit.outerHTML).not.toContain('amber-');
     expect(cockpit.outerHTML).not.toContain('rose-');
     expect(cockpit.outerHTML).not.toContain('background-clip:text');
+  });
+
+  it('keeps export profile layout editing in the drawer header ahead of the editable profile fields', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-header-layout-toggle',
+          name: 'Header Layout Toggle',
+          client: 'mihomo',
+          sourceIds: [source.id],
+          includeFilter: 'premium',
+          excludeFilter: '',
+          regionFilter: ['hk'],
+          outputFormats: ['mihomo'],
+          templateName: 'header-layout-toggle.yaml',
+          proxyGroups: [
+            {
+              id: 'proxy-group-premium-auto',
+              name: 'Premium Auto',
+              strategy: 'url-test',
+              filterTags: ['premium']
+            }
+          ],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-04T00:00:00.000Z'
+        }
+      ]
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    const profileRow = screen.getByRole('row', { name: /Header Layout Toggle header-layout-toggle\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+    const editLayoutButton = within(drawer).getByRole('button', { name: 'Edit Layout' });
+    const profileNameField = within(drawer).getByRole('textbox', { name: 'Profile Name' });
+
+    expect(editLayoutButton.compareDocumentPosition(profileNameField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('uses a v2 subscription distribution cockpit visual system for publishable subscription operations', () => {
@@ -1453,11 +1553,15 @@ describe('SubscriptionMixerPage', () => {
     await user.type(within(drawer).getByLabelText('Exclude Filter'), 'expired|test');
     await user.clear(within(drawer).getByLabelText('Region Filter'));
     await user.type(within(drawer).getByLabelText('Region Filter'), 'hk,sg');
-    await user.clear(within(drawer).getByLabelText('Proxy Group Name'));
-    await user.type(within(drawer).getByLabelText('Proxy Group Name'), 'Acme Auto');
-    await user.selectOptions(within(drawer).getByLabelText('Proxy Group Strategy'), 'url-test');
-    await user.clear(within(drawer).getByLabelText('Proxy Group Tags'));
-    await user.type(within(drawer).getByLabelText('Proxy Group Tags'), 'premium,streaming');
+    const groupNameInputs = within(drawer).getAllByRole('textbox', { name: 'Proxy Group Name' });
+    const groupStrategyInputs = within(drawer).getAllByRole('combobox', { name: 'Proxy Group Strategy' });
+    const groupTagInputs = within(drawer).getAllByRole('textbox', { name: 'Proxy Group Tags' });
+
+    await user.clear(groupNameInputs[0]);
+    await user.type(groupNameInputs[0], 'Acme Auto');
+    await user.selectOptions(groupStrategyInputs[0], 'url-test');
+    await user.clear(groupTagInputs[0]);
+    await user.type(groupTagInputs[0], 'premium,streaming');
     await user.click(within(drawer).getByRole('button', { name: 'Save' }));
 
     expect(onSaveExportProfile).toHaveBeenCalledWith(
@@ -1609,6 +1713,164 @@ describe('SubscriptionMixerPage', () => {
     );
   });
 
+  it('restores, drags, resizes, and persists editable export group card layouts', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+    const profile: SubscriptionExportProfile = {
+      id: 'profile-layout-customization',
+      name: 'Layout Profile',
+      client: 'mihomo',
+      sourceIds: [source.id],
+      includeFilter: 'premium',
+      excludeFilter: '',
+      regionFilter: ['hk'],
+      outputFormats: ['mihomo'],
+      templateName: 'layout-profile.yaml',
+      proxyGroups: [
+        {
+          id: 'proxy-group-premium-auto',
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium'],
+          nodeIds: ['inventory-source-hk-premium-vless-01']
+        }
+      ],
+      includeTrafficHeaders: true,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+
+    localStorage.setItem(
+      'ou-ui-next:subscription-profile-layouts:profile-layout-customization',
+      JSON.stringify({
+        'proxy-group-premium-auto': {
+          x: 48,
+          y: 36,
+          width: 360,
+          height: 260
+        }
+      })
+    );
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [profile],
+      onSaveExportProfile
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    const profileRow = screen.getByRole('row', { name: /Layout Profile layout-profile\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+    await user.click(within(drawer).getByRole('button', { name: 'Edit Layout' }));
+    const groupCard = within(drawer).getByRole('group', { name: 'Premium Auto' });
+    const moveHandles = within(groupCard).getAllByRole('button', { name: /Move Premium Auto card/i });
+    const moveHandle = moveHandles[0];
+    const resizeHandle = within(groupCard).getByRole('button', { name: /Resize Premium Auto card/i });
+
+    expect(groupCard).toHaveStyle({
+      position: 'absolute',
+      left: '0px',
+      top: '0px',
+      transform: 'translate(48px, 36px)',
+      width: '360px',
+      height: '260px'
+    });
+
+    fireEvent.mouseDown(moveHandle, { clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(window, { clientX: 70, clientY: 54 });
+    fireEvent.mouseUp(window, { clientX: 70, clientY: 54 });
+
+    await waitFor(() =>
+      expect(groupCard).toHaveStyle({
+        transform: 'translate(108px, 80px)',
+        width: '360px',
+        height: '260px'
+      })
+    );
+
+    fireEvent.mouseDown(resizeHandle, { clientX: 368, clientY: 296 });
+    fireEvent.mouseMove(window, { clientX: 428, clientY: 346 });
+    fireEvent.mouseUp(window, { clientX: 428, clientY: 346 });
+
+    await waitFor(() =>
+      expect(groupCard).toHaveStyle({
+        transform: 'translate(108px, 80px)',
+        width: '420px',
+        height: '310px'
+      })
+    );
+
+    const storedLayouts = JSON.parse(
+      localStorage.getItem('ou-ui-next:subscription-profile-layouts:profile-layout-customization') ?? '{}'
+    ) as Record<string, { x: number; y: number; width: number; height: number }>;
+
+    expect(storedLayouts['proxy-group-premium-auto']).toEqual({
+      x: 108,
+      y: 80,
+      width: 420,
+      height: 310
+    });
+  });
+
+  it('keeps editable export groups in compact flow layout until layout edit mode is enabled', async () => {
+    const user = userEvent.setup();
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [
+        {
+          id: 'profile-flow-layout',
+          name: 'Flow Layout',
+          client: 'mihomo',
+          sourceIds: [source.id],
+          includeFilter: 'premium',
+          excludeFilter: '',
+          regionFilter: ['hk'],
+          outputFormats: ['mihomo'],
+          templateName: 'flow-layout.yaml',
+          proxyGroups: [
+            {
+              id: 'proxy-group-premium-auto',
+              name: 'Premium Auto',
+              strategy: 'url-test',
+              filterTags: ['premium'],
+              nodeIds: ['inventory-source-hk-premium-vless-01']
+            }
+          ],
+          includeTrafficHeaders: true,
+          updatedAt: '2026-06-04T00:00:00.000Z'
+        }
+      ]
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    const profileRow = screen.getByRole('row', { name: /Flow Layout flow-layout\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+    const groupCard = within(drawer).getByRole('group', { name: 'Premium Auto' });
+
+    expect(groupCard).toHaveClass('relative');
+    expect(groupCard).toHaveStyle({ width: '100%', height: 'auto' });
+    expect(within(groupCard).queryByRole('button', { name: /Move Premium Auto card/i })).not.toBeInTheDocument();
+    expect(within(groupCard).queryByRole('button', { name: /Resize Premium Auto card/i })).not.toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Edit Layout' }));
+
+    expect(within(groupCard).getByRole('button', { name: /Move Premium Auto card/i })).toBeInTheDocument();
+    expect(within(groupCard).getByRole('button', { name: /Resize Premium Auto card/i })).toBeInTheDocument();
+    expect(groupCard).toHaveStyle({
+      position: 'absolute',
+      left: '0px',
+      top: '0px'
+    });
+  });
+
   it('adds a manual proxy group to an editable export profile before saving the subscription file', async () => {
     const user = userEvent.setup({ delay: null });
     const onSaveExportProfile = vi.fn();
@@ -1624,7 +1886,7 @@ describe('SubscriptionMixerPage', () => {
 
     await user.click(within(drawer).getByRole('button', { name: 'Add Group' }));
 
-    const groupNameInputs = within(drawer).getAllByLabelText('Proxy Group Name');
+    const groupNameInputs = within(drawer).getAllByRole('textbox', { name: 'Proxy Group Name' });
     const groupStrategyInputs = within(drawer).getAllByLabelText('Proxy Group Strategy');
     const groupTagInputs = within(drawer).getAllByLabelText('Proxy Group Tags');
 
@@ -1651,6 +1913,124 @@ describe('SubscriptionMixerPage', () => {
         ]
       }),
       'create'
+    );
+  });
+
+  it('assigns selected inventory nodes into an existing proxy group for the export file', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+    const profile: SubscriptionExportProfile = {
+      id: 'profile-assign-nodes',
+      name: 'Assign Nodes',
+      client: 'mihomo',
+      sourceIds: [source.id],
+      includeFilter: 'premium',
+      excludeFilter: '',
+      regionFilter: ['hk'],
+      outputFormats: ['mihomo'],
+      templateName: 'assign-nodes.yaml',
+      proxyGroups: [
+        {
+          id: 'proxy-group-premium-auto',
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium'],
+          nodeIds: ['inventory-source-hk-premium-vless-01']
+        }
+      ],
+      includeTrafficHeaders: true,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [profile],
+      onSaveExportProfile
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Node Inventory' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select SG Backup VMess 01' }));
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    const profileRow = screen.getByRole('row', { name: /Assign Nodes assign-nodes\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+    const secondGroup = within(drawer).getByText('Premium Auto').closest('[role="group"]');
+
+    expect(secondGroup).not.toBeNull();
+    await user.click(within(secondGroup as HTMLElement).getByRole('button', { name: /Add Selected Nodes: Premium Auto/i }));
+    await user.click(within(drawer).getByRole('button', { name: 'Save' }));
+
+    expect(onSaveExportProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proxyGroups: [
+          expect.objectContaining({
+            name: 'Premium Auto',
+            nodeIds: ['inventory-source-hk-premium-vless-01', 'inventory-source-sg-backup-vmess-01']
+          })
+        ]
+      }),
+      'update'
+    );
+  });
+
+  it('removes a node from an export proxy group before saving', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+    const profile: SubscriptionExportProfile = {
+      id: 'profile-remove-node',
+      name: 'Remove Node',
+      client: 'mihomo',
+      sourceIds: [source.id],
+      includeFilter: 'premium',
+      excludeFilter: '',
+      regionFilter: ['hk'],
+      outputFormats: ['mihomo'],
+      templateName: 'remove-node.yaml',
+      proxyGroups: [
+        {
+          id: 'proxy-group-premium-auto',
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium'],
+          nodeIds: ['inventory-source-hk-premium-vless-01', 'inventory-source-sg-backup-vmess-01']
+        }
+      ],
+      includeTrafficHeaders: true,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [profile],
+      onSaveExportProfile
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+    const profileRow = screen.getByRole('row', { name: /Remove Node remove-node\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+    const group = within(drawer).getByText('Premium Auto').closest('[role="group"]');
+
+    expect(group).not.toBeNull();
+    await user.click(within(group as HTMLElement).getByRole('button', { name: /Remove SG Backup VMess 01/i }));
+    await user.click(within(drawer).getByRole('button', { name: 'Save' }));
+
+    expect(onSaveExportProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proxyGroups: [
+          expect.objectContaining({
+            name: 'Premium Auto',
+            nodeIds: ['inventory-source-hk-premium-vless-01']
+          })
+        ]
+      }),
+      'update'
     );
   });
 

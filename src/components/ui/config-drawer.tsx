@@ -5,6 +5,7 @@ import { cn } from '../../lib/cn';
 type ConfigDrawerProps = {
   children: ReactNode;
   description?: string;
+  headerActions?: ReactNode;
   footer?: ReactNode;
   open: boolean;
   returnFocusRef?: RefObject<HTMLElement | null>;
@@ -32,7 +33,16 @@ function getActiveReturnTarget() {
   return document.activeElement;
 }
 
-export function ConfigDrawer({ children, description, footer, open, returnFocusRef, title, onClose }: ConfigDrawerProps) {
+export function ConfigDrawer({
+  children,
+  description,
+  footer,
+  headerActions,
+  open,
+  returnFocusRef,
+  title,
+  onClose
+}: ConfigDrawerProps) {
   const [rendered, setRendered] = useState(open);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -212,13 +222,14 @@ export function ConfigDrawer({ children, description, footer, open, returnFocusR
         ref={dialogRef}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-black/15 p-6 dark:border-white/10">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+        <div className="border-b border-black/15 p-6 dark:border-white/10 max-md:p-4">
+          <div className="flex items-start justify-between gap-4 max-md:flex-col max-md:items-stretch">
+            <div className="min-w-0 flex-1">
               <h3 className="text-base font-semibold text-black dark:text-white">{title}</h3>
               {description ? (
                 <p className="mt-2 text-xs leading-6 text-black/60 dark:text-white/50">{description}</p>
               ) : null}
+              {headerActions ? <div className="mt-3 flex flex-wrap gap-2">{headerActions}</div> : null}
             </div>
             <button
               aria-label="Close"
