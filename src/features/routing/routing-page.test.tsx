@@ -162,6 +162,42 @@ describe('RoutingPage', () => {
     expect(screen.queryByText('将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。')).not.toBeInTheDocument();
   });
 
+  it('renders administrator-authored routing as a host domain outbound chain with compile payload evidence', async () => {
+    const user = userEvent.setup();
+
+    render(<RoutingPage language="zh" policies={policies} onRunTask={vi.fn()} />);
+
+    const manualRule = screen.getByRole('region', { name: '手写分流规则' });
+    await user.type(within(manualRule).getByLabelText('生成主机'), '香港入口主机');
+    await user.type(within(manualRule).getByLabelText('访问域名'), 'stream.example.com');
+    await user.selectOptions(within(manualRule).getByLabelText('出站协议'), 'proxy');
+    await user.type(within(manualRule).getByLabelText('出站标签'), 'HK-PREMIUM');
+
+    const chain = within(manualRule).getByRole('group', { name: '手写分流链路' });
+    const generatedNode = within(chain).getByRole('article', { name: '生成节点' });
+    const domainMatch = within(chain).getByRole('article', { name: '域名匹配' });
+    const outboundRule = within(chain).getByRole('article', { name: '出站规则' });
+    const payload = within(manualRule).getByRole('group', { name: '编译载荷' });
+
+    expect(chain).toHaveClass('routing-manual-route-chain', 'grid', 'md:grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)_2rem_minmax(0,1fr)]');
+    expect(chain.outerHTML).toContain('#1E3AFF');
+    expect(chain.outerHTML).toContain('#FF3D18');
+    expect(chain.outerHTML).toContain('#D9FF00');
+    expect(chain.outerHTML).not.toContain('masonry');
+    expect(chain.outerHTML).not.toContain('row-span');
+    expect(generatedNode).toHaveClass('routing-manual-route-node', 'min-h-[72px]');
+    expect(generatedNode).toHaveTextContent('香港入口主机');
+    expect(generatedNode).toHaveTextContent('生成的节点');
+    expect(domainMatch).toHaveClass('routing-manual-route-domain', 'min-h-[72px]');
+    expect(domainMatch).toHaveTextContent('domain:stream.example.com');
+    expect(outboundRule).toHaveClass('routing-manual-route-outbound', 'min-h-[72px]');
+    expect(outboundRule).toHaveTextContent('proxy');
+    expect(outboundRule).toHaveTextContent('HK-PREMIUM');
+    expect(payload).toHaveTextContent('manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM');
+    expect(payload).toHaveTextContent('match:host:香港入口主机 AND domain:stream.example.com');
+    expect(payload).toHaveTextContent('outbound:HK-PREMIUM');
+  });
+
   it('does not pad routing operations with explanatory filler or generic workflow chips', () => {
     render(<RoutingPage language="zh" policies={policies} onRunTask={vi.fn()} />);
 

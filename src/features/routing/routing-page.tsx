@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, GitBranch, Network, Search, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Copy, GitBranch, Globe2, Network, Search, Server, ShieldAlert, ShieldCheck } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ResponsivePage, WorkspaceCockpit, WorkspaceCockpitScroller } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
@@ -53,6 +53,11 @@ const copy = {
     compileSelectedPolicies: '编译已选策略',
     copySelectedCompilePlan: '复制已选编译计划',
     manualRuleTitle: '手写分流规则',
+    manualRouteChain: '手写分流链路',
+    manualGeneratedNode: '生成节点',
+    manualDomainMatch: '域名匹配',
+    manualOutboundRule: '出站规则',
+    manualCompilePayload: '编译载荷',
     generatedHost: '生成主机',
     accessDomain: '访问域名',
     outboundProtocol: '出站协议',
@@ -139,6 +144,11 @@ const copy = {
     compileSelectedPolicies: 'Compile Selected Policies',
     copySelectedCompilePlan: 'Copy Selected Compile Plan',
     manualRuleTitle: 'Manual Routing Rule',
+    manualRouteChain: 'Manual Routing Chain',
+    manualGeneratedNode: 'Generated Node',
+    manualDomainMatch: 'Domain Match',
+    manualOutboundRule: 'Outbound Rule',
+    manualCompilePayload: 'Compile Payload',
     generatedHost: 'Generated Host',
     accessDomain: 'Access Domain',
     outboundProtocol: 'Outbound Protocol',
@@ -633,22 +643,6 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                       <GitBranch className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                       <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.manualRuleTitle}</h4>
                     </div>
-                    {manualRulePreview ? (
-                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black text-[#35405A] dark:text-white/62">
-                        <span className="border border-[#07111F]/18 bg-[#EAF3D1]/60 px-2 py-1 dark:border-white/10 dark:bg-white/[0.04]">
-                          {manualRulePreview.generatedHost || '-'} {t.manualNodeSuffix}
-                        </span>
-                        <span className="border border-[#07111F]/18 bg-[#DCE1FF]/62 px-2 py-1 text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12 dark:text-[#BAC4FF]">
-                          domain:{manualRulePreview.accessDomain || '-'}
-                        </span>
-                        <span className="border border-[#07111F]/18 bg-[#FFD8C6]/70 px-2 py-1 text-[#B93C17] dark:border-[#FFB299]/20 dark:bg-[#FF6A3A]/12 dark:text-[#FFB299]">
-                          outbound:{manualRulePreview.outboundTag}
-                        </span>
-                        <span className="border border-[#07111F]/18 bg-[#FFFDF5] px-2 py-1 font-mono text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
-                          match:{manualRulePreview.match}
-                        </span>
-                      </div>
-                    ) : null}
                   </div>
                   <GlowButton
                     className="min-h-10 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50"
@@ -658,6 +652,15 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                     {t.manualRuleCompile}
                   </GlowButton>
                 </div>
+
+                {manualRulePreview ? (
+                  <ManualRoutingRuleChain
+                    manualRule={manualRulePreview}
+                    nodeSuffix={t.manualNodeSuffix}
+                    t={t}
+                  />
+                ) : null}
+
                 <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_minmax(10rem,0.7fr)_minmax(10rem,0.8fr)]">
                   <ManualRuleInput label={t.generatedHost} value={manualHost} onChange={setManualHost} />
                   <ManualRuleInput label={t.accessDomain} value={manualDomain} onChange={setManualDomain} />
@@ -890,6 +893,122 @@ function ManualRuleInput({
         value={value}
       />
     </label>
+  );
+}
+
+function ManualRoutingRuleChain({
+  manualRule,
+  nodeSuffix,
+  t
+}: {
+  manualRule: ManualRoutingRuleMetadata;
+  nodeSuffix: string;
+  t: RoutingCopy;
+}) {
+  return (
+    <div className="mt-3 grid gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.38fr)]">
+      <div
+        aria-label={t.manualRouteChain}
+        className="routing-manual-route-chain grid gap-2 md:grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)_2rem_minmax(0,1fr)] md:items-stretch"
+        role="group"
+      >
+        <ManualRoutingChainNode
+          ariaLabel={t.manualGeneratedNode}
+          className="routing-manual-route-node border-[#07111F]/20 bg-[#EAF3D1]/64"
+          icon={Server}
+          label={t.manualGeneratedNode}
+          value={manualRule.generatedHost || '-'}
+          detail={nodeSuffix}
+        />
+        <ManualRoutingChainArrow />
+        <ManualRoutingChainNode
+          ariaLabel={t.manualDomainMatch}
+          className="routing-manual-route-domain border-[#1E3AFF]/34 bg-[#DCE1FF]/72"
+          icon={Globe2}
+          label={t.manualDomainMatch}
+          value={`domain:${manualRule.accessDomain || '-'}`}
+          detail={manualRule.match}
+          valueClassName="text-[#1E3AFF] dark:text-[#BAC4FF]"
+        />
+        <ManualRoutingChainArrow />
+        <ManualRoutingChainNode
+          ariaLabel={t.manualOutboundRule}
+          className="routing-manual-route-outbound border-[#FF3D18]/36 bg-[#FFD8C6]/72"
+          icon={GitBranch}
+          label={t.manualOutboundRule}
+          value={manualRule.outboundProtocol}
+          detail={manualRule.outboundTag}
+          valueClassName="text-[#B93C17] dark:text-[#FFB299]"
+        />
+      </div>
+
+      <div
+        aria-label={t.manualCompilePayload}
+        className="routing-manual-payload min-w-0 border border-[#07111F]/20 bg-[#FFFDF5] p-3 dark:border-white/10 dark:bg-white/[0.04]"
+        role="group"
+      >
+        <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">
+          {t.manualCompilePayload}
+        </p>
+        <div className="mt-2 space-y-1 font-mono text-[10px] font-semibold leading-5 text-[#35405A] dark:text-white/58">
+          <p className="break-all">{manualRule.manualRuleId}</p>
+          <p className="break-all">match:{manualRule.match}</p>
+          <p className="break-all">outbound:{manualRule.outboundTag}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManualRoutingChainArrow() {
+  return (
+    <div
+      aria-hidden="true"
+      className="routing-manual-route-arrow hidden min-h-[72px] items-center justify-center text-[#1E3AFF] md:flex"
+    >
+      <span className="grid h-8 w-8 place-items-center border border-[#07111F]/20 bg-[#D9FF00]/70 shadow-[0_10px_22px_-18px_rgba(7,17,31,0.4)] dark:border-white/10 dark:bg-[#D9FF00]/20">
+        <ArrowRight className="h-4 w-4" />
+      </span>
+    </div>
+  );
+}
+
+function ManualRoutingChainNode({
+  ariaLabel,
+  className,
+  detail,
+  icon: Icon,
+  label,
+  value,
+  valueClassName = 'text-[#07111F] dark:text-white'
+}: {
+  ariaLabel: string;
+  className: string;
+  detail: string;
+  icon: typeof Network;
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <article
+      aria-label={ariaLabel}
+      className={`min-h-[72px] min-w-0 border p-3 transition-[background-color,transform] duration-200 ease-out hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-white/10 dark:bg-white/[0.035] ${className}`}
+    >
+      <span className="sr-only">
+        {value} {detail}
+      </span>
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/42">{label}</p>
+          <p className={`mt-1 break-all text-sm font-black leading-5 ${valueClassName}`}>{value}</p>
+        </div>
+        <Icon className="h-4 w-4 shrink-0 text-[#1E3AFF] dark:text-[#BAC4FF]" />
+      </div>
+      <p className="mt-2 break-all font-mono text-[10px] font-semibold leading-4 text-[#35405A] dark:text-white/55">
+        {detail}
+      </p>
+    </article>
   );
 }
 
