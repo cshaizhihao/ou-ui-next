@@ -1522,6 +1522,138 @@ describe('SubscriptionMixerPage', () => {
     );
   });
 
+  it('preserves multiple editable export proxy groups and appends selected inventory nodes as a new group', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+    const multiGroupProfile: SubscriptionExportProfile = {
+      id: 'profile-multi-group-mihomo',
+      name: 'Multi Group Mihomo',
+      client: 'mihomo',
+      sourceIds: [source.id, backupSource.id],
+      includeFilter: 'premium|backup',
+      excludeFilter: 'expired|test',
+      regionFilter: ['hk', 'sg'],
+      outputFormats: ['mihomo', 'clash'],
+      templateName: 'multi-group.yaml',
+      proxyGroups: [
+        {
+          id: 'proxy-group-premium-auto',
+          name: 'Premium Auto',
+          strategy: 'url-test',
+          filterTags: ['premium', 'streaming'],
+          nodeIds: ['inventory-source-hk-premium-vless-01']
+        },
+        {
+          id: 'proxy-group-backup-fallback',
+          name: 'Backup Fallback',
+          strategy: 'fallback',
+          filterTags: ['backup', 'standard'],
+          nodeIds: ['inventory-source-sg-backup-vmess-01']
+        }
+      ],
+      includeTrafficHeaders: true,
+      updatedAt: '2026-06-04T00:00:00.000Z'
+    };
+
+    renderPage({
+      language: 'en',
+      subscriptionSources: [source, backupSource],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionExportProfiles: [multiGroupProfile],
+      onSaveExportProfile
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Node Inventory' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select HK Premium VLESS 01' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Select SG Backup VMess 01' }));
+    await user.click(screen.getByRole('button', { name: 'Export Profiles' }));
+
+    const profileRow = screen.getByRole('row', { name: /Multi Group Mihomo multi-group\.yaml/ });
+    await user.click(within(profileRow).getByRole('button', { name: 'Edit' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+
+    expect(within(drawer).getByText('Premium Auto')).toBeInTheDocument();
+    expect(within(drawer).getByText('Backup Fallback')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Add Selected Nodes' }));
+    await user.click(within(drawer).getByRole('button', { name: 'Save' }));
+
+    expect(onSaveExportProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileId: 'profile-multi-group-mihomo',
+        proxyGroups: [
+          expect.objectContaining({
+            id: 'proxy-group-premium-auto',
+            name: 'Premium Auto',
+            strategy: 'url-test',
+            filterTags: ['premium', 'streaming'],
+            nodeIds: ['inventory-source-hk-premium-vless-01']
+          }),
+          expect.objectContaining({
+            id: 'proxy-group-backup-fallback',
+            name: 'Backup Fallback',
+            strategy: 'fallback',
+            filterTags: ['backup', 'standard'],
+            nodeIds: ['inventory-source-sg-backup-vmess-01']
+          }),
+          expect.objectContaining({
+            name: 'Selected Inventory Nodes',
+            strategy: 'select',
+            filterTags: expect.arrayContaining(['premium', 'streaming', 'backup', 'standard']),
+            nodeIds: ['inventory-source-hk-premium-vless-01', 'inventory-source-sg-backup-vmess-01']
+          })
+        ]
+      }),
+      'update'
+    );
+  });
+
+  it('adds a manual proxy group to an editable export profile before saving the subscription file', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveExportProfile = vi.fn();
+
+    renderPage({
+      language: 'en',
+      onSaveExportProfile
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Add Profile' }));
+
+    const drawer = screen.getByLabelText('Edit Export Profile');
+
+    await user.click(within(drawer).getByRole('button', { name: 'Add Group' }));
+
+    const groupNameInputs = within(drawer).getAllByLabelText('Proxy Group Name');
+    const groupStrategyInputs = within(drawer).getAllByLabelText('Proxy Group Strategy');
+    const groupTagInputs = within(drawer).getAllByLabelText('Proxy Group Tags');
+
+    await user.clear(groupNameInputs[1]);
+    await user.type(groupNameInputs[1], 'Manual Domain Split');
+    await user.selectOptions(groupStrategyInputs[1], 'fallback');
+    await user.clear(groupTagInputs[1]);
+    await user.type(groupTagInputs[1], 'domain:streaming,manual');
+    await user.click(within(drawer).getByRole('button', { name: 'Save' }));
+
+    expect(onSaveExportProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proxyGroups: [
+          expect.objectContaining({
+            name: 'Premium Auto',
+            strategy: 'url-test',
+            filterTags: ['premium', 'streaming']
+          }),
+          expect.objectContaining({
+            name: 'Manual Domain Split',
+            strategy: 'fallback',
+            filterTags: ['domain:streaming', 'manual']
+          })
+        ]
+      }),
+      'create'
+    );
+  });
+
   it('filters export profiles before confirming bulk deletion', async () => {
     const user = userEvent.setup();
     const onDeleteExportProfile = vi.fn();

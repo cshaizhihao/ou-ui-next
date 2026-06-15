@@ -246,6 +246,14 @@ type SourceDraft = {
   dedupeKey: SubscriptionSource['dedupeKey'];
 };
 
+type ExportGroupDraft = {
+  id: string;
+  name: string;
+  strategy: ProxyGroupTemplate['strategy'];
+  filterTags: string;
+  nodeIds: string[];
+};
+
 type ExportProfileDraft = {
   profileId: string;
   name: string;
@@ -256,10 +264,7 @@ type ExportProfileDraft = {
   regionFilter: string;
   outputFormats: SubscriptionClientOutputFormat[];
   templateName: string;
-  proxyGroupName: string;
-  proxyGroupStrategy: ProxyGroupTemplate['strategy'];
-  proxyGroupFilterTags: string;
-  proxyGroupNodeIds: string[];
+  proxyGroups: ExportGroupDraft[];
   includeTrafficHeaders: boolean;
 };
 
@@ -852,6 +857,7 @@ const profileCopy = {
     proxyGroupStrategy: '代理组策略',
     proxyGroupTags: '代理组标签',
     proxyGroupNodes: '组内节点',
+    addGroup: '新增组',
     addSelectedNodes: '加入已选节点',
     noProxyGroupNodes: '未指定节点',
     sourceScope: '可见订阅源',
@@ -880,6 +886,7 @@ const profileCopy = {
     proxyGroupStrategy: 'Proxy Group Strategy',
     proxyGroupTags: 'Proxy Group Tags',
     proxyGroupNodes: 'Group Nodes',
+    addGroup: 'Add Group',
     addSelectedNodes: 'Add Selected Nodes',
     noProxyGroupNodes: 'No pinned nodes',
     sourceScope: 'Visible Sources',
@@ -928,17 +935,20 @@ function createDefaultExportProfileDraft(): ExportProfileDraft {
     regionFilter: 'hk,sg,jp',
     outputFormats: ['mihomo', 'clash', 'uri'],
     templateName: 'mihomo-compatible.yaml',
-    proxyGroupName: 'Premium Auto',
-    proxyGroupStrategy: 'url-test',
-    proxyGroupFilterTags: 'premium,streaming',
-    proxyGroupNodeIds: [],
+    proxyGroups: [
+      {
+        id: 'proxy-group-premium-auto',
+        name: 'Premium Auto',
+        strategy: 'url-test',
+        filterTags: 'premium,streaming',
+        nodeIds: []
+      }
+    ],
     includeTrafficHeaders: true
   };
 }
 
 function createDraftFromExportProfile(profile: SubscriptionExportProfile): ExportProfileDraft {
-  const firstGroup = profile.proxyGroups[0];
-
   return {
     profileId: profile.id,
     name: profile.name,
@@ -949,17 +959,23 @@ function createDraftFromExportProfile(profile: SubscriptionExportProfile): Expor
     regionFilter: profile.regionFilter.join(','),
     outputFormats: profile.outputFormats.length > 0 ? profile.outputFormats : ['mihomo', 'clash'],
     templateName: profile.templateName,
-    proxyGroupName: firstGroup?.name ?? 'Premium Auto',
-    proxyGroupStrategy: firstGroup?.strategy ?? 'url-test',
-    proxyGroupFilterTags: firstGroup?.filterTags.join(',') ?? '',
-    proxyGroupNodeIds: firstGroup?.nodeIds ?? [],
+    proxyGroups:
+      profile.proxyGroups.length > 0
+        ? profile.proxyGroups.map((group) => ({
+            id: group.id,
+            name: group.name,
+            strategy: group.strategy,
+            filterTags: group.filterTags.join(','),
+            nodeIds: group.nodeIds ?? []
+          }))
+        : createDefaultExportProfileDraft().proxyGroups,
     includeTrafficHeaders: profile.includeTrafficHeaders
   };
 }
 
 function createExportProfileMetadataFromDraft(draft: ExportProfileDraft): SubscriptionExportProfileMetadata {
   const profileName = draft.name.trim() || 'Mihomo Premium Profile';
-  const proxyGroupName = draft.proxyGroupName.trim() || profileName;
+  const proxyGroups = draft.proxyGroups.length > 0 ? draft.proxyGroups : createDefaultExportProfileDraft().proxyGroups;
 
   return {
     profileId: draft.profileId,
@@ -971,17 +987,24 @@ function createExportProfileMetadataFromDraft(draft: ExportProfileDraft): Subscr
     regionFilter: splitComma(draft.regionFilter),
     outputFormats: draft.outputFormats.length > 0 ? draft.outputFormats : ['mihomo', 'clash'],
     templateName: draft.templateName.trim() || `${draft.client}-compatible.yaml`,
-    proxyGroups: [
-      {
-        id: `proxy-group-${proxyGroupName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'default'}`,
-        name: proxyGroupName,
-        strategy: draft.proxyGroupStrategy,
-        filterTags: splitComma(draft.proxyGroupFilterTags),
-        nodeIds: draft.proxyGroupNodeIds.length > 0 ? draft.proxyGroupNodeIds : undefined
-      }
-    ],
+    proxyGroups: proxyGroups.map((group, index) => {
+      const groupName = group.name.trim() || `${profileName} ${index + 1}`;
+      const groupId = group.id.trim() || createProxyGroupId(groupName);
+
+      return {
+        id: groupId,
+        name: groupName,
+        strategy: group.strategy,
+        filterTags: splitComma(group.filterTags),
+        nodeIds: group.nodeIds.length > 0 ? group.nodeIds : undefined
+      };
+    }),
     includeTrafficHeaders: draft.includeTrafficHeaders
   };
+}
+
+function createProxyGroupId(name: string) {
+  return `proxy-group-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'default'}`;
 }
 
 function splitComma(value: string) {
@@ -2378,13 +2401,49 @@ export function SubscriptionMixerPage({
     }
 
     const selectedTags = Array.from(new Set(selectedInventoryNodes.flatMap((node) => node.tags))).slice(0, 12);
+    const selectedGroupName = language === 'zh' ? '已选库存节点' : 'Selected Inventory Nodes';
+    const selectedGroup: ExportGroupDraft = {
+      id: createProxyGroupId(`${selectedGroupName}-${Date.now()}`),
+      name: selectedGroupName,
+      strategy: 'select',
+      filterTags: selectedTags.join(','),
+      nodeIds: selectedInventoryNodes.map((node) => node.id)
+    };
 
     setProfileDraft((current) => ({
       ...current,
-      proxyGroupName: language === 'zh' ? '已选库存节点' : 'Selected Inventory Nodes',
-      proxyGroupStrategy: 'select',
-      proxyGroupFilterTags: selectedTags.join(','),
-      proxyGroupNodeIds: selectedInventoryNodes.map((node) => node.id)
+      proxyGroups:
+        current.profileId === '' && current.proxyGroups.length === 1 && current.proxyGroups[0]?.id === 'proxy-group-premium-auto'
+          ? [selectedGroup]
+          : [...current.proxyGroups, selectedGroup]
+    }));
+  }
+
+  function addManualProfileGroup() {
+    setProfileDraft((current) => {
+      const nextIndex = current.proxyGroups.length + 1;
+      const groupName = language === 'zh' ? `自定义组 ${nextIndex}` : `Custom Group ${nextIndex}`;
+
+      return {
+        ...current,
+        proxyGroups: [
+          ...current.proxyGroups,
+          {
+            id: createProxyGroupId(`${groupName}-${Date.now()}`),
+            name: groupName,
+            strategy: 'select',
+            filterTags: '',
+            nodeIds: []
+          }
+        ]
+      };
+    });
+  }
+
+  function updateProfileGroup(groupId: string, updater: (group: ExportGroupDraft) => ExportGroupDraft) {
+    setProfileDraft((current) => ({
+      ...current,
+      proxyGroups: current.proxyGroups.map((group) => (group.id === groupId ? updater(group) : group))
     }));
   }
 
@@ -4553,59 +4612,89 @@ export function SubscriptionMixerPage({
           <div className={subscriptionDrawerCommandPanelClass}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{profileT.proxyGroups}</p>
-              <button
-                className={compactCommandActionButtonClass}
-                disabled={selectedInventoryNodes.length === 0}
-                onClick={addSelectedInventoryNodesToProfileGroup}
-                type="button"
-              >
-                <Layers3 className="h-3.5 w-3.5" />
-                {profileT.addSelectedNodes}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={compactCommandActionButtonClass}
+                  onClick={addManualProfileGroup}
+                  type="button"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {profileT.addGroup}
+                </button>
+                <button
+                  className={compactCommandActionButtonClass}
+                  disabled={selectedInventoryNodes.length === 0}
+                  onClick={addSelectedInventoryNodesToProfileGroup}
+                  type="button"
+                >
+                  <Layers3 className="h-3.5 w-3.5" />
+                  {profileT.addSelectedNodes}
+                </button>
+              </div>
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <InputField
-              label={profileT.proxyGroupName}
-              value={profileDraft.proxyGroupName}
-              onChange={(value) => setProfileDraft((current) => ({ ...current, proxyGroupName: value }))}
-            />
-            <SelectField
-              label={profileT.proxyGroupStrategy}
-              value={profileDraft.proxyGroupStrategy}
-              onChange={(value) => setProfileDraft((current) => ({ ...current, proxyGroupStrategy: value as ProxyGroupTemplate['strategy'] }))}
-              options={[
-                { label: 'select', value: 'select' },
-                { label: 'url-test', value: 'url-test' },
-                { label: 'fallback', value: 'fallback' },
-                { label: 'load-balance', value: 'load-balance' }
-              ]}
-            />
-            <InputField
-              label={profileT.proxyGroupTags}
-              value={profileDraft.proxyGroupFilterTags}
-              onChange={(value) => setProfileDraft((current) => ({ ...current, proxyGroupFilterTags: value }))}
-            />
-            </div>
-            <div className="mt-3 border border-[#07111F]/16 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.proxyGroupNodes}</p>
-              {profileDraft.proxyGroupNodeIds.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {profileDraft.proxyGroupNodeIds.map((nodeId) => {
-                    const node = inventoryNodes.find((item) => item.id === nodeId);
+            <div className="mt-3 space-y-3">
+              {profileDraft.proxyGroups.map((group) => (
+                <div
+                  className="border border-[#07111F]/16 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]"
+                  key={group.id}
+                >
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-[#07111F]/12 pb-2 dark:border-white/10">
+                    <p className="min-w-0 break-words text-xs font-black text-[#07111F] dark:text-white">{group.name || profileT.proxyGroupName}</p>
+                    <span className="border border-[#1E3AFF]/24 bg-[#DCE1FF]/58 px-2 py-1 text-[10px] font-bold uppercase text-[#1E3AFF] dark:border-[#6B7CFF]/24 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]">
+                      {group.strategy} / {group.nodeIds.length}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <InputField
+                      label={profileT.proxyGroupName}
+                      value={group.name}
+                      onChange={(value) => updateProfileGroup(group.id, (current) => ({ ...current, name: value }))}
+                    />
+                    <SelectField
+                      label={profileT.proxyGroupStrategy}
+                      value={group.strategy}
+                      onChange={(value) =>
+                        updateProfileGroup(group.id, (current) => ({
+                          ...current,
+                          strategy: value as ProxyGroupTemplate['strategy']
+                        }))
+                      }
+                      options={[
+                        { label: 'select', value: 'select' },
+                        { label: 'url-test', value: 'url-test' },
+                        { label: 'fallback', value: 'fallback' },
+                        { label: 'load-balance', value: 'load-balance' }
+                      ]}
+                    />
+                    <InputField
+                      label={profileT.proxyGroupTags}
+                      value={group.filterTags}
+                      onChange={(value) => updateProfileGroup(group.id, (current) => ({ ...current, filterTags: value }))}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.proxyGroupNodes}</p>
+                    {group.nodeIds.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {group.nodeIds.map((nodeId) => {
+                          const node = inventoryNodes.find((item) => item.id === nodeId);
 
-                    return (
-                      <span
-                        className="max-w-full border border-[#1E3AFF]/30 bg-[#DCE1FF]/62 px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]"
-                        key={nodeId}
-                      >
-                        {node?.name ?? nodeId}
-                      </span>
-                    );
-                  })}
+                          return (
+                            <span
+                              className="max-w-full border border-[#1E3AFF]/30 bg-[#DCE1FF]/62 px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/22 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF]"
+                              key={nodeId}
+                            >
+                              {node?.name ?? nodeId}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-xs font-semibold text-[#35405A] dark:text-white/55">{profileT.noProxyGroupNodes}</p>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <p className="mt-2 text-xs font-semibold text-[#35405A] dark:text-white/55">{profileT.noProxyGroupNodes}</p>
-              )}
+              ))}
             </div>
           </div>
 
