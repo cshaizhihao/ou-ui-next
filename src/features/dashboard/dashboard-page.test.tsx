@@ -95,6 +95,41 @@ function createAgent(): Agent {
   };
 }
 
+const baseForwardingRule: ForwardingRuleView = {
+  id: 'forward-rule-01',
+  name: '东京游戏转发',
+  ownerName: 'Acme',
+  protocol: 'tcp',
+  tunnelId: 'tunnel-01',
+  tunnelName: 'Direct Tunnel',
+  sourceAgentId: 'agent-hkg-01',
+  entryNodeIds: ['agent-hkg-01'],
+  sourceAddress: '0.0.0.0',
+  listenAddress: '0.0.0.0',
+  listenPort: 2443,
+  targetAddress: '10.8.0.10',
+  targetPort: 9443,
+  enabled: true,
+  portStatus: 'allocated',
+  bindings: [],
+  bindingCount: 1,
+  quotaBytes: 50 * GB,
+  usedBytes: 0,
+  monthlyResetDay: 9,
+  currentUsedTrafficGb: 0,
+  rateLimitMbps: 100,
+  rateLimitMode: 'bi-directional',
+  rateLimitDirection: 'both',
+  ipRateLimitMbps: 20,
+  billingDirection: 'both',
+  pricePerGb: 0,
+  tunnelMode: 'direct',
+  strategy: 'fifo',
+  maxConnections: 100,
+  maxConnectionsPerIp: 10,
+  proxyProtocol: false
+} satisfies ForwardingRuleView;
+
 function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}) {
   const props = {
     agents: [createAgent()],
@@ -133,40 +168,7 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
       }
     ] as AuditLog[],
     forwardingRules: [
-      {
-        id: 'forward-rule-01',
-        name: '东京游戏转发',
-        ownerName: 'Acme',
-        protocol: 'tcp',
-        tunnelId: 'tunnel-01',
-        tunnelName: 'Direct Tunnel',
-        sourceAgentId: 'agent-hkg-01',
-        entryNodeIds: ['agent-hkg-01'],
-        sourceAddress: '0.0.0.0',
-        listenAddress: '0.0.0.0',
-        listenPort: 2443,
-        targetAddress: '10.8.0.10',
-        targetPort: 9443,
-        enabled: true,
-        portStatus: 'allocated',
-        bindings: [],
-        bindingCount: 1,
-        quotaBytes: 50 * GB,
-        usedBytes: 0,
-        monthlyResetDay: 9,
-        currentUsedTrafficGb: 0,
-        rateLimitMbps: 100,
-        rateLimitMode: 'bi-directional',
-        rateLimitDirection: 'both',
-        ipRateLimitMbps: 20,
-        billingDirection: 'both',
-        pricePerGb: 0,
-        tunnelMode: 'direct',
-        strategy: 'fifo',
-        maxConnections: 100,
-        maxConnectionsPerIp: 10,
-        proxyProtocol: false
-      } satisfies ForwardingRuleView
+      baseForwardingRule
     ],
     subscriptions: [],
     configRevisions: [
@@ -339,6 +341,50 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('活动告警')).not.toBeInTheDocument();
     expect(screen.queryByRole('searchbox', { name: '搜索用量账本' })).not.toBeInTheDocument();
     expect(screen.queryByRole('searchbox', { name: '搜索告警' })).not.toBeInTheDocument();
+  });
+
+  it('binds the host mounted host and node connectivity animation to live operational evidence', () => {
+    renderPage({
+      forwardingRules: [
+        {
+          ...baseForwardingRule,
+          entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+          bindings: [
+            {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 2443,
+              protocol: 'tcp',
+              targetAddress: '10.8.0.10',
+              targetPort: 9443,
+              status: 'allocated'
+            },
+            {
+              agentId: 'agent-sin-02',
+              listenAddress: '0.0.0.0',
+              listenPort: 2443,
+              protocol: 'tcp',
+              targetAddress: '10.8.0.10',
+              targetPort: 9443,
+              status: 'allocated'
+            }
+          ],
+          bindingCount: 2
+        }
+      ]
+    });
+
+    const connectivity = screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' });
+
+    expect(connectivity).toHaveTextContent('主机');
+    expect(connectivity).toHaveTextContent('1/1 在线');
+    expect(connectivity).toHaveTextContent('已挂载主机');
+    expect(connectivity).toHaveTextContent('2 入口');
+    expect(connectivity).toHaveTextContent('节点');
+    expect(connectivity).toHaveTextContent('1/1 健康');
+    expect(document.querySelector('[data-connectivity-stage="host"]')).toHaveAttribute('data-connectivity-count', '1/1');
+    expect(document.querySelector('[data-connectivity-stage="mounted-host"]')).toHaveAttribute('data-connectivity-count', '2');
+    expect(document.querySelector('[data-connectivity-stage="node"]')).toHaveAttribute('data-connectivity-count', '1/1');
   });
 
   it('keeps the host to mounted host to node flow animated even while waiting for live objects', () => {

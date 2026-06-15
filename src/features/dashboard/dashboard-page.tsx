@@ -156,6 +156,12 @@ const copy = {
     connectivityHost: '主机',
     connectivityMountedHost: '已挂载主机',
     connectivityNode: '节点',
+    connectivityHostEvidence: (online: number, total: number, language: AppLanguage) =>
+      `${formatNumber(online, language)}/${formatNumber(total, language)} 在线`,
+    connectivityMountedHostEvidence: (count: number, language: AppLanguage) =>
+      `${formatNumber(count, language)} 入口`,
+    connectivityNodeEvidence: (healthy: number, total: number, language: AppLanguage) =>
+      `${formatNumber(healthy, language)}/${formatNumber(total, language)} 健康`,
     controlSurfaceRegion: '控制面',
     operationsRailRegion: '运维侧栏',
     hostTelemetryRegion: '主机遥测',
@@ -387,6 +393,12 @@ const copy = {
     connectivityHost: 'Host',
     connectivityMountedHost: 'Mounted Host',
     connectivityNode: 'Node',
+    connectivityHostEvidence: (online: number, total: number, language: AppLanguage) =>
+      `${formatNumber(online, language)}/${formatNumber(total, language)} online`,
+    connectivityMountedHostEvidence: (count: number, language: AppLanguage) =>
+      `${formatNumber(count, language)} ${count === 1 ? 'entry' : 'entries'}`,
+    connectivityNodeEvidence: (healthy: number, total: number, language: AppLanguage) =>
+      `${formatNumber(healthy, language)}/${formatNumber(total, language)} healthy`,
     controlSurfaceRegion: 'Control Surface',
     operationsRailRegion: 'Operations Rail',
     hostTelemetryRegion: 'Host Telemetry',
@@ -608,8 +620,35 @@ export function DashboardPage({
   const onlineAgents = agents.filter((agent) => agent.status === 'online').length;
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
+  const mountedHostCount = countMountedForwardingHosts(forwardingRules);
   const visibleHostProbes = agents.slice(0, 3);
   const connectivityActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
+  const connectivityStages = [
+    {
+      id: 'host',
+      cx: 120,
+      label: t.connectivityHost,
+      evidence: t.connectivityHostEvidence(onlineAgents, agents.length, language),
+      count: `${onlineAgents}/${agents.length}`,
+      tone: '#6B7CFF'
+    },
+    {
+      id: 'mounted-host',
+      cx: 360,
+      label: t.connectivityMountedHost,
+      evidence: t.connectivityMountedHostEvidence(mountedHostCount, language),
+      count: String(mountedHostCount),
+      tone: '#D9FF00'
+    },
+    {
+      id: 'node',
+      cx: 600,
+      label: t.connectivityNode,
+      evidence: t.connectivityNodeEvidence(healthyNodes, nodes.length, language),
+      count: `${healthyNodes}/${nodes.length}`,
+      tone: '#FF3D18'
+    }
+  ];
   const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
   const latestTask = tasks[0];
   const latestConfigRevision = getLatestReleaseRecord(configRevisions, (revision) => revision.createdAt);
@@ -721,7 +760,7 @@ export function DashboardPage({
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="dashboard-control-plane-media relative min-h-[10rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.34)] dark:border-[#6B7CFF]/30 dark:bg-[#101827]">
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(135deg,rgba(30,58,255,0.12),transparent_34%),linear-gradient(225deg,rgba(255,61,24,0.12),transparent_28%)] bg-[length:36px_36px,36px_36px,100%_100%,100%_100%] dark:bg-[linear-gradient(rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(135deg,rgba(107,124,255,0.14),transparent_34%),linear-gradient(225deg,rgba(255,106,58,0.12),transparent_28%)]" aria-hidden="true" />
-                  <svg className="relative z-10 h-40 w-full" role="img" aria-label={t.connectivityAria} viewBox="0 0 720 190">
+                  <svg className="relative z-10 h-44 w-full" role="img" aria-label={t.connectivityAria} viewBox="0 0 720 210">
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
                         <stop className="svg-flow-stop-1" offset="0%" stopColor="#6B7CFF" />
@@ -737,17 +776,21 @@ export function DashboardPage({
                       strokeLinecap="round"
                       strokeWidth="5"
                     />
-                    {[
-                      { cx: 120, label: t.connectivityHost },
-                      { cx: 360, label: t.connectivityMountedHost },
-                      { cx: 600, label: t.connectivityNode }
-                    ].map((node, index) => (
-                      <g className="dashboard-connectivity-node" key={node.label}>
+                    {connectivityStages.map((node, index) => (
+                      <g
+                        className="dashboard-connectivity-node"
+                        data-connectivity-count={node.count}
+                        data-connectivity-stage={node.id}
+                        key={node.id}
+                      >
                         <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.1 + index * 0.03} />
                         <circle cx={node.cx} cy="92" r="18" fill="#FFFDF5" stroke="#07111F" strokeWidth="2" />
-                        <circle cx={node.cx} cy="92" r="8" fill={index === 0 ? '#6B7CFF' : index === 1 ? '#D9FF00' : '#FF3D18'} />
+                        <circle cx={node.cx} cy="92" r="8" fill={node.tone} />
                         <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[#07111F] text-[13px] font-black dark:fill-[#F4F8FF]">
                           {node.label}
+                        </text>
+                        <text x={node.cx} y="178" textAnchor="middle" className="dashboard-connectivity-evidence fill-[#35405A] text-[11px] font-black dark:fill-[#B8C2E6]">
+                          {node.evidence}
                         </text>
                       </g>
                     ))}
@@ -971,6 +1014,30 @@ function ResponseActionButton({ action }: { action: ResponseAction }) {
       </span>
     </button>
   );
+}
+
+function countMountedForwardingHosts(forwardingRules: ForwardingRuleView[]) {
+  const mountedHosts = new Set<string>();
+
+  forwardingRules.forEach((rule) => {
+    if (!rule.enabled) {
+      return;
+    }
+
+    const entryIds = rule.entryNodeIds.length > 0
+      ? rule.entryNodeIds
+      : rule.bindings.length > 0
+        ? rule.bindings.map((binding) => binding.agentId)
+        : [rule.sourceAgentId];
+
+    entryIds.forEach((agentId) => {
+      if (agentId.trim().length > 0) {
+        mountedHosts.add(agentId);
+      }
+    });
+  });
+
+  return mountedHosts.size;
 }
 
 function createProductionReadinessGates({
