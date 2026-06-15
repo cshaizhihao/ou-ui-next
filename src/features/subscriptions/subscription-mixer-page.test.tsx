@@ -270,20 +270,21 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
-    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
-    const workspace = within(cockpit).getByRole('region', { name: '订阅工作区' });
+    const cockpit = screen.getByRole('region', { name: '订阅工作台' });
+    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
+    const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
+    const groups = within(cockpit).getByRole('region', { name: '代理组' });
 
-    expect(within(rail).getByText('订阅身份', { selector: 'p' })).toBeInTheDocument();
-    expect(within(rail).getByText('节点库存', { selector: 'p' })).toBeInTheDocument();
-    expect(within(rail).getByText('导出配置', { selector: 'p' })).toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: '新增订阅身份' })).toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: '导入订阅源' })).toBeInTheDocument();
-    expect(within(rail).getByRole('button', { name: '订阅身份' })).toBeInTheDocument();
+    expect(within(sources).getByText('订阅身份', { selector: 'p' })).toBeInTheDocument();
+    expect(within(sources).getByText('节点库存', { selector: 'p' })).toBeInTheDocument();
+    expect(within(sources).getByText('导出配置', { selector: 'p' })).toBeInTheDocument();
+    expect(within(sources).getByRole('button', { name: '新增订阅身份' })).toBeInTheDocument();
+    expect(within(sources).getByRole('button', { name: '导入订阅源' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '订阅身份' })).toBeInTheDocument();
 
-    expect(within(workspace).getByRole('region', { name: '订阅链接' })).toBeInTheDocument();
-    expect(within(workspace).getByRole('region', { name: '订阅链路就绪' })).toBeInTheDocument();
-    expect(within(workspace).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
+    expect(within(groups).getByRole('region', { name: '订阅链接' })).toBeInTheDocument();
+    expect(within(groups).getByRole('region', { name: '订阅链路就绪' })).toBeInTheDocument();
+    expect(within(groups).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
   });
 
   it('uses the primary blue and signal orange control-plane palette in the subscription cockpit', () => {
@@ -309,7 +310,7 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const cockpit = screen.getByRole('region', { name: '订阅工作台' });
 
     expect(cockpit.outerHTML).toContain('#1E3AFF');
     expect(cockpit.outerHTML).toContain('#DCE1FF');
@@ -365,31 +366,33 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
-    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
-    const workspace = within(cockpit).getByRole('region', { name: '订阅工作区' });
-    const quickLinks = within(workspace).getByRole('region', { name: '订阅链接' });
-    const readiness = within(workspace).getByRole('region', { name: '订阅链路就绪' });
+    const cockpit = screen.getByRole('region', { name: '订阅工作台' });
+    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
+    const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
+    const groups = within(cockpit).getByRole('region', { name: '代理组' });
+    const quickLinks = within(groups).getByRole('region', { name: '订阅链接' });
+    const readiness = within(groups).getByRole('region', { name: '订阅链路就绪' });
     const clientRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
 
-    expect(cockpit).toHaveClass('subscription-ops-cockpit');
-    expect(rail).toHaveClass('subscription-ops-rail');
-    expect(workspace).toHaveClass('subscription-ops-workspace');
+    expect(cockpit).toHaveClass('subscription-workbench');
+    expect(sources).toHaveClass('subscription-workbench-sources');
+    expect(inventory).toHaveClass('subscription-workbench-inventory');
+    expect(groups).toHaveClass('subscription-workbench-groups');
     expect(quickLinks).toHaveClass('subscription-ops-links-panel');
     expect(readiness).toHaveClass('subscription-ops-readiness-panel');
     expect(clientRow).toHaveClass('subscription-ops-client-row');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#1E3AFF');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#DCE1FF');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FF3D18');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FFD8C6');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('sky-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('indigo-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('purple-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('violet-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('amber-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('rose-');
-    expect(`${cockpit.outerHTML}${rail.outerHTML}${workspace.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain(
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#1E3AFF');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#DCE1FF');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FF3D18');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FFD8C6');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('sky-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('indigo-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('purple-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('violet-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('amber-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('rose-');
+    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain(
       'background-clip:text'
     );
   });
@@ -434,22 +437,23 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
-    const cockpitGrid = cockpit.querySelector('.subscription-cockpit-grid');
-    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
-    const workspace = within(cockpit).getByRole('region', { name: '订阅工作区' });
-    const quickLinks = within(workspace).getByRole('region', { name: '订阅链接' });
+    const cockpit = screen.getByRole('region', { name: '订阅工作台' });
+    const cockpitGrid = cockpit.querySelector('.subscription-workbench-grid');
+    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
+    const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
+    const groups = within(cockpit).getByRole('region', { name: '代理组' });
+    const quickLinks = within(groups).getByRole('region', { name: '订阅链接' });
     const quickLinkCard = within(quickLinks).getByRole('article', { name: 'Acme 香港 Premium 订阅' });
-    const readiness = within(workspace).getByRole('region', { name: '订阅链路就绪' });
-    const overviewPanel = workspace.querySelector('.subscription-overview-panel');
-    const gates = within(rail).getByRole('region', { name: '订阅分发门禁' });
+    const readiness = within(groups).getByRole('region', { name: '订阅链路就绪' });
+    const overviewPanel = inventory.querySelector('.subscription-overview-panel');
+    const gates = within(sources).getByRole('region', { name: '订阅分发门禁' });
     const sourceGate = within(gates).getByRole('group', { name: '来源同步' });
 
     expect(cockpitGrid).not.toBeNull();
-    expect(cockpitGrid as HTMLElement).toHaveClass('subscription-cockpit-grid', 'xl:grid-cols-[18rem_minmax(0,1fr)]');
-    expect(rail).toHaveClass('p-3');
-    expect(rail).not.toHaveClass('p-4');
-    expect(workspace.firstElementChild).toHaveClass('space-y-3', 'p-3');
+    expect(cockpitGrid as HTMLElement).toHaveClass('subscription-workbench-grid', 'xl:grid-cols-[18rem_minmax(0,1fr)_20rem]');
+    expect(sources).toHaveClass('p-3');
+    expect(sources).not.toHaveClass('p-4');
+    expect(inventory.firstElementChild).toHaveClass('space-y-3', 'p-3');
     expect(overviewPanel).not.toBeNull();
     expect(overviewPanel as HTMLElement).toHaveClass('subscription-overview-panel', 'p-3');
     expect(overviewPanel as HTMLElement).not.toHaveClass('p-4', 'rounded-xl');
@@ -574,7 +578,7 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
+    const cockpit = screen.getByRole('region', { name: '订阅工作台' });
     const pageHtml = cockpit.parentElement?.outerHTML ?? cockpit.outerHTML;
 
     expect(screen.getByRole('heading', { name: '订阅管理' })).toBeInTheDocument();
@@ -638,9 +642,9 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const cockpit = screen.getByRole('region', { name: '订阅控制 cockpit' });
-    const rail = within(cockpit).getByRole('complementary', { name: '订阅控制 rail' });
-    const gates = within(rail).getByRole('region', { name: '订阅分发门禁' });
+    const cockpit = screen.getByRole('region', { name: '订阅工作台' });
+    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
+    const gates = within(sources).getByRole('region', { name: '订阅分发门禁' });
 
     expect(within(gates).getByRole('group', { name: '来源同步' })).toHaveTextContent('异常');
     expect(within(gates).getByRole('group', { name: '库存命中' })).toHaveTextContent('就绪');

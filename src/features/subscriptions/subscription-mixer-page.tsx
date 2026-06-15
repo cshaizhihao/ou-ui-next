@@ -3012,11 +3012,12 @@ export function SubscriptionMixerPage({
         </div>
       </ResponsiveSection>
 
-      <WorkspaceCockpit aria-label="订阅控制 cockpit" className="subscription-ops-cockpit stagger-2">
-        <div className="subscription-cockpit-grid grid min-h-0 grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)]">
-          <aside
-            aria-label="订阅控制 rail"
-            className="subscription-ops-rail border-b border-slate-200 bg-slate-50/70 p-3 dark:border-white/10 dark:bg-white/[0.02] xl:border-b-0 xl:border-r"
+      <WorkspaceCockpit aria-label="订阅工作台" className="subscription-workbench subscription-ops-cockpit stagger-2">
+        <div className="subscription-workbench-grid grid min-h-0 grid-cols-1 gap-0 xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
+          <section
+            aria-label={t.sourcesTab}
+            className="subscription-workbench-sources border-b border-[#07111F]/16 bg-[#FFFDF5]/82 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.025] xl:border-b-0 xl:border-r"
+            role="region"
           >
             <div className="flex flex-col gap-3 xl:sticky xl:top-0">
               <div className="border border-[#07111F]/18 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
@@ -3039,16 +3040,19 @@ export function SubscriptionMixerPage({
                   <Download className="h-3.5 w-3.5" />
                   {t.importSource}
                 </GlowButton>
-                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openProfileDrawer()}>
-                  <FileSliders className="h-3.5 w-3.5" />
-                  {profileT.add}
-                </GlowButton>
                 <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openClientDrawer()}>
                   <Plus className="h-3.5 w-3.5" />
                   {t.addClient}
                 </GlowButton>
               </div>
+            </div>
+          </section>
 
+          <WorkspaceCockpitScroller
+            aria-label={t.inventoryTab}
+            className="subscription-workbench-inventory subscription-ops-workspace min-h-0"
+          >
+            <div className="space-y-3 p-3">
               <div className="flex flex-wrap gap-2">
                 <WorkspaceButton active={activeWorkspace === 'clients'} label={t.clientsTab} onClick={() => setActiveWorkspace('clients')} />
                 <WorkspaceButton active={activeWorkspace === 'sources'} label={t.sourcesTab} onClick={() => setActiveWorkspace('sources')} />
@@ -3057,11 +3061,28 @@ export function SubscriptionMixerPage({
                 <WorkspaceButton active={activeWorkspace === 'profiles'} label={profileT.tab} onClick={() => setActiveWorkspace('profiles')} />
                 <WorkspaceButton active={activeWorkspace === 'exports'} label={t.exportsTab} onClick={() => setActiveWorkspace('exports')} />
               </div>
-            </div>
-          </aside>
 
-          <WorkspaceCockpitScroller aria-label="订阅工作区" className="subscription-ops-workspace min-h-0">
-            <div className="space-y-3 p-3">
+              <section className="subscription-overview-panel stagger-2 border border-[#1E3AFF]/25 bg-[#DCE1FF]/40 p-3 dark:border-[#6B7CFF]/15 dark:bg-[#6B7CFF]/10">
+                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+                  <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
+                  <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
+                  <SummaryMetric icon={FileSliders} label={profileT.tab} value={formatNumber(exportProfiles.length, language)} />
+                </div>
+              </section>
+            </div>
+          </WorkspaceCockpitScroller>
+
+          <section
+            aria-label={profileT.proxyGroups}
+            className="subscription-workbench-groups border-t border-[#07111F]/16 bg-[#FFFDF5]/78 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.025] xl:border-l xl:border-t-0"
+            role="region"
+          >
+            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
+              <GlowButton className="w-fit gap-2 px-4 py-2 text-xs" onClick={() => openProfileDrawer()}>
+                <FileSliders className="h-3.5 w-3.5" />
+                {profileT.add}
+              </GlowButton>
+
               <SubscriptionQuickLinks
                 clients={clients}
                 language={language}
@@ -3070,17 +3091,9 @@ export function SubscriptionMixerPage({
                 t={t}
               />
 
-              <section className="subscription-overview-panel stagger-2 border border-[#1E3AFF]/25 bg-[#DCE1FF]/40 p-3 dark:border-[#6B7CFF]/15 dark:bg-[#6B7CFF]/10">
-                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-                  <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
-                  <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
-                  <SummaryMetric icon={FileSliders} label={profileT.tab} value={formatNumber(exportProfiles.length, language)} />
-                </div>
-                <PipelineReadinessPanel language={language} summary={pipelineReadinessSummary} t={t} />
-              </section>
-
+              <PipelineReadinessPanel language={language} summary={pipelineReadinessSummary} t={t} />
             </div>
-          </WorkspaceCockpitScroller>
+          </section>
         </div>
       </WorkspaceCockpit>
 
