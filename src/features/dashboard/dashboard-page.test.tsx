@@ -323,6 +323,39 @@ describe('DashboardPage', () => {
     expect(overviewHtml).not.toContain('space-y-6');
   });
 
+  it('keeps long release evidence identifiers inside their mobile row container', () => {
+    renderPage({
+      configRevisions: [
+        {
+          id: 'cfg-customer-node-release-with-very-long-runtime-artifact-identifier-20260615',
+          taskId: task.id,
+          operation: 'inbound.update',
+          targetId: 'customer-node-01',
+          targetLabel: '客户节点 A',
+          agentId: 'agent-hkg-01',
+          moduleKind: 'xray',
+          artifactUri: 'ou-ui://artifacts/config-revisions/long.json',
+          checksum: 'sha256:cfg-dashboard-long',
+          signature: 'sig-v1:dashboard-long',
+          preflightPlanId: 'preflight-dashboard-001',
+          snapshotBeforeId: 'snapshot-dashboard-001',
+          status: 'compiled',
+          createdAt: '2026-06-05T10:18:00.000Z',
+          createdBy: 'operator',
+          diffSummary: { added: 1, changed: 0, removed: 0 },
+          artifact: {}
+        }
+      ]
+    });
+
+    const longRecord = screen.getByText('cfg-customer-node-release-with-very-long-runtime-artifact-identifier-20260615');
+    const releaseRow = longRecord.closest('[class*="hover:border"]');
+
+    expect(longRecord).toHaveClass('break-all');
+    expect(longRecord).not.toHaveClass('truncate');
+    expect(releaseRow?.outerHTML).toContain('max-sm:flex-col');
+  });
+
   it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
     renderPage();
 
@@ -385,6 +418,91 @@ describe('DashboardPage', () => {
     expect(document.querySelector('[data-connectivity-stage="host"]')).toHaveAttribute('data-connectivity-count', '1/1');
     expect(document.querySelector('[data-connectivity-stage="mounted-host"]')).toHaveAttribute('data-connectivity-count', '2');
     expect(document.querySelector('[data-connectivity-stage="node"]')).toHaveAttribute('data-connectivity-count', '1/1');
+  });
+
+  it('renders the connectivity topology as operational state animation instead of decorative copy', () => {
+    renderPage({
+      agents: [
+        {
+          ...createAgent(),
+          status: 'online'
+        },
+        {
+          ...createAgent(),
+          id: 'agent-sin-02',
+          name: '新加坡挂载主机',
+          status: 'degraded'
+        }
+      ],
+      nodes: [
+        {
+          id: 'customer-node-01',
+          agentId: 'agent-hkg-01',
+          name: '客户节点 A',
+          status: 'healthy',
+          entrypoint: 'edge.example.com:443',
+          modules: [],
+          activeInboundCount: 1,
+          activeForwardCount: 0,
+          updatedAt: '2026-06-05T10:00:00.000Z'
+        },
+        {
+          id: 'customer-node-02',
+          agentId: 'agent-sin-02',
+          name: '客户节点 B',
+          status: 'warning',
+          entrypoint: 'sg.example.com:443',
+          modules: [],
+          activeInboundCount: 1,
+          activeForwardCount: 0,
+          updatedAt: '2026-06-05T10:00:00.000Z'
+        }
+      ],
+      forwardingRules: [
+        {
+          ...baseForwardingRule,
+          entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
+          bindings: [
+            {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 2443,
+              protocol: 'tcp',
+              targetAddress: '10.8.0.10',
+              targetPort: 9443,
+              status: 'allocated'
+            },
+            {
+              agentId: 'agent-sin-02',
+              listenAddress: '0.0.0.0',
+              listenPort: 2443,
+              protocol: 'tcp',
+              targetAddress: '10.8.0.10',
+              targetPort: 9443,
+              status: 'allocated'
+            }
+          ],
+          bindingCount: 2
+        }
+      ]
+    });
+
+    const topology = screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' });
+    const flowPackets = topology.querySelectorAll('.dashboard-connectivity-packet');
+    const hostStage = topology.querySelector('[data-connectivity-stage="host"]');
+    const mountedHostStage = topology.querySelector('[data-connectivity-stage="mounted-host"]');
+    const nodeStage = topology.querySelector('[data-connectivity-stage="node"]');
+
+    expect(topology).toHaveClass('dashboard-connectivity-topology');
+    expect(flowPackets).toHaveLength(2);
+    expect(hostStage).toHaveAttribute('data-connectivity-state', 'issues');
+    expect(mountedHostStage).toHaveAttribute('data-connectivity-state', 'ready');
+    expect(nodeStage).toHaveAttribute('data-connectivity-state', 'issues');
+    expect(topology.outerHTML).toContain('#1E3AFF');
+    expect(topology.outerHTML).toContain('#D9FF00');
+    expect(topology.outerHTML).toContain('#FF3D18');
+    expect(topology.outerHTML).not.toContain('控制面正在呼吸');
+    expect(topology.outerHTML).not.toContain('实时查看核心资源');
   });
 
   it('keeps the host to mounted host to node flow animated even while waiting for live objects', () => {
@@ -700,7 +818,7 @@ describe('DashboardPage', () => {
     expect(media).toHaveClass('dark:bg-[#101827]');
     expect(media?.outerHTML).not.toContain('fill-[#F8FAFC]');
     expect(media?.outerHTML).not.toContain('stroke: #07111f');
-    expect(document.querySelector('.svg-flow-stop-1')).toHaveAttribute('stop-color', '#6B7CFF');
+    expect(document.querySelector('.svg-flow-stop-1')).toHaveAttribute('stop-color', '#1E3AFF');
     expect(document.querySelector('.svg-flow-stop-2')).toHaveAttribute('stop-color', '#D9FF00');
     expect(document.querySelector('.svg-flow-stop-3')).toHaveAttribute('stop-color', '#FF3D18');
     expect(document.querySelector('[stop-color="#e61919"]')).toBeNull();

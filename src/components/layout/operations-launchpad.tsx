@@ -178,7 +178,10 @@ export function OperationsLaunchpad({
       </div>
 
       {!expanded ? (
-        <div className="ou-launchpad-metric-rail mt-2 grid grid-cols-4 gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        <div
+          className="ou-launchpad-metric-rail mt-2 grid grid-cols-4 gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+          data-allow-horizontal-scroll="true"
+        >
           {actions.map((action) => (
             <button
               className={cn(
@@ -199,7 +202,10 @@ export function OperationsLaunchpad({
       ) : null}
 
       {expanded ? (
-        <div className="ou-launchpad-panel mt-2 grid gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] lg:grid-cols-4 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden">
+        <div
+          className="ou-launchpad-panel mt-2 grid gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] lg:grid-cols-4 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+          data-allow-horizontal-scroll="true"
+        >
           {actions.map((action) => {
             const Icon = action.icon;
             const active = activePage === action.pageId;

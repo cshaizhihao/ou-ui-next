@@ -540,6 +540,16 @@ type ResponseAction = {
 };
 
 type ProductionReadinessState = 'ready' | 'issues' | 'waiting';
+type ConnectivityStageState = ProductionReadinessState;
+type ConnectivityStage = {
+  id: 'host' | 'mounted-host' | 'node';
+  cx: number;
+  label: string;
+  evidence: string;
+  count: string;
+  state: ConnectivityStageState;
+  tone: string;
+};
 type ProductionReadinessGate = {
   id: string;
   label: string;
@@ -599,6 +609,30 @@ function hasTelemetryReport(agent: Agent) {
   return Boolean(agent.telemetry.reportedAt);
 }
 
+function resolveConnectivityStageState(total: number, ready: number): ConnectivityStageState {
+  if (total <= 0) {
+    return 'waiting';
+  }
+
+  return ready >= total ? 'ready' : 'issues';
+}
+
+function resolveMountedHostState(mountedHostCount: number): ConnectivityStageState {
+  return mountedHostCount > 0 ? 'ready' : 'waiting';
+}
+
+function getConnectivityStageTone(state: ConnectivityStageState, fallback: string) {
+  if (state === 'ready') {
+    return fallback;
+  }
+
+  if (state === 'issues') {
+    return '#FF3D18';
+  }
+
+  return '#35405A';
+}
+
 export function DashboardPage({
   agents,
   nodes,
@@ -623,14 +657,18 @@ export function DashboardPage({
   const mountedHostCount = countMountedForwardingHosts(forwardingRules);
   const visibleHostProbes = agents.slice(0, 3);
   const connectivityActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
-  const connectivityStages = [
+  const hostConnectivityState = resolveConnectivityStageState(agents.length, onlineAgents);
+  const mountedHostConnectivityState = resolveMountedHostState(mountedHostCount);
+  const nodeConnectivityState = resolveConnectivityStageState(nodes.length, healthyNodes);
+  const connectivityStages: ConnectivityStage[] = [
     {
       id: 'host',
       cx: 120,
       label: t.connectivityHost,
       evidence: t.connectivityHostEvidence(onlineAgents, agents.length, language),
       count: `${onlineAgents}/${agents.length}`,
-      tone: '#6B7CFF'
+      state: hostConnectivityState,
+      tone: getConnectivityStageTone(hostConnectivityState, '#1E3AFF')
     },
     {
       id: 'mounted-host',
@@ -638,7 +676,8 @@ export function DashboardPage({
       label: t.connectivityMountedHost,
       evidence: t.connectivityMountedHostEvidence(mountedHostCount, language),
       count: String(mountedHostCount),
-      tone: '#D9FF00'
+      state: mountedHostConnectivityState,
+      tone: getConnectivityStageTone(mountedHostConnectivityState, '#D9FF00')
     },
     {
       id: 'node',
@@ -646,7 +685,8 @@ export function DashboardPage({
       label: t.connectivityNode,
       evidence: t.connectivityNodeEvidence(healthyNodes, nodes.length, language),
       count: `${healthyNodes}/${nodes.length}`,
-      tone: '#FF3D18'
+      state: nodeConnectivityState,
+      tone: getConnectivityStageTone(nodeConnectivityState, '#00A878')
     }
   ];
   const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
@@ -760,10 +800,22 @@ export function DashboardPage({
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                 <div className="dashboard-control-plane-media relative min-h-[10rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.34)] dark:border-[#6B7CFF]/30 dark:bg-[#101827]">
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(135deg,rgba(30,58,255,0.12),transparent_34%),linear-gradient(225deg,rgba(255,61,24,0.12),transparent_28%)] bg-[length:36px_36px,36px_36px,100%_100%,100%_100%] dark:bg-[linear-gradient(rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(135deg,rgba(107,124,255,0.14),transparent_34%),linear-gradient(225deg,rgba(255,106,58,0.12),transparent_28%)]" aria-hidden="true" />
-                  <svg className="relative z-10 h-44 w-full" role="img" aria-label={t.connectivityAria} viewBox="0 0 720 210">
+                  <svg
+                    className="dashboard-connectivity-topology relative z-10 h-44 w-full"
+                    data-connectivity-state={
+                      connectivityStages.some((stage) => stage.state === 'issues')
+                        ? 'issues'
+                        : connectivityStages.some((stage) => stage.state === 'waiting')
+                          ? 'waiting'
+                          : 'ready'
+                    }
+                    role="img"
+                    aria-label={t.connectivityAria}
+                    viewBox="0 0 720 210"
+                  >
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
-                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#6B7CFF" />
+                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#1E3AFF" />
                         <stop className="svg-flow-stop-2" offset="58%" stopColor="#D9FF00" />
                         <stop className="svg-flow-stop-3" offset="100%" stopColor="#FF3D18" />
                       </linearGradient>
@@ -776,16 +828,37 @@ export function DashboardPage({
                       strokeLinecap="round"
                       strokeWidth="5"
                     />
+                    <circle className="dashboard-connectivity-packet dashboard-connectivity-packet-primary" r="7" fill="#D9FF00" stroke="#07111F" strokeWidth="2">
+                      <animateMotion dur="3.2s" keyPoints="0;1" keyTimes="0;1" repeatCount="indefinite">
+                        <mpath href="#dashboard-connectivity-route" />
+                      </animateMotion>
+                    </circle>
+                    <circle className="dashboard-connectivity-packet dashboard-connectivity-packet-secondary" r="5" fill="#1E3AFF" stroke="#FFFDF5" strokeWidth="2">
+                      <animateMotion begin="1.1s" dur="3.2s" keyPoints="0;1" keyTimes="0;1" repeatCount="indefinite">
+                        <mpath href="#dashboard-connectivity-route" />
+                      </animateMotion>
+                    </circle>
+                    <path
+                      d="M 120 92 C 205 38, 275 146, 360 92 S 515 38, 600 92"
+                      fill="none"
+                      id="dashboard-connectivity-route"
+                      opacity="0"
+                    />
                     {connectivityStages.map((node, index) => (
                       <g
                         className="dashboard-connectivity-node"
                         data-connectivity-count={node.count}
                         data-connectivity-stage={node.id}
+                        data-connectivity-state={node.state}
                         key={node.id}
                       >
                         <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.1 + index * 0.03} />
+                        <circle cx={node.cx} cy="92" r="25" fill={node.tone} opacity="0.16" />
                         <circle cx={node.cx} cy="92" r="18" fill="#FFFDF5" stroke="#07111F" strokeWidth="2" />
                         <circle cx={node.cx} cy="92" r="8" fill={node.tone} />
+                        <text x={node.cx} y="98" textAnchor="middle" className="fill-[#07111F] font-mono text-[9px] font-black dark:fill-[#07111F]">
+                          {node.count}
+                        </text>
                         <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[#07111F] text-[13px] font-black dark:fill-[#F4F8FF]">
                           {node.label}
                         </text>
@@ -1281,12 +1354,12 @@ function ReleaseEvidenceRow({
 }) {
   return (
     <div className="border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 py-2.5 transition duration-200 ease-out hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/42 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:hover:border-[#6B7CFF]/34 dark:hover:bg-[#1E3AFF]/10">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex min-w-0 items-start justify-between gap-3 max-sm:flex-col">
+        <div className="min-w-0 max-w-full">
           <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/70">{label}</p>
-          <p className="mt-1 truncate text-sm font-black text-[#07111F] dark:text-white">{record.id}</p>
+          <p className="mt-1 break-all text-sm font-black leading-5 text-[#07111F] dark:text-white">{record.id}</p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
           {record.status}
         </span>
       </div>

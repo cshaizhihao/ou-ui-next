@@ -196,9 +196,14 @@ describe('visual constitution', () => {
 
     expect(animationsCss).toMatch(/\.dashboard-connectivity-flow\.svg-line-dash\s*\{[\s\S]*stroke-dasharray:/u);
     expect(animationsCss).toMatch(/\.dashboard-connectivity-flow\.svg-line-dash\s*\{[\s\S]*animation:\s*ouConnectivityFlow/u);
+    expect(animationsCss).toMatch(/\.dashboard-connectivity-packet\s*\{[\s\S]*filter:\s*drop-shadow/u);
+    expect(animationsCss).toMatch(/\.dashboard-connectivity-node\[data-connectivity-state='issues'\]\s*\{[\s\S]*animation-name:\s*ouConnectivityIssuePulse/u);
+    expect(animationsCss).toMatch(/\.dashboard-connectivity-node\[data-connectivity-state='waiting'\]\s*\{[\s\S]*animation-name:\s*ouConnectivityWaitingPulse/u);
     expect(animationsCss).toContain('@keyframes ouConnectivityFlow');
+    expect(animationsCss).toContain('@keyframes ouConnectivityIssuePulse');
+    expect(animationsCss).toContain('@keyframes ouConnectivityWaitingPulse');
     expect(animationsCss).toMatch(/@keyframes ouConnectivityFlow[\s\S]*stroke-dashoffset:\s*-80/u);
-    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.dashboard-connectivity-flow\.svg-line-dash/u);
+    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.dashboard-connectivity-flow\.svg-line-dash,[\s\S]*\.dashboard-connectivity-packet,[\s\S]*\.dashboard-connectivity-node/u);
   });
 
   it('renders glass primitives without decorative orb backgrounds', () => {

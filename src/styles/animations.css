@@ -294,10 +294,27 @@ button:not([disabled]):not([aria-disabled='true']):active {
   will-change: stroke-dashoffset;
 }
 
+.dashboard-connectivity-packet {
+  filter: drop-shadow(0 0 10px rgba(30, 58, 255, 0.24));
+  opacity: 0.96;
+}
+
+.dashboard-connectivity-packet-secondary {
+  opacity: 0.74;
+}
+
 .dashboard-connectivity-node {
   transform-box: fill-box;
   transform-origin: center;
   animation: ouConnectivityNodePulse 2.8s ease-in-out infinite;
+}
+
+.dashboard-connectivity-node[data-connectivity-state='issues'] {
+  animation-name: ouConnectivityIssuePulse;
+}
+
+.dashboard-connectivity-node[data-connectivity-state='waiting'] {
+  animation-name: ouConnectivityWaitingPulse;
 }
 
 .dashboard-connectivity-node:nth-of-type(2) {
@@ -370,6 +387,30 @@ button:not([disabled]):not([aria-disabled='true']):active {
   50% {
     opacity: 1;
     transform: scale(1.035);
+  }
+}
+
+@keyframes ouConnectivityIssuePulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes ouConnectivityWaitingPulse {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.76;
+    transform: scale(1.01);
   }
 }
 
@@ -448,9 +489,14 @@ button:not([disabled]):not([aria-disabled='true']):active {
   .ou-select,
   summary,
   .dashboard-connectivity-flow.svg-line-dash,
+  .dashboard-connectivity-packet,
   .dashboard-connectivity-node {
     animation: none;
     transition: none;
+  }
+
+  .dashboard-connectivity-packet {
+    opacity: 0;
   }
 
   .ou-shell-color-block,
