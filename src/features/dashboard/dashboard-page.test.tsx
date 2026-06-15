@@ -532,6 +532,7 @@ describe('DashboardPage', () => {
     renderPage();
 
     const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
+    const markup = releaseEvidence.outerHTML;
 
     expect(releaseEvidence).toHaveTextContent('cfg-dashboard-001');
     expect(releaseEvidence).toHaveTextContent('applied');
@@ -539,6 +540,11 @@ describe('DashboardPage', () => {
     expect(releaseEvidence).toHaveTextContent('passed');
     expect(releaseEvidence).toHaveTextContent('snapshot-dashboard-001');
     expect(releaseEvidence).toHaveTextContent('captured');
+    expect(markup).toContain('#00A878');
+    expect(markup).toContain('#1E3AFF');
+    expect(markup).toContain('#07111F');
+    expect(markup).not.toMatch(/\b(?:border|bg|text|ring)-(?:emerald|blue|orange|red|slate)-/u);
+    expect(markup).not.toMatch(/\brounded-(?:xl|2xl)\b/u);
   });
 
   it('compresses empty release and audit states instead of repeating placeholder filler', () => {

@@ -915,7 +915,7 @@ export function DashboardPage({
                 </div>
               ) : null}
               {latestTask ? (
-                <p className="mt-3 truncate text-xs font-semibold text-slate-500 dark:text-white/[.48]">
+                <p className="mt-3 truncate text-xs font-semibold text-[#35405A] dark:text-white/[.48]">
                   {t.latestExecution}: {latestTask.status}
                 </p>
               ) : null}
@@ -1214,20 +1214,20 @@ function getReleaseStatusTone(status?: string) {
     case 'applied':
     case 'passed':
     case 'verified':
-      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-100';
+      return 'border border-[#00A878]/35 bg-[#00A878]/12 text-[#07111F] dark:border-[#00A878]/30 dark:bg-[#00A878]/16 dark:text-[#C7FFE9]';
     case 'preflight_ready':
     case 'captured':
-      return 'bg-blue-50 text-blue-700 dark:bg-primary/15 dark:text-primary';
+      return 'border border-[#1E3AFF]/35 bg-[#DCE1FF]/86 text-[#07111F] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/18 dark:text-[#DDE3FF]';
     case 'rolled_back':
     case 'restored':
-      return 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-100';
+      return 'border border-[#FF3D18]/35 bg-[#FFD8C6]/70 text-[#07111F] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/16 dark:text-[#FFD8C6]';
     case 'failed':
     case 'expired':
-      return 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-100';
+      return 'border border-[#DC2626]/40 bg-[#FEE2E2]/82 text-[#7F1D1D] dark:border-[#DC2626]/35 dark:bg-[#DC2626]/16 dark:text-[#FECACA]';
     case 'compiled':
     case 'pending':
     default:
-      return 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70';
+      return 'border border-[#07111F]/18 bg-[#FFFDF5]/86 text-[#35405A] dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/72';
   }
 }
 
@@ -1243,7 +1243,7 @@ function ReleaseRollbackBoundary({ task, t }: { task?: DeployTask; t: DashboardC
   return (
     <div
       className={cn(
-        'mt-3 rounded-2xl border px-3 py-2.5 motion-safe:animate-[ou-panel-in_180ms_ease-out]',
+        'mt-3 border px-3 py-2.5 motion-safe:animate-[ou-panel-in_180ms_ease-out]',
         stateClasses
       )}
       data-release-rollback-state={state}
@@ -1280,11 +1280,11 @@ function ReleaseEvidenceRow({
   record: { id: string; status: string };
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+    <div className="border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 py-2.5 transition duration-200 ease-out hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/42 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:hover:border-[#6B7CFF]/34 dark:hover:bg-[#1E3AFF]/10">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{label}</p>
-          <p className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{record.id}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/70">{label}</p>
+          <p className="mt-1 truncate text-sm font-black text-[#07111F] dark:text-white">{record.id}</p>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
           {record.status}
@@ -1296,9 +1296,9 @@ function ReleaseEvidenceRow({
 
 function EvidenceChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.04]">
-      <p className="truncate text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/[.42]">{label}</p>
-      <p className="mt-1 truncate text-sm font-black text-slate-950 dark:text-white">{value}</p>
+    <div className="min-w-0 border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 py-2.5 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04]">
+      <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/70">{label}</p>
+      <p className="mt-1 truncate text-sm font-black text-[#07111F] dark:text-white">{value}</p>
     </div>
   );
 }
