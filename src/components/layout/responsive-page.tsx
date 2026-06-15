@@ -64,7 +64,7 @@ export function WorkspaceCockpitScroller({ children, className, ...props }: Work
     <section
       {...props}
       className={cn(
-        'workspace-cockpit-scroller min-h-0 overflow-visible',
+        'workspace-cockpit-scroller min-h-0 overflow-visible max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]',
         className
       )}
     >

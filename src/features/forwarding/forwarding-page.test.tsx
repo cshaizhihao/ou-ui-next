@@ -535,7 +535,8 @@ describe('ForwardingPage', () => {
     const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
     const table = within(workspace).getByRole('table');
 
-    expect(workspaceShell).toHaveClass('max-md:pb-28');
+    expect(workspace).toHaveClass('max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]');
+    expect(workspaceShell).not.toHaveClass('max-md:pb-28');
     expect(table).toHaveClass('min-w-[960px]');
     expect(table).not.toHaveClass('min-w-[1040px]', 'min-w-[1220px]', 'min-w-[1280px]');
   });

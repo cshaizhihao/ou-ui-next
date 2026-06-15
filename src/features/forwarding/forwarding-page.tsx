@@ -1303,7 +1303,7 @@ export function ForwardingPage({
           aria-label={t.forwardingRulesWorkspace}
           className="forwarding-ops-workspace min-h-0 xl:overflow-y-auto xl:overscroll-contain"
         >
-          <div className="forwarding-workspace-shell min-h-0 p-3 max-md:pb-28">
+          <div className="forwarding-workspace-shell min-h-0 p-3">
         <section
           className="stagger-3 forwarding-rule-panel forwarding-ops-rule-panel island-card overflow-visible"
           aria-label={language === 'zh' ? '规则管理面板' : 'Rule management panel'}
