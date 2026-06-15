@@ -2712,6 +2712,11 @@ describe('AppShell', () => {
     expect(alert).toHaveTextContent('当前账号缺少 configure 权限');
     expect(alert).toHaveTextContent('资源组：group-premium');
     expect(alert).toHaveTextContent('已有权限：operate, read');
+    expect(alert.outerHTML).toContain('#DC2626');
+    expect(alert.outerHTML).toContain('#7F1D1D');
+    expect(alert.outerHTML).not.toMatch(/\b(?:border|bg|text|ring)-(?:red|slate|orange)-/u);
+    expect(alert.outerHTML).not.toMatch(/\brounded-xl\b/u);
+    expect(alert.outerHTML).not.toMatch(/\bbackdrop-blur/u);
   });
 
   it('keeps a managed host visible when its delete task is rejected', async () => {

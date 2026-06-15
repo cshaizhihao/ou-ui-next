@@ -137,18 +137,24 @@ type MobileMetricStripProps = {
 };
 
 const metricToneClasses = {
-  blue: 'border-black/15 bg-black/[0.035] text-black dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80',
-  emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200',
-  amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-200',
-  red: 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200',
-  slate: 'border-black/15 bg-white/75 text-black/76 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/75'
+  blue: 'border-[#1E3AFF]/55 bg-[#DCE1FF]/80 text-[#07111F] dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/18 dark:text-[#DDE3FF]',
+  emerald: 'border-[#00A878]/45 bg-[#00A878]/12 text-[#07111F] dark:border-[#00A878]/35 dark:bg-[#00A878]/14 dark:text-[#C7FFE9]',
+  amber: 'border-[#D9FF00]/70 bg-[#D9FF00]/24 text-[#07111F] dark:border-[#D9FF00]/42 dark:bg-[#D9FF00]/16 dark:text-[#F2FF9D]',
+  red: 'border-[#DC2626]/45 bg-[#FEE2E2]/80 text-[#7F1D1D] dark:border-[#DC2626]/35 dark:bg-[#DC2626]/16 dark:text-[#FECACA]',
+  slate: 'border-[#07111F]/18 bg-[#FFFDF5]/86 text-[#07111F]/76 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/75'
 } as const;
 
 export function MobileMetricStrip({ className, items }: MobileMetricStripProps) {
   return (
     <div className={cn('hidden max-md:grid max-md:grid-cols-2 max-md:gap-2', className)}>
       {items.map((item) => (
-        <div className={cn('min-w-0 border p-3', metricToneClasses[item.tone ?? 'slate'])} key={item.label}>
+        <div
+          className={cn(
+            'min-w-0 border p-3 transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[0_12px_28px_-24px_rgba(7,17,31,0.42)]',
+            metricToneClasses[item.tone ?? 'slate']
+          )}
+          key={item.label}
+        >
           <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">{item.label}</p>
           <p className="mt-1 truncate text-lg font-semibold">{item.value}</p>
           {item.detail ? <p className="mt-1 truncate text-[11px] font-medium opacity-65">{item.detail}</p> : null}
