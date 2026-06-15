@@ -1229,7 +1229,7 @@ export function ForwardingPage({
 
       <WorkspaceCockpit
         aria-label={t.forwardingCockpit}
-        className="forwarding-ops-cockpit stagger-2 xl:h-[calc(100dvh-10rem)] xl:overflow-hidden"
+        className="forwarding-ops-cockpit stagger-2 xl:h-[calc(100dvh-8.5rem)] xl:overflow-hidden"
       >
         <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:h-full xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside

@@ -400,6 +400,20 @@ describe('AppShell', () => {
     expect(shellChromeHtml).not.toContain('rounded-2xl');
   });
 
+  it('keeps desktop shell height inside the viewport with internal content scrolling', async () => {
+    renderShell(createMockApi({ seedInventory: true }));
+
+    const app = document.getElementById('app-main');
+    const sidebar = await screen.findByRole('complementary', { name: 'Master 控制面导航' });
+    const main = document.querySelector('main');
+    const workspaceScrollRegion = main?.querySelector('.relative.flex-1.overflow-y-auto');
+
+    expect(app).toHaveClass('h-[100dvh]', 'overflow-hidden');
+    expect(sidebar).toHaveClass('min-h-0', 'h-full');
+    expect(main).toHaveClass('min-h-0', 'h-full', 'overflow-hidden');
+    expect(workspaceScrollRegion).toHaveClass('min-h-0');
+  });
+
   it('exposes dashboard launchpad task paths as first-screen control actions', async () => {
     const user = userEvent.setup();
 

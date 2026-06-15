@@ -121,7 +121,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   return (
     <aside
       aria-label={sidebarLabel}
-      className="control-plane-sidebar island-panel w-[272px] flex-shrink-0 border-[#07111F] bg-[#FFFDF5] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
+      className="control-plane-sidebar island-panel h-full min-h-0 w-[272px] flex-shrink-0 border-[#07111F] bg-[#FFFDF5] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
     >
       <div className="flex h-20 shrink-0 items-center justify-between border-b border-[#07111F]/25 bg-[#DCE1FF]/70 px-6 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
         <div className="flex min-w-0 items-center gap-3">

@@ -3410,7 +3410,11 @@ export function AppShell({ ready }: AppShellProps) {
   ]);
 
   return (
-    <div aria-hidden={!ready} className={ready ? 'app-container app-ready ou-shell' : 'app-container ou-shell'} id="app-main">
+    <div
+      aria-hidden={!ready}
+      className={ready ? 'app-container app-ready ou-shell h-[100dvh] overflow-hidden' : 'app-container ou-shell h-[100dvh] overflow-hidden'}
+      id="app-main"
+    >
       <div
         aria-hidden={quickActionsOpen ? true : undefined}
         className="contents ou-shell"
@@ -3425,7 +3429,7 @@ export function AppShell({ ready }: AppShellProps) {
           <div className="ou-shell-ribbon" data-ribbon="Control Plane Operations Host Delivery Audit" />
         </div>
         <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
-        <main className="island-panel min-w-0 flex-1 max-md:min-h-[100dvh] max-md:pb-28">
+        <main className="island-panel h-full min-h-0 min-w-0 flex-1 overflow-hidden max-md:min-h-[100dvh] max-md:pb-28">
           <Topbar
             title={activeNav.label}
             language={language}
@@ -3437,7 +3441,7 @@ export function AppShell({ ready }: AppShellProps) {
             onToggleTheme={toggleTheme}
             quickActionButtonRef={quickActionButtonRef}
           />
-          <div className="relative flex-1 overflow-y-auto p-8 max-md:px-3 max-md:pb-28 max-md:pt-3">
+          <div className="relative min-h-0 flex-1 overflow-y-auto p-8 max-md:px-3 max-md:pb-28 max-md:pt-3">
             {taskMutationState.status !== 'idle' ? (
               <div
                 role={taskMutationState.status === 'failed' ? 'alert' : 'status'}

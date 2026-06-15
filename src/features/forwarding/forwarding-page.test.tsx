@@ -544,7 +544,7 @@ describe('ForwardingPage', () => {
     const workspaceShell = workspace.querySelector('.forwarding-workspace-shell');
 
     expect(cockpit).toHaveClass('min-h-0');
-    expect(cockpit).toHaveClass('xl:h-[calc(100dvh-10rem)]', 'xl:overflow-hidden');
+    expect(cockpit).toHaveClass('xl:h-[calc(100dvh-8.5rem)]', 'xl:overflow-hidden');
     expect(shellGrid).toHaveClass('min-h-0');
     expect(shellGrid).toHaveClass('xl:h-full');
     expect(rail).toHaveClass('xl:overflow-y-auto', 'xl:overscroll-contain');
@@ -560,6 +560,28 @@ describe('ForwardingPage', () => {
     expect(rail.className).not.toContain('overflow-hidden');
     expect(workspace.className).not.toContain('overflow-hidden');
     expect((workspaceShell as HTMLElement).className).not.toContain('overflow-hidden');
+  });
+
+  it('uses a shorter desktop cockpit height so the forwarding page fits laptop screens', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Forwarding control rail' });
+    const workspace = within(cockpit).getByRole('region', { name: 'Forwarding rules workspace' });
+
+    expect(cockpit).toHaveClass('xl:h-[calc(100dvh-8.5rem)]');
+    expect(cockpit).not.toHaveClass('xl:h-[calc(100dvh-10rem)]');
+    expect(rail).toHaveClass('xl:overflow-y-auto');
+    expect(workspace).toHaveClass('xl:overflow-y-auto');
   });
 
   it('reserves mobile bottom-nav clearance and uses a narrower forwarding table', () => {
