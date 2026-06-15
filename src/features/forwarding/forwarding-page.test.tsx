@@ -109,6 +109,39 @@ function createRule(overrides: Partial<ForwardingRuleView> = {}): ForwardingRule
   };
 }
 
+function getForwardingRuleTableRegion(workspace?: HTMLElement): HTMLElement {
+  const targetWorkspace =
+    workspace ?? screen.getByRole('region', { name: 'Forwarding rules workspace' });
+  const tableRegion = targetWorkspace.querySelector('.forwarding-rule-table-region');
+
+  if (!(tableRegion instanceof HTMLElement)) {
+    throw new Error('Missing forwarding rule table region');
+  }
+
+  return tableRegion;
+}
+
+function getForwardingRuleRow(ruleName: string, workspace?: HTMLElement): HTMLElement {
+  const tableRegion = getForwardingRuleTableRegion(workspace);
+  const ruleRow = within(tableRegion).getByText(ruleName).closest('tr');
+
+  if (!(ruleRow instanceof HTMLElement)) {
+    throw new Error(`Missing forwarding rule row for ${ruleName}`);
+  }
+
+  return ruleRow;
+}
+
+function getForwardingMobileRuleList(workspace: HTMLElement): HTMLElement {
+  const mobileList = workspace.querySelector('.forwarding-mobile-rule-list');
+
+  if (!(mobileList instanceof HTMLElement)) {
+    throw new Error('Missing forwarding mobile rule list');
+  }
+
+  return mobileList;
+}
+
 describe('ForwardingPage', () => {
   it('shows an operational overview for forwarding density and risk', () => {
     render(
@@ -221,7 +254,10 @@ describe('ForwardingPage', () => {
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
         language="zh"
-        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({ id: 'forward-b', name: 'LAX Backup Forward', enabled: false })
+        ]}
         onCreateForwarding={vi.fn()}
         onDeleteForwarding={vi.fn()}
         onRunTask={vi.fn()}
@@ -272,7 +308,10 @@ describe('ForwardingPage', () => {
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
         language="zh"
-        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({ id: 'forward-b', name: 'LAX Backup Forward', enabled: false })
+        ]}
         onCreateForwarding={vi.fn()}
         onDeleteForwarding={vi.fn()}
         onRunTask={vi.fn()}
@@ -312,7 +351,7 @@ describe('ForwardingPage', () => {
     const workspace = within(cockpit).getByRole('region', { name: 'Forwarding rules workspace' });
     const overviewPanel = within(rail).getByRole('region', { name: 'Operational Overview' });
     const rulePanel = within(workspace).getByRole('complementary', { name: 'Rule management panel' });
-    const ruleRow = within(rulePanel).getByText('HKG HTTPS Forward').closest('tr');
+    const ruleRow = getForwardingRuleRow('HKG HTTPS Forward', workspace);
 
     expect(cockpit).toHaveClass('forwarding-ops-cockpit');
     expect(rail).toHaveClass('forwarding-ops-rail');
@@ -434,8 +473,9 @@ describe('ForwardingPage', () => {
     const readinessPanel = within(cockpit).getByRole('region', { name: 'Runtime Readiness' });
     const readinessCards = readinessPanel.querySelectorAll('.forwarding-readiness-metric');
     const billingCard = overviewPanel.querySelector('.forwarding-billing-summary');
-    const evidence = within(cockpit).getByRole('group', { name: 'Runtime evidence for HKG HTTPS Forward' });
-    const runtimePath = within(cockpit).getByRole('group', { name: 'Runtime Path HKG HTTPS Forward' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const evidence = within(tableRegion).getByRole('group', { name: 'Runtime evidence for HKG HTTPS Forward' });
+    const runtimePath = within(tableRegion).getByRole('group', { name: 'Runtime Path HKG HTTPS Forward' });
 
     expect(shellGrid).not.toBeNull();
     expect(shellGrid).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
@@ -487,7 +527,10 @@ describe('ForwardingPage', () => {
       <ForwardingPage
         agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
         language="en"
-        rules={[createRule({ id: 'forward-a' }), createRule({ id: 'forward-b', enabled: false })]}
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({ id: 'forward-b', name: 'LAX Backup Forward', enabled: false })
+        ]}
         onCreateForwarding={vi.fn()}
         onDeleteForwarding={vi.fn()}
         onRunTask={vi.fn()}
@@ -539,6 +582,42 @@ describe('ForwardingPage', () => {
     expect(workspaceShell).not.toHaveClass('max-md:pb-28');
     expect(table).toHaveClass('min-w-[960px]');
     expect(table).not.toHaveClass('min-w-[1040px]', 'min-w-[1220px]', 'min-w-[1280px]');
+  });
+
+  it('uses mobile rule cards instead of making the wide forwarding table the phone workflow', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({ id: 'forward-a' }),
+          createRule({ id: 'forward-b', name: 'LAX Backup Forward', enabled: false })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const mobileList = getForwardingMobileRuleList(workspace);
+    const firstCard = within(mobileList).getByRole('group', { name: 'Mobile rule HKG HTTPS Forward' });
+
+    expect(tableRegion).toHaveClass('max-md:hidden');
+    expect(tableRegion).not.toHaveClass('max-md:block');
+    expect(mobileList).toHaveClass('forwarding-mobile-rule-list', 'md:hidden');
+    expect(firstCard).toHaveClass('forwarding-mobile-rule-card');
+    expect(firstCard).toHaveTextContent('HKG HTTPS Forward');
+    expect(firstCard).toHaveTextContent('0.0.0.0:443');
+    expect(firstCard).toHaveTextContent('10.0.0.10:8443');
+    expect(firstCard).toHaveTextContent('Runtime Evidence');
+    expect(within(firstCard).getByRole('button', { name: 'Edit Forward Rule' })).toBeInTheDocument();
+    expect(within(firstCard).getByRole('button', { name: 'Deploy' })).toBeInTheDocument();
+    expect(within(firstCard).getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    expect(within(firstCard).getByRole('button', { name: 'Delete Rule' })).toBeInTheDocument();
+    expect(firstCard.outerHTML).not.toContain('min-w-[960px]');
+    expect(firstCard.outerHTML).not.toContain('overflow-x-auto');
   });
 
   it('keeps the forwarding empty rule panel compact without an oversized blank card', () => {
@@ -684,11 +763,12 @@ describe('ForwardingPage', () => {
       />
     );
 
-    const rulePanel = screen.getByRole('complementary', { name: 'Rule management panel' });
-    const tableBody = rulePanel.querySelector('tbody');
-    const ruleRow = within(rulePanel).getByText('HKG HTTPS Forward').closest('tr');
-    const rowCheckbox = within(ruleRow as HTMLElement).getByRole('checkbox', { name: 'Select HKG HTTPS Forward' });
-    const ruleState = within(ruleRow as HTMLElement).getByText('Enabled');
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const tableBody = tableRegion.querySelector('tbody');
+    const ruleRow = getForwardingRuleRow('HKG HTTPS Forward', workspace);
+    const rowCheckbox = within(ruleRow).getByRole('checkbox', { name: 'Select HKG HTTPS Forward' });
+    const ruleState = within(ruleRow).getByText('Enabled');
 
     expect(tableBody).toHaveClass('divide-[#07111F]/15');
     expect(ruleRow).toHaveClass('hover:bg-[#EAF3D1]/45');
@@ -773,17 +853,19 @@ describe('ForwardingPage', () => {
     await user.click(screen.getByRole('button', { name: 'Select Visible Rules' }));
 
     const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
-    const policyRow = within(cockpit).getByText('Policy Disabled Forward').closest('tr');
-    const quotaRow = within(cockpit).getByText('Quota Exceeded Forward').closest('tr');
-    const deleteButton = within(cockpit).getAllByRole('button', { name: 'Delete Rule' })[0];
+    const workspace = within(cockpit).getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const policyRow = getForwardingRuleRow('Policy Disabled Forward', workspace);
+    const quotaRow = getForwardingRuleRow('Quota Exceeded Forward', workspace);
+    const deleteButton = within(tableRegion).getAllByRole('button', { name: 'Delete Rule' })[0];
     const bulkDeleteButton = within(cockpit).getByRole('button', { name: 'Bulk Delete' });
 
     expect(policyRow).not.toBeNull();
     expect(quotaRow).not.toBeNull();
-    expect(within(policyRow as HTMLElement).getByText('Quota suspended')).toHaveClass('border-[#DC2626]', 'bg-[#DC2626]/[0.10]', 'text-[#B91C1C]');
-    expect(within(quotaRow as HTMLElement).getByText('Quota exceeded')).toHaveClass('border-[#FF3D18]', 'bg-[#FFD8C6]/72', 'text-[#B93C17]');
-    expect(within(policyRow as HTMLElement).getByText('forward_rule_disabled_by_policy')).toHaveClass('text-[#B91C1C]');
-    expect(within(quotaRow as HTMLElement).getByText('forward_rule_quota_exceeded')).toHaveClass('text-[#B93C17]');
+    expect(within(policyRow).getByText('Quota suspended')).toHaveClass('border-[#DC2626]', 'bg-[#DC2626]/[0.10]', 'text-[#B91C1C]');
+    expect(within(quotaRow).getByText('Quota exceeded')).toHaveClass('border-[#FF3D18]', 'bg-[#FFD8C6]/72', 'text-[#B93C17]');
+    expect(within(policyRow).getByText('forward_rule_disabled_by_policy')).toHaveClass('text-[#B91C1C]');
+    expect(within(quotaRow).getByText('forward_rule_quota_exceeded')).toHaveClass('text-[#B93C17]');
     expect(deleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');
     expect(bulkDeleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');
 
@@ -958,7 +1040,9 @@ describe('ForwardingPage', () => {
       />
     );
 
-    const runtimePath = screen.getByRole('group', { name: 'Runtime Path HKG Runtime Path' });
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const runtimePath = within(tableRegion).getByRole('group', { name: 'Runtime Path HKG Runtime Path' });
 
     expect(within(runtimePath).getByText('Entry')).toBeInTheDocument();
     expect(within(runtimePath).getByText('HKG Entry')).toBeInTheDocument();
@@ -1016,7 +1100,10 @@ describe('ForwardingPage', () => {
     await user.selectOptions(screen.getByLabelText('Rule Status'), 'allocated');
     await user.click(screen.getByRole('checkbox', { name: 'Select Visible Rules' }));
 
-    expect(screen.getByText('Acme Game Forward')).toBeInTheDocument();
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+
+    expect(within(tableRegion).getByText('Acme Game Forward')).toBeInTheDocument();
     expect(screen.queryByText('Backup Game Forward')).not.toBeInTheDocument();
     expect(screen.queryByText('Acme Paused Forward')).not.toBeInTheDocument();
     expect(screen.getByText('Matching 1 / 3')).toBeInTheDocument();
@@ -1026,7 +1113,7 @@ describe('ForwardingPage', () => {
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Pause 1 selected forwarding rule'));
     expect(onRunTask).toHaveBeenCalledTimes(1);
     expect(onRunTask).toHaveBeenCalledWith('forward-acme-game', 'pause');
-    expect(screen.getByRole('checkbox', { name: 'Select Acme Game Forward' })).toBeChecked();
+    expect(within(tableRegion).getByRole('checkbox', { name: 'Select Acme Game Forward' })).toBeChecked();
   });
 
   it('shows a bulk impact preflight for selected forwarding rules before risky actions', async () => {
@@ -1085,8 +1172,11 @@ describe('ForwardingPage', () => {
       />
     );
 
-    await user.click(screen.getByRole('checkbox', { name: 'Select Acme Game Forward' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Select Backup Paused Forward' }));
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+
+    await user.click(within(tableRegion).getByRole('checkbox', { name: 'Select Acme Game Forward' }));
+    await user.click(within(tableRegion).getByRole('checkbox', { name: 'Select Backup Paused Forward' }));
 
     const preflight = screen.getByRole('region', { name: 'Forwarding Bulk Impact Preflight' });
     expect(within(preflight).getByText('Affected Customers 2')).toBeInTheDocument();
@@ -1306,7 +1396,9 @@ describe('ForwardingPage', () => {
       />
     );
 
-    const evidence = screen.getByRole('group', { name: 'Runtime evidence for Acme Game Forward' });
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const evidence = within(tableRegion).getByRole('group', { name: 'Runtime evidence for Acme Game Forward' });
     expect(within(evidence).getByText('Runtime Evidence')).toBeInTheDocument();
     expect(within(evidence).getByText('Bindings 2')).toBeInTheDocument();
     expect(within(evidence).getByText('Next Action Deploy / Pause')).toBeInTheDocument();
@@ -1355,8 +1447,10 @@ describe('ForwardingPage', () => {
       />
     );
 
-    const evidence = screen.getByRole('group', { name: 'Runtime evidence for Acme Long Runtime Forward' });
-    const path = screen.getByRole('group', { name: 'Runtime Path Acme Long Runtime Forward' });
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+    const evidence = within(tableRegion).getByRole('group', { name: 'Runtime evidence for Acme Long Runtime Forward' });
+    const path = within(tableRegion).getByRole('group', { name: 'Runtime Path Acme Long Runtime Forward' });
 
     expect(evidence).toHaveClass('forwarding-runtime-evidence-card');
     expect(path).toHaveClass('forwarding-runtime-path-card');
@@ -1390,9 +1484,12 @@ describe('ForwardingPage', () => {
       />
     );
 
-    await user.click(screen.getByRole('button', { name: 'Deploy' }));
-    await user.click(screen.getByRole('button', { name: 'Pause' }));
-    await user.click(screen.getByRole('button', { name: 'Delete Rule' }));
+    const workspace = screen.getByRole('region', { name: 'Forwarding rules workspace' });
+    const tableRegion = getForwardingRuleTableRegion(workspace);
+
+    await user.click(within(tableRegion).getByRole('button', { name: 'Deploy' }));
+    await user.click(within(tableRegion).getByRole('button', { name: 'Pause' }));
+    await user.click(within(tableRegion).getByRole('button', { name: 'Delete Rule' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Deploy Acme Game Forward'));
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Pause Acme Game Forward'));
@@ -1401,8 +1498,8 @@ describe('ForwardingPage', () => {
     expect(onDeleteForwarding).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
-    await user.click(screen.getByRole('button', { name: 'Deploy' }));
-    await user.click(screen.getByRole('button', { name: 'Delete Rule' }));
+    await user.click(within(tableRegion).getByRole('button', { name: 'Deploy' }));
+    await user.click(within(tableRegion).getByRole('button', { name: 'Delete Rule' }));
 
     expect(onRunTask).toHaveBeenCalledWith('forward-acme-game', 'apply');
     expect(onDeleteForwarding).toHaveBeenCalledWith(acmeRule);

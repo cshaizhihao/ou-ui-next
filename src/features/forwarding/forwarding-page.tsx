@@ -1451,7 +1451,8 @@ export function ForwardingPage({
             {filteredRules.length === 0 ? (
               <EmptyState label={t.noMatchingRules} />
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="forwarding-rule-table-region overflow-x-auto max-md:hidden">
                 <table className="w-full min-w-[960px] text-left">
                   <thead className="bg-[#07111F] text-[10px] font-bold uppercase tracking-widest text-[#FDFFF1] dark:bg-white/[0.03] dark:text-white/40">
                     <tr>
@@ -1493,35 +1494,7 @@ export function ForwardingPage({
                             <span className="forwarding-rule-icon mt-1 border border-[#1E3AFF] bg-[#DCE1FF] p-2 text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/10 dark:text-primary">
                               <ArrowRightLeft className="h-4 w-4" />
                             </span>
-                            <div>
-                              <p className="text-sm font-bold text-[#07111F] dark:text-white">{rule.name}</p>
-                              <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">{rule.ownerName}</p>
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className="inline-flex rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[10px] font-bold uppercase text-[#35405A] dark:bg-white/10 dark:text-white/50">
-                                  {rule.enabled ? t.ruleStateLabels.enabled : t.ruleStateLabels.disabled}
-                                </span>
-                                <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
-                                {rule.runtimeDisabledByPolicy ? (
-                                  <span className="inline-flex rounded-full border border-[#DC2626] bg-[#DC2626]/[0.10] px-2.5 py-1 text-[10px] font-black uppercase text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]">
-                                    {t.quotaSuspended}
-                                  </span>
-                                ) : rule.quotaExceeded ? (
-                                  <span className="inline-flex rounded-full border border-[#FF3D18] bg-[#FFD8C6]/72 px-2.5 py-1 text-[10px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]">
-                                    {t.quotaExceeded}
-                                  </span>
-                                ) : null}
-                              </div>
-                              {rule.guardrailReason ? (
-                                <p className={`mt-1 font-mono text-[10px] ${rule.runtimeDisabledByPolicy ? 'text-[#B91C1C] dark:text-[#FCA5A5]' : 'text-[#B93C17] dark:text-[#FFB197]'}`}>
-                                  {rule.guardrailReason}
-                                </p>
-                              ) : null}
-                              <ForwardingRuntimeEvidenceCard
-                                language={language}
-                                rule={rule}
-                                t={t}
-                              />
-                            </div>
+                            <ForwardingRuleIdentity language={language} rule={rule} t={t} />
                           </div>
                         </td>
                         <td className="px-3 py-2.5">
@@ -1566,34 +1539,76 @@ export function ForwardingPage({
                           </p>
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="flex justify-end gap-2">
-                            <IconButton label={t.editAction} onClick={() => openEditDrawer(rule)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </IconButton>
-                            {rule.enabled ? (
-                              <>
-                                <IconButton label={t.applyPolicy} onClick={() => runRuleTask(rule, 'apply')}>
-                                  <Send className="h-3.5 w-3.5" />
-                                </IconButton>
-                                <IconButton label={t.pausePolicy} onClick={() => runRuleTask(rule, 'pause')}>
-                                  <Pause className="h-3.5 w-3.5" />
-                                </IconButton>
-                              </>
-                            ) : (
-                              <IconButton label={t.resumePolicy} onClick={() => runRuleTask(rule, 'resume')}>
-                                <Play className="h-3.5 w-3.5" />
-                              </IconButton>
-                            )}
-                            <IconButton danger label={t.deleteRule} onClick={() => deleteRule(rule)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </IconButton>
-                          </div>
+                          <ForwardingRuleActions
+                            onDelete={() => deleteRule(rule)}
+                            onEdit={() => openEditDrawer(rule)}
+                            onRun={(action) => runRuleTask(rule, action)}
+                            rule={rule}
+                            t={t}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <div className="forwarding-mobile-rule-list hidden gap-3 p-3 max-md:grid md:hidden">
+                {filteredRules.map((rule) => (
+                  <article
+                    aria-label={`Mobile rule ${rule.name}`}
+                    className="forwarding-mobile-rule-card min-w-0 border border-[#07111F]/20 bg-[#FFFDF5] p-3 shadow-[0_12px_30px_-26px_rgba(7,17,31,0.32)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.035]"
+                    key={rule.id}
+                    role="group"
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        aria-label={t.selectRule(rule.name)}
+                        checked={selectedRuleIds.includes(rule.id)}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-[#07111F]/30 text-[#1E3AFF] accent-[#1E3AFF]"
+                        onChange={() => toggleRuleSelection(rule.id)}
+                        type="checkbox"
+                      />
+                      <ForwardingRuleIdentity language={language} rule={rule} t={t} />
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {rule.bindings.map((binding) => (
+                        <ForwardingRuntimePath
+                          binding={binding}
+                          key={`${rule.id}-${binding.agentId}-${binding.listenPort}-${binding.protocol}-mobile`}
+                          ruleName={rule.name}
+                          agentName={agents.find((agent) => agent.id === binding.agentId)?.name ?? binding.agentId}
+                          statusLabel={t.portStatusLabels[binding.status]}
+                          t={t}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2">
+                      <ForwardingMobileFact label={t.target} value={`${rule.targetAddress}:${rule.targetPort}`} mono />
+                      <ForwardingMobileFact
+                        label={t.policy}
+                        value={`${t.strategyOptions[rule.strategy]} / ${t.tunnelModeOptions[rule.tunnelMode]}`}
+                      />
+                      <ForwardingMobileFact
+                        label={t.quota}
+                        value={`${formatBytes(rule.usedBytes)} / ${formatBytes(rule.quotaBytes)}`}
+                      />
+                      <ForwardingMobileFact
+                        label={t.limiter}
+                        value={`${rule.rateLimitMbps} ${t.unitMbps} / ${t.rateLimitModeOptions[rule.rateLimitMode]}`}
+                      />
+                    </div>
+                    <ForwardingRuleActions
+                      className="mt-3 justify-start"
+                      onDelete={() => deleteRule(rule)}
+                      onEdit={() => openEditDrawer(rule)}
+                      onRun={(action) => runRuleTask(rule, action)}
+                      rule={rule}
+                      t={t}
+                    />
+                  </article>
+                ))}
+              </div>
+              </>
             )}
             </>
           )}
@@ -2027,6 +2042,48 @@ function ForwardingRuntimeEvidenceCard({
   );
 }
 
+function ForwardingRuleIdentity({
+  language,
+  rule,
+  t
+}: {
+  language: AppLanguage;
+  rule: ForwardingRuleView;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-bold text-[#07111F] dark:text-white">{rule.name}</p>
+      <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">{rule.ownerName}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="inline-flex rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[10px] font-bold uppercase text-[#35405A] dark:bg-white/10 dark:text-white/50">
+          {rule.enabled ? t.ruleStateLabels.enabled : t.ruleStateLabels.disabled}
+        </span>
+        <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
+        {rule.runtimeDisabledByPolicy ? (
+          <span className="inline-flex rounded-full border border-[#DC2626] bg-[#DC2626]/[0.10] px-2.5 py-1 text-[10px] font-black uppercase text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]">
+            {t.quotaSuspended}
+          </span>
+        ) : rule.quotaExceeded ? (
+          <span className="inline-flex rounded-full border border-[#FF3D18] bg-[#FFD8C6]/72 px-2.5 py-1 text-[10px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]">
+            {t.quotaExceeded}
+          </span>
+        ) : null}
+      </div>
+      {rule.guardrailReason ? (
+        <p
+          className={`mt-1 break-all font-mono text-[10px] ${
+            rule.runtimeDisabledByPolicy ? 'text-[#B91C1C] dark:text-[#FCA5A5]' : 'text-[#B93C17] dark:text-[#FFB197]'
+          }`}
+        >
+          {rule.guardrailReason}
+        </p>
+      ) : null}
+      <ForwardingRuntimeEvidenceCard language={language} rule={rule} t={t} />
+    </div>
+  );
+}
+
 function getPortStatusClass(status: PortAllocationStatus) {
   if (status === 'allocated') {
     return 'border border-[#00A878] bg-[#00A878]/10 text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/15 dark:text-[#7FF3C9]';
@@ -2075,6 +2132,64 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+function ForwardingMobileFact({ label, mono = false, value }: { label: string; mono?: boolean; value: string }) {
+  return (
+    <div className="min-w-0 border border-[#07111F]/18 bg-[#EAF3D1]/55 px-3 py-2 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#35405A] dark:text-white/45">{label}</p>
+      <p
+        className={
+          mono
+            ? 'mt-1 break-all font-mono text-xs font-bold text-[#07111F] dark:text-white/75'
+            : 'mt-1 text-xs font-bold text-[#07111F] dark:text-white/75'
+        }
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ForwardingRuleActions({
+  className = 'justify-end',
+  onDelete,
+  onEdit,
+  onRun,
+  rule,
+  t
+}: {
+  className?: string;
+  onDelete: () => void;
+  onEdit: () => void;
+  onRun: (action: 'apply' | 'pause' | 'resume') => void;
+  rule: ForwardingRuleView;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  return (
+    <div className={`flex flex-wrap gap-2 ${className}`}>
+      <IconButton label={t.editAction} onClick={onEdit}>
+        <Pencil className="h-3.5 w-3.5" />
+      </IconButton>
+      {rule.enabled ? (
+        <>
+          <IconButton label={t.applyPolicy} onClick={() => onRun('apply')}>
+            <Send className="h-3.5 w-3.5" />
+          </IconButton>
+          <IconButton label={t.pausePolicy} onClick={() => onRun('pause')}>
+            <Pause className="h-3.5 w-3.5" />
+          </IconButton>
+        </>
+      ) : (
+        <IconButton label={t.resumePolicy} onClick={() => onRun('resume')}>
+          <Play className="h-3.5 w-3.5" />
+        </IconButton>
+      )}
+      <IconButton danger label={t.deleteRule} onClick={onDelete}>
+        <Trash2 className="h-3.5 w-3.5" />
+      </IconButton>
+    </div>
   );
 }
 

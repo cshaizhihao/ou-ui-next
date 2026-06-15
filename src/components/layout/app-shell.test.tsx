@@ -303,6 +303,26 @@ async function clickNavigation(user: TestUser, label: string | RegExp) {
   await user.click(await screen.findByRole('button', { name: label }));
 }
 
+async function findForwardingRuleTableRegion(): Promise<HTMLElement> {
+  await waitFor(() => {
+    expect(document.querySelector('.forwarding-rule-table-region')).toBeInstanceOf(HTMLElement);
+  });
+
+  return document.querySelector<HTMLElement>('.forwarding-rule-table-region')!;
+}
+
+async function findForwardingRuleTableRow(ruleName = '端口转发网络'): Promise<HTMLElement> {
+  const tableRegion = await findForwardingRuleTableRegion();
+  const ruleLabel = await within(tableRegion).findByText(ruleName);
+  const ruleRow = ruleLabel.closest('tr');
+
+  if (!(ruleRow instanceof HTMLElement)) {
+    throw new Error(`Missing forwarding rule table row for ${ruleName}`);
+  }
+
+  return ruleRow;
+}
+
 async function getRollbackAction() {
   await waitFor(() => {
     expect(document.querySelector('button[data-task-action="rollback"]')).not.toBeNull();
@@ -2470,7 +2490,8 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '端口转发');
-    await user.click(await screen.findByRole('button', { name: '恢复' }));
+    const forwardingRow = await findForwardingRuleTableRow();
+    await user.click(within(forwardingRow).getByRole('button', { name: '恢复' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('恢复 端口转发网络'));
     expect(api.createTask).toHaveBeenCalledWith(
@@ -2843,8 +2864,8 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '端口转发');
-    await screen.findByText('端口转发网络');
-    await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
+    const forwardingRow = await findForwardingRuleTableRow();
+    await user.click(within(forwardingRow).getByRole('button', { name: '应用' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('当前账号缺少 configure 权限');
@@ -2904,8 +2925,8 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '端口转发');
-    await screen.findByText('端口转发网络');
-    await user.dblClick((await screen.findAllByRole('button', { name: '应用' }))[0]);
+    const forwardingRow = await findForwardingRuleTableRow();
+    await user.dblClick(within(forwardingRow).getByRole('button', { name: '应用' }));
 
     expect(confirm).toHaveBeenCalled();
     expect(api.createTask).toHaveBeenCalledTimes(1);
@@ -2930,8 +2951,8 @@ describe('AppShell', () => {
     renderShell(api);
 
     await clickNavigation(user, '端口转发');
-    await screen.findByText('端口转发网络');
-    await user.click((await screen.findAllByRole('button', { name: '应用' }))[0]);
+    const forwardingRow = await findForwardingRuleTableRow();
+    await user.click(within(forwardingRow).getByRole('button', { name: '应用' }));
 
     expect(await screen.findByRole('status')).toHaveTextContent('执行记录已创建');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
