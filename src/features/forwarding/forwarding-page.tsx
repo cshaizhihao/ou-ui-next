@@ -1413,7 +1413,7 @@ export function ForwardingPage({
                     {t.bulkResume}
                   </button>
                   <button
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400/30 dark:text-red-200 dark:hover:bg-red-400/10"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-[#DC2626] px-3 text-xs font-bold text-[#DC2626] transition hover:bg-[#DC2626]/[0.10] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#F87171]/35 dark:text-[#FCA5A5] dark:hover:bg-[#DC2626]/15"
                     disabled={selectedRules.length === 0 || taskMutationBusy}
                     onClick={bulkDeleteConfirming ? deleteSelectedRules : () => setBulkDeleteConfirming(true)}
                     type="button"
@@ -1433,7 +1433,7 @@ export function ForwardingPage({
               ) : null}
               {hasBulkMigrationConflict ? (
                 <div
-                  className="mt-3 rounded-lg border border-red-200 bg-red-50/80 p-3 text-xs font-semibold leading-5 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                  className="mt-3 border border-[#DC2626] bg-[#DC2626]/[0.08] p-3 text-xs font-semibold leading-5 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.12] dark:text-[#FCA5A5]"
                   role="alert"
                 >
                   <p className="font-black">{t.portConflictTitle}</p>
@@ -1502,17 +1502,17 @@ export function ForwardingPage({
                                 </span>
                                 <StatusPill label={t.portStatusLabels[rule.portStatus]} status={rule.portStatus} />
                                 {rule.runtimeDisabledByPolicy ? (
-                                  <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase text-red-600 dark:bg-red-500/15 dark:text-red-200">
+                                  <span className="inline-flex rounded-full border border-[#DC2626] bg-[#DC2626]/[0.10] px-2.5 py-1 text-[10px] font-black uppercase text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]">
                                     {t.quotaSuspended}
                                   </span>
                                 ) : rule.quotaExceeded ? (
-                                  <span className="inline-flex rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-black uppercase text-orange-600 dark:bg-orange-500/15 dark:text-orange-200">
+                                  <span className="inline-flex rounded-full border border-[#FF3D18] bg-[#FFD8C6]/72 px-2.5 py-1 text-[10px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]">
                                     {t.quotaExceeded}
                                   </span>
                                 ) : null}
                               </div>
                               {rule.guardrailReason ? (
-                                <p className="mt-1 font-mono text-[10px] text-orange-600 dark:text-orange-300">
+                                <p className={`mt-1 font-mono text-[10px] ${rule.runtimeDisabledByPolicy ? 'text-[#B91C1C] dark:text-[#FCA5A5]' : 'text-[#B93C17] dark:text-[#FFB197]'}`}>
                                   {rule.guardrailReason}
                                 </p>
                               ) : null}
@@ -1629,7 +1629,7 @@ export function ForwardingPage({
             />
             {hasPortConflict ? (
               <div
-                className="rounded-lg border border-red-200 bg-red-50/80 p-3 text-xs font-semibold leading-5 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200"
+                className="border border-[#DC2626] bg-[#DC2626]/[0.08] p-3 text-xs font-semibold leading-5 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.12] dark:text-[#FCA5A5]"
                 role="alert"
               >
                 <p className="font-black">{t.portConflictTitle}</p>
@@ -2037,7 +2037,7 @@ function getPortStatusClass(status: PortAllocationStatus) {
   }
 
   if (status === 'conflict' || status === 'failed') {
-    return 'border border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/15 dark:text-red-200';
+    return 'border border-[#DC2626] bg-[#DC2626]/[0.10] text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]';
   }
 
   return 'border border-[#FF3D18]/35 bg-[#FF3D18]/10 text-[#C9220C] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]';
@@ -2067,7 +2067,7 @@ function IconButton({
       aria-label={label}
       className={
         danger
-          ? 'rounded-full border border-red-200 p-2 text-red-500 transition hover:bg-red-50 dark:border-red-400/30 dark:hover:bg-red-400/10'
+          ? 'rounded-full border border-[#DC2626] p-2 text-[#DC2626] transition hover:bg-[#DC2626]/[0.10] dark:border-[#F87171]/35 dark:text-[#FCA5A5] dark:hover:bg-[#DC2626]/15'
           : 'rounded-full border border-[#07111F]/25 p-2 text-[#35405A] transition hover:bg-[#DCE1FF] hover:text-[#1E3AFF] dark:border-white/10 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-primary'
       }
       onClick={onClick}
@@ -2175,7 +2175,7 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <div className="forwarding-empty-state p-3 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
+  return <div className="forwarding-empty-state p-3 text-center text-sm font-semibold text-[#35405A] dark:text-white/50">{label}</div>;
 }
 
 function ForwardingRuntimePath({
@@ -2198,7 +2198,7 @@ function ForwardingRuntimePath({
   return (
     <div
       aria-label={`${t.runtimePath} ${ruleName}`}
-      className="forwarding-runtime-path-card border border-[#07111F]/25 bg-[#FFFDF5]/80 p-2.5 shadow-sm shadow-slate-950/5 dark:border-[#6B7CFF]/25 dark:bg-white/[0.04] dark:shadow-none"
+      className="forwarding-runtime-path-card border border-[#07111F]/25 bg-[#FFFDF5]/80 p-2.5 shadow-[0_10px_24px_-22px_rgba(7,17,31,0.22)] dark:border-[#6B7CFF]/25 dark:bg-white/[0.04] dark:shadow-none"
       role="group"
     >
       <div className="flex items-start justify-between gap-3">

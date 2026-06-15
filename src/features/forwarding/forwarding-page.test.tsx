@@ -727,6 +727,81 @@ describe('ForwardingPage', () => {
     expect(dialogHtml).not.toContain('rounded-xl');
   });
 
+  it('keeps forwarding risk states on explicit design-system colors instead of default template utilities', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry'), createAgent('agent-lax-01', 'LAX Entry')]}
+        language="en"
+        rules={[
+          createRule({
+            id: 'forward-disabled-by-policy',
+            name: 'Policy Disabled Forward',
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'forward_rule_disabled_by_policy',
+            portStatus: 'failed'
+          }),
+          createRule({
+            id: 'forward-quota-exceeded',
+            name: 'Quota Exceeded Forward',
+            sourceAgentId: 'agent-lax-01',
+            entryNodeIds: ['agent-lax-01'],
+            quotaExceeded: true,
+            guardrailReason: 'forward_rule_quota_exceeded',
+            listenPort: 8443,
+            bindings: [
+              {
+                agentId: 'agent-lax-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 8443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp',
+                status: 'conflict',
+                runtimeServiceNames: ['ou-forward-quota-exceeded-agent-lax-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Select Visible Rules' }));
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const policyRow = within(cockpit).getByText('Policy Disabled Forward').closest('tr');
+    const quotaRow = within(cockpit).getByText('Quota Exceeded Forward').closest('tr');
+    const deleteButton = within(cockpit).getAllByRole('button', { name: 'Delete Rule' })[0];
+    const bulkDeleteButton = within(cockpit).getByRole('button', { name: 'Bulk Delete' });
+
+    expect(policyRow).not.toBeNull();
+    expect(quotaRow).not.toBeNull();
+    expect(within(policyRow as HTMLElement).getByText('Quota suspended')).toHaveClass('border-[#DC2626]', 'bg-[#DC2626]/[0.10]', 'text-[#B91C1C]');
+    expect(within(quotaRow as HTMLElement).getByText('Quota exceeded')).toHaveClass('border-[#FF3D18]', 'bg-[#FFD8C6]/72', 'text-[#B93C17]');
+    expect(within(policyRow as HTMLElement).getByText('forward_rule_disabled_by_policy')).toHaveClass('text-[#B91C1C]');
+    expect(within(quotaRow as HTMLElement).getByText('forward_rule_quota_exceeded')).toHaveClass('text-[#B93C17]');
+    expect(deleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');
+    expect(bulkDeleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');
+
+    const riskStateHtml = [
+      policyRow?.outerHTML ?? '',
+      quotaRow?.outerHTML ?? '',
+      deleteButton.outerHTML,
+      bulkDeleteButton.outerHTML
+    ].join('');
+
+    expect(riskStateHtml).toContain('#DC2626');
+    expect(riskStateHtml).toContain('#FF3D18');
+    expect(riskStateHtml).not.toContain('red-');
+    expect(riskStateHtml).not.toContain('orange-');
+    expect(riskStateHtml).not.toContain('slate-');
+    expect(riskStateHtml).not.toContain('rounded-lg');
+  });
+
   it('blocks duplicate entry bindings before submitting a new forwarding rule', async () => {
     const user = userEvent.setup();
     const onCreateForwarding = vi.fn();
