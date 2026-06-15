@@ -143,12 +143,22 @@ describe('RoutingPage', () => {
     await user.type(within(manualRule).getByLabelText('出站标签'), 'HK-PREMIUM');
     await user.click(within(manualRule).getByRole('button', { name: '编译手写规则' }));
 
-    expect(onRunTask).toHaveBeenCalledWith('routing-manual-rule', [
-      'manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM'
-    ]);
+    expect(onRunTask).toHaveBeenCalledWith(
+      'routing-manual-rule',
+      [],
+      {
+        accessDomain: 'stream.example.com',
+        generatedHost: '香港入口主机',
+        manualRuleId: 'manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM',
+        match: 'host:香港入口主机 AND domain:stream.example.com',
+        outboundProtocol: 'proxy',
+        outboundTag: 'HK-PREMIUM'
+      }
+    );
     expect(within(manualRule).getByText('香港入口主机 生成的节点')).toBeInTheDocument();
     expect(within(manualRule).getByText('domain:stream.example.com')).toBeInTheDocument();
     expect(within(manualRule).getByText('outbound:HK-PREMIUM')).toBeInTheDocument();
+    expect(within(manualRule).getByText('match:host:香港入口主机 AND domain:stream.example.com')).toBeInTheDocument();
     expect(screen.queryByText('将域名、CIDR、GeoIP 与应用标签映射到直连、代理或拒绝策略。')).not.toBeInTheDocument();
   });
 
@@ -199,7 +209,8 @@ describe('RoutingPage', () => {
     expect(matrix).toHaveClass('routing-policy-matrix-panel', 'p-3');
     expect(matrix).not.toHaveClass('p-5', 'rounded-xl');
     expect(overviewGrid).toBeInTheDocument();
-    expect(overviewGrid as HTMLElement).toHaveClass('xl:w-[28rem]', 'xl:grid-cols-2');
+    expect(overviewGrid as HTMLElement).toHaveClass('w-full', 'max-w-full', 'xl:grid-cols-2');
+    expect(overviewGrid as HTMLElement).not.toHaveClass('xl:w-[28rem]');
     expect(overviewGrid as HTMLElement).not.toHaveClass('xl:grid-cols-1');
     expect(filterPanel).toBeInTheDocument();
     expect(filterPanel as HTMLElement).toHaveClass('p-3');
@@ -212,7 +223,7 @@ describe('RoutingPage', () => {
     expect(railMetric).toHaveClass('routing-rail-metric', 'min-h-[64px]', 'px-3', 'py-2');
     expect(railMetric).not.toHaveClass('min-h-[76px]');
     expect(railMetric).not.toHaveClass('rounded-xl');
-    expect(overviewCard).toHaveClass('routing-summary-card', 'min-h-[64px]', 'p-2.5');
+    expect(overviewCard).toHaveClass('routing-summary-card', 'min-h-[64px]', 'min-w-0', 'p-2.5');
     expect(overviewCard).not.toHaveClass('min-h-[76px]', 'rounded-xl', 'p-3', 'p-4');
     expect(emptyStateHtml).not.toContain('masonry');
     expect(emptyStateHtml).not.toContain('columns-');

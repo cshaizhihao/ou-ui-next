@@ -2877,6 +2877,48 @@ describe('AppShell', () => {
     });
   });
 
+  it('dispatches administrator-authored manual routing rules as structured compile metadata', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+
+    renderShell(api);
+
+    await clickNavigation(user, '分流策略');
+    const manualRule = await screen.findByRole('region', { name: '手写分流规则' });
+    await user.type(within(manualRule).getByLabelText('生成主机'), '香港入口主机');
+    await user.type(within(manualRule).getByLabelText('访问域名'), 'stream.example.com');
+    await user.selectOptions(within(manualRule).getByLabelText('出站协议'), 'proxy');
+    await user.type(within(manualRule).getByLabelText('出站标签'), 'HK-PREMIUM');
+    await user.click(within(manualRule).getByRole('button', { name: '编译手写规则' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'config.compile',
+          targetId: 'routing-manual-rule',
+          metadata: expect.objectContaining({
+            policyIds: [],
+            policyCount: 0,
+            manualRule: {
+              accessDomain: 'stream.example.com',
+              generatedHost: '香港入口主机',
+              manualRuleId: 'manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM',
+              match: 'host:香港入口主机 AND domain:stream.example.com',
+              outboundProtocol: 'proxy',
+              outboundTag: 'HK-PREMIUM'
+            }
+          })
+        }),
+        expect.objectContaining({
+          idempotencyKey: 'ui:config.compile:routing-manual-rule:manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM'
+        })
+      );
+    });
+  });
+
   it('creates an agent rollback task from a rollback-ready task', async () => {
     const user = userEvent.setup();
     const confirm = vi.fn(() => true);

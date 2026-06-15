@@ -780,6 +780,38 @@ describe('v1 API runtime contract', () => {
 
     expect(
       createTaskRequestSchema.parse({
+        operation: 'config.compile',
+        targetId: 'routing-manual-rule',
+        targetLabel: '分流策略',
+        summary: '编译分流策略',
+        metadata: {
+          policyIds: [],
+          policyCount: 0,
+          manualRule: {
+            accessDomain: 'stream.example.com',
+            generatedHost: '香港入口主机',
+            manualRuleId: 'manual:香港入口主机:stream.example.com:proxy:HK-PREMIUM',
+            match: 'host:香港入口主机 AND domain:stream.example.com',
+            outboundProtocol: 'proxy',
+            outboundTag: 'HK-PREMIUM'
+          }
+        }
+      })
+    ).toMatchObject({
+      operation: 'config.compile',
+      metadata: {
+        manualRule: {
+          accessDomain: 'stream.example.com',
+          outboundProtocol: 'proxy',
+          outboundTag: 'HK-PREMIUM'
+        },
+        policyCount: 0,
+        policyIds: []
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse({
         operation: 'inbound.update',
         resourceType: 'inbound',
         targetId: 'customer-node-hkg-acme',

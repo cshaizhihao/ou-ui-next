@@ -14,7 +14,7 @@ type RoutingPageProps = {
   policies: RoutingPolicy[];
   language: AppLanguage;
   taskMutationBusy?: boolean;
-  onRunTask: (id: string, policyIds?: string[]) => void;
+  onRunTask: (id: string, policyIds?: string[], manualRule?: ManualRoutingRuleMetadata) => void;
 };
 
 type RoutingActionFilter = RoutingPolicy['action'] | 'all';
@@ -215,6 +215,15 @@ type RoutingCompileImpactSummary = {
   totalHits: number;
 };
 
+export type ManualRoutingRuleMetadata = {
+  accessDomain: string;
+  generatedHost: string;
+  manualRuleId: string;
+  match: string;
+  outboundProtocol: RoutingPolicy['action'];
+  outboundTag: string;
+};
+
 function createPolicySearchText(policy: RoutingPolicy) {
   return [policy.id, policy.name, policy.match, policy.action, policy.targetGroup, policy.riskLevel, String(policy.priority)]
     .join(' ')
@@ -367,6 +376,27 @@ function createRoutingCompileGates({
   ];
 }
 
+function createManualRoutingRuleMetadata({
+  domain,
+  host,
+  outboundProtocol,
+  outboundTag
+}: {
+  domain: string;
+  host: string;
+  outboundProtocol: RoutingPolicy['action'];
+  outboundTag: string;
+}): ManualRoutingRuleMetadata {
+  return {
+    accessDomain: domain,
+    generatedHost: host,
+    manualRuleId: `manual:${host}:${domain}:${outboundProtocol}:${outboundTag}`,
+    match: `host:${host} AND domain:${domain}`,
+    outboundProtocol,
+    outboundTag
+  };
+}
+
 export function RoutingPage({ policies, language, taskMutationBusy = false, onRunTask }: RoutingPageProps) {
   const t = copy[language];
   const [policySearch, setPolicySearch] = useState('');
@@ -377,6 +407,22 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
   const [manualDomain, setManualDomain] = useState('');
   const [manualOutboundProtocol, setManualOutboundProtocol] = useState<RoutingPolicy['action']>('proxy');
   const [manualOutboundTag, setManualOutboundTag] = useState('');
+  const manualRulePreview = useMemo(() => {
+    const host = manualHost.trim();
+    const domain = manualDomain.trim();
+    const outboundTag =
+      manualOutboundTag.trim()
+      || (manualOutboundProtocol === 'direct' ? 'DIRECT' : manualOutboundProtocol === 'reject' ? 'REJECT' : 'PROXY');
+
+    return host || domain || manualOutboundTag.trim()
+      ? createManualRoutingRuleMetadata({
+          domain,
+          host,
+          outboundProtocol: manualOutboundProtocol,
+          outboundTag
+        })
+      : undefined;
+  }, [manualDomain, manualHost, manualOutboundProtocol, manualOutboundTag]);
   const filteredPolicies = useMemo(
     () => filterRoutingPolicies(policies, policySearch, actionFilter, riskFilter),
     [actionFilter, policies, policySearch, riskFilter]
@@ -471,9 +517,16 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
       return;
     }
 
-    onRunTask('routing-manual-rule', [
-      `manual:${host}:${domain}:${manualOutboundProtocol}:${outboundTag}`
-    ]);
+    onRunTask(
+      'routing-manual-rule',
+      [],
+      createManualRoutingRuleMetadata({
+        domain,
+        host,
+        outboundProtocol: manualOutboundProtocol,
+        outboundTag
+      })
+    );
   }
 
   return (
@@ -504,7 +557,7 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
             </div>
           </div>
 
-          <div className="routing-summary-grid grid min-w-0 grid-cols-2 gap-2 xl:w-[28rem] xl:grid-cols-2">
+          <div className="routing-summary-grid grid w-full min-w-0 max-w-full grid-cols-2 gap-2 xl:grid-cols-2">
             <RoutingSummaryCard icon={Network} label={t.overviewTotalPolicies} value={formatNumber(policies.length, language)} />
             <RoutingSummaryCard icon={Search} label={t.overviewVisiblePolicies} value={formatNumber(filteredPolicies.length, language)} />
             <RoutingSummaryCard icon={ShieldAlert} label={t.overviewRiskyPolicies} value={formatNumber(highRiskCount, language)} />
@@ -580,16 +633,19 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
                       <GitBranch className="h-4 w-4 text-[#1E3AFF] dark:text-primary" />
                       <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.manualRuleTitle}</h4>
                     </div>
-                    {manualHost.trim() || manualDomain.trim() || manualOutboundTag.trim() ? (
+                    {manualRulePreview ? (
                       <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black text-[#35405A] dark:text-white/62">
                         <span className="border border-[#07111F]/18 bg-[#EAF3D1]/60 px-2 py-1 dark:border-white/10 dark:bg-white/[0.04]">
-                          {manualHost.trim() || '-'} {t.manualNodeSuffix}
+                          {manualRulePreview.generatedHost || '-'} {t.manualNodeSuffix}
                         </span>
                         <span className="border border-[#07111F]/18 bg-[#DCE1FF]/62 px-2 py-1 text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12 dark:text-[#BAC4FF]">
-                          domain:{manualDomain.trim() || '-'}
+                          domain:{manualRulePreview.accessDomain || '-'}
                         </span>
                         <span className="border border-[#07111F]/18 bg-[#FFD8C6]/70 px-2 py-1 text-[#B93C17] dark:border-[#FFB299]/20 dark:bg-[#FF6A3A]/12 dark:text-[#FFB299]">
-                          outbound:{manualOutboundTag.trim() || manualOutboundProtocol.toUpperCase()}
+                          outbound:{manualRulePreview.outboundTag}
+                        </span>
+                        <span className="border border-[#07111F]/18 bg-[#FFFDF5] px-2 py-1 font-mono text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
+                          match:{manualRulePreview.match}
                         </span>
                       </div>
                     ) : null}
@@ -803,13 +859,13 @@ function RoutingSummaryCard({
   value: string;
 }) {
   return (
-    <div className="routing-summary-card min-h-[64px] border border-[#07111F]/18 bg-[#FFFDF5]/74 p-2.5 dark:border-white/10 dark:bg-black/10">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+    <div className="routing-summary-card min-h-[64px] min-w-0 border border-[#07111F]/18 bg-[#FFFDF5]/74 p-2.5 dark:border-white/10 dark:bg-black/10">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">{label}</p>
           <p className="mt-1 text-base font-black text-[#07111F] dark:text-white">{value}</p>
         </div>
-        <Icon className="h-5 w-5 text-[#1E3AFF] dark:text-primary" />
+        <Icon className="h-5 w-5 shrink-0 text-[#1E3AFF] dark:text-primary" />
       </div>
     </div>
   );

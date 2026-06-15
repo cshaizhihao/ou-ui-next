@@ -80,6 +80,7 @@ import {
   TelegramNotificationSettingsPage,
   TuningPage
 } from './app-shell-pages';
+import type { ManualRoutingRuleMetadata } from '../../features/routing/routing-page';
 import { prefetchAppShellPage } from './app-shell-page-prefetch';
 import { ControlPlaneSkeleton } from './control-plane-skeleton';
 import { AppShellWorkspaceChrome } from './app-shell-workspace-chrome';
@@ -2528,8 +2529,14 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleRunRouting = useCallback(
-    (id: string, policyIds: string[] = []) => {
+    (id: string, policyIds: string[] = [], manualRule?: ManualRoutingRuleMetadata) => {
       const scopedPolicyIds = [...new Set(policyIds)].filter((policyId) => policyId.trim() !== '');
+      const idempotencyParts = ['ui', 'config.compile', id, ...scopedPolicyIds];
+
+      if (manualRule) {
+        idempotencyParts.push(manualRule.manualRuleId);
+      }
+
       void runTask(
         {
           operation: 'config.compile',
@@ -2538,11 +2545,12 @@ export function AppShell({ ready }: AppShellProps) {
           summary: t.compileRoutingSummary,
           metadata: {
             policyIds: scopedPolicyIds,
-            policyCount: scopedPolicyIds.length
+            policyCount: scopedPolicyIds.length,
+            ...(manualRule ? { manualRule } : {})
           }
         },
         {
-          idempotencyKey: ['ui', 'config.compile', id, ...scopedPolicyIds].join(':')
+          idempotencyKey: idempotencyParts.join(':')
         }
       );
     },
