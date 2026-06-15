@@ -254,6 +254,11 @@ type TuningReleaseGate = {
   state: TuningReleaseGateState;
   value: string;
 };
+type HostTuningProbe = {
+  bbrInstalled: boolean;
+  kernelVersion?: string;
+  tcpProbeReady: boolean;
+};
 type TuningPresetId = 'bbr-fq' | 'tcp-balanced' | 'tcp-high-throughput';
 type TuningPresetDefinition = {
   id: TuningPresetId;
@@ -372,6 +377,26 @@ function StatusIcon({ status }: { status: DeployTaskStatus }) {
   return <Clock3 className="h-4 w-4" />;
 }
 
+function hasProbeEvidence(value?: string) {
+  return Boolean(value?.trim());
+}
+
+function createHostTuningProbe(agent?: Agent): HostTuningProbe {
+  const runtimeServices = agent?.telemetry.runtimeServices ?? [];
+  const bbrService = runtimeServices.find((service) => service.moduleKind === 'bbr');
+
+  return {
+    bbrInstalled: Boolean(agent?.capabilities.includes('bbr') || bbrService?.status === 'active'),
+    kernelVersion: agent?.hardware.kernelVersion,
+    tcpProbeReady: Boolean(
+      hasProbeEvidence(agent?.telemetry.reportedAt)
+        || hasProbeEvidence(agent?.hardware.detectedAt)
+        || hasProbeEvidence(agent?.hardware.kernelVersion)
+        || runtimeServices.some((service) => hasProbeEvidence(service.checkedAt))
+    )
+  };
+}
+
 function createTuningReleaseGates({
   dispatchDisabled,
   presetProfile,
@@ -394,7 +419,9 @@ function createTuningReleaseGates({
     targetAgent?.status === 'online' ? 'ready' : targetAgent ? 'issues' : 'waiting';
   const tcpParameterTotal = presetProfile.parameters.length;
   const tcpState: TuningReleaseGateState =
-    tcpParameterTotal > 0 && presetProfile.parameters.every((parameter) => parameter.value.trim().length > 0)
+    !tcpProbeReady
+      ? 'waiting'
+      : tcpParameterTotal > 0 && presetProfile.parameters.every((parameter) => parameter.value.trim().length > 0)
       ? 'ready'
       : 'issues';
   const executionState: TuningReleaseGateState =
@@ -454,17 +481,15 @@ export function TuningPage({
   const selectedPresetDefinition =
     tuningPresetDefinitions.find((preset) => preset.id === selectedPresetId) ?? tuningPresetDefinitions[0];
   const presetProfile = createPresetProfile(selectedPresetDefinition, t);
-  const dispatchDisabled = taskMutationBusy || !targetAgentId;
-  const bbrService = targetAgent?.telemetry.runtimeServices?.find((service) => service.moduleKind === 'bbr');
-  const bbrInstalled = Boolean(targetAgent?.capabilities.includes('bbr') || bbrService?.status === 'active');
-  const tcpProbeReady = Boolean(targetAgent?.telemetry.reportedAt || targetAgent?.lastHeartbeatAt);
+  const hostProbe = createHostTuningProbe(targetAgent);
+  const dispatchDisabled = taskMutationBusy || !targetAgentId || !hostProbe.tcpProbeReady;
   const releaseGates = createTuningReleaseGates({
     dispatchDisabled,
     presetProfile,
     recentTask,
     targetAgent,
     targetAgentLabel,
-    tcpProbeReady,
+    tcpProbeReady: hostProbe.tcpProbeReady,
     t
   });
 
@@ -577,9 +602,9 @@ export function TuningPage({
               <TuningReleaseGatePanel gates={releaseGates} t={t} />
 
               <TuningProbePanel
-                bbrInstalled={bbrInstalled}
-                kernelVersion={targetAgent?.hardware.kernelVersion}
-                tcpProbeReady={tcpProbeReady}
+                bbrInstalled={hostProbe.bbrInstalled}
+                kernelVersion={hostProbe.kernelVersion}
+                tcpProbeReady={hostProbe.tcpProbeReady}
                 t={t}
               />
 
@@ -626,7 +651,7 @@ export function TuningPage({
                   <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.executionStatus}</h4>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <Boundary icon={ShieldCheck} label="BBR" value={bbrInstalled ? t.bbrDetected : t.bbrMissing} />
+                  <Boundary icon={ShieldCheck} label="BBR" value={hostProbe.bbrInstalled ? t.bbrDetected : t.bbrMissing} />
                   <Boundary icon={Network} label={t.tuningPreset} value={presetProfile.name} />
                 </div>
               </GlassCard>

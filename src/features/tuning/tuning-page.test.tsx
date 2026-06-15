@@ -519,6 +519,44 @@ describe('TuningPage', () => {
     expect(cockpit).not.toHaveTextContent('apply_sysctl');
   });
 
+  it('keeps TCP probe readiness waiting until the host has real telemetry or hardware evidence', () => {
+    render(
+      <TuningPage
+        agents={[
+          {
+            ...baseAgent,
+            hardware: {
+              ...baseAgent.hardware,
+              detectedAt: undefined,
+              kernelVersion: undefined
+            },
+            lastHeartbeatAt: '2026-06-02T00:00:00.000Z',
+            telemetry: {
+              ...baseAgent.telemetry,
+              reportedAt: undefined
+            }
+          }
+        ]}
+        language="en"
+        profiles={profiles}
+        tasks={[]}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'System tuning cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: 'Tuning control rail' });
+    const probePanel = within(rail).getByRole('region', { name: 'Host Tuning Probe' });
+    const gates = within(rail).getByRole('region', { name: 'System Tuning Release Gates' });
+
+    expect(within(probePanel).getByText('BBR Unconfirmed')).toBeInTheDocument();
+    expect(within(probePanel).getByText('TCP Status')).toBeInTheDocument();
+    expect(within(probePanel).getByText('Waiting for Agent probe')).toBeInTheDocument();
+    expect(within(gates).getByRole('group', { name: 'TCP Profile' })).toHaveTextContent('Waiting for Agent probe');
+    expect(within(gates).getByRole('group', { name: 'TCP Profile' })).toHaveTextContent('Waiting');
+    expect(within(rail).getByRole('button', { name: 'Dispatch Tuning Preset' })).toBeDisabled();
+  });
+
   it('shows recent tuning execution status steps and errors', () => {
     const failedTask = createTask({
       id: 'task-tune-failed',
