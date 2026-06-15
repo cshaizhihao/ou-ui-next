@@ -361,8 +361,8 @@ describe('TuningPage', () => {
     expect(cockpitGrid).toBeInTheDocument();
     expect(cockpitGrid as HTMLElement).toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)]');
     expect(summaryGrid).toBeInTheDocument();
-    expect(summaryGrid as HTMLElement).toHaveClass('xl:w-[28rem]', 'xl:grid-cols-2');
-    expect(summaryGrid as HTMLElement).not.toHaveClass('xl:w-[30rem]', 'xl:grid-cols-1');
+    expect(summaryGrid as HTMLElement).toHaveClass('w-full', 'max-w-full', 'xl:grid-cols-2');
+    expect(summaryGrid as HTMLElement).not.toHaveClass('xl:w-[28rem]', 'xl:w-[30rem]', 'xl:grid-cols-1');
     expect(rail).toHaveClass('p-3');
     expect(rail).not.toHaveClass('p-4');
     expect(workspaceStack).toBeInTheDocument();

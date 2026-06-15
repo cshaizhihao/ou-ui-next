@@ -65,6 +65,27 @@ type ExecutionReleaseGate = {
   value: string;
 };
 
+type TuningProbeState = {
+  bbrInstalled?: boolean;
+  tcpProbeReady?: boolean;
+  kernelVersion?: string;
+};
+
+type TuningPresetMetadata = {
+  id?: string;
+  name?: string;
+  target?: string;
+  riskLevel?: string;
+};
+
+type TuningSysctlPlanMetadata = {
+  id?: string;
+  name?: string;
+  target?: string;
+  riskLevel?: string;
+  parameters?: Array<{ key: string; value: string }>;
+};
+
 const taskStatuses: DeployTask['status'][] = ['queued', 'running', 'succeeded', 'failed', 'retrying', 'rolled_back', 'canceled'];
 const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent', 'runtime'];
 
@@ -154,6 +175,26 @@ const copy = {
     viewTaskDetails: '查看任务详情',
     taskDetailsTitle: '任务详情',
     copyTaskContext: '复制任务上下文',
+    tuningTaskEvidence: '调优证据',
+    tuningProbeState: '探测状态',
+    tuningProbeBbr: 'BBR 探测',
+    tuningProbeTcp: 'TCP 探测',
+    tuningProbeKernelVersion: '内核版本',
+    tuningProbeInstalled: '已安装',
+    tuningProbeUnconfirmed: '未确认',
+    tuningProbeReady: '已就绪',
+    tuningProbeWaiting: '等待探测',
+    tuningPresetEvidence: '预置信息',
+    tuningPresetName: '预设名称',
+    tuningPresetTarget: '目标',
+    tuningPresetRiskLevel: '风险级别',
+    tuningPresetId: '预设 ID',
+    sysctlPlanEvidence: 'sysctl 执行计划',
+    sysctlPlanName: '计划名称',
+    sysctlPlanTarget: '计划目标',
+    sysctlPlanRisk: '计划风险',
+    sysctlPlanId: '计划 ID',
+    sysctlPlanParameters: '参数',
     viewFailureEvidence: '查看失败证据',
     failureEvidenceTitle: '任务失败证据',
     failureReason: '失败原因',
@@ -389,6 +430,26 @@ const copy = {
     viewTaskDetails: 'View Task Details',
     taskDetailsTitle: 'Task Details',
     copyTaskContext: 'Copy Task Context',
+    tuningTaskEvidence: 'Tuning Evidence',
+    tuningProbeState: 'Probe State',
+    tuningProbeBbr: 'BBR Probe',
+    tuningProbeTcp: 'TCP Probe',
+    tuningProbeKernelVersion: 'Kernel Version',
+    tuningProbeInstalled: 'Installed',
+    tuningProbeUnconfirmed: 'Unconfirmed',
+    tuningProbeReady: 'Ready',
+    tuningProbeWaiting: 'Waiting',
+    tuningPresetEvidence: 'Preset Details',
+    tuningPresetName: 'Preset Name',
+    tuningPresetTarget: 'Target',
+    tuningPresetRiskLevel: 'Risk Level',
+    tuningPresetId: 'Preset ID',
+    sysctlPlanEvidence: 'Sysctl Plan',
+    sysctlPlanName: 'Plan Name',
+    sysctlPlanTarget: 'Target',
+    sysctlPlanRisk: 'Risk Level',
+    sysctlPlanId: 'Plan ID',
+    sysctlPlanParameters: 'Parameters',
     viewFailureEvidence: 'View Failure Evidence',
     failureEvidenceTitle: 'Task Failure Evidence',
     failureReason: 'Failure Reason',
@@ -586,6 +647,68 @@ function stringifyJson(value: unknown) {
   } catch {
     return String(value);
   }
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readTuningProbeState(metadata: DeployTask['metadata']) {
+  const probeState = metadata?.probeState;
+
+  if (!isObjectRecord(probeState)) {
+    return undefined;
+  }
+
+  return {
+    bbrInstalled: typeof probeState.bbrInstalled === 'boolean' ? probeState.bbrInstalled : undefined,
+    tcpProbeReady: typeof probeState.tcpProbeReady === 'boolean' ? probeState.tcpProbeReady : undefined,
+    kernelVersion: typeof probeState.kernelVersion === 'string' ? probeState.kernelVersion : undefined
+  } satisfies TuningProbeState;
+}
+
+function readTuningPresetMetadata(metadata: DeployTask['metadata']) {
+  const tuningPreset = metadata?.tuningPreset;
+
+  if (!isObjectRecord(tuningPreset)) {
+    return undefined;
+  }
+
+  return {
+    id: typeof tuningPreset.id === 'string' ? tuningPreset.id : undefined,
+    name: typeof tuningPreset.name === 'string' ? tuningPreset.name : undefined,
+    target: typeof tuningPreset.target === 'string' ? tuningPreset.target : undefined,
+    riskLevel: typeof tuningPreset.riskLevel === 'string' ? tuningPreset.riskLevel : undefined
+  } satisfies TuningPresetMetadata;
+}
+
+function readTuningSysctlPlanMetadata(metadata: DeployTask['metadata']) {
+  const sysctlPlan = metadata?.sysctlPlan;
+
+  if (!isObjectRecord(sysctlPlan)) {
+    return undefined;
+  }
+
+  return {
+    id: typeof sysctlPlan.id === 'string' ? sysctlPlan.id : undefined,
+    name: typeof sysctlPlan.name === 'string' ? sysctlPlan.name : undefined,
+    target: typeof sysctlPlan.target === 'string' ? sysctlPlan.target : undefined,
+    riskLevel: typeof sysctlPlan.riskLevel === 'string' ? sysctlPlan.riskLevel : undefined,
+    parameters: Array.isArray(sysctlPlan.parameters)
+      ? sysctlPlan.parameters
+          .filter((parameter): parameter is { key: string; value: string } => {
+            return (
+              isObjectRecord(parameter) &&
+              typeof parameter.key === 'string' &&
+              typeof parameter.value === 'string'
+            );
+          })
+      : undefined
+  } satisfies TuningSysctlPlanMetadata;
+}
+
+function isSystemTuneTask(task: DeployTask) {
+  return task.operation === 'system.tune';
 }
 
 function createTaskContextPayload({
@@ -1498,6 +1621,9 @@ function TaskDetailsDrawer({
   const contextPayload = bundle
     ? createTaskContextPayload({ bundle, relatedArchives, relatedChunks })
     : undefined;
+  const tuningProbeState = task ? readTuningProbeState(task.metadata) : undefined;
+  const tuningPreset = task ? readTuningPresetMetadata(task.metadata) : undefined;
+  const tuningSysctlPlan = task ? readTuningSysctlPlanMetadata(task.metadata) : undefined;
 
   return (
     <ConfigDrawer
@@ -1558,18 +1684,27 @@ function TaskDetailsDrawer({
 
           <RuntimeReleaseTimeline bundle={bundle} language={language} />
 
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
-              {t.metadata}
-            </p>
-            {task.metadata ? (
-              <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 font-mono text-[11px] leading-5 text-slate-100">
-                {stringifyJson(task.metadata)}
-              </pre>
-            ) : (
-              <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-white/45">{t.noMetadata}</p>
-            )}
-          </div>
+          {isSystemTuneTask(task) ? (
+            <SystemTuneTaskEvidence
+              probeState={tuningProbeState}
+              preset={tuningPreset}
+              sysctlPlan={tuningSysctlPlan}
+              language={language}
+            />
+          ) : (
+            <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+                {t.metadata}
+              </p>
+              {task.metadata ? (
+                <pre className="mt-3 max-h-60 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 font-mono text-[11px] leading-5 text-slate-100">
+                  {stringifyJson(task.metadata)}
+                </pre>
+              ) : (
+                <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-white/45">{t.noMetadata}</p>
+              )}
+            </div>
+          )}
 
           <RelatedAgentLogsEvidence chunks={relatedChunks} language={language} />
 
@@ -1577,6 +1712,97 @@ function TaskDetailsDrawer({
         </div>
       ) : null}
     </ConfigDrawer>
+  );
+}
+
+function SystemTuneTaskEvidence({
+  probeState,
+  preset,
+  sysctlPlan,
+  language
+}: {
+  probeState?: TuningProbeState;
+  preset?: TuningPresetMetadata;
+  sysctlPlan?: TuningSysctlPlanMetadata;
+  language: AppLanguage;
+}) {
+  const t = copy[language];
+  const parameters = sysctlPlan?.parameters ?? [];
+  const hasPreset = Boolean(preset);
+  const hasPlan = Boolean(sysctlPlan);
+  const probeBbrState = probeState?.bbrInstalled ? t.tuningProbeInstalled : t.tuningProbeUnconfirmed;
+  const probeTcpState = probeState?.tcpProbeReady ? t.tuningProbeReady : t.tuningProbeWaiting;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {t.tuningTaskEvidence}
+        </p>
+        <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">{t.tuningProbeState}</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          <EvidenceCompactTile label={t.tuningProbeBbr} value={probeBbrState} />
+          <EvidenceCompactTile label={t.tuningProbeTcp} value={probeTcpState} />
+          <EvidenceCompactTile label={t.tuningProbeKernelVersion} value={probeState?.kernelVersion || t.noMetadata} />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {t.tuningPresetEvidence}
+        </p>
+        {hasPreset ? (
+          <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
+            <EvidenceCompactTile label={t.tuningPresetName} value={preset?.name ?? t.noMetadata} />
+            <EvidenceCompactTile label={t.tuningPresetTarget} value={preset?.target ?? t.noMetadata} />
+            <EvidenceCompactTile label={t.tuningPresetRiskLevel} value={preset?.riskLevel ?? t.noMetadata} />
+            <EvidenceCompactTile label={t.tuningPresetId} value={preset?.id ?? t.noMetadata} />
+          </div>
+        ) : (
+          <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-white/45">{t.noMetadata}</p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+        <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white/40">
+          {t.sysctlPlanEvidence}
+        </p>
+        {hasPlan ? (
+          <div className="mt-3 space-y-3">
+            <div className="grid gap-2 text-xs md:grid-cols-2">
+              <EvidenceCompactTile label={t.sysctlPlanName} value={sysctlPlan?.name ?? t.noMetadata} />
+              <EvidenceCompactTile label={t.sysctlPlanTarget} value={sysctlPlan?.target ?? t.noMetadata} />
+              <EvidenceCompactTile label={t.sysctlPlanRisk} value={sysctlPlan?.riskLevel ?? t.noMetadata} />
+              <EvidenceCompactTile label={t.sysctlPlanId} value={sysctlPlan?.id ?? t.noMetadata} />
+            </div>
+            <div className="grid gap-2">
+              {parameters.map((parameter) => (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/[0.04]"
+                  key={parameter.key}
+                >
+                  <span className="break-all font-mono font-semibold text-slate-700 dark:text-white/80">
+                    {parameter.key}
+                  </span>
+                  <span className="break-all font-mono text-slate-500 dark:text-white/45">{parameter.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-white/45">{t.noMetadata}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EvidenceCompactTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-slate-200 bg-white/70 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800 dark:text-white/80">{value}</p>
+    </div>
   );
 }
 

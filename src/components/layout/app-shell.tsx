@@ -2560,6 +2560,34 @@ export function AppShell({ ready }: AppShellProps) {
   const handleRunTuning = useCallback(
     (id: string, agentId: string, profileOverride?: TuningProfile) => {
       const profile = profileOverride ?? tuningProfiles.find((item) => item.id === id);
+      const selectedAgent = agents.find((item) => item.id === agentId);
+      const tuningPreset = profile
+        ? {
+            id: profile.id,
+            name: profile.name,
+            target: profile.target,
+            riskLevel: profile.riskLevel
+          }
+        : undefined;
+      const probeState = {
+        bbrInstalled: Boolean(
+          selectedAgent?.capabilities.includes('bbr')
+          || selectedAgent?.telemetry.runtimeServices?.some(
+            (service) => service.moduleKind === 'bbr' && service.status === 'active'
+          )
+        ),
+        tcpProbeReady: Boolean(selectedAgent?.telemetry.reportedAt || selectedAgent?.lastHeartbeatAt),
+        kernelVersion: selectedAgent?.hardware.kernelVersion ?? ''
+      };
+      const sysctlPlan = profile
+        ? {
+            id: profile.id,
+            name: profile.name,
+            target: profile.target,
+            riskLevel: profile.riskLevel,
+            parameters: profile.parameters
+          }
+        : undefined;
       void runTask({
         operation: 'system.tune',
         resourceType: 'agent',
@@ -2572,6 +2600,9 @@ export function AppShell({ ready }: AppShellProps) {
           tuningProfileName: profile?.name ?? t.tuningTarget,
           tuningTarget: profile?.target ?? 'network',
           tuningRiskLevel: profile?.riskLevel ?? 'medium',
+          tuningPreset,
+          probeState,
+          sysctlPlan,
           tuningActions: ['install_or_enable_bbr', 'set_tcp_congestion_control', 'apply_tcp_buffers'],
           sysctl: Object.fromEntries((profile?.parameters ?? []).map((parameter) => [parameter.key, parameter.value])),
           parameters: profile?.parameters ?? [],
@@ -2585,7 +2616,7 @@ export function AppShell({ ready }: AppShellProps) {
         }
       });
     },
-    [runTask, t.tuningSummary, t.tuningTarget, tuningProfiles]
+    [agents, runTask, t.tuningSummary, t.tuningTarget, tuningProfiles]
   );
 
   const handleResetQuota = useCallback(

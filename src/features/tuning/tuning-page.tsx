@@ -507,7 +507,7 @@ export function TuningPage({
             ) : null}
           </div>
 
-          <div className="tuning-summary-grid grid min-w-0 gap-2 sm:grid-cols-2 xl:w-[28rem] xl:grid-cols-2">
+          <div className="tuning-summary-grid grid w-full min-w-0 max-w-full gap-2 sm:grid-cols-2 xl:grid-cols-2">
             <TuningSummaryCard
               icon={ShieldCheck}
               label={t.riskProfiles}
@@ -628,8 +628,8 @@ export function TuningPage({
                   <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.executionStatus}</h4>
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                  <Boundary icon={ShieldCheck} label="BBR" value="install_or_enable_bbr" />
-                  <Boundary icon={Network} label="TCP" value="apply_tcp_buffers" />
+                  <Boundary icon={ShieldCheck} label="BBR" value={bbrInstalled ? t.bbrDetected : t.bbrMissing} />
+                  <Boundary icon={Network} label={t.tuningPreset} value={presetProfile.name} />
                 </div>
               </GlassCard>
             </div>

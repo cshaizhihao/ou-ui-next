@@ -539,6 +539,101 @@ describe('TasksPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"configRevisionId": "cfg-current"'));
   });
 
+  it('renders structured evidence for system tuning task details instead of raw JSON only', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(
+      <TasksPage
+        tasks={[
+          {
+            ...task,
+            operation: 'system.tune',
+            resourceType: 'agent',
+            resourceId: 'agent-hkg-01',
+            targetLabel: 'BBR + FQ 预设 / agent-hkg-01',
+            summary: 'Dispatch system tuning change',
+            metadata: {
+              agentId: 'agent-hkg-01',
+              tuningProfileId: 'bbr-fq',
+              tuningProfileName: 'BBR + FQ 预设',
+              tuningTarget: 'kernel',
+              tuningRiskLevel: 'medium',
+              tuningPreset: {
+                id: 'bbr-fq',
+                name: 'BBR + FQ 预设',
+                target: 'kernel',
+                riskLevel: 'medium'
+              },
+              probeState: {
+                bbrInstalled: false,
+                tcpProbeReady: true,
+                kernelVersion: '6.8.0-31-generic'
+              },
+              sysctlPlan: {
+                id: 'bbr-fq',
+                name: 'BBR + FQ 预设',
+                target: 'kernel',
+                riskLevel: 'medium',
+                parameters: [
+                  {
+                    key: 'net.ipv4.tcp_congestion_control',
+                    value: 'bbr'
+                  },
+                  {
+                    key: 'net.core.default_qdisc',
+                    value: 'fq'
+                  }
+                ]
+              },
+              requiresRoot: true,
+              rollbackMode: 'graceful_restart'
+            },
+            steps: [
+              { id: 'probe', label: 'Probe kernel tuning state', status: 'succeeded' },
+              { id: 'apply', label: 'Apply tuning preset', status: 'running' }
+            ]
+          }
+        ]}
+        configRevisions={[]}
+        preflightPlans={[]}
+        runtimeSnapshots={[]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Task Details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Details' });
+
+    expect(within(dialog).getByText('Tuning Evidence')).toBeInTheDocument();
+    expect(within(dialog).getByText('BBR Probe')).toBeInTheDocument();
+    expect(within(dialog).getByText('Unconfirmed')).toBeInTheDocument();
+    expect(within(dialog).getByText('TCP Probe')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ready')).toBeInTheDocument();
+    expect(within(dialog).getByText('Kernel Version')).toBeInTheDocument();
+    expect(within(dialog).getByText('6.8.0-31-generic')).toBeInTheDocument();
+    expect(within(dialog).getByText('Preset Details')).toBeInTheDocument();
+    expect(within(dialog).getByText('Sysctl Plan')).toBeInTheDocument();
+    expect(within(dialog).getByText('net.ipv4.tcp_congestion_control')).toBeInTheDocument();
+    expect(within(dialog).getByText('net.core.default_qdisc')).toBeInTheDocument();
+    expect(within(dialog).queryByText('"probeState"')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('"sysctlPlan"')).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy Task Context' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"tuningPreset": {'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"probeState": {'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"sysctlPlan": {'));
+  });
+
   it('does not attach stale preflight or snapshot artifacts to the current config revision', () => {
     render(
       <TasksPage

@@ -2820,14 +2820,32 @@ describe('AppShell', () => {
             tuningProfileName: 'BBR + FQ 预设',
             tuningTarget: 'kernel',
             tuningRiskLevel: 'medium',
-            tuningActions: expect.arrayContaining([
-              'install_or_enable_bbr',
-              'set_tcp_congestion_control',
-              'apply_tcp_buffers'
-            ]),
-            sysctl: expect.objectContaining({
-              'net.ipv4.tcp_congestion_control': 'bbr',
-              'net.core.default_qdisc': 'fq'
+            tuningPreset: expect.objectContaining({
+              id: 'bbr-fq',
+              name: 'BBR + FQ 预设',
+              target: 'kernel',
+              riskLevel: 'medium'
+            }),
+            probeState: expect.objectContaining({
+              bbrInstalled: false,
+              tcpProbeReady: true,
+              kernelVersion: '6.8.0-31-generic'
+            }),
+            sysctlPlan: expect.objectContaining({
+              id: 'bbr-fq',
+              name: 'BBR + FQ 预设',
+              target: 'kernel',
+              riskLevel: 'medium',
+              parameters: expect.arrayContaining([
+                expect.objectContaining({
+                  key: 'net.ipv4.tcp_congestion_control',
+                  value: 'bbr'
+                }),
+                expect.objectContaining({
+                  key: 'net.core.default_qdisc',
+                  value: 'fq'
+                })
+              ])
             }),
             requiresRoot: true,
             rollbackMode: 'graceful_restart'
@@ -2842,7 +2860,15 @@ describe('AppShell', () => {
       );
     });
     const [taskInput] = api.createTask.mock.calls[0] ?? [];
-    expect(taskInput.metadata.tuningActions).not.toContain('apply_sysctl');
+    expect(taskInput.metadata.tuningActions).toEqual([
+      'install_or_enable_bbr',
+      'set_tcp_congestion_control',
+      'apply_tcp_buffers'
+    ]);
+    expect(taskInput.metadata.sysctl).toEqual({
+      'net.ipv4.tcp_congestion_control': 'bbr',
+      'net.core.default_qdisc': 'fq'
+    });
   });
 
   it('dispatches routing compilation with the filtered policy scope in metadata', async () => {
