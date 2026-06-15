@@ -198,5 +198,9 @@ describe('production browser smoke script helpers', () => {
     expect(scriptSource).toContain('高级功能');
     expect(scriptSource).toContain('Advanced Features');
     expect(scriptSource).toContain('治理与证据');
+    expect(scriptSource).toContain('Master Control Plane');
+    expect(scriptSource).toContain('概览|Overview');
+    expect(scriptSource).not.toContain('Master Control Plane Overview');
+    expect(scriptSource).not.toContain('运营态势');
   });
 });

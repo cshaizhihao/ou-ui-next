@@ -1506,105 +1506,6 @@ async function readJsonBody(request: IncomingMessage) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
 }
 
-async function createSnapshot(api: ControlPlaneApi, runtimeMetrics?: HttpRuntimeMetrics) {
-  const [
-    apiBoundary,
-    agents,
-    customers,
-    nodes,
-    inbounds,
-    subscriptionSources,
-    subscriptionInventoryNodes,
-    subscriptionBundles,
-    subscriptionClients,
-    subscriptionExportProfiles,
-    proxyProviders,
-    subscriptionExportFiles,
-    forwardRules,
-    quotaPolicies,
-    rateLimitPolicies,
-    permissionGrants,
-    routingPolicies,
-    tuningProfiles,
-    configRevisions,
-    preflightPlans,
-    runtimeSnapshots,
-    trafficRollups,
-    trafficRollupCompactions,
-    systemAlerts,
-    agentLogRetentionPolicy,
-    trafficRollupRetentionPolicy,
-    agentCredentials,
-    agentSessions,
-    tasks,
-    auditLogs
-  ] = await Promise.all([
-    api.getApiBoundary(),
-    api.listAgents(),
-    api.listCustomers(),
-    api.listNodes(),
-    api.listInbounds(),
-    api.listSubscriptionSources(),
-    api.listSubscriptionInventoryNodes(),
-    api.listSubscriptionBundles(),
-    api.listSubscriptionClients(),
-    api.listSubscriptionExportProfiles(),
-    api.listProxyProviders(),
-    api.listSubscriptionExportFiles(),
-    api.listForwardRules(),
-    api.listQuotaPolicies(),
-    api.listRateLimitPolicies(),
-    api.listPermissionGrants(),
-    api.listRoutingPolicies(),
-    api.listTuningProfiles(),
-    api.listConfigRevisions(),
-    api.listPreflightPlans(),
-    api.listRuntimeSnapshots(),
-    api.listTrafficRollups(),
-    api.listTrafficRollupCompactions(),
-    listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics),
-    api.getAgentLogRetentionPolicy(),
-    api.getTrafficRollupRetentionPolicy(),
-    api.listAgentCredentials(),
-    api.listAgentSessions(),
-    api.listTasks(),
-    api.listAuditLogs()
-  ]);
-
-  return {
-    apiBoundary,
-    agents,
-    customers,
-    nodes,
-    inbounds,
-    subscriptionSources,
-    subscriptionInventoryNodes,
-    subscriptionBundles,
-    subscriptionClients,
-    subscriptionExportProfiles,
-    proxyProviders,
-    subscriptionExportFiles,
-    forwardRules,
-    quotaPolicies,
-    rateLimitPolicies,
-    permissionGrants,
-    routingPolicies,
-    tuningProfiles,
-    configRevisions,
-    preflightPlans,
-    runtimeSnapshots,
-    trafficRollups,
-    trafficRollupCompactions,
-    systemAlerts,
-    agentLogRetentionPolicy,
-    trafficRollupRetentionPolicy,
-    agentCredentials,
-    agentSessions,
-    tasks,
-    auditLogs
-  };
-}
-
 function getTaskIdFromPath(pathname: string) {
   const match = /^\/api\/v1\/tasks\/([^/]+)$/.exec(pathname);
   return match?.[1];
@@ -2641,7 +2542,7 @@ async function routeRequest(
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
-    sendData(response, requestId, await createSnapshot(api, options.runtimeMetrics));
+    sendData(response, requestId, await api.getSnapshot());
     return;
   }
 

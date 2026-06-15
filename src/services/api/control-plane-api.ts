@@ -235,6 +235,45 @@ export type TrafficRollupRetentionPolicyReadModel = TrafficRollupRetentionPolicy
   controlPlaneOverride?: TrafficRollupRetentionPolicyValues;
 };
 
+export type ControlPlaneSnapshotReadModel = {
+  apiBoundary: ApiBoundaryDescriptor;
+  agents: Agent[];
+  customers: CustomerReadModel[];
+  nodes: ManagedNode[];
+  inbounds: XrayInbound[];
+  subscriptionSources: SubscriptionSource[];
+  subscriptionInventoryNodes: SubscriptionInventoryNode[];
+  subscriptionBundles: SubscriptionBundle[];
+  subscriptionClients: SubscriptionClientIdentity[];
+  subscriptionExportProfiles: SubscriptionExportProfile[];
+  proxyProviders: ProxyProviderConfig[];
+  subscriptionExportFiles: SubscriptionExportFile[];
+  forwardRules: ForwardRule[];
+  quotaPolicies: QuotaPolicy[];
+  rateLimitPolicies: RateLimitPolicy[];
+  permissionGrants: PermissionGrant[];
+  routingPolicies: RoutingPolicy[];
+  tuningProfiles: TuningProfile[];
+  tasks: DeployTask[];
+  configRevisions: RuntimeConfigRevision[];
+  preflightPlans: RuntimePreflightPlan[];
+  runtimeSnapshots: RuntimeSnapshot[];
+  trafficRollups: TrafficRollup[];
+  trafficRollupCompactions: TrafficRollupCompaction[];
+  systemAlerts: SystemAlert[];
+  agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
+  trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
+  agentCredentials: AgentCredentialSummary[];
+  agentSessions: AgentSessionSummary[];
+  agentLogChunks: AgentLogChunk[];
+  agentLogArchives: AgentLogArchive[];
+  telegramBotSettings: TelegramBotSettings;
+  telegramBindings: TelegramBindingReadModel[];
+  telegramNotificationPolicies: TelegramNotificationPolicy[];
+  telegramNotificationDeliveries: TelegramNotificationDelivery[];
+  auditLogs: AuditLog[];
+};
+
 export type TrafficRollupRetentionPolicyUpdateInput = {
   maxAgeDays: number;
   maxRecordsPerScope: number;
@@ -1620,6 +1659,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
 }
 
 export interface ControlPlaneApi {
+  getSnapshot(): Promise<ControlPlaneSnapshotReadModel>;
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
   getObservabilityMetrics(
     externalAlerts?: SystemAlert[],

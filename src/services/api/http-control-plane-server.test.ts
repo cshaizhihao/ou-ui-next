@@ -315,6 +315,18 @@ describe('HTTP control-plane server', () => {
         maxAgeDays: 62,
         maxRecordsPerScope: 200_000
       });
+      expect(snapshotEnvelope.data.agentLogChunks).toEqual(expect.any(Array));
+      expect(snapshotEnvelope.data.agentLogArchives).toEqual(expect.any(Array));
+      expect(snapshotEnvelope.data.telegramBotSettings).toMatchObject({
+        id: 'telegram-bot'
+      });
+      expect(snapshotEnvelope.data.telegramBindings).toEqual(expect.any(Array));
+      expect(snapshotEnvelope.data.telegramNotificationPolicies).toEqual([
+        expect.objectContaining({
+          id: 'telegram-policy-default'
+        })
+      ]);
+      expect(snapshotEnvelope.data.telegramNotificationDeliveries).toEqual(expect.any(Array));
       expect(snapshotEnvelope.data.auditLogs).toEqual([]);
 
       const agentsResponse = await fetch(`${baseUrl}/api/v1/agents`);
@@ -402,6 +414,27 @@ describe('HTTP control-plane server', () => {
         status: 'queued'
       });
     });
+  });
+
+  it('serves the API snapshot contract without rebuilding a full traffic history in the HTTP layer', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const getSnapshot = vi.spyOn(api, 'getSnapshot');
+    const listTrafficRollups = vi.spyOn(api, 'listTrafficRollups');
+
+    await withServerApi(api, async (baseUrl) => {
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
+      const snapshotEnvelope = await snapshotResponse.json();
+
+      expect(snapshotResponse.status).toBe(200);
+      expect(snapshotEnvelope.data).toMatchObject({
+        apiBoundary: expect.objectContaining({
+          version: 'v1'
+        })
+      });
+    });
+
+    expect(getSnapshot).toHaveBeenCalledTimes(1);
+    expect(listTrafficRollups).toHaveBeenCalledTimes(1);
   });
 
   it('returns actionable permission denial details for rejected mutations', async () => {

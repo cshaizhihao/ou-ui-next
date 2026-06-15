@@ -2,22 +2,26 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { ApiProvider } from './api-provider';
+import type { ControlPlaneApi } from './control-plane-api';
 import { controlPlaneSnapshotQueryKey, useControlPlaneSnapshot } from './use-control-plane-snapshot';
 import { createMockApi } from '../mock/mock-api';
 
 describe('useControlPlaneSnapshot', () => {
   it('loads the full v1 control-plane inventory through TanStack Query', async () => {
-    const api = createMockApi({ seedInventory: true });
-    const listAgentCredentials = vi.spyOn(api, 'listAgentCredentials');
-    const listAgentSessions = vi.spyOn(api, 'listAgentSessions');
-    const listAgentLogChunks = vi.spyOn(api, 'listAgentLogChunks');
-    const listAgentLogArchives = vi.spyOn(api, 'listAgentLogArchives');
-    const getAgentLogRetentionPolicy = vi.spyOn(api, 'getAgentLogRetentionPolicy');
-    const getTrafficRollupRetentionPolicy = vi.spyOn(api, 'getTrafficRollupRetentionPolicy');
-    const getTelegramBotSettings = vi.spyOn(api, 'getTelegramBotSettings');
-    const listTelegramBindings = vi.spyOn(api, 'listTelegramBindings');
-    const listTelegramNotificationPolicies = vi.spyOn(api, 'listTelegramNotificationPolicies');
-    const listTelegramNotificationDeliveries = vi.spyOn(api, 'listTelegramNotificationDeliveries');
+    const seededApi = createMockApi({ seedInventory: true });
+    const snapshot = await seededApi.getSnapshot();
+    const listAgents = vi.fn(async () => {
+      throw new Error('useControlPlaneSnapshot must use the aggregated snapshot endpoint');
+    });
+    const listAgentCredentials = vi.fn(async () => {
+      throw new Error('useControlPlaneSnapshot must use the aggregated snapshot endpoint');
+    });
+    const api = {
+      ...seededApi,
+      getSnapshot: vi.fn(async () => snapshot),
+      listAgents,
+      listAgentCredentials
+    } satisfies ControlPlaneApi;
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -75,16 +79,9 @@ describe('useControlPlaneSnapshot', () => {
       },
       systemAlerts: expect.any(Array)
     });
-    expect(listAgentCredentials).toHaveBeenCalled();
-    expect(listAgentSessions).toHaveBeenCalled();
-    expect(listAgentLogChunks).toHaveBeenCalledWith({ limit: 200 });
-    expect(listAgentLogArchives).toHaveBeenCalledWith({ limit: 200 });
-    expect(getAgentLogRetentionPolicy).toHaveBeenCalled();
-    expect(getTrafficRollupRetentionPolicy).toHaveBeenCalled();
-    expect(getTelegramBotSettings).toHaveBeenCalled();
-    expect(listTelegramBindings).toHaveBeenCalled();
-    expect(listTelegramNotificationPolicies).toHaveBeenCalled();
-    expect(listTelegramNotificationDeliveries).toHaveBeenCalled();
+    expect(api.getSnapshot).toHaveBeenCalledTimes(1);
+    expect(listAgents).not.toHaveBeenCalled();
+    expect(listAgentCredentials).not.toHaveBeenCalled();
     expect(result.current.data?.agents).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'agent-hkg-01' })])
     );

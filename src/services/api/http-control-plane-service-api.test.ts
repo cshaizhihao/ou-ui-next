@@ -467,7 +467,7 @@ describe('HTTP control-plane service-backed API', () => {
       const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
       const snapshotEnvelope = await snapshotResponse.json();
 
-      expect(snapshotEnvelope.data.trafficRollups).toEqual(rollupsEnvelope.data);
+      expect(snapshotEnvelope.data.trafficRollups).toEqual(rollupsEnvelope.data.slice(0, 500));
     });
   });
 

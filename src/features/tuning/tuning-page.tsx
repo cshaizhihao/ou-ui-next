@@ -101,7 +101,7 @@ const copy = {
       somaxconn: '连接队列',
       tcpMaxSynBacklog: 'SYN 队列'
     },
-    parameterCountValue: (count: number, language: AppLanguage) => `${formatNumber(count, language)} 个参数`,
+    parameterCountValue: (count: number, language: AppLanguage) => `预设动作 ${formatNumber(count, language)}`,
     presetNames: {
       'bbr-fq': 'BBR + FQ 预设',
       'tcp-balanced': 'TCP 均衡预设',
@@ -130,8 +130,7 @@ const copy = {
     agentTargetGate: 'Agent 目标',
     agentTargetGateDetail: (agentLabel: string, status: string) => `${agentLabel} / ${status}`,
     tcpProfileGate: 'TCP Profile',
-    tcpProfileGateDetail: (parameterTotal: number, language: AppLanguage) =>
-      `${formatNumber(parameterTotal, language)} 个 TCP 参数进入执行计划`,
+    tcpProfileGateDetail: (probeReady: boolean) => (probeReady ? '探测就绪 / 预设下发' : '等待 Agent 探测'),
     executionHealthGate: '执行健康',
     executionHealthGateDetail: (statusLabel: string) => `最近执行状态：${statusLabel}`,
     dispatchReadinessGate: '下发准备度',
@@ -196,7 +195,7 @@ const copy = {
       tcpMaxSynBacklog: 'SYN backlog'
     },
     parameterCountValue: (count: number, language: AppLanguage) =>
-      `${formatNumber(count, language)} ${count === 1 ? 'parameter' : 'parameters'}`,
+      `${formatNumber(count, language)} preset ${count === 1 ? 'action' : 'actions'}`,
     presetNames: {
       'bbr-fq': 'BBR + FQ Preset',
       'tcp-balanced': 'TCP Balanced Preset',
@@ -225,8 +224,7 @@ const copy = {
     agentTargetGate: 'Agent Target',
     agentTargetGateDetail: (agentLabel: string, status: string) => `${agentLabel} / ${status}`,
     tcpProfileGate: 'TCP Profile',
-    tcpProfileGateDetail: (parameterTotal: number, language: AppLanguage) =>
-      `${formatNumber(parameterTotal, language)} TCP parameters in execution plan`,
+    tcpProfileGateDetail: (probeReady: boolean) => (probeReady ? 'Probe ready / preset dispatch' : 'Waiting for Agent probe'),
     executionHealthGate: 'Execution Health',
     executionHealthGateDetail: (statusLabel: string) => `Latest execution state: ${statusLabel}`,
     dispatchReadinessGate: 'Dispatch Readiness',
@@ -376,19 +374,19 @@ function StatusIcon({ status }: { status: DeployTaskStatus }) {
 
 function createTuningReleaseGates({
   dispatchDisabled,
-  language,
   presetProfile,
   recentTask,
   targetAgent,
   targetAgentLabel,
+  tcpProbeReady,
   t
 }: {
   dispatchDisabled: boolean;
-  language: AppLanguage;
   presetProfile: TuningProfile;
   recentTask: DeployTask | undefined;
   targetAgent: Agent | undefined;
   targetAgentLabel: string;
+  tcpProbeReady: boolean;
   t: TuningCopy;
 }): TuningReleaseGate[] {
   const agentStatusLabel = targetAgent?.status === 'online' ? t.online : t.offline;
@@ -416,7 +414,7 @@ function createTuningReleaseGates({
       value: t.gateStateLabel[agentState]
     },
     {
-      detail: t.tcpProfileGateDetail(tcpParameterTotal, language),
+      detail: t.tcpProfileGateDetail(tcpProbeReady),
       label: t.tcpProfileGate,
       state: tcpState,
       value: t.gateStateLabel[tcpState]
@@ -457,18 +455,18 @@ export function TuningPage({
     tuningPresetDefinitions.find((preset) => preset.id === selectedPresetId) ?? tuningPresetDefinitions[0];
   const presetProfile = createPresetProfile(selectedPresetDefinition, t);
   const dispatchDisabled = taskMutationBusy || !targetAgentId;
+  const bbrService = targetAgent?.telemetry.runtimeServices?.find((service) => service.moduleKind === 'bbr');
+  const bbrInstalled = Boolean(targetAgent?.capabilities.includes('bbr') || bbrService?.status === 'active');
+  const tcpProbeReady = Boolean(targetAgent?.telemetry.reportedAt || targetAgent?.lastHeartbeatAt);
   const releaseGates = createTuningReleaseGates({
     dispatchDisabled,
-    language,
     presetProfile,
     recentTask,
     targetAgent,
     targetAgentLabel,
+    tcpProbeReady,
     t
   });
-  const bbrService = targetAgent?.telemetry.runtimeServices?.find((service) => service.moduleKind === 'bbr');
-  const bbrInstalled = Boolean(targetAgent?.capabilities.includes('bbr') || bbrService?.status === 'active');
-  const tcpProbeReady = Boolean(targetAgent?.telemetry.reportedAt || targetAgent?.lastHeartbeatAt);
 
   function dispatchProfile(profile: TuningProfile) {
     if (dispatchDisabled) {

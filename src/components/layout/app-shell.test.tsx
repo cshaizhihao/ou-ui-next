@@ -135,6 +135,129 @@ const mihomoExportProfile = {
   updatedAt: '2026-06-04T00:00:00.000Z'
 } as const;
 
+function withSnapshotFromLists(api: ControlPlaneApi) {
+  if (!vi.isMockFunction(api.getSnapshot)) {
+    api.getSnapshot = vi.fn(async () => {
+      const [
+        apiBoundary,
+        agents,
+        customers,
+        nodes,
+        inbounds,
+        subscriptionSources,
+        subscriptionInventoryNodes,
+        subscriptionBundles,
+        subscriptionClients,
+        subscriptionExportProfiles,
+        proxyProviders,
+        subscriptionExportFiles,
+        forwardRules,
+        quotaPolicies,
+        rateLimitPolicies,
+        permissionGrants,
+        routingPolicies,
+        tuningProfiles,
+        tasks,
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots,
+        trafficRollups,
+        trafficRollupCompactions,
+        systemAlerts,
+        agentLogRetentionPolicy,
+        trafficRollupRetentionPolicy,
+        agentCredentials,
+        agentSessions,
+        agentLogChunks,
+        agentLogArchives,
+        telegramBotSettings,
+        telegramBindings,
+        telegramNotificationPolicies,
+        telegramNotificationDeliveries,
+        auditLogs
+      ] = await Promise.all([
+        api.getApiBoundary(),
+        api.listAgents(),
+        api.listCustomers(),
+        api.listNodes(),
+        api.listInbounds(),
+        api.listSubscriptionSources(),
+        api.listSubscriptionInventoryNodes(),
+        api.listSubscriptionBundles(),
+        api.listSubscriptionClients(),
+        api.listSubscriptionExportProfiles(),
+        api.listProxyProviders(),
+        api.listSubscriptionExportFiles(),
+        api.listForwardRules(),
+        api.listQuotaPolicies(),
+        api.listRateLimitPolicies(),
+        api.listPermissionGrants(),
+        api.listRoutingPolicies(),
+        api.listTuningProfiles(),
+        api.listTasks(),
+        api.listConfigRevisions(),
+        api.listPreflightPlans(),
+        api.listRuntimeSnapshots(),
+        api.listTrafficRollups(),
+        api.listTrafficRollupCompactions(),
+        api.listSystemAlerts(),
+        api.getAgentLogRetentionPolicy(),
+        api.getTrafficRollupRetentionPolicy(),
+        api.listAgentCredentials(),
+        api.listAgentSessions(),
+        api.listAgentLogChunks({ limit: 200 }),
+        api.listAgentLogArchives({ limit: 200 }),
+        api.getTelegramBotSettings(),
+        api.listTelegramBindings(),
+        api.listTelegramNotificationPolicies(),
+        api.listTelegramNotificationDeliveries(),
+        api.listAuditLogs()
+      ]);
+
+      return {
+        apiBoundary,
+        agents,
+        customers,
+        nodes,
+        inbounds,
+        subscriptionSources,
+        subscriptionInventoryNodes,
+        subscriptionBundles,
+        subscriptionClients,
+        subscriptionExportProfiles,
+        proxyProviders,
+        subscriptionExportFiles,
+        forwardRules,
+        quotaPolicies,
+        rateLimitPolicies,
+        permissionGrants,
+        routingPolicies,
+        tuningProfiles,
+        tasks,
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots,
+        trafficRollups,
+        trafficRollupCompactions,
+        systemAlerts,
+        agentLogRetentionPolicy,
+        trafficRollupRetentionPolicy,
+        agentCredentials,
+        agentSessions,
+        agentLogChunks,
+        agentLogArchives,
+        telegramBotSettings,
+        telegramBindings,
+        telegramNotificationPolicies,
+        telegramNotificationDeliveries,
+        auditLogs
+      };
+    });
+  }
+
+  return api;
+}
+
 function renderShell(api: ControlPlaneApi) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -146,7 +269,7 @@ function renderShell(api: ControlPlaneApi) {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <ApiProvider api={api}>
+      <ApiProvider api={withSnapshotFromLists(api)}>
         <AppShell ready />
       </ApiProvider>
     </QueryClientProvider>
@@ -360,6 +483,21 @@ describe('AppShell', () => {
     expect(screen.getAllByRole('heading', { name: '客户管理' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Acme Team')).toBeInTheDocument();
     expect(screen.getAllByText('端口转发').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('keeps a loading skeleton visible after navigating away from the dashboard while the snapshot is pending', async () => {
+    const user = userEvent.setup();
+    const neverSettlingApi = {
+      ...createMockApi({ seedInventory: true }),
+      getSnapshot: vi.fn(() => new Promise<never>(() => {}))
+    };
+
+    renderShell(neverSettlingApi);
+
+    await clickNavigation(user, '调优');
+
+    expect(screen.getByRole('status', { name: '同步中' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '调优' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('summarizes global search scope when the operator opens quick actions', async () => {

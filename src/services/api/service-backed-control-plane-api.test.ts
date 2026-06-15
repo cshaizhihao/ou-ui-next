@@ -569,6 +569,124 @@ function createCustomerDirectoryForwardRule(): ForwardRule {
 }
 
 describe('service-backed control plane read model hydration', () => {
+  it('builds the full snapshot without replaying persisted tasks for every section', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const listTasks = vi.spyOn(repository, 'listTasks');
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: [
+          {
+            id: 'agent-snapshot-fast-01',
+            name: 'Snapshot Fast 01',
+            status: 'online',
+            region: 'hkg',
+            publicAddress: '203.0.113.10',
+            connectionMode: 'pull',
+            version: '1.0.0',
+            platform: 'linux/amd64',
+            capabilities: ['host-agent', 'xray', 'telemetry'],
+            maxTrafficBytes: 100 * GB,
+            monthlyTrafficLimitBytes: 100 * GB,
+            expiresAt: '2026-12-31T00:00:00.000Z',
+            probeConfig: {
+              pingTarget: '1.1.1.1',
+              pingIntervalSeconds: 30,
+              latencyGreenMaxMs: 100,
+              latencyYellowMaxMs: 200
+            },
+            trafficPolicy: {
+              accountingMode: 'both',
+              monthlyResetDay: 1,
+              manualUsedTrafficBytes: 0,
+              telemetrySource: 'agent'
+            },
+            hardware: {},
+            telemetry: {
+              cpuPercent: 10,
+              memoryPercent: 20,
+              memoryUsedBytes: 1,
+              memoryTotalBytes: 2,
+              diskUsedBytes: 1,
+              diskTotalBytes: 2,
+              txBytes: 1,
+              rxBytes: 1,
+              uploadSpeedBps: 1,
+              downloadSpeedBps: 1,
+              uploadTotalBytes: 1,
+              downloadTotalBytes: 1,
+              monthlyTrafficUsedBytes: 1,
+              latencyMs: 40,
+              latencySamplesMs: [40],
+              packetLossPercent: 0,
+              packetLossSamplesPercent: [0],
+              onlineDays: 1,
+              samplingExpectedSince: '2026-06-05T00:00:00.000Z',
+              sampleIntervalSeconds: 30
+            },
+            lastHeartbeatAt: '2026-06-05T10:00:00.000Z'
+          }
+        ]
+      }
+    });
+
+    const snapshot = await api.getSnapshot();
+
+    expect(snapshot.agents).toEqual([
+      expect.objectContaining({
+        id: 'agent-snapshot-fast-01'
+      })
+    ]);
+    expect(snapshot.agentLogChunks).toEqual([]);
+    expect(snapshot.telegramBotSettings).toEqual(expect.objectContaining({ id: 'telegram-bot' }));
+    expect(listTasks).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps traffic rollups in the full snapshot while preserving the full traffic history endpoint', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() })
+    });
+
+    await repository.transaction(async (transaction) => {
+      for (let index = 0; index < 505; index += 1) {
+        const observedAt = new Date(Date.UTC(2026, 5, 5, 0, index)).toISOString();
+
+        await transaction.insertTrafficRollup({
+          id: `traffic-snapshot-cap-${String(index).padStart(3, '0')}`,
+          dimension: 'agent',
+          subjectId: 'agent-hkg-01',
+          subjectLabel: 'Agent HKG 01',
+          agentId: 'agent-hkg-01',
+          observedAt,
+          sampledAt: observedAt,
+          periodKey: '2026-06-reset-01',
+          monthlyResetDay: 1,
+          accountingMode: 'both',
+          ingressBytes: index,
+          egressBytes: index,
+          meteredBytes: index * 2,
+          source: 'agent-telemetry'
+        });
+      }
+    });
+
+    const [snapshot, allRollups] = await Promise.all([api.getSnapshot(), api.listTrafficRollups()]);
+
+    expect(allRollups).toHaveLength(505);
+    expect(snapshot.trafficRollups).toHaveLength(500);
+    expect(snapshot.trafficRollups[0]).toMatchObject({
+      id: 'traffic-snapshot-cap-504',
+      observedAt: '2026-06-05T08:24:00.000Z'
+    });
+    expect(snapshot.trafficRollups.at(-1)).toMatchObject({
+      id: 'traffic-snapshot-cap-005',
+      observedAt: '2026-06-05T00:05:00.000Z'
+    });
+  });
+
   it('derives customers from decoupled service-backed read models without seed customer records', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants,

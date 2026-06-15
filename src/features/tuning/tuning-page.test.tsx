@@ -424,7 +424,7 @@ describe('TuningPage', () => {
 
     expect(presetSummary).toHaveTextContent('TCP 高吞吐预设');
     expect(presetSummary).toHaveTextContent('网络');
-    expect(presetSummary).toHaveTextContent('6 个参数');
+    expect(presetSummary).toHaveTextContent('预设动作 6');
     expect(presetSummary).toHaveTextContent('BBR');
     expect(presetSummary).toHaveTextContent('FQ');
     expect(presetSummary).toHaveTextContent('TCP 缓冲');
@@ -434,6 +434,26 @@ describe('TuningPage', () => {
     expect(presetPlan).not.toHaveTextContent('4096 87380 134217728');
     expect(presetPlan).not.toHaveTextContent('net.ipv4.tcp_wmem');
     expect(presetPlan).not.toHaveTextContent('4096 65536 134217728');
+  });
+
+  it('keeps release gates and preset summaries on probe readiness instead of raw parameter counts', async () => {
+    const user = userEvent.setup();
+
+    render(<TuningPage agents={agents} language="zh" profiles={profiles} tasks={[]} onRunTask={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText('调优预设'), 'tcp-high-throughput');
+
+    const cockpit = screen.getByRole('region', { name: '系统调优 cockpit' });
+    const rail = within(cockpit).getByRole('complementary', { name: '调优控制轨' });
+    const gates = within(rail).getByRole('region', { name: '系统调优发布门禁' });
+    const tcpGate = within(gates).getByRole('group', { name: 'TCP Profile' });
+    const presetPlan = screen.getByRole('region', { name: '预设执行计划' });
+    const presetSummary = within(presetPlan).getByRole('group', { name: 'TCP 高吞吐预设' });
+
+    expect(tcpGate).toHaveTextContent('探测就绪');
+    expect(tcpGate).not.toHaveTextContent('6 个 TCP 参数进入执行计划');
+    expect(presetSummary).toHaveTextContent('预设动作');
+    expect(presetSummary).not.toHaveTextContent('6 个参数');
   });
 
   it('keeps tuning focused on host probe state and administrator presets without explanatory filler', () => {

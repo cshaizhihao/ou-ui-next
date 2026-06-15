@@ -63,6 +63,7 @@ import type {
   AuditChainVerification,
   CommandOutboxItem,
   ControlPlaneApi,
+  ControlPlaneSnapshotReadModel,
   MutationContext,
   ObservabilityMetrics,
   TrafficRollupCompactionExportQuery,
@@ -107,38 +108,6 @@ type RequestOptions = {
   body?: unknown;
   context?: MutationContext;
   bearerToken?: string;
-};
-
-type ControlPlaneSnapshot = {
-  apiBoundary: ApiBoundaryDescriptor;
-  agents: Agent[];
-  customers: CustomerReadModel[];
-  nodes: ManagedNode[];
-  inbounds: XrayInbound[];
-  subscriptionSources: SubscriptionSource[];
-  subscriptionInventoryNodes: SubscriptionInventoryNode[];
-  subscriptionBundles: SubscriptionBundle[];
-  subscriptionClients: SubscriptionClientIdentity[];
-  subscriptionExportProfiles: SubscriptionExportProfile[];
-  proxyProviders: ProxyProviderConfig[];
-  subscriptionExportFiles: SubscriptionExportFile[];
-  forwardRules: ForwardRule[];
-  quotaPolicies: QuotaPolicy[];
-  rateLimitPolicies: RateLimitPolicy[];
-  permissionGrants: PermissionGrant[];
-  routingPolicies: RoutingPolicy[];
-  tuningProfiles: TuningProfile[];
-  configRevisions: RuntimeConfigRevision[];
-  preflightPlans: RuntimePreflightPlan[];
-  runtimeSnapshots: RuntimeSnapshot[];
-  trafficRollups: TrafficRollup[];
-  trafficRollupCompactions: TrafficRollupCompaction[];
-  systemAlerts: SystemAlert[];
-  agentLogRetentionPolicy: AgentLogRetentionPolicyReadModel;
-  trafficRollupRetentionPolicy: TrafficRollupRetentionPolicyReadModel;
-  agentCredentials: AgentCredentialSummary[];
-  tasks: DeployTask[];
-  auditLogs: AuditLog[];
 };
 
 export class HttpControlPlaneClientError extends Error {
@@ -395,10 +364,11 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
   }
 
   async function getSnapshot() {
-    return request<ControlPlaneSnapshot>('/api/v1/snapshot');
+    return request<ControlPlaneSnapshotReadModel>('/api/v1/snapshot');
   }
 
   return {
+    getSnapshot,
     getApiBoundary: () => request<ApiBoundaryDescriptor>('/api/v1/boundary'),
     getObservabilityMetrics: () => request<ObservabilityMetrics>('/api/v1/observability-metrics'),
     getAgentLogRetentionPolicy: () => request<AgentLogRetentionPolicyReadModel>('/api/v1/agent-log-retention-policy'),

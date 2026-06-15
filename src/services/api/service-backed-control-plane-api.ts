@@ -240,6 +240,7 @@ const SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS = 60_000;
 const SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS = 3;
 const SYSTEM_ALERT_NOTIFICATION_MAX_DELIVERIES_PER_SWEEP = 25;
 const DEFAULT_SYSTEM_ALERT_NOTIFICATION_CHANNEL_ID = 'default-webhook';
+const SNAPSHOT_TRAFFIC_ROLLUP_LIMIT = 500;
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -5291,6 +5292,7 @@ export function createServiceBackedControlPlaneApi({
     subscriptionExportProfiles = nextSubscriptionExportProfiles;
     forwardRulesReadModel = nextForwardRules;
     deletedAgentIds = nextDeletedAgentIds;
+    return tasks;
   }
 
   async function updateSystemAlertNotificationDelivery(
@@ -5774,6 +5776,150 @@ export function createServiceBackedControlPlaneApi({
   }
 
   const api: ControlPlaneApi = {
+    async getSnapshot() {
+      const tasks = await hydrateReadModelsFromPersistedTasks();
+      const now = readModelNow();
+      const quotaResetReplayState = createQuotaResetReplayState(tasks);
+      const liveAgents = applyAgentLivenessToReadModel(agents, now);
+      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
+      const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), now);
+      const liveSubscriptionClients = projectSubscriptionClientReadModels(
+        subscriptionClients,
+        liveInbounds,
+        subscriptionInventoryNodes,
+        quotaResetReplayState,
+        now
+      );
+      const liveQuotaPolicies = createQuotaPoliciesFromReadModels({
+        agents: liveAgents,
+        inbounds: liveInbounds,
+        forwardRules: liveForwardRules,
+        subscriptionClients: liveSubscriptionClients,
+        quotaPolicies: applyQuotaResetTasksToExplicitPolicies(inventory.quotaPolicies ?? [], tasks)
+      });
+      const proxyProviders = createProxyProvidersFromSources(subscriptionSources);
+      const [
+        commandOutbox,
+        nodes,
+        rateLimitPolicies,
+        permissionGrants,
+        routingPolicies,
+        tuningProfiles,
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots,
+        trafficRollups,
+        trafficRollupCompactions,
+        systemAlertNotificationDeliveries,
+        agentLogRetentionPolicy,
+        trafficRollupRetentionPolicy,
+        agentCredentials,
+        rawAgentSessions,
+        rawAgentEvents,
+        agentLogArchives,
+        telegramBotSettings,
+        telegramBindings,
+        telegramNotificationPolicies,
+        telegramNotificationDeliveries,
+        auditLogs
+      ] = await Promise.all([
+        repository.listCommandOutbox(),
+        Promise.resolve(clone(inventory.nodes ?? [])),
+        Promise.resolve(clone(inventory.rateLimitPolicies ?? [])),
+        repository.listPermissionGrants(),
+        Promise.resolve(clone(inventory.routingPolicies ?? [])),
+        Promise.resolve(clone(inventory.tuningProfiles ?? [])),
+        api.listConfigRevisions(),
+        api.listPreflightPlans(),
+        api.listRuntimeSnapshots(),
+        repository
+          .listTrafficRollups()
+          .then((rollups) => selectTrafficRollups(rollups, { limit: SNAPSHOT_TRAFFIC_ROLLUP_LIMIT })),
+        api.listTrafficRollupCompactions(),
+        repository.listSystemAlertNotificationDeliveries(),
+        api.getAgentLogRetentionPolicy(),
+        api.getTrafficRollupRetentionPolicy(),
+        api.listAgentCredentials(),
+        repository.listAgentSessions(),
+        repository.listAgentEvents(),
+        api.listAgentLogArchives({ limit: 200 }),
+        api.getTelegramBotSettings(),
+        api.listTelegramBindings(),
+        api.listTelegramNotificationPolicies(),
+        api.listTelegramNotificationDeliveries(),
+        api.listAuditLogs()
+      ]);
+      const systemAlerts = await reconcileAndPersistSystemAlerts(
+        liveAgents,
+        commandOutbox,
+        liveQuotaPolicies,
+        tasks,
+        systemAlertNotificationDeliveries,
+        [],
+        now
+      );
+      const customers = createCustomersFromReadModels({
+        inbounds: liveInbounds,
+        subscriptionClients: liveSubscriptionClients,
+        forwardRules: liveForwardRules,
+        nowIso: now
+      });
+      const subscriptionBundles = createSubscriptionBundlesFromInventory(
+        subscriptionSources,
+        subscriptionInventoryNodes,
+        subscriptionExportProfiles,
+        inventory.subscriptionBundles ?? []
+      );
+      const subscriptionExportFiles = createSubscriptionExportFilesFromClients(
+        subscriptionClients,
+        proxyProviders,
+        subscriptionExportProfiles
+      );
+      const agentSessions = rawAgentSessions.map((session) =>
+        createAgentSessionSummary(session, findRuntimeCredentialForSession(agentCredentials, session))
+      );
+      const agentLogChunks = selectAgentLogChunks(rawAgentEvents, { limit: 200 });
+
+      return {
+        apiBoundary: clone(v1ApiBoundary),
+        agents: clone(liveAgents),
+        customers,
+        nodes,
+        inbounds: clone(liveInbounds),
+        subscriptionSources: clone(subscriptionSources),
+        subscriptionInventoryNodes: clone(subscriptionInventoryNodes),
+        subscriptionBundles,
+        subscriptionClients: clone(liveSubscriptionClients),
+        subscriptionExportProfiles: clone(subscriptionExportProfiles),
+        proxyProviders,
+        subscriptionExportFiles,
+        forwardRules: clone(liveForwardRules),
+        quotaPolicies: clone(liveQuotaPolicies),
+        rateLimitPolicies,
+        permissionGrants,
+        routingPolicies,
+        tuningProfiles,
+        tasks: clone(tasks),
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots,
+        trafficRollups,
+        trafficRollupCompactions,
+        systemAlerts,
+        agentLogRetentionPolicy,
+        trafficRollupRetentionPolicy,
+        agentCredentials,
+        agentSessions,
+        agentLogChunks,
+        agentLogArchives,
+        telegramBotSettings,
+        telegramBindings,
+        telegramNotificationPolicies,
+        telegramNotificationDeliveries,
+        auditLogs
+      };
+    },
+
     async getApiBoundary() {
       return clone(v1ApiBoundary);
     },

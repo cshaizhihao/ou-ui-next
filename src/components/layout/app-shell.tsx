@@ -3467,6 +3467,7 @@ export function AppShell({ ready }: AppShellProps) {
               onPrefetchPage={prefetchAppShellPage}
               onSelectPage={navigateToPage}
             />
+            {snapshot.isLoading && activePage !== 'dashboard' ? <ControlPlaneSkeleton language={language} /> : null}
             {!snapshot.isLoading ? (
               <Suspense fallback={<ControlPlaneSkeleton language={language} />}>
                 <section className="page-view active ou-page-enter">{content}</section>

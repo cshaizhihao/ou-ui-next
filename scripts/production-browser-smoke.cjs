@@ -416,10 +416,11 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await page.getByLabel(/用户名|Username/i).fill(config.username, { timeout: config.timeoutMs });
       await page.getByLabel(/密码|Password/i).fill(config.password, { timeout: config.timeoutMs });
       await page.getByRole('button', { name: /安全登录|Secure Login/i }).click({ timeout: config.timeoutMs });
+      await waitForVisible(page.getByText(/Master Control Plane/i).first(), config.timeoutMs, 'Master Control Plane');
       await waitForVisible(
-        page.getByRole('heading', { name: /运营态势|Operations Overview|Master Control Plane Overview/i }).first(),
+        page.getByRole('heading', { name: /概览|Overview/i }).first(),
         config.timeoutMs,
-        'Master Control Plane Overview'
+        '控制面概览'
       );
     });
 
@@ -454,7 +455,7 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
     }
 
     await runBrowserCheck(config, page, report, 'browser logout', async () => {
-      await clickNavigation(page, '概览', config.timeoutMs, /运营态势|Operations Overview/i);
+      await clickNavigation(page, '概览', config.timeoutMs, /概览|Overview/i);
       await page.getByRole('button', { name: /退出登录|Sign out/i }).click({ timeout: config.timeoutMs });
       await waitForVisible(page.getByRole('heading', { name: /OU-UI Next (控制面板|Control Panel)/i }), config.timeoutMs, '退出后的登录页');
     });
