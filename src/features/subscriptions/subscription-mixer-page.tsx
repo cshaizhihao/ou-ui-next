@@ -1010,6 +1010,14 @@ const signalActionButtonClass =
   'inline-flex min-h-9 items-center justify-center border border-[#FF3D18]/38 bg-[#FFD8C6]/62 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#FFD8C6]/86 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF3D18]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/14 dark:text-[#FFD8C6] dark:hover:bg-[#FF3D18]/22 dark:focus-visible:ring-[#FF6A3A]/45';
 const compactCommandActionButtonClass =
   'inline-flex min-h-8 items-center justify-center gap-2 border border-[#1E3AFF]/45 bg-[#DCE1FF]/72 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#DCE1FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF] dark:hover:bg-[#1E3AFF]/24 dark:focus-visible:ring-[#6B7CFF]/45';
+const subscriptionDrawerCommandPanelClass =
+  'border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-3 text-[#07111F] transition duration-200 ease-out dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/12 dark:text-[#DDE3FF]';
+const subscriptionDrawerNeutralPanelClass =
+  'border border-[#07111F]/18 bg-[#FFFDF5]/86 p-3 text-[#07111F] transition duration-200 ease-out dark:border-white/10 dark:bg-white/[0.035] dark:text-white';
+const subscriptionDrawerMutedPanelClass =
+  'border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 text-[#07111F] transition duration-200 ease-out dark:border-white/10 dark:bg-white/[0.03] dark:text-white';
+const subscriptionDrawerSignalPanelClass =
+  'border border-[#FF3D18]/35 bg-[#FFD8C6]/62 p-3 text-[#07111F] transition duration-200 ease-out dark:border-[#FF6A3A]/28 dark:bg-[#FF3D18]/12 dark:text-[#FFD8C6]';
 
 function createPreviewSecret(seed: string, length: number) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -4152,9 +4160,9 @@ export function SubscriptionMixerPage({
       >
         {linkDrawerClient ? (
           <div className="space-y-3">
-            <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-400/25 dark:bg-blue-400/10">
+            <div className={subscriptionDrawerCommandPanelClass}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-widest text-blue-800 dark:text-blue-200">
+                <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#DDE3FF]">
                   {t.subscriptionUsageHeader}
                 </p>
                 <button
@@ -4166,13 +4174,13 @@ export function SubscriptionMixerPage({
                   {t.copySubscriptionUsageHeader}
                 </button>
               </div>
-              <p className="mt-3 break-all rounded-lg bg-white/75 p-3 font-mono text-[11px] leading-5 text-blue-900 dark:bg-black/20 dark:text-blue-100">
+              <p className="mt-3 break-all border border-[#07111F]/14 bg-[#FFFDF5]/86 p-3 font-mono text-[11px] leading-5 text-[#07111F] dark:border-white/10 dark:bg-[#07111F]/24 dark:text-[#F7F8E8]">
                 {createSubscriptionUsageHeaderValue(linkDrawerClient)}
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-black/20">
+            <div className={subscriptionDrawerNeutralPanelClass}>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-white/75">
+                <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
                   {t.subscriptionAccessStats}
                 </p>
                 <button
@@ -4218,9 +4226,9 @@ export function SubscriptionMixerPage({
               const qrLabel = t.qrCodeLabel(label);
 
               return (
-                <div key={format} className="rounded-lg border border-slate-200 bg-white/70 p-3 dark:border-white/10 dark:bg-black/20">
+                <div key={format} className={subscriptionDrawerNeutralPanelClass}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-white/75">{label}</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">{label}</p>
                     <div className="flex flex-wrap gap-2">
                       <button
                         className={compactNeutralActionButtonClass}
@@ -4240,7 +4248,7 @@ export function SubscriptionMixerPage({
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-                    <p className="break-all rounded-lg bg-slate-50/80 p-3 font-mono text-[11px] leading-5 text-slate-600 dark:bg-white/[0.03] dark:text-white/55">
+                    <p className="break-all border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 font-mono text-[11px] leading-5 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70">
                       {url}
                     </p>
                     <SubscriptionQrCode
@@ -4266,38 +4274,40 @@ export function SubscriptionMixerPage({
       >
         {nodeDrawerClient ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/45">
-                {t.matchedNodesSummary(
-                  formatNumber(nodeDrawerMatches.length, language),
-                  formatNumber(inventoryNodes.length, language)
-                )}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className={compactCommandActionButtonClass}
-                  onClick={() => viewClientInInventory(nodeDrawerClient)}
-                  type="button"
-                >
-                  <ListTree className="h-3.5 w-3.5" />
-                  {t.viewInInventory}
-                </button>
-                <button
-                  className={compactNeutralActionButtonClass}
-                  disabled={!nodeDrawerMatches.some((node) => node.rawUrl)}
-                  onClick={() => copyMatchedNodeRawUrls(nodeDrawerMatches)}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.copyAllNodeLinks}
-                </button>
+            <div className={subscriptionDrawerMutedPanelClass}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#35405A] dark:text-white/65">
+                  {t.matchedNodesSummary(
+                    formatNumber(nodeDrawerMatches.length, language),
+                    formatNumber(inventoryNodes.length, language)
+                  )}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={compactCommandActionButtonClass}
+                    onClick={() => viewClientInInventory(nodeDrawerClient)}
+                    type="button"
+                  >
+                    <ListTree className="h-3.5 w-3.5" />
+                    {t.viewInInventory}
+                  </button>
+                  <button
+                    className={compactNeutralActionButtonClass}
+                    disabled={!nodeDrawerMatches.some((node) => node.rawUrl)}
+                    onClick={() => copyMatchedNodeRawUrls(nodeDrawerMatches)}
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {t.copyAllNodeLinks}
+                  </button>
+                </div>
               </div>
             </div>
 
             {nodeDrawerSources.length > 0 ? (
-              <div className="rounded-lg border border-orange-200 bg-orange-50/35 p-3 dark:border-orange-300/20 dark:bg-orange-400/[0.045]">
+              <div className={subscriptionDrawerSignalPanelClass}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">{t.matchedSources}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-[#FFD8C6]">{t.matchedSources}</p>
                   <button
                     className={compactCommandActionButtonClass}
                     disabled={!nodeDrawerSources.some((item) => item.source)}
@@ -4310,27 +4320,27 @@ export function SubscriptionMixerPage({
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   {nodeDrawerSources.map((item) => (
-                    <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div key={item.id} className={subscriptionDrawerMutedPanelClass}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">
+                          <p className="text-sm font-bold text-[#07111F] dark:text-white">
                             {item.source?.name ?? item.id}
                           </p>
-                          <p className="mt-1 text-[11px] font-semibold uppercase text-slate-500 dark:text-white/45">
+                          <p className="mt-1 text-[11px] font-semibold uppercase text-[#35405A] dark:text-white/55">
                             {(item.source?.status ?? t.missingSource)} / {formatNumber(item.nodeCount, language)} {t.matchedNodes}
                           </p>
                           {item.source ? (
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                            <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/55">
                               {t.lastSync}: {formatDateTime(item.source.lastSyncAt, language)}
                             </p>
                           ) : null}
                         </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 dark:bg-white/10 dark:text-white/45">
+                        <span className="rounded-full border border-[#07111F]/14 bg-[#FFFDF5] px-2.5 py-1 text-[10px] font-bold uppercase text-[#35405A] dark:border-white/10 dark:bg-white/[0.06] dark:text-white/60">
                           {item.id}
                         </span>
                       </div>
                       {item.source?.syncWarnings?.length ? (
-                        <div className="mt-2 space-y-1 text-xs font-semibold text-orange-600 dark:text-orange-300/80">
+                        <div className="mt-2 space-y-1 text-xs font-semibold text-[#FF3D18] dark:text-[#FFD8C6]">
                           {item.source.syncWarnings.slice(0, 2).map((warning) => (
                             <p key={warning}>{formatSourceSyncWarning(warning, language)}</p>
                           ))}
@@ -4343,17 +4353,17 @@ export function SubscriptionMixerPage({
             ) : null}
 
             {nodeDrawerExportFiles.length > 0 ? (
-              <div className="rounded-lg border border-slate-200 bg-white/70 p-3 dark:border-white/10 dark:bg-black/20">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-white/75">{t.relatedExportFiles}</p>
+              <div className={subscriptionDrawerNeutralPanelClass}>
+                <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">{t.relatedExportFiles}</p>
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   {nodeDrawerExportFiles.map((file) => (
-                    <div key={file.id} className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div key={file.id} className={subscriptionDrawerMutedPanelClass}>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{file.name}</p>
-                          <p className="mt-1 font-mono text-[11px] text-slate-500 dark:text-white/45">{file.templateName}</p>
+                          <p className="text-sm font-bold text-[#07111F] dark:text-white">{file.name}</p>
+                          <p className="mt-1 font-mono text-[11px] text-[#35405A] dark:text-white/55">{file.templateName}</p>
                           {file.exportProfileName ? (
-                            <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-white/45">{file.exportProfileName}</p>
+                            <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/55">{file.exportProfileName}</p>
                           ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -4378,7 +4388,7 @@ export function SubscriptionMixerPage({
                       <div className="mt-3">
                         <TagList tags={file.formats.map((format) => getClientFormatLabel(format, language))} />
                       </div>
-                      <p className="mt-2 text-[11px] font-semibold text-slate-500 dark:text-white/45">
+                      <p className="mt-2 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
                         {formatBytes(file.trafficLimitBytes)} / {formatDateTime(file.expiresAt, language)}
                       </p>
                     </div>
@@ -4392,14 +4402,14 @@ export function SubscriptionMixerPage({
             ) : (
               <div className="space-y-3">
                 {nodeDrawerMatches.map((node) => (
-                  <div key={node.id} className="rounded-lg border border-slate-200 bg-white/70 p-3 dark:border-white/10 dark:bg-black/20">
+                  <div key={node.id} className={subscriptionDrawerNeutralPanelClass}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-900 dark:text-white">{node.name}</p>
-                        <p className="mt-1 font-mono text-xs text-slate-600 dark:text-white/60">
+                        <p className="text-sm font-black text-[#07111F] dark:text-white">{node.name}</p>
+                        <p className="mt-1 font-mono text-xs text-[#35405A] dark:text-white/70">
                           {node.protocol.toUpperCase()} / {node.server}:{node.port}
                         </p>
-                        <p className="mt-1 text-[11px] font-semibold uppercase text-slate-500 dark:text-white/45">
+                        <p className="mt-1 text-[11px] font-semibold uppercase text-[#35405A] dark:text-white/55">
                           {node.status ?? 'unknown'} / {formatNumber(node.latencyMs, language)} ms / {node.sourceId}
                         </p>
                       </div>
@@ -4416,7 +4426,7 @@ export function SubscriptionMixerPage({
                     <div className="mt-3">
                       <TagList tags={node.tags} />
                     </div>
-                    <p className="mt-3 break-all rounded-lg bg-slate-50/80 p-3 font-mono text-[11px] leading-5 text-slate-600 dark:bg-white/[0.03] dark:text-white/55">
+                    <p className="mt-3 break-all border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 font-mono text-[11px] leading-5 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70">
                       {node.rawUrl || t.noNodeLink}
                     </p>
                   </div>
@@ -4459,11 +4469,11 @@ export function SubscriptionMixerPage({
             onChange={(value) => setProfileDraft((current) => ({ ...current, templateName: value }))}
           />
 
-          <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{profileT.sourceScope}</p>
+          <div className={subscriptionDrawerNeutralPanelClass}>
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.sourceScope}</p>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
-                <span className="text-xs font-bold text-slate-700 dark:text-white/70">{profileT.allSources}</span>
+              <label className="flex items-center justify-between border border-[#07111F]/14 px-3 py-2 dark:border-white/10">
+                <span className="text-xs font-bold text-[#07111F] dark:text-white/70">{profileT.allSources}</span>
                 <GlassToggle
                   aria-label={profileT.allSources}
                   checked={profileDraft.sourceIds.length === 0}
@@ -4471,8 +4481,8 @@ export function SubscriptionMixerPage({
                 />
               </label>
               {sources.map((source) => (
-                <label key={source.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
-                  <span className="min-w-0 truncate text-xs font-bold text-slate-700 dark:text-white/70">{source.name}</span>
+                <label key={source.id} className="flex items-center justify-between gap-3 border border-[#07111F]/14 px-3 py-2 dark:border-white/10">
+                  <span className="min-w-0 truncate text-xs font-bold text-[#07111F] dark:text-white/70">{source.name}</span>
                   <GlassToggle
                     aria-label={`${profileT.sourceScope}: ${source.name}`}
                     checked={profileDraft.sourceIds.includes(source.id)}
@@ -4522,12 +4532,12 @@ export function SubscriptionMixerPage({
             />
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{profileT.outputFormats}</p>
+          <div className={subscriptionDrawerNeutralPanelClass}>
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.outputFormats}</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
               {clientFormatOptions.map((option) => (
-                <label key={option.outputFormat} className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
-                  <span className="min-w-0 break-words text-xs font-bold uppercase text-slate-700 dark:text-white/70">{option.label[language]}</span>
+                <label key={option.outputFormat} className="flex min-h-12 items-center justify-between gap-3 border border-[#07111F]/14 px-3 py-2 dark:border-white/10">
+                  <span className="min-w-0 break-words text-xs font-bold uppercase text-[#07111F] dark:text-white/70">{option.label[language]}</span>
                   <GlassToggle
                     aria-label={`${profileT.outputFormats}: ${option.label[language]}`}
                     checked={profileDraft.outputFormats.includes(option.outputFormat)}
@@ -4538,8 +4548,8 @@ export function SubscriptionMixerPage({
             </div>
           </div>
 
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-            <span className="text-xs font-bold text-slate-700 dark:text-white/70">{profileT.includeTrafficHeaders}</span>
+          <label className="flex items-center justify-between gap-3 border border-[#07111F]/14 p-3 dark:border-white/10">
+            <span className="text-xs font-bold text-[#07111F] dark:text-white/70">{profileT.includeTrafficHeaders}</span>
             <GlassToggle
               aria-label={profileT.includeTrafficHeaders}
               checked={profileDraft.includeTrafficHeaders}
@@ -4643,17 +4653,17 @@ export function SubscriptionMixerPage({
 function SubscriptionDiagnosticField({ label, tone, value }: { label: string; tone?: 'signal'; value: string }) {
   const fieldClass =
     tone === 'signal'
-      ? 'border-orange-200 bg-orange-50/65 dark:border-orange-300/20 dark:bg-orange-400/[0.08]'
-      : 'border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-white/[0.03]';
+      ? 'border-[#FF3D18]/35 bg-[#FFD8C6]/62 dark:border-[#FF6A3A]/28 dark:bg-[#FF3D18]/12'
+      : 'border-[#07111F]/14 bg-[#FDFFF1]/80 dark:border-white/10 dark:bg-white/[0.03]';
   const labelClass =
     tone === 'signal'
-      ? 'text-orange-700 dark:text-orange-200'
-      : 'text-slate-500 dark:text-white/40';
+      ? 'text-[#07111F] dark:text-[#FFD8C6]'
+      : 'text-[#35405A] dark:text-white/55';
 
   return (
-    <div className={`min-w-0 rounded-lg border p-3 ${fieldClass}`}>
+    <div className={`min-w-0 border p-3 ${fieldClass}`}>
       <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
-      <p className="mt-1 break-words font-mono text-[11px] font-bold leading-5 text-slate-800 dark:text-white/75">{value}</p>
+      <p className="mt-1 break-words font-mono text-[11px] font-bold leading-5 text-[#07111F] dark:text-white/75">{value}</p>
     </div>
   );
 }
@@ -5356,11 +5366,11 @@ function SubscriptionQrCode({
   }, [url]);
 
   return (
-    <div className="flex flex-col items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+    <div className="flex flex-col items-center gap-2 border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
       {dataUrl ? (
-        <img alt={alt} className="h-32 w-32 rounded bg-white p-2 shadow-sm" height={128} src={dataUrl} width={128} />
+        <img alt={alt} className="h-32 w-32 bg-white p-2 shadow-sm" height={128} src={dataUrl} width={128} />
       ) : (
-        <div className="grid h-32 w-32 place-items-center rounded bg-white p-2 text-center text-[10px] font-bold text-slate-400 shadow-sm">
+        <div className="grid h-32 w-32 place-items-center bg-white p-2 text-center text-[10px] font-bold text-[#35405A] shadow-sm">
           {pendingLabel}
         </div>
       )}
@@ -5469,7 +5479,7 @@ function TagList({ tags }: { tags: string[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map((tag) => (
-        <span key={tag} className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:bg-primary/15 dark:text-primary">
+        <span key={tag} className="rounded-full border border-[#1E3AFF]/24 bg-[#DCE1FF]/62 px-2.5 py-1 text-[10px] font-bold text-[#1E3AFF] dark:border-[#6B7CFF]/28 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF]">
           {tag}
         </span>
       ))}
@@ -5490,5 +5500,5 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <div className="subscription-empty-state p-3 text-center text-sm font-semibold text-slate-500 dark:text-white/50">{label}</div>;
+  return <div className="subscription-empty-state p-3 text-center text-sm font-semibold text-[#35405A] dark:text-white/55">{label}</div>;
 }

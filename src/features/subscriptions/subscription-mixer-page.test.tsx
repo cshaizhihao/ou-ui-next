@@ -680,10 +680,15 @@ describe('SubscriptionMixerPage', () => {
     const linksDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
 
     const linksDrawerActions = Array.from(linksDrawer.querySelectorAll('button')).map((button) => button.outerHTML).join('');
+    const linksDrawerPanels = Array.from(linksDrawer.querySelectorAll('div')).map((node) => node.outerHTML).join('');
 
     expect(linksDrawerActions).toContain('#1E3AFF');
     expect(linksDrawerActions).toContain('#07111F');
     expect(linksDrawerActions).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
+    expect(linksDrawerPanels).toContain('#1E3AFF');
+    expect(linksDrawerPanels).toContain('#07111F');
+    expect(linksDrawerPanels).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
+    expect(linksDrawerPanels).not.toMatch(/\brounded-(?:lg|xl|2xl)\b/u);
     expect(linksDrawer.outerHTML).not.toContain('sky-');
     expect(linksDrawer.outerHTML).not.toContain('indigo-');
     expect(linksDrawer.outerHTML).not.toContain('cyan-');
@@ -698,18 +703,40 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '查看命中节点' }));
     const nodesDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 命中节点');
     const nodesDrawerActions = Array.from(nodesDrawer.querySelectorAll('button')).map((button) => button.outerHTML).join('');
+    const nodesDrawerPanels = Array.from(nodesDrawer.querySelectorAll('div')).map((node) => node.outerHTML).join('');
+    const nodesDrawerHtml = nodesDrawer.outerHTML;
 
     expect(nodesDrawerActions).toContain('#1E3AFF');
     expect(nodesDrawerActions).toContain('#07111F');
     expect(nodesDrawerActions).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
-    expect(nodesDrawer.outerHTML).not.toContain('sky-');
-    expect(nodesDrawer.outerHTML).not.toContain('indigo-');
-    expect(nodesDrawer.outerHTML).not.toContain('cyan-');
-    expect(nodesDrawer.outerHTML).not.toContain('purple-');
-    expect(nodesDrawer.outerHTML).not.toContain('violet-');
-    expect(nodesDrawer.outerHTML).not.toContain('amber-');
-    expect(nodesDrawer.outerHTML).not.toContain('rose-');
-    expect(nodesDrawer.outerHTML).not.toContain('background-clip:text');
+    expect(nodesDrawerPanels).toContain('#1E3AFF');
+    expect(nodesDrawerPanels).toContain('#07111F');
+    expect(nodesDrawerPanels).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
+    expect(nodesDrawerPanels).not.toMatch(/\brounded-(?:lg|xl|2xl)\b/u);
+    expect(nodesDrawerHtml).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
+    expect(nodesDrawerHtml).not.toMatch(/\brounded-(?:lg|xl|2xl)\b/u);
+    expect(nodesDrawerHtml).not.toContain('sky-');
+    expect(nodesDrawerHtml).not.toContain('indigo-');
+    expect(nodesDrawerHtml).not.toContain('cyan-');
+    expect(nodesDrawerHtml).not.toContain('purple-');
+    expect(nodesDrawerHtml).not.toContain('violet-');
+    expect(nodesDrawerHtml).not.toContain('amber-');
+    expect(nodesDrawerHtml).not.toContain('rose-');
+    expect(nodesDrawerHtml).not.toContain('background-clip:text');
+
+    await user.click(within(nodesDrawer).getByRole('button', { name: 'Close' }));
+    renderPage({
+      subscriptionSources: [source],
+      subscriptionInventoryNodes: [],
+      subscriptionClients: [{ ...subscriptionClient, generatedNodeCount: 0 }],
+      subscriptionExportFiles: []
+    });
+    const emptyAcmeRow = screen.getAllByText('Acme 香港 Premium 订阅').at(-1)?.closest('tr');
+    expect(emptyAcmeRow).not.toBeNull();
+    await user.click(within(emptyAcmeRow as HTMLElement).getByRole('button', { name: '查看命中节点' }));
+    const emptyNodesDrawer = screen.getAllByLabelText('Acme 香港 Premium 订阅 命中节点').at(-1);
+    expect(emptyNodesDrawer).toBeDefined();
+    expect((emptyNodesDrawer as HTMLElement).outerHTML).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
   });
 
   it('shows copyable subscription links and QR codes on the first screen', async () => {

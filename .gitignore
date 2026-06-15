@@ -4,6 +4,7 @@ dist-server/
 coverage/
 .env
 .env.local
+.env.production.local
 .vite/
 playwright-report/
 test-results/
