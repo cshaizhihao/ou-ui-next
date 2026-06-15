@@ -995,19 +995,21 @@ const clientFormatOptions = [
 
 const legacyFormatLabels: Partial<Record<SubscriptionClientFormat, Record<AppLanguage, string>>> = {};
 const neutralActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40';
+  'inline-flex min-h-9 items-center justify-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 text-xs font-bold text-[#35405A] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/52 hover:text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/64 dark:hover:border-[#6B7CFF]/34 dark:hover:bg-[#1E3AFF]/12 dark:hover:text-[#DDE3FF] dark:focus-visible:ring-[#6B7CFF]/45';
 const compactNeutralActionButtonClass =
-  'inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary dark:focus-visible:ring-primary/40';
+  'inline-flex min-h-8 items-center justify-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 text-xs font-bold text-[#35405A] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/52 hover:text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/64 dark:hover:border-[#6B7CFF]/34 dark:hover:bg-[#1E3AFF]/12 dark:hover:text-[#DDE3FF] dark:focus-visible:ring-[#6B7CFF]/45';
 const dangerActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10 dark:focus-visible:ring-red-400/40';
+  'inline-flex min-h-9 items-center justify-center gap-2 border border-[#DC2626]/42 bg-[#FEE2E2]/72 px-3 text-xs font-bold text-[#7F1D1D] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#FECACA]/78 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#DC2626]/34 dark:bg-[#DC2626]/14 dark:text-[#FECACA] dark:hover:bg-[#DC2626]/22 dark:focus-visible:ring-[#DC2626]/45';
 const blueActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
+  'inline-flex min-h-9 items-center justify-center border border-[#1E3AFF]/45 bg-[#DCE1FF]/72 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#DCE1FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF] dark:hover:bg-[#1E3AFF]/24 dark:focus-visible:ring-[#6B7CFF]/45';
 const blueSoftActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10 dark:focus-visible:ring-blue-400/40';
+  'inline-flex min-h-9 items-center justify-center border border-[#1E3AFF]/35 bg-[#DCE1FF]/52 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/28 dark:bg-[#1E3AFF]/12 dark:text-[#DDE3FF] dark:hover:bg-[#1E3AFF]/20 dark:focus-visible:ring-[#6B7CFF]/45';
 const emeraldActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10 dark:focus-visible:ring-emerald-400/40';
+  'inline-flex min-h-9 items-center justify-center border border-[#00A878]/38 bg-[#00A878]/12 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#00A878]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00A878]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#00A878]/30 dark:bg-[#00A878]/14 dark:text-[#C7FFE9] dark:hover:bg-[#00A878]/22 dark:focus-visible:ring-[#00A878]/45';
 const signalActionButtonClass =
-  'inline-flex min-h-9 items-center justify-center rounded-lg border border-orange-200 px-3 text-xs font-bold text-orange-700 transition hover:bg-orange-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-45 dark:border-orange-400/30 dark:text-orange-300 dark:hover:bg-orange-400/10 dark:focus-visible:ring-orange-400/40';
+  'inline-flex min-h-9 items-center justify-center border border-[#FF3D18]/38 bg-[#FFD8C6]/62 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#FFD8C6]/86 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF3D18]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/14 dark:text-[#FFD8C6] dark:hover:bg-[#FF3D18]/22 dark:focus-visible:ring-[#FF6A3A]/45';
+const compactCommandActionButtonClass =
+  'inline-flex min-h-8 items-center justify-center gap-2 border border-[#1E3AFF]/45 bg-[#DCE1FF]/72 px-3 text-xs font-bold text-[#07111F] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#DCE1FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF] dark:hover:bg-[#1E3AFF]/24 dark:focus-visible:ring-[#6B7CFF]/45';
 
 function createPreviewSecret(seed: string, length: number) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -4156,7 +4158,7 @@ export function SubscriptionMixerPage({
                   {t.subscriptionUsageHeader}
                 </p>
                 <button
-                  className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white/70 px-3 text-xs font-bold text-blue-700 transition hover:bg-white dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-200 dark:hover:bg-blue-400/15"
+                  className={compactCommandActionButtonClass}
                   onClick={() => copyText(createSubscriptionUsageHeaderLine(linkDrawerClient))}
                   type="button"
                 >
@@ -4229,7 +4231,7 @@ export function SubscriptionMixerPage({
                         {t.copyFormatLink(label)}
                       </button>
                       <button
-                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                        className={compactCommandActionButtonClass}
                         onClick={() => openExternalLink(url)}
                         type="button"
                       >
@@ -4273,7 +4275,7 @@ export function SubscriptionMixerPage({
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
-                  className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-white dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                  className={compactCommandActionButtonClass}
                   onClick={() => viewClientInInventory(nodeDrawerClient)}
                   type="button"
                 >
@@ -4297,7 +4299,7 @@ export function SubscriptionMixerPage({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs font-black uppercase tracking-widest text-orange-700 dark:text-orange-200">{t.matchedSources}</p>
                   <button
-                    className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-blue-400/30 dark:text-blue-300 dark:hover:bg-blue-400/10"
+                    className={compactCommandActionButtonClass}
                     disabled={!nodeDrawerSources.some((item) => item.source)}
                     onClick={syncMatchedSources}
                     type="button"
@@ -4885,8 +4887,8 @@ function WorkspaceButton({ active, label, onClick }: { active: boolean; label: s
     <button
       className={
         active
-          ? 'rounded-xl bg-blue-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 dark:bg-primary dark:text-slate-950'
-          : 'rounded-xl border border-slate-200 bg-white/60 px-4 py-2 text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:border-white/10 dark:bg-white/5 dark:text-white/50 dark:hover:text-primary'
+          ? 'border border-[#1E3AFF] bg-[#1E3AFF] px-4 py-2 text-xs font-bold text-white shadow-[0_8px_18px_-14px_rgba(30,58,255,0.8)] transition duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/45 active:translate-y-0 dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]'
+          : 'border border-[#07111F]/18 bg-[#FFFDF5]/72 px-4 py-2 text-xs font-bold text-[#35405A] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/58 hover:text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/55 dark:hover:border-[#6B7CFF]/32 dark:hover:bg-[#1E3AFF]/12 dark:hover:text-[#DDE3FF]'
       }
       onClick={onClick}
       type="button"

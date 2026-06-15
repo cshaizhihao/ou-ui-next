@@ -648,7 +648,7 @@ describe('SubscriptionMixerPage', () => {
     expect(within(gates).getByRole('group', { name: '订阅入口' })).toHaveTextContent('异常');
   });
 
-  it('keeps subscription operation drawers on the blue-orange control palette', async () => {
+  it('keeps subscription operation drawers on explicit OU action colors instead of default template utilities', async () => {
     const user = userEvent.setup();
     renderPage({
       subscriptionSources: [source, backupSource],
@@ -679,8 +679,11 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '查看订阅链接' }));
     const linksDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
 
-    expect(linksDrawer.outerHTML).toContain('blue-');
-    expect(linksDrawer.outerHTML).toContain('orange-');
+    const linksDrawerActions = Array.from(linksDrawer.querySelectorAll('button')).map((button) => button.outerHTML).join('');
+
+    expect(linksDrawerActions).toContain('#1E3AFF');
+    expect(linksDrawerActions).toContain('#07111F');
+    expect(linksDrawerActions).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
     expect(linksDrawer.outerHTML).not.toContain('sky-');
     expect(linksDrawer.outerHTML).not.toContain('indigo-');
     expect(linksDrawer.outerHTML).not.toContain('cyan-');
@@ -694,9 +697,11 @@ describe('SubscriptionMixerPage', () => {
     expect(screen.queryByLabelText('Acme 香港 Premium 订阅 订阅链接')).not.toBeInTheDocument();
     await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '查看命中节点' }));
     const nodesDrawer = screen.getByLabelText('Acme 香港 Premium 订阅 命中节点');
+    const nodesDrawerActions = Array.from(nodesDrawer.querySelectorAll('button')).map((button) => button.outerHTML).join('');
 
-    expect(nodesDrawer.outerHTML).toContain('blue-');
-    expect(nodesDrawer.outerHTML).toContain('orange-');
+    expect(nodesDrawerActions).toContain('#1E3AFF');
+    expect(nodesDrawerActions).toContain('#07111F');
+    expect(nodesDrawerActions).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
     expect(nodesDrawer.outerHTML).not.toContain('sky-');
     expect(nodesDrawer.outerHTML).not.toContain('indigo-');
     expect(nodesDrawer.outerHTML).not.toContain('cyan-');
@@ -1995,7 +2000,8 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(drawer).getByRole('button', { name: '在库存中查看' }));
 
     expect(screen.queryByLabelText('Acme 香港 Premium 订阅 命中节点')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '节点库存' })).toHaveClass('bg-blue-500');
+    expect(screen.getByRole('button', { name: '节点库存' }).outerHTML).toContain('#1E3AFF');
+    expect(screen.getByRole('button', { name: '节点库存' }).outerHTML).not.toContain('bg-blue-500');
     expect(screen.getByLabelText('客户订阅规则')).toHaveValue(subscriptionClient.id);
     expect(screen.getByText('HK Premium VLESS 01')).toBeInTheDocument();
     expect(screen.queryByText('HK Premium Test 01')).not.toBeInTheDocument();
@@ -2635,7 +2641,8 @@ describe('SubscriptionMixerPage', () => {
     await user.click(screen.getByRole('checkbox', { name: '选择 Backup 新加坡 Standard 订阅' }));
     const bulkDeleteButton = screen.getByRole('button', { name: '批量删除' });
 
-    expect(bulkDeleteButton.outerHTML).toContain('red-');
+    expect(bulkDeleteButton.outerHTML).toContain('#DC2626');
+    expect(bulkDeleteButton.outerHTML).not.toMatch(/\b(?:border|bg|text|ring)-red-/u);
     expect(bulkDeleteButton.outerHTML).not.toContain('rose-');
     await user.click(bulkDeleteButton);
 
