@@ -291,11 +291,6 @@ const copy = {
     customerNodesPageSubtitle: '',
     operationalOverview: '运营总览',
     operationalOverviewHint: '',
-    controlPath: '纳管链路',
-    controlPathMaster: 'Master',
-    controlPathAgent: 'Agent 通道',
-    controlPathRuntime: '运行时',
-    controlPathCustomerNode: '客户节点',
     emptyHostTitle: '主机空态',
     emptyHostAction: '先生成安装命令',
     hostsTab: '受控主机',
@@ -600,11 +595,6 @@ const copy = {
     customerNodesPageSubtitle: '',
     operationalOverview: 'Operational Overview',
     operationalOverviewHint: '',
-    controlPath: 'Control Path',
-    controlPathMaster: 'Master',
-    controlPathAgent: 'Agent Link',
-    controlPathRuntime: 'Runtime',
-    controlPathCustomerNode: 'Customer Node',
     emptyHostTitle: 'Host Empty State',
     emptyHostAction: 'Generate the install command first',
     hostsTab: 'Managed Hosts',
@@ -3550,13 +3540,6 @@ export function NodesPage({
             <SummaryMetric icon={CheckCircle2} label={t.onlineSummary} value={String(onlineHostCount)} />
             <SummaryMetric icon={UserRound} label={t.customerSummary} value={String(visibleCustomerNodes.length)} />
           </div>
-          <ControlPathStrip
-            customerNodeLabel={t.controlPathCustomerNode}
-            label={t.controlPath}
-            masterLabel={t.controlPathMaster}
-            runtimeLabel={t.controlPathRuntime}
-            agentLabel={t.controlPathAgent}
-          />
         </section>
       </section>
 
@@ -4860,44 +4843,6 @@ function SummaryMetric({
         <Icon className="h-4 w-4 text-[#1E3AFF] dark:text-[#DCE1FF]" />
       </div>
     </div>
-  );
-}
-
-function ControlPathStrip({
-  agentLabel,
-  customerNodeLabel,
-  label,
-  masterLabel,
-  runtimeLabel
-}: {
-  agentLabel: string;
-  customerNodeLabel: string;
-  label: string;
-  masterLabel: string;
-  runtimeLabel: string;
-}) {
-  const steps = [masterLabel, agentLabel, runtimeLabel, customerNodeLabel];
-
-  return (
-    <section
-      aria-label={label}
-      className="mt-3 border border-[#07111F]/18 bg-[#EAF3D1]/58 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.03]"
-    >
-      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#35405A] dark:text-white/42">{label}</p>
-      <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
-        {steps.map((step, index) => (
-          <li className="flex min-w-0 items-center gap-2" key={step}>
-            <span
-              aria-hidden="true"
-              className="grid h-7 w-7 shrink-0 place-items-center border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[11px] font-black text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF]"
-            >
-              {index + 1}
-            </span>
-            <span className="min-w-0 truncate text-xs font-black text-[#07111F] dark:text-white/80">{step}</span>
-          </li>
-        ))}
-      </ol>
-    </section>
   );
 }
 

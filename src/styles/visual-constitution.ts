@@ -28,7 +28,6 @@ export const visualClassNames = [
   'ou-shell',
   'ou-shell-backdrop',
   'ou-shell-grid',
-  'ou-shell-ribbon',
   'ou-surface',
   'ou-surface-muted',
   'ou-card',

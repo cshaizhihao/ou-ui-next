@@ -487,12 +487,10 @@ describe('SubscriptionMixerPage', () => {
     expect(cockpit).toHaveClass('subscription-workbench');
     expect(cockpit.querySelector('.subscription-workbench-grid')).toHaveClass('subscription-workbench-grid');
     expect(inventory).toHaveClass('subscription-workbench-inventory');
-    expect(within(cockpit).getByRole('button', { name: '外部订阅源' })).toBeInTheDocument();
-    expect(within(cockpit).getByRole('button', { name: '代理集合' })).toBeInTheDocument();
-    expect(within(cockpit).getByRole('button', { name: '导出配置' })).toBeInTheDocument();
-    expect(within(cockpit).getByRole('button', { name: '导出文件' })).toBeInTheDocument();
-    expect(within(cockpit).queryByRole('region', { name: '外部订阅源' })).not.toBeInTheDocument();
-    expect(within(cockpit).queryByRole('region', { name: '代理组' })).not.toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '外部订阅源' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '代理集合' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '导出配置' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '导出文件' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '订阅链接' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '订阅链路就绪' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '订阅分发门禁' })).not.toBeInTheDocument();
@@ -858,7 +856,7 @@ describe('SubscriptionMixerPage', () => {
     expect((emptyNodesDrawer as HTMLElement).outerHTML).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
   });
 
-  it('opens copyable subscription links and QR codes from the client workspace', async () => {
+  it('opens copyable subscription links and QR codes after switching into the client workspace', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
     vi.stubGlobal('navigator', {
@@ -870,6 +868,7 @@ describe('SubscriptionMixerPage', () => {
     renderPage({ subscriptionClients: [subscriptionClient] });
 
     expect(screen.queryByRole('region', { name: '订阅链接' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '订阅身份' }));
 
     const acmeRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
     expect(acmeRow).toHaveClass('subscription-ops-client-row');
@@ -889,7 +888,8 @@ describe('SubscriptionMixerPage', () => {
     );
   });
 
-  it('removes the legacy subscription pipeline readiness panel from the compact workspace', () => {
+  it('removes the legacy subscription pipeline readiness panel from the compact workspace', async () => {
+    const user = userEvent.setup();
     const acmeProvider: ProxyProviderConfig = {
       id: 'provider-source-hk-premium',
       name: '香港 Premium Provider',
@@ -933,6 +933,7 @@ describe('SubscriptionMixerPage', () => {
       subscriptionExportFiles: [exportFile]
     });
 
+    await user.click(screen.getByRole('button', { name: '订阅身份' }));
     expect(screen.queryByRole('region', { name: '订阅链路就绪' })).not.toBeInTheDocument();
   });
 

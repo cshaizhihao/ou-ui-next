@@ -9,6 +9,12 @@ type ProductionBrowserSmokeScript = {
   createBrowserSmokeReport(config: {
     baseUrl: URL;
     browserName: string;
+    viewport: {
+      width: number;
+      height: number;
+      isMobile: boolean;
+      hasTouch: boolean;
+    };
     headed: boolean;
     insecureTls: boolean;
     screenshotDir?: string;
@@ -45,6 +51,13 @@ type ProductionBrowserSmokeScript = {
     password: string;
     timeoutMs: number;
     browserName: string;
+    viewportPreset: string;
+    viewport: {
+      width: number;
+      height: number;
+      isMobile: boolean;
+      hasTouch: boolean;
+    };
     headed: boolean;
     insecureTls: boolean;
     reportPath?: string;
@@ -69,6 +82,8 @@ describe('production browser smoke script helpers', () => {
         '45000',
         '--browser',
         'chromium',
+        '--viewport',
+        'mobile',
         '--insecure-tls',
         '--headed'
       ])
@@ -78,6 +93,7 @@ describe('production browser smoke script helpers', () => {
       screenshotDir: '/tmp/screens',
       timeoutMs: '45000',
       browserName: 'chromium',
+      viewportPreset: 'mobile',
       insecureTls: true,
       headed: true
     });
@@ -96,7 +112,8 @@ describe('production browser smoke script helpers', () => {
         OU_UI_BROWSER_SMOKE_TIMEOUT_MS: '5000',
         OU_UI_BROWSER_SMOKE_REPORT_PATH: '/tmp/browser-report.json',
         OU_UI_BROWSER_SMOKE_SCREENSHOT_DIR: '/tmp/browser-screens',
-        OU_UI_BROWSER_SMOKE_INSECURE_TLS: '1'
+        OU_UI_BROWSER_SMOKE_INSECURE_TLS: '1',
+        OU_UI_BROWSER_SMOKE_VIEWPORT: 'mobile'
       },
       []
     );
@@ -110,6 +127,13 @@ describe('production browser smoke script helpers', () => {
       insecureTls: true,
       reportPath: '/tmp/browser-report.json',
       screenshotDir: '/tmp/browser-screens'
+    });
+    expect(config.viewportPreset).toBe('mobile');
+    expect(config.viewport).toMatchObject({
+      width: 390,
+      height: 844,
+      isMobile: true,
+      hasTouch: true
     });
     expect(config.baseUrl.toString()).toBe('https://panel.example/secure/');
     expect(() => browserSmokeScript.normalizeBaseUrl('https://user:password@panel.example/secure/')).toThrow(
@@ -154,6 +178,12 @@ describe('production browser smoke script helpers', () => {
       const report = browserSmokeScript.createBrowserSmokeReport({
         baseUrl: new URL('https://panel.example/secure/'),
         browserName: 'chromium',
+        viewport: {
+          width: 390,
+          height: 844,
+          isMobile: true,
+          hasTouch: true
+        },
         headed: false,
         insecureTls: false,
         screenshotDir: join(directory, 'screens')
@@ -198,6 +228,7 @@ describe('production browser smoke script helpers', () => {
     expect(scriptSource).toContain('高级功能');
     expect(scriptSource).toContain('Advanced Features');
     expect(scriptSource).toContain('治理与证据');
+    expect(scriptSource).toContain('手机治理入口');
     expect(scriptSource).toContain('Master Control Plane');
     expect(scriptSource).toContain('概览|Overview');
     expect(scriptSource).not.toContain('Master Control Plane Overview');

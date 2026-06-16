@@ -250,12 +250,7 @@ describe('NodesPage', () => {
       />
     );
 
-    const overview = screen.getByRole('region', { name: '运营总览' });
-    expect(within(overview).getByText('纳管链路')).toBeInTheDocument();
-    const controlPath = within(overview).getByRole('region', { name: '纳管链路' });
-    expect(within(controlPath).getByText('Master')).toBeInTheDocument();
-    expect(within(controlPath).getByText('Agent 通道')).toBeInTheDocument();
-    expect(within(controlPath).getByText('客户节点')).toBeInTheDocument();
+    screen.getByRole('region', { name: '运营总览' });
     expect(screen.getByRole('region', { name: '主机空态' })).toHaveTextContent('先生成安装命令');
     expect(screen.getByRole('region', { name: '主机空态' })).not.toHaveTextContent('把第一台服务器接入 Master');
     expect(screen.getByRole('button', { name: '生成安装命令' })).toBeInTheDocument();

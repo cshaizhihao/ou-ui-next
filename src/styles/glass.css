@@ -882,11 +882,14 @@
 }
 
 .login-box {
-  border-radius: 1.25rem;
+  border-radius: 0;
+  background: var(--ou-surface);
+  border: 1px solid var(--ou-border);
+  box-shadow: var(--ou-shadow-strong);
   overflow: hidden;
-  padding: 2rem;
+  padding: 0;
   position: relative;
-  width: min(100%, 430px);
+  width: min(100%, 26rem);
 }
 
 .login-box-shake {

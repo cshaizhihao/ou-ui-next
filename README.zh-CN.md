@@ -158,12 +158,12 @@ v                  v             v             v                  v      v
   - TypeScript typecheck
   - 生产 Vite 构建
 
-## ⚡ 一键 Master 部署
+## ⚡ 一键安装与维护
 
-面向操作者的部署入口是：
+生产部署直接运行：
 
 ```bash
-sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)'
+curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh | sudo bash
 ```
 
 如果你已经是 `root` 用户，也可以直接执行：
@@ -172,83 +172,46 @@ sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou
 bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
 ```
 
-安装完成后可以随时使用快捷管理命令：
+安装后最常用的命令：
 
 ```bash
-ou-ui menu
-ou-ui credentials
-ou-ui restart
-ou-ui update
-ou-ui fix
-ou-ui repair-nginx
-ou-ui reconfigure
-ou-ui doctor
-ou-ui reset-state
-ou-ui uninstall
+ou
+ou c
+ou d
+ou u
+ou sf
+ou f
+ou r
+ou sm
+ou bs
 ```
 
-最短入口是 `ou`：安装完成后直接输入 `ou` 会打开交互式快捷菜单，不需要记完整命令。
-如果你安装的是旧版本，服务器上还没有 `ou` / `ou-ui` 命令，可以先执行下面的救援命令刷新快捷入口，再运行 `ou f --force` 修复前端、Nginx 与旧状态：
+- `ou c` 打印面板地址、账号和密码。
+- `ou d` 检查 Nginx、Basic Auth、服务状态、构建指纹和运行时环境。
+- `ou u` 从 GitHub `main` 拉取更新并重建。
+- `ou sf` 只同步已经构建好的前端静态资源。
+- `ou f --force` 用于旧数据、旧演示状态或面板异常修复。
+- `ou r` 用于刚安装后清空旧控制面状态。
+- `ou sm` / `ou bs` 分别运行 HTTP 烟测和浏览器烟测；`ou bs --viewport mobile` 可补跑移动视口检查。
+
+如果你安装的是旧版本，服务器上还没有 `ou` / `ou-ui` 命令，可以先执行下面的救援命令刷新快捷入口：
 
 ```bash
 sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh) repair-cli'
 ```
 
-状态检查分两层：`ou s` 只查看 systemd 服务状态，`ou d` 会执行完整安装诊断，包含 Nginx、Basic Auth、面板地址、服务状态、systemd unit 加固、运行时文件系统权限、控制面状态文件、源码提交和前端构建提交。
-卸载前请先确认是否需要备份数据；`ou x` / `ou-ui uninstall` 会删除安装目录、配置目录、状态目录、Web 静态目录、Nginx 站点和 systemd 服务。若安装/更新时因低内存自动创建过构建用临时 swap，卸载会先停用该 swap、移除对应 `fstab` 记录，再删除状态目录，避免留下系统级残留。
-使用 `OU_UI_LOCAL_SOURCE_DIR` 的本地源码部署只建议开发调试；生产更新应使用 GitHub 安装路径，这样 `ou u` / `ou f` 才能直接从远端拉取最新版本。
-主机代理安装完成后也会提供 `ou-agent` 快捷入口：`ou-agent` 打开菜单，`ou-agent status` 查看状态，`ou-agent update` 从 GitHub 更新 Agent 运行时且不会重新注册、不消耗新的安装 Token，`ou-agent uninstall` 卸载该主机代理。
+### 安装后验证
 
-更短的快捷入口也会自动安装：`ou p` 打印面板信息，`ou c` 打印登录信息，`ou rs` 重启服务，`ou u` 从 GitHub 更新，`ou sf` 重新同步已构建前端静态资源，`ou arc <agent-id>` 生成旧 Agent 审计化恢复命令，`ou f` 一键修复安装异常，`ou r` 重置控制面状态，`ou m` 修改端口/证书，`ou d` 运行安装诊断，`ou x` 卸载面板。
+1. `sudo ou c`
+2. `sudo ou d`
+3. `sudo ou sm`
+4. `sudo ou bs`
 
-其中 `ou-ui credentials` / `ou c` 会打印完整面板地址、登录账号和登录密码；追加 `--help` / `-h` 只显示用法，不读取或输出登录凭据，带其它额外参数会拒绝执行以避免误泄露；安装、更新和修复自检创建面板会话时，会把登录 payload 先做 JSON 编码再经 stdin 传给 `curl`，不会把密码拼进命令行参数；`ou-ui rotate-credentials` / `ou rc` 会生成新的随机操作员账号密码，更新后端 `scrypt:v1` hash，清理后端明文密码，并让旧浏览器会话失效；`ou-ui doctor` / `ou d` 会检查 Nginx、Basic Auth、服务状态、systemd unit 加固、运行时文件系统权限、控制面状态文件、登录凭据强度、源码提交和前端构建提交；`ou-ui fix` / `ou f` 会从 GitHub 更新源码、重建前端、刷新快捷命令、重启服务、重写 OU-UI 面板 Nginx 站点，并校验登录页、Basic Auth 和前端构建指纹，旧版本升级时如果静态文件已由本次构建刷新但缺少 `build-info.json`，会在同一次更新内补写指纹；`ou-ui refresh-static` / `ou sf` 不拉取 GitHub、不重建后端，只把当前 `dist` 重新同步到 Nginx 静态目录、重载 Nginx 并校验公开入口构建指纹，适合后端已更新但浏览器仍命中旧前端 bundle 的现场修复；刚安装后如果看到旧假数据可运行 `ou fix --force` 自动清理控制面旧状态；`ou-ui repair-nginx` 会在不重建前端的情况下重新写入面板 Nginx 配置；`ou-ui reconfigure` / `ou m` 会重新打开安装向导，用于修改端口、证书和 Nginx 配置，同时保留现有安全路径、登录凭据、operator token、session secret 和 Agent bootstrap token；`ou-ui reset-state` / `ou r` 用于刚安装后清除旧状态/旧假数据。`ou-ui` 与 `ouui` 也会作为等价快捷命令安装。
+### 维护边界
 
-✅ 默认部署方式是从 GitHub 拉取 `cshaizhihao/ou-ui-next` 的 `main` 分支源码并在服务器上构建，不要求用户提前克隆仓库。只有开发调试场景才建议显式设置 `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next` 使用本地源码。
-
-安装脚本当前会做这些事：
-
-- 显示交互式安装确认
-- 询问 Master 面板监听端口
-- 询问是否已有域名解析到当前主机
-- 如果已有域名：
-  - 安装并配置 `acme.sh`
-  - 申请 Let's Encrypt 证书
-  - 如果本机已有未到续期时间的 acme.sh ECC 证书，会复用现有证书继续完成重装
-  - 将证书安装到 OU-UI Next 配置目录
-  - 写入 nginx HTTPS 配置，并配合 reload 流程
-- 如果没有域名：
-  - 使用 IP + 端口的 HTTP 方式部署
-- 无论是否有域名，都会：
-  - 生成 16 位安全访问路径
-  - 生成随机管理员用户名
-  - 生成随机管理员密码
-  - 生成用于 HttpOnly 登录会话签名的 session secret
-  - 生成用于后端代理链路的 operator token
-  - 从 GitHub 同步最新 Master 源码
-  - 部署 nginx、systemd 服务与持久化 Control Plane 状态目录
-  - 自检前端登录页、全新安装空库存和 Agent 一键安装命令 API
-  - 在安装结束时打印最终访问地址和凭据
-
-### 🛡️ 零配置取向
-
-安装脚本的设计取向是“少问问题，多自动化”：
-
-- 面板入口由随机安全路径、前端登录页和服务端 HttpOnly operator session 共同保护，不应弹出浏览器 Basic Auth 认证框
-- 安装脚本会在部署结束后自检面板 URL，确认返回的是 OU-UI Next 前端登录页、没有浏览器系统认证框、控制面库存为空，且能够生成真实 Agent 一键安装命令
-- 默认推荐使用 `8443` / `9443` 等独立面板端口；`443` 可以手动选择，但脚本会要求二次确认，因为它最容易与已有网站、反向代理或旧面板冲突
-- 如果遇到浏览器系统账号密码弹窗，优先运行 `ou d` 查看是否命中了旧 Nginx 站点、同端口冲突或 Basic Auth 残留；重新安装时优先避开 `443`
-- 如果刚安装后发现前端不是最新版本、旧演示节点仍然出现、快捷命令缺失、或面板地址仍返回 Basic Auth，直接运行 `ou fix --force`；它会更新到 GitHub 最新代码、重写 Nginx 面板站点，然后继续清理旧控制面状态、确认受控主机库存回到空状态，并复核 Agent 安装命令 API 可用
-- API 请求通过 nginx 代理到后端；浏览器侧 `/api`、`/events` 和 `/metrics` 会先通过 `auth_request` 校验 HttpOnly session，校验通过后才由反代层注入后端 operator token。session-backed `/api/v1` mutation 会额外校验 `X-CSRF-Token`，operator token 和登录密码都不写入前端构建产物，避免浏览器侧泄露
-- 当前浏览器退出登录会命中 `DELETE /api/v1/auth/session`；安全策略页会单独拉取 operator session 列表并支持按会话撤销，服务端撤销后旧 cookie 会立即失效
-- 安装器和 `ou fix --force` 的 Agent 安装命令 API 自检会从 session 登录响应读取 CSRF token，并在 cookie-backed mutation 中自动带上 `X-CSRF-Token`，避免修复/重置流程被 CSRF 防护误拦
-- Agent 一键安装命令默认从 GitHub raw 拉取 `public/install/ou-agent.sh`，避免依赖 Master 本地静态文件或被面板登录保护拦截
-- Agent 安装脚本在目标机运行时依赖已齐全时会直接继续注册和初始化，不会把“无需安装依赖”误判为安装失败
-- 新安装的生产面板默认不注入演示节点；受控主机只有在 Agent 完成注册后才会出现，注册后先显示为等待真实心跳/遥测的 provisioning 状态
-- Agent 安装命令只负责注册与初始化运行组件，主机名称、月度流量、到期时间和探测目标在面板中单独编辑
-- 当可用域名存在时，SSL 证书签发和 nginx 接线由脚本处理
-- 没有域名的主机仍可使用 IP + 端口完成部署
-
-这套自动化覆盖的是当前 Master 控制平面的部署表面。安装后的管理命令已提供带 SHA-256 manifest 的本地单节点备份/恢复路径；底层 SQLite 维护工具 `scripts/control-plane-sqlite-tool.cjs backup` 也会直接写入 `.manifest.json`，`validate` / `restore` 在发现 manifest 时会校验 schema、文件大小和 SHA-256，manifest 也会记录 SQLite 迁移账本。SQLite 仓储和维护工具会校验 `schema_version`、`state_format` 和 `control_plane_migrations`，旧 v1 SQLite 在后端打开或执行备份时会补写当前迁移账本，旧 v1 备份恢复到目标库时也会补齐迁移账本，避免被篡改的备份或未知迁移状态覆盖当前状态。生产安装会默认配置外部归档目录，把留存剪枝产生的日志归档摘要、流量压缩归档桶和审计链锚点追加写入控制面状态之外的 JSONL 文件，便于更新、修复或回滚前验证控制面存储快照、归档证据与审计链头；也可以通过 `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL` / `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS` 配置一个或多个外部归档 webhook，把日志归档摘要和流量压缩归档桶投递到外部系统，并通过 `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS`、`OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN` 和 `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST` 控制超时、认证与可投递域名。目录和 webhook 可组合使用；webhook 投递会拦截本机、私网、链路本地、组播以及解析后落入这些地址的目标，并只写入脱敏投递日志。完整多节点生产加固、对象存储级归档、第三方时间戳锚定、外部持久化数据库选择、操作者身份策略、Agent 注册与轮换策略等能力仍需要继续实现和验证。
+- 本地源码只用于开发调试：`OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`
+- 生产更新必须走 GitHub 安装路径，不要手工同步产物
+- 域名部署目标为 `ou-ui.zze.cc`；Nginx 只应写入 OU-UI Next 面板站点
 
 ## 🧑‍💻 本地开发
 
@@ -283,7 +246,7 @@ npm run build
 
 当前 V1.0 生产验收矩阵维护在 [docs/architecture/v1-production-acceptance.md](docs/architecture/v1-production-acceptance.md)。每次核心模块迭代都应同时更新验收状态、README 或架构文档，并通过测试、lint、typecheck 和构建。
 
-默认本机安装验证端口约定为 `8778`。域名部署目标为 `ouui.zze.cc`；部署或修复 nginx 时必须只写入 OU-UI Next 面板站点，避免影响同机其他应用。
+默认本机安装验证端口约定为 `8778`。域名部署目标为 `ou-ui.zze.cc`；部署或修复 nginx 时必须只写入 OU-UI Next 面板站点，避免影响同机其他应用。
 
 ## 🗂️ 仓库导览
 

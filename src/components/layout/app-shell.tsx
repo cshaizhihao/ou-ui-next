@@ -3425,13 +3425,6 @@ export function AppShell({ ready }: AppShellProps) {
         data-testid="app-shell-background"
         inert={quickActionsOpen ? true : undefined}
       >
-        <div aria-hidden="true" className="ou-shell-backdrop">
-          <span className="ou-shell-color-block ou-shell-color-block-primary" />
-          <span className="ou-shell-color-block ou-shell-color-block-accent" />
-          <span className="ou-shell-color-block ou-shell-color-block-signal" />
-          <div className="ou-shell-grid" />
-          <div className="ou-shell-ribbon" data-ribbon="Control Plane Operations Host Delivery Audit" />
-        </div>
         <Sidebar activePage={activePage} language={language} onPageChange={navigateToPage} />
         <main className="island-panel h-full min-h-0 min-w-0 flex-1 overflow-hidden max-md:min-h-[100dvh] max-md:pb-28">
           <Topbar

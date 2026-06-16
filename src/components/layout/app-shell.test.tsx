@@ -353,9 +353,10 @@ describe('AppShell', () => {
 
     expect(app).toHaveClass('ou-shell');
     expect(background).toHaveClass('ou-shell');
-    expect(document.querySelector('.ou-shell-backdrop')).not.toBeNull();
-    expect(document.querySelectorAll('.ou-shell-color-block')).toHaveLength(3);
-    expect(document.querySelector('.ou-shell-ribbon')).not.toBeNull();
+    expect(document.querySelector('.ou-shell-backdrop')).toBeNull();
+    expect(document.querySelector('.ou-shell-grid')).toBeNull();
+    expect(document.querySelector('.ou-shell-color-block')).toBeNull();
+    expect(document.querySelector('.ou-shell-ribbon')).toBeNull();
   });
 
   it('upgrades navigation and launchpad chrome to taste v2 controls', async () => {

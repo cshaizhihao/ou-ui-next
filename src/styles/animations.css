@@ -17,9 +17,7 @@
     linear-gradient(225deg, rgba(255, 61, 24, 0.16) 0%, rgba(255, 61, 24, 0.16) 18%, transparent 18%),
     linear-gradient(315deg, rgba(217, 255, 0, 0.14) 0%, rgba(217, 255, 0, 0.14) 16%, transparent 16%);
   background-size: 124% 124%, 132% 132%, 128% 128%;
-  animation: ouBackdropSlide 18s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
   transform: translate3d(0, 0, 0);
-  will-change: background-position;
 }
 
 .ou-shell-grid {
@@ -43,86 +41,6 @@
   background-image:
     linear-gradient(rgba(107, 124, 255, 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 106, 58, 0.05) 1px, transparent 1px);
-}
-
-.ou-shell-color-block {
-  position: absolute;
-  width: clamp(10rem, 22vw, 24rem);
-  aspect-ratio: 1.9 / 1;
-  border: 1px solid rgba(7, 17, 31, 0.12);
-  background: rgba(30, 58, 255, 0.18);
-  opacity: 0.82;
-  transform: translate3d(0, 0, 0) rotate(-8deg);
-  animation: ouColorBlockSlide 16s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
-  will-change: transform;
-}
-
-.ou-shell-color-block-primary {
-  top: 8%;
-  left: 6%;
-  background: rgba(30, 58, 255, 0.16);
-}
-
-.ou-shell-color-block-accent {
-  top: 26%;
-  right: clamp(2rem, 10vw, 9rem);
-  width: clamp(9rem, 18vw, 20rem);
-  background: rgba(255, 61, 24, 0.16);
-  animation-delay: -5s;
-}
-
-.ou-shell-color-block-signal {
-  right: 18%;
-  bottom: 10%;
-  width: clamp(8rem, 16vw, 18rem);
-  background: rgba(217, 255, 0, 0.16);
-  animation-delay: -9s;
-}
-
-.dark .ou-shell-color-block {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.dark .ou-shell-color-block-primary {
-  background: rgba(107, 124, 255, 0.18);
-}
-
-.dark .ou-shell-color-block-accent {
-  background: rgba(255, 106, 58, 0.18);
-}
-
-.dark .ou-shell-color-block-signal {
-  background: rgba(234, 255, 90, 0.16);
-}
-
-.ou-shell-ribbon {
-  --ou-ribbon-shift: min(42vw, 32rem);
-  position: absolute;
-  inset-block: auto 1.25rem;
-  inset-inline: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.ou-shell-ribbon::before {
-  content: attr(data-ribbon);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: clamp(2.4rem, 6vw, 6rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 0.9;
-  text-transform: uppercase;
-  color: rgba(30, 58, 255, 0.08);
-  white-space: nowrap;
-  pointer-events: none;
-  display: block;
-  width: max-content;
-  animation: ouRibbonScroll 24s linear infinite;
-  will-change: transform;
-}
-
-.dark .ou-shell-ribbon::before {
-  color: rgba(107, 124, 255, 0.12);
 }
 
 .ou-surface {
@@ -412,60 +330,8 @@ button:not([disabled]):not([aria-disabled='true']):active {
   }
 }
 
-@keyframes ouBackdropSlide {
-  0% {
-    background-position: 0% 0%, 100% 0%, 50% 100%;
-  }
-  50% {
-    background-position: 5% 3%, 94% 5%, 46% 94%;
-  }
-  100% {
-    background-position: 10% 0%, 88% 8%, 42% 88%;
-  }
-}
-
-@keyframes ouGlobalBackdropSlide {
-  0% {
-    background-position:
-      0% 0%,
-      100% 0%,
-      50% 100%,
-      0 0;
-  }
-  100% {
-    background-position:
-      10% 8%,
-      88% 12%,
-      42% 90%,
-      0 0;
-  }
-}
-
-@keyframes ouColorBlockSlide {
-  0% {
-    transform: translate3d(-2vw, -2vh, 0) rotate(-8deg);
-  }
-  50% {
-    transform: translate3d(1.5vw, 2vh, 0) rotate(4deg);
-  }
-  100% {
-    transform: translate3d(3vw, -1vh, 0) rotate(9deg);
-  }
-}
-
-@keyframes ouRibbonScroll {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(calc(-1 * var(--ou-ribbon-shift)), 0, 0);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ou-shell-backdrop,
-  .ou-shell-color-block,
-  .ou-shell-ribbon,
   .ou-page-enter,
   .ou-card-enter,
   .ou-fade-in,
@@ -497,8 +363,6 @@ button:not([disabled]):not([aria-disabled='true']):active {
     opacity: 0;
   }
 
-  .ou-shell-color-block,
-  .ou-shell-ribbon,
   .ou-nav-item:hover,
   .ou-command-pill:hover,
   .ou-action-card:hover,

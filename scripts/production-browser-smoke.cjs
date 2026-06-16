@@ -6,11 +6,22 @@ const { parseEnvFile } = require('./production-smoke.cjs');
 
 const defaultCredentialsFile = '/etc/ou-ui-next/credentials.env';
 const defaultTimeoutMs = 30_000;
-const defaultViewport = {
-  width: 1440,
-  height: 1000
+const viewportPresets = {
+  desktop: {
+    width: 1440,
+    height: 1000,
+    isMobile: false,
+    hasTouch: false
+  },
+  mobile: {
+    width: 390,
+    height: 844,
+    isMobile: true,
+    hasTouch: true
+  }
 };
 const browserNames = new Set(['chromium', 'firefox', 'webkit']);
+const viewportNames = new Set(Object.keys(viewportPresets));
 
 function parseBoolean(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? '').trim());
@@ -71,6 +82,12 @@ function parseArgs(argv) {
 
     if (arg === '--browser') {
       options.browserName = readOptionValue(argv, index, arg);
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--viewport') {
+      options.viewportPreset = readOptionValue(argv, index, arg);
       index += 1;
       continue;
     }
@@ -211,6 +228,7 @@ function resolveBrowserSmokeConfig(env = process.env, argv = process.argv.slice(
     credentials.OU_UI_BROWSER_SMOKE_PASSWORD ??
     credentials.OU_UI_SMOKE_PASSWORD;
   const browserName = args.browserName ?? env.OU_UI_BROWSER_SMOKE_BROWSER ?? 'chromium';
+  const viewportPreset = args.viewportPreset ?? env.OU_UI_BROWSER_SMOKE_VIEWPORT ?? 'desktop';
   const screenshotsEnabled =
     !args.skipScreenshots && env.OU_UI_BROWSER_SMOKE_SCREENSHOTS !== '0' && env.OU_UI_BROWSER_SMOKE_SCREENSHOTS !== 'false';
 
@@ -224,6 +242,10 @@ function resolveBrowserSmokeConfig(env = process.env, argv = process.argv.slice(
 
   if (!browserNames.has(browserName)) {
     throw new Error(`浏览器类型不支持：${browserName}。可用值：chromium, firefox, webkit。`);
+  }
+
+  if (!viewportNames.has(viewportPreset)) {
+    throw new Error(`视口类型不支持：${viewportPreset}。可用值：desktop, mobile。`);
   }
 
   return {
@@ -242,6 +264,8 @@ function resolveBrowserSmokeConfig(env = process.env, argv = process.argv.slice(
       ? args.screenshotDir ?? env.OU_UI_BROWSER_SMOKE_SCREENSHOT_DIR
       : undefined,
     browserName,
+    viewportPreset,
+    viewport: viewportPresets[viewportPreset],
     headed: Boolean(args.headed) || parseBoolean(env.OU_UI_BROWSER_SMOKE_HEADED),
     screenshotsEnabled
   };
@@ -260,7 +284,7 @@ function createBrowserSmokeReport(config) {
     browserName: config.browserName,
     headless: !config.headed,
     insecureTls: config.insecureTls,
-    viewport: defaultViewport,
+    viewport: config.viewport,
     screenshotsEnabled: Boolean(config.screenshotDir),
     checks: []
   };
@@ -338,6 +362,14 @@ async function clickNavigation(page, label, timeoutMs, headingMatcher = label) {
   await waitForVisible(page.getByRole('heading', { name: headingMatcher }).first(), timeoutMs, `页面 ${label}`);
 }
 
+async function openMobileGovernancePage(page, label, timeoutMs, headingMatcher = label) {
+  const mobileNavigation = page.getByRole('navigation', { name: /手机快捷导航|Mobile quick navigation/i });
+  await mobileNavigation.getByRole('button', { name: /治理|Govern/i }).click({ timeout: timeoutMs });
+  await waitForVisible(page.getByRole('region', { name: /手机治理入口|Mobile governance entry/i }), timeoutMs, '手机治理入口');
+  await page.getByRole('region', { name: /手机治理入口|Mobile governance entry/i }).getByRole('button', { name: label, exact: true }).click({ timeout: timeoutMs });
+  await waitForVisible(page.getByRole('heading', { name: headingMatcher }).first(), timeoutMs, `页面 ${label}`);
+}
+
 async function openAdvancedNavigation(page, timeoutMs) {
   const expandButton = page.getByRole('button', { name: /展开 (高级功能|治理与证据)|Expand (Advanced Features|Governance & Evidence)/i }).first();
   if (await expandButton.count()) {
@@ -396,7 +428,9 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
     const context = await browser.newContext({
       ignoreHTTPSErrors: config.insecureTls,
       locale: 'zh-CN',
-      viewport: defaultViewport
+      viewport: config.viewport,
+      isMobile: config.viewport.isMobile,
+      hasTouch: config.viewport.hasTouch
     });
     const page = await context.newPage();
 
@@ -436,20 +470,35 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await openAdvancedNavigation(page, config.timeoutMs);
     });
 
-    const advancedPages = [
-      { label: '客户', heading: /客户管理|Customer Management/i },
-      { label: '端口转发', heading: /端口转发|Port Forwarding/i },
-      { label: '订阅', heading: /订阅管理|Subscription Management/i },
-      { label: '分流策略', heading: /分流策略|Routing Policy/i },
-      { label: '调优', heading: /系统调优|System Tuning/i },
-      { label: '通知', heading: /Telegram 通知|Telegram Notifications/i },
-      { label: '账户', heading: /管理员账户设置|Admin Accounts/i },
-      { label: '执行记录', heading: /执行记录|Execution Log/i },
-      { label: '审计', heading: /审计日志|Audit Log/i }
-    ];
+    const advancedPages = config.viewportPreset === 'mobile'
+      ? [
+          { label: '客户', heading: /客户管理|Customer Management/i, mobile: true },
+          { label: '分流策略', heading: /分流策略|Routing Policy/i, mobile: true },
+          { label: '调优', heading: /系统调优|System Tuning/i, mobile: true },
+          { label: '通知', heading: /Telegram 通知|Telegram Notifications/i, mobile: true },
+          { label: '账户', heading: /管理员账户设置|Admin Accounts/i, mobile: true },
+          { label: '执行记录', heading: /执行记录|Execution Log/i, mobile: true },
+          { label: '审计', heading: /审计日志|Audit Log/i, mobile: true }
+        ]
+      : [
+          { label: '客户', heading: /客户管理|Customer Management/i },
+          { label: '端口转发', heading: /端口转发|Port Forwarding/i },
+          { label: '订阅', heading: /订阅管理|Subscription Management/i },
+          { label: '分流策略', heading: /分流策略|Routing Policy/i },
+          { label: '调优', heading: /系统调优|System Tuning/i },
+          { label: '通知', heading: /Telegram 通知|Telegram Notifications/i },
+          { label: '账户', heading: /管理员账户设置|Admin Accounts/i },
+          { label: '执行记录', heading: /执行记录|Execution Log/i },
+          { label: '审计', heading: /审计日志|Audit Log/i }
+        ];
 
     for (const pageEntry of advancedPages) {
       await runBrowserCheck(config, page, report, `navigate ${pageEntry.label}`, async () => {
+        if (pageEntry.mobile) {
+          await openMobileGovernancePage(page, pageEntry.label, config.timeoutMs, pageEntry.heading);
+          return;
+        }
+
         await clickNavigation(page, pageEntry.label, config.timeoutMs, pageEntry.heading);
       });
     }
@@ -487,6 +536,7 @@ Options:
   --report <path>            写入脱敏 JSON 浏览器烟测报告
   --screenshot-dir <path>    保存每一步通过后的浏览器截图
   --browser <name>           chromium/firefox/webkit，默认 chromium
+  --viewport <name>          desktop/mobile，默认 desktop
   --insecure-tls             允许自签名 TLS 证书
   --headed                   使用有界面浏览器，默认 headless
   --skip-screenshots         不保存截图

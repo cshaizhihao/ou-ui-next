@@ -81,7 +81,6 @@ describe('visual constitution', () => {
         'ou-shell',
         'ou-shell-backdrop',
         'ou-shell-grid',
-        'ou-shell-ribbon',
         'ou-surface',
         'ou-surface-muted',
         'ou-card',
@@ -166,29 +165,18 @@ describe('visual constitution', () => {
     expect(rowSelectors.filter((selector) => !reducedSelectors.has(selector))).toEqual([]);
   });
 
-  it('animates the global Fauvist backdrop and ribbon while disabling them for reduced-motion users', () => {
+  it('keeps the global Fauvist backdrop static while preserving reduced-motion safe transitions', () => {
     const animationsCss = readFileSync(join(process.cwd(), 'src/styles/animations.css'), 'utf8');
 
-    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*animation:\s*ouBackdropSlide/u);
-    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*will-change:\s*background-position/u);
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*position:\s*fixed/u);
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*width:\s*100vw/u);
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*max-width:\s*100vw/u);
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*background-size:\s*124%\s+124%,\s*132%\s+132%,\s*128%\s+128%/u);
-    expect(animationsCss).toMatch(/\.ou-shell-color-block\s*\{[\s\S]*animation:\s*ouColorBlockSlide/u);
-    expect(animationsCss).toContain('@keyframes ouColorBlockSlide');
-    expect(animationsCss).toMatch(/\.ou-shell-ribbon\s*\{[\s\S]*animation:\s*ouRibbonScroll/u);
-    expect(animationsCss).toMatch(/\.ou-shell-ribbon\s*\{[\s\S]*inset-inline:\s*0/u);
-    expect(animationsCss).toMatch(/\.ou-shell-ribbon\s*\{[\s\S]*overflow:\s*hidden/u);
-    expect(animationsCss).toMatch(/\.ou-shell-ribbon::before\s*\{[\s\S]*width:\s*max-content/u);
-    expect(animationsCss).toContain('@keyframes ouBackdropSlide');
-    expect(animationsCss).toContain('@keyframes ouRibbonScroll');
-    expect(animationsCss).toMatch(/@keyframes ouRibbonScroll[\s\S]*translate3d\(calc\(-1\s*\*\s*var\(--ou-ribbon-shift\)\),\s*0,\s*0\)/u);
     expect(animationsCss).toMatch(/\.btn-glow,[\s\S]*\.ou-select,[\s\S]*summary\s*\{[\s\S]*transition:/u);
     expect(animationsCss).toMatch(/\.btn-glow:hover,[\s\S]*\.ou-select:hover,[\s\S]*summary:hover\s*\{[\s\S]*translateY\(-1px\)/u);
     expect(animationsCss).toMatch(/\.btn-glow:active,[\s\S]*\.ou-select:active,[\s\S]*summary:active\s*\{[\s\S]*translateY\(1px\)\s*scale\(0\.99\)/u);
     expect(animationsCss).toMatch(/button:not\(\[disabled\]\):not\(\[aria-disabled='true'\]\):active\s*\{[\s\S]*translateY\(1px\)\s*scale\(0\.99\)/u);
-    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-shell-color-block,[\s\S]*\.ou-shell-ribbon,[\s\S]*\.btn-glow,[\s\S]*\.ou-select,[\s\S]*summary/u);
+    expect(animationsCss).toMatch(/prefers-reduced-motion: reduce[\s\S]*\.ou-shell-backdrop,[\s\S]*\.ou-page-enter,[\s\S]*\.ou-card-enter,[\s\S]*\.ou-fade-in,[\s\S]*\.btn-glow,[\s\S]*\.ou-select,[\s\S]*summary/u);
   });
 
   it('animates dashboard host connectivity with a real dashed flow and reduced-motion fallback', () => {
@@ -226,6 +214,7 @@ describe('visual constitution', () => {
     expect(document.querySelector('.bg-env')).toBeInTheDocument();
     expect(document.querySelector('.ou-shell-backdrop')).toBeInTheDocument();
     expect(document.querySelector('.ou-shell-grid')).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent('Control Plane Operations Host Delivery Audit');
+    expect(document.querySelector('.ou-shell-color-block')).toBeNull();
+    expect(document.querySelector('.ou-shell-ribbon')).toBeNull();
   });
 });

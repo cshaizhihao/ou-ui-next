@@ -72,12 +72,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
-  background:
-    linear-gradient(135deg, rgba(30, 58, 255, 0.2) 0%, rgba(30, 58, 255, 0.2) 24%, transparent 24%),
-    linear-gradient(225deg, rgba(255, 61, 24, 0.17) 0%, rgba(255, 61, 24, 0.17) 20%, transparent 20%),
-    linear-gradient(315deg, rgba(217, 255, 0, 0.2) 0%, rgba(217, 255, 0, 0.2) 17%, transparent 17%),
-    linear-gradient(180deg, #fffdf5 0%, #fdfff1 46%, #eaf3d1 100%);
-  background-size: 118% 118%, 124% 124%, 120% 120%, 100% 100%;
+  background: var(--ou-bg);
   color: var(--ou-text);
   font-family:
     'Cabinet Grotesk',
@@ -93,19 +88,13 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  animation: ouGlobalBackdropSlide 22s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
   transition:
     background-color 260ms var(--ou-transition),
     color 260ms var(--ou-transition);
 }
 
 .dark body {
-  background:
-    linear-gradient(135deg, rgba(107, 124, 255, 0.2) 0%, rgba(107, 124, 255, 0.2) 24%, transparent 24%),
-    linear-gradient(225deg, rgba(255, 106, 58, 0.18) 0%, rgba(255, 106, 58, 0.18) 20%, transparent 20%),
-    linear-gradient(315deg, rgba(234, 255, 90, 0.16) 0%, rgba(234, 255, 90, 0.16) 17%, transparent 17%),
-    linear-gradient(180deg, #07111f 0%, #101827 30%, #192238 100%);
-  background-size: 118% 118%, 124% 124%, 120% 120%, 100% 100%;
+  background: var(--ou-bg);
 }
 
 body::before {

@@ -171,63 +171,60 @@ This repository currently includes:
   - TypeScript typecheck
   - production Vite build
 
-## One-Click Master Deployment
+## One-Click Install and Maintenance
 
-The operator-facing deployment entrypoint is:
+Production install:
 
 ```bash
-sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)'
+curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh | sudo bash
 ```
 
-If you are already running as `root`, use:
+If you already run as `root`:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
 ```
 
-After installation, use the management shortcut at any time:
+Most common commands after install:
 
 ```bash
-ou-ui menu
-ou-ui credentials
-ou-ui restart
-ou-ui update
-ou-ui fix
-ou-ui repair-nginx
-ou-ui reconfigure
-ou-ui doctor
-ou-ui smoke
-ou-ui browser-smoke
-ou-ui acceptance
-ou-ui acceptance-verify /var/lib/ou-ui-next/acceptance/20260606T120000Z
-ou-ui final-acceptance --telegram-admin-chat-id 123456
-ou-ui production-release-acceptance --telegram-admin-chat-id 123456 --include-archive-smoke --archive-provider-evidence /root/ou-ui-receipts/archive-provider-evidence.json --timestamp-evidence /root/ou-ui-receipts/timestamp-evidence.json --install-evidence /root/ou-ui-receipts/clean-install-summary.json --agent-evidence /var/lib/ou-agent/acceptance/20260606T120000Z
-ou-ui backup-state
-ou-ui restore-state /path/to/control-plane-backup.sqlite
-ou-ui reset-state
-ou-ui uninstall
+ou
+ou c
+ou d
+ou u
+ou sf
+ou f
+ou r
+ou sm
+ou bs
 ```
 
-The shortest entrypoint is `ou`: running `ou` with no arguments opens the interactive maintenance menu.
-If your server was installed with an older build and does not have `ou` / `ou-ui` yet, refresh the shortcuts first, then run `ou f --force` to repair the frontend, nginx surface, and stale state:
+- `ou c` prints the panel URL, username, and password.
+- `ou d` checks nginx, Basic Auth, service state, build fingerprint, and runtime health.
+- `ou u` pulls the latest GitHub `main` branch and rebuilds.
+- `ou sf` only resyncs the already-built frontend static bundle.
+- `ou f --force` is for stale state, stale demo data, or repair work.
+- `ou r` clears old control-plane state after a fresh install.
+- `ou sm` / `ou bs` run HTTP and browser smoke checks.
+
+If your server is on an older build and does not have `ou` / `ou-ui`, refresh the shortcuts first:
 
 ```bash
 sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh) repair-cli'
 ```
 
-Status checks are split intentionally: `ou s` shows the systemd service state, while `ou d` runs the full installation doctor for nginx, Basic Auth, panel URL, service state, systemd unit hardening, runtime filesystem permissions, the current control-plane storage path, source commit, and deployed frontend build commit.
-Before uninstalling, back up anything you need to keep. `ou x` / `ou-ui uninstall` removes the install directory, config directory, state directory, web root, nginx site, and systemd service. If install or update created the low-memory build swap, uninstall first disables that swap, removes the matching `fstab` entry, and then deletes the state directory so the host is not left with system-level residue.
-`OU_UI_LOCAL_SOURCE_DIR` is intended for development/debug deployments only. Production updates should use the GitHub install path so `ou u` / `ou f` can pull the latest remote release directly.
-Managed hosts also get an `ou-agent` shortcut after enrollment: `ou-agent` opens its menu, `ou-agent status` checks the service state, `ou-agent doctor` / `ou-agent d` runs local diagnostics without printing the runtime token, `ou-agent qa` writes a local Agent acceptance evidence bundle with doctor output, service status, a redacted log tail, a sanitized `runtime-summary.json`, and a SHA-256 manifest, `ou-agent qv <bundle directory or manifest.json>` verifies bundle integrity, `ou-agent qv --require-runtime-evidence <bundle directory or manifest.json>` also enforces a valid UTC ISO `manifest.createdAt`, a non-empty `manifest.bundleDirectory`, main-manifest evidence file paths, and archived `runtime-summary.json` evidence for Xray inbounds, port-forwarding services, pending queue, and guardrail health, `ou-agent qv --require-final-summary <bundle directory or manifest.json>` rechecks that `final-acceptance-summary.json` has a valid UTC `createdAt`, a non-empty `bundleDirectory` matching `manifest.bundleDirectory`, the `final-acceptance-verify.txt` path/size/SHA-256, and strict gate markers written by `ou-agent qf`, `ou-agent qvf <bundle directory or manifest.json>` rechecks Agent runtime and final-summary strict gates in one command, `ou-agent qf` writes an Agent evidence bundle and immediately runs strict runtime verification, saving `final-acceptance-verify.txt` and `final-acceptance-summary.json`, `ou-agent update` updates the Agent runtime from GitHub without re-registering or consuming a new install token, and `ou-agent uninstall` removes the host Agent. `runtime-summary.json` records only runtime file status, module runtime state, Xray inbound counts, port-forwarding service counts, guardrail counts, and pending-event counts; it does not archive raw artifacts, client UUIDs/emails, forwarding target addresses, or Agent tokens.
+### Post-install checks
 
-Short aliases are installed automatically: `ou p` prints panel information, `ou c` prints login credentials, `ou rc` rotates operator login credentials, `ou rs` restarts the service, `ou u` updates from GitHub, `ou sf` resyncs the already-built frontend static bundle, `ou arc <agent-id>` generates an audited legacy-Agent recovery command, `ou b` backs up control-plane state, `ou f` runs the one-click repair flow, `ou r` resets control-plane state, `ou m` changes port/certificate settings, `ou d` runs diagnostics, `ou sm` runs the HTTP production smoke test, `ou bs` runs the real browser smoke test, `ou ns` runs the real Telegram notification smoke test, `ou ws` runs the real webhook smoke test, `ou as` runs the real external archive smoke test, `ou ape` writes archive provider evidence, `ou te` writes third-party timestamp evidence, `ou cie` writes clean-install evidence, `ou qa` writes an acceptance evidence bundle, `ou qv` verifies bundle integrity, `ou qf` runs final field acceptance, `ou qvf` rechecks a final field acceptance bundle in one command, `ou qvr` forces every production release gate, `ou qfa` runs the full production release acceptance orchestration, and `ou x` uninstalls the panel.
+1. `sudo ou c`
+2. `sudo ou d`
+3. `sudo ou sm`
+4. `sudo ou bs`
 
-`ou-ui credentials` / `ou c` prints the full panel URL, username, and password. Appending `--help` / `-h` prints usage only, never reads or outputs login credentials, and other extra arguments are rejected to avoid accidental disclosure. Install, update, and repair self-checks now JSON-encode the login payload and pipe it to `curl` through stdin instead of interpolating the password into command-line arguments. `ou-ui rotate-credentials` / `ou rc` generates a new random operator username/password, updates the backend `scrypt:v1` hash, removes backend plaintext password compatibility, and invalidates existing browser sessions; use it immediately when `ou d` reports default or weak credentials on an upgraded install. `ou-ui doctor` / `ou d` checks nginx, Basic Auth, service state, systemd unit hardening, runtime filesystem permissions, the current control-plane storage path, browser smoke script/Playwright/Chromium readiness, operator credential strength, source commit, and deployed frontend build commit. `ou-ui backup-state` / `ou b` creates a backup of the current control-plane store, defaulting to the control-plane backup directory unless you pass an explicit output path, and writes a `.manifest.json` sidecar with the backup SHA-256, size, storage mode, creation time, and source commit. `ou-ui restore-state <backup-path>` validates the manifest SHA-256 and size when present, validates a SQLite backup, creates a pre-restore snapshot, stops the service, and switches the live store to that backup; append `yes` to skip the interactive confirmation. `ou-ui fix` / `ou f` pulls the latest GitHub source, rebuilds the frontend, refreshes shortcuts, restarts services, rewrites the OU-UI nginx panel site, and verifies the login page, Basic Auth surface, and frontend build fingerprint. When upgrading older installs whose static files were refreshed by the current build but still lack `build-info.json`, the same update writes the missing fingerprint before the strict self-check continues. `ou-ui refresh-static` / `ou sf` does not pull GitHub or rebuild the backend; it resyncs the current `dist` directory into the Nginx static root, reloads Nginx, and verifies the public frontend build fingerprint, which is useful when the backend is current but browsers still hit an old frontend bundle. If a fresh install still shows stale demo data, run `ou fix --force` to clear the old control-plane state automatically. `ou-ui repair-nginx` rewrites the panel nginx config without rebuilding the frontend. `ou-ui reconfigure` / `ou m` reopens the installer to change the port, certificate, or nginx wiring while preserving the existing secure path, login credentials, operator token, session secret, and Agent bootstrap token. The installer also creates `ou-ui-next`, `ou-ui`, and `ouui` as equivalent shortcuts.
+### Maintenance boundaries
 
-`ou-ui repair-nginx` rewrites the panel nginx config and reapplies service-user runtime permissions without rebuilding the frontend.
-
-By default the installer pulls the `cshaizhihao/ou-ui-next` `main` branch from GitHub and builds it on the server. Users do not need to clone the repository first. Local source deployment is now an explicit development/debug path via `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`.
-Production installs now persist control-plane state in a SQLite database file by default; when an older deployment still has the legacy JSON state file, the installer preserves that source path and the backend imports it on the first SQLite boot. SQLite storage and maintenance commands validate `schema_version`, `state_format`, and the `control_plane_migrations` ledger before serving or validating state; older v1 SQLite stores are backfilled with the current migration ledger when opened by the backend or backed up by the SQLite tool, and restored legacy v1 backups get the ledger on the restored target database. The post-install management CLI also provides a local single-node backup/restore path with SHA-256 manifests. The underlying SQLite maintenance tool `scripts/control-plane-sqlite-tool.cjs backup` writes a `.manifest.json` sidecar directly, `validate` / `restore` verify the manifest schema, file size, and SHA-256 when that sidecar is present, and the manifest records the SQLite migration ledger, so operators can snapshot and verify the control plane before updates, repairs, or rollback work. The installer also configures `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` by default so retention-pruned Agent log summaries, traffic compaction buckets, and audit-chain anchors are appended to JSONL archive files outside the control-plane state store. Operators can configure one or more archive webhooks with `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URL` / `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_URLS`, with `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_TIMEOUT_MS`, `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_BEARER_TOKEN`, and `OU_UI_EXTERNAL_ARCHIVE_WEBHOOK_EGRESS_ALLOWLIST` controlling timeout, bearer auth, and allowed target hosts. Operators can also configure S3-compatible object storage with `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_BUCKET`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_REGION`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ACCESS_KEY_ID`, and `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SECRET_ACCESS_KEY`; `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_PREFIX`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_SESSION_TOKEN`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_TIMEOUT_MS`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_FORCE_PATH_STYLE`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_EGRESS_ALLOWLIST`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_MODE`, `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_RETENTION_DAYS`, and `OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_OBJECT_LOCK_LEGAL_HOLD` control object prefixes, STS tokens, timeouts, path-style or virtual-hosted-style addressing, allowed target hosts, and optional S3 Object Lock retention headers. File, webhook, and object-storage sinks can be combined; remote delivery blocks localhost/private/link-local/multicast targets and targets that resolve to those address ranges, records sanitized delivery logs, and still needs real provider acceptance evidence, provider-side immutable bucket/retention proof, and SIEM/warehouse-specific pipelines.
+- Local source is for development/debug only: `OU_UI_LOCAL_SOURCE_DIR=/path/to/ou-ui-next`
+- Production updates must use the GitHub install path
+- The deployment target domain is `ou-ui.zze.cc`; nginx should only write the OU-UI Next panel site
 
 ### Production Smoke Test
 
@@ -255,6 +252,7 @@ To validate the real browser workflow, run the browser smoke test. It uses the i
 
 ```bash
 sudo ou bs --report /var/lib/ou-ui-next/acceptance/browser-smoke-$(date -u +%Y%m%dT%H%M%SZ).json --screenshot-dir /var/lib/ou-ui-next/acceptance/browser-screenshots
+sudo ou bs --viewport mobile --report /var/lib/ou-ui-next/acceptance/browser-smoke-mobile-$(date -u +%Y%m%dT%H%M%SZ).json --screenshot-dir /var/lib/ou-ui-next/acceptance/browser-screenshots-mobile
 ```
 
 If the deployment host reports missing Playwright browser binaries or system dependencies, run `sudo npx playwright install chromium` from the install directory and retry. You can also run the same script manually:
