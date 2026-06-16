@@ -1034,7 +1034,7 @@ describe('NodesPage', () => {
     expect(customerHeader).not.toHaveClass('p-5');
     expect(customerFilterBar).toHaveClass('p-3');
     expect(customerFilterBar).not.toHaveClass('p-4');
-    expect(customerWorkspace.querySelector('.nodes-customer-node-table')).toHaveClass('min-w-[820px]');
+    expect(customerWorkspace.querySelector('.nodes-customer-node-table')).toHaveClass('min-w-[860px]');
     expect(customerWorkspace.querySelector('.nodes-customer-node-row-cell')).toHaveClass('px-3', 'py-2.5');
     expect(customerWorkspace.outerHTML).not.toContain('px-5 py-4');
 
@@ -1065,6 +1065,62 @@ describe('NodesPage', () => {
     expect(compactSurfaceHtml).not.toContain('columns-');
     expect(compactSurfaceHtml).not.toContain('grid-flow-row-dense');
     expect(compactSurfaceHtml).not.toContain('row-span');
+  });
+
+  it('uses the OU node surface vocabulary for customer tables, bulk controls, and drawer fields', async () => {
+    const user = userEvent.setup();
+    const longInbound = createInbound({
+      label: 'Very Long Customer Node Name That Should Wrap Across The Control Plane Surface Without Escaping Its Cell',
+      customerName: 'Very Long Enterprise Customer Name With 中文字符 And English Segments',
+      subscriptionRule: 'subscription-rule-with-a-very-long-token-that-must-break-inside-the-table-cell'
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[longInbound]}
+        language="zh"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const customerWorkspace = screen.getByRole('region', { name: '客户节点配置' });
+    const customerHtml = customerWorkspace.outerHTML;
+    const firstRow = customerWorkspace.querySelector('.nodes-customer-node-row');
+    const nodeName = screen.getByText(longInbound.label);
+    const subscriptionRule = screen.getByText(longInbound.subscriptionRule);
+    const actionButton = customerWorkspace.querySelector('.nodes-node-action-button');
+
+    expect(customerWorkspace.querySelector('.nodes-customer-filter-bar')).toHaveClass(
+      'border-[#07111F]/16',
+      'bg-[#EAF3D1]/45'
+    );
+    expect(customerWorkspace.querySelector('.nodes-customer-node-table')).toHaveClass('min-w-[860px]');
+    expect(firstRow).toHaveClass('hover:bg-[#DCE1FF]/42');
+    expect(nodeName).toHaveClass('[overflow-wrap:anywhere]');
+    expect(subscriptionRule).toHaveClass('break-all');
+    expect(actionButton).toHaveClass('border-[#07111F]/18', 'text-[#35405A]');
+    expect(actionButton).not.toHaveClass('rounded-lg', 'text-slate-500', 'hover:text-blue-600');
+    expect(customerHtml).not.toContain('border-slate-200');
+    expect(customerHtml).not.toContain('bg-slate-');
+    expect(customerHtml).not.toContain('text-slate-');
+    expect(customerHtml).not.toContain('text-blue-');
+    expect(customerHtml).not.toContain('border-red-');
+    expect(customerHtml).not.toContain('rounded-lg');
+
+    await user.click(screen.getByRole('button', { name: '新增客户节点' }));
+
+    const dialog = screen.getByRole('dialog', { name: '新增客户节点' });
+    const drawerField = dialog.querySelector('.nodes-drawer-field');
+
+    expect(drawerField).toHaveClass('border-[#07111F]/18', 'bg-[#FFFDF5]/76');
+    expect(drawerField).not.toHaveClass('rounded-lg', 'border-slate-200');
   });
 
   it('opens advanced host diagnostics as a compact fixed grid without a card wall', async () => {
@@ -2111,7 +2167,8 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
     const bulkDeleteButton = screen.getByRole('button', { name: 'Bulk Delete' });
 
-    expect(bulkDeleteButton.outerHTML).toContain('red-');
+    expect(bulkDeleteButton.outerHTML).toContain('#DC2626');
+    expect(bulkDeleteButton.outerHTML).not.toContain('red-');
     expect(bulkDeleteButton.outerHTML).not.toContain('rose-');
     await user.click(bulkDeleteButton);
 
@@ -2146,7 +2203,8 @@ describe('NodesPage', () => {
     );
 
     const deleteButton = screen.getAllByRole('button', { name: 'Delete Customer Node' })[0];
-    expect(deleteButton.outerHTML).toContain('red-');
+    expect(deleteButton.outerHTML).toContain('#DC2626');
+    expect(deleteButton.outerHTML).not.toContain('red-');
     expect(deleteButton.outerHTML).not.toContain('rose-');
 
     await user.click(deleteButton);
@@ -2184,7 +2242,8 @@ describe('NodesPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Remove Managed Host' });
     const deleteButton = within(dialog).getByRole('button', { name: 'Delete' });
 
-    expect(deleteButton.outerHTML).toContain('red-');
+    expect(deleteButton.outerHTML).toContain('#DC2626');
+    expect(deleteButton.outerHTML).not.toContain('red-');
     expect(deleteButton.outerHTML).not.toContain('rose-');
   });
 

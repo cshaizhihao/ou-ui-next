@@ -2405,45 +2405,45 @@ function latencyToneClass(
   latencyStatus?: Agent['telemetry']['latencyStatus']
 ) {
   if (latencyStatus === 'green') {
-    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+    return 'bg-[#00A878] shadow-[0_0_4px_rgba(0,168,120,0.45)]';
   }
 
   if (latencyStatus === 'yellow') {
-    return 'bg-orange-400 shadow-[0_0_4px_rgba(249,115,22,0.42)]';
+    return 'bg-[#D9FF00] shadow-[0_0_4px_rgba(217,255,0,0.45)]';
   }
 
   if (latencyStatus === 'red') {
-    return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+    return 'bg-[#DC2626] shadow-[0_0_4px_rgba(220,38,38,0.42)]';
   }
 
   const greenMax = probeConfig?.latencyGreenMaxMs ?? 100;
   const yellowMax = Math.max(probeConfig?.latencyYellowMaxMs ?? 200, greenMax);
 
   if (!Number.isFinite(latencyMs) || latencyMs < 1) {
-    return 'bg-slate-300 shadow-none dark:bg-white/20';
+    return 'bg-[#07111F]/24 shadow-none dark:bg-white/20';
   }
 
   if (latencyMs <= greenMax) {
-    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+    return 'bg-[#00A878] shadow-[0_0_4px_rgba(0,168,120,0.45)]';
   }
 
   if (latencyMs <= yellowMax) {
-    return 'bg-orange-400 shadow-[0_0_4px_rgba(249,115,22,0.42)]';
+    return 'bg-[#D9FF00] shadow-[0_0_4px_rgba(217,255,0,0.45)]';
   }
 
-  return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+  return 'bg-[#DC2626] shadow-[0_0_4px_rgba(220,38,38,0.42)]';
 }
 
 function lossToneClass(packetLossPercent: number) {
   if (packetLossPercent <= 1) {
-    return 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.4)]';
+    return 'bg-[#00A878] shadow-[0_0_4px_rgba(0,168,120,0.45)]';
   }
 
   if (packetLossPercent <= 5) {
-    return 'bg-orange-400 shadow-[0_0_4px_rgba(249,115,22,0.42)]';
+    return 'bg-[#D9FF00] shadow-[0_0_4px_rgba(217,255,0,0.45)]';
   }
 
-  return 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.4)]';
+  return 'bg-[#DC2626] shadow-[0_0_4px_rgba(220,38,38,0.42)]';
 }
 
 function formatRate(value: number | undefined) {
@@ -2517,18 +2517,18 @@ function findRuntimeService(agent: Agent, kind: RuntimeServiceBadgeKind) {
 
 function runtimeServiceBadgeTone(status: NonNullable<Agent['telemetry']['runtimeServices']>[number]['status'] | 'waiting') {
   if (status === 'active') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200';
+    return 'border-[#00A878]/45 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/30 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]';
   }
 
   if (status === 'waiting' || status === 'unknown') {
-    return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55';
+    return 'border-[#07111F]/18 bg-[#EAF3D1]/60 text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.04] dark:text-white/55';
   }
 
   if (status === 'inactive' || status === 'missing') {
     return 'border-[#D9FF00] bg-[#D9FF00]/[0.18] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]';
   }
 
-  return 'border-red-200 bg-red-50 text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-200';
+  return 'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#FF8A8A]/25 dark:bg-[#FF8A8A]/10 dark:text-[#FFB4B4]';
 }
 
 function formatTelemetryTimestamp(agent: Agent, language: AppLanguage) {
@@ -3517,7 +3517,7 @@ export function NodesPage({
     <ResponsivePage>
       <section aria-label={t.operationalOverview} className="stagger-1 space-y-3">
         <ResponsiveSection>
-          <h3 className="text-base font-bold text-slate-800 dark:text-white">{pageTitle}</h3>
+          <h3 className="text-base font-bold text-[#07111F] dark:text-white">{pageTitle}</h3>
           <p className="mt-3 font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
             {t.operationalOverview}
           </p>
@@ -3565,7 +3565,7 @@ export function NodesPage({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ServerCog className="h-4 w-4 text-[#1E3AFF] dark:text-[#DDE3FF]" />
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.hostTableTitle}</h4>
+              <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.hostTableTitle}</h4>
             </div>
           </div>
           {visibleAgents.length === 0 ? (
@@ -3580,7 +3580,7 @@ export function NodesPage({
                     <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                       {language === 'zh' ? '资源列表' : 'Resource Rail'}
                     </p>
-                    <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                    <h5 className="mt-1 text-sm font-black text-[#07111F] dark:text-white">
                       {language === 'zh' ? '主机资源' : 'Host Resources'}
                     </h5>
                   </div>
@@ -3589,7 +3589,7 @@ export function NodesPage({
                   </span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                  <label className="block border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.searchHosts}
                     </span>
@@ -3605,7 +3605,7 @@ export function NodesPage({
                       />
                     </div>
                   </label>
-                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                  <label className="block border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostStatusFilter}
                     </span>
@@ -3623,7 +3623,7 @@ export function NodesPage({
                       ))}
                     </select>
                   </label>
-                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                  <label className="block border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostCapabilityFilter}
                     </span>
@@ -3641,7 +3641,7 @@ export function NodesPage({
                       ))}
                     </select>
                   </label>
-                  <label className="block rounded-lg border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
+                  <label className="block border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 dark:border-[#6B7CFF]/25 dark:bg-[#101827]">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/40">
                       {t.hostRuntimeHealthFilter}
                     </span>
@@ -3668,7 +3668,7 @@ export function NodesPage({
                         aria-label={`${language === 'zh' ? '选择主机' : 'Select host'} ${hostEdit.name}`}
                         aria-pressed={active}
                         className={cn(
-                          'nodes-host-pill w-full rounded-xl border px-3 py-2 text-left transition duration-200 active:translate-y-px',
+                          'nodes-host-pill w-full border px-3 py-2 text-left transition duration-200 active:translate-y-px',
                           active
                             ? 'nodes-host-pill-active border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-white'
                             : 'border-transparent bg-transparent text-[#35405A] hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 dark:text-white/70 dark:hover:border-[#6B7CFF]/25 dark:hover:bg-[#6B7CFF]/10'
@@ -3699,10 +3699,10 @@ export function NodesPage({
                         <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
                           {language === 'zh' ? '当前主机' : 'Selected Host'}
                         </p>
-                        <p className="mt-1 truncate text-lg font-black text-slate-950 dark:text-white">
+                        <p className="mt-1 text-lg font-black text-[#07111F] [overflow-wrap:anywhere] dark:text-white">
                           {language === 'zh' ? `当前 · ${selectedHostPreviewEdit.name}` : `Selected · ${selectedHostPreviewEdit.name}`}
                         </p>
-                        <p className="mt-1 font-mono text-xs font-bold text-slate-500 dark:text-white/50">
+                        <p className="mt-1 break-all font-mono text-xs font-bold text-[#35405A] dark:text-white/50">
                           {selectedHostPreview.publicAddress}
                         </p>
                       </div>
@@ -3740,7 +3740,7 @@ export function NodesPage({
                     <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <button
                         aria-label={language === 'zh' ? '编辑当前主机' : 'Edit selected host'}
-                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#07111F]/25 bg-[#FFFDF5] px-3 text-xs font-bold text-[#35405A] transition hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/70 dark:hover:text-[#DDE3FF]"
+                        className="inline-flex min-h-9 items-center justify-center gap-2 border border-[#07111F]/25 bg-[#FFFDF5] px-3 text-xs font-bold text-[#35405A] transition hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/55 hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/70 dark:hover:text-[#DDE3FF]"
                         onClick={() => setDrawer({ type: 'editHost', agentId: selectedHostPreview.id })}
                         type="button"
                       >
@@ -3764,10 +3764,10 @@ export function NodesPage({
                     className="island-card divide-y divide-[#07111F]/12 overflow-hidden border-[#07111F] bg-[#FFFDF5] dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:divide-[#6B7CFF]/18"
                   >
                     <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                      <h5 className="text-sm font-black text-slate-900 dark:text-white">
+                      <h5 className="text-sm font-black text-[#07111F] dark:text-white">
                         {language === 'zh' ? '其他主机' : 'Other hosts'}
                       </h5>
-                      <span className="text-xs font-bold text-slate-500 dark:text-white/45">
+                      <span className="text-xs font-bold text-[#35405A] dark:text-white/45">
                         {filteredHostAgents.length - 1}
                       </span>
                     </div>
@@ -3783,8 +3783,8 @@ export function NodesPage({
                           type="button"
                         >
                           <span className="min-w-0">
-                            <span className="block truncate font-mono text-xs font-black text-slate-800 dark:text-white/85">{agent.publicAddress}</span>
-                            <span className="mt-1 block truncate text-[11px] font-semibold text-slate-500 dark:text-white/45">{agent.region}</span>
+                            <span className="block truncate font-mono text-xs font-black text-[#07111F] dark:text-white/85">{agent.publicAddress}</span>
+                            <span className="mt-1 block truncate text-[11px] font-semibold text-[#35405A] dark:text-white/45">{agent.region}</span>
                           </span>
                           <span className="shrink-0 rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-black text-[#35405A] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:text-white/55">
                             {t.statusLabels[agent.status]}
@@ -3803,17 +3803,17 @@ export function NodesPage({
                       <p className="font-mono text-[10px] font-black uppercase tracking-[0.24em] text-[#FF3D18] dark:text-[#FFB197]">
                         {language === 'zh' ? '高级详情' : 'Advanced Details'}
                       </p>
-                      <h5 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                      <h5 className="mt-1 text-sm font-black text-[#07111F] dark:text-white">
                         {t.hostTableTitle}
                       </h5>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                      <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                         {t.matchingHosts} {filteredHostAgents.length} / {visibleAgents.length}
                       </p>
                       <button
                         aria-expanded={hostAdvancedDetailsOpen}
-                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#D9FF00] bg-[#D9FF00]/[0.22] px-3 text-xs font-black text-[#07111F] transition hover:-translate-y-0.5 hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.3] active:translate-y-px dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5] dark:hover:bg-[#EAFF5A]/18"
+                        className="nodes-advanced-details-toggle inline-flex min-h-9 items-center justify-center gap-2 border border-[#D9FF00] bg-[#D9FF00]/[0.22] px-3 text-xs font-black text-[#07111F] transition hover:-translate-y-0.5 hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.3] active:translate-y-px dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5] dark:hover:bg-[#EAFF5A]/18"
                         onClick={() => setHostAdvancedDetailsOpen((open) => !open)}
                         type="button"
                       >
@@ -3859,14 +3859,14 @@ export function NodesPage({
         </section>
       ) : (
         <section aria-label={t.customerNodesTitle} className="stagger-3 island-card overflow-hidden">
-          <div className="nodes-customer-workspace-header flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-3 dark:border-white/10">
+          <div className="nodes-customer-workspace-header flex flex-wrap items-start justify-between gap-3 border-b border-[#07111F]/16 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/18 dark:bg-[#101827]">
             <div>
               <div className="flex items-center gap-2">
-                <UserRound className="h-4 w-4 text-blue-500 dark:text-primary" />
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">{t.customerNodesTitle}</h4>
+                <UserRound className="h-4 w-4 text-[#1E3AFF] dark:text-[#DCE1FF]" />
+                <h4 className="text-sm font-bold text-[#07111F] dark:text-white">{t.customerNodesTitle}</h4>
               </div>
             {t.customerNodesHint ? (
-              <p className="mt-1 max-w-3xl text-xs leading-6 text-slate-500 dark:text-white/45">{t.customerNodesHint}</p>
+              <p className="mt-1 max-w-3xl text-xs leading-6 text-[#35405A] dark:text-white/45">{t.customerNodesHint}</p>
             ) : null}
             </div>
             <GlowButton
@@ -3880,17 +3880,17 @@ export function NodesPage({
           </div>
 
           {visibleCustomerNodes.length > 0 ? (
-            <div className="nodes-customer-filter-bar border-b border-slate-200 p-3 dark:border-white/10">
+            <div className="nodes-customer-filter-bar border-b border-[#07111F]/16 bg-[#EAF3D1]/45 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.025]">
               <div className="grid grid-cols-1 gap-2 xl:grid-cols-[minmax(18rem,1fr)_minmax(9rem,0.24fr)_minmax(9rem,0.26fr)_minmax(9rem,0.24fr)]">
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                <label className="nodes-table-filter-field block border border-[#07111F]/18 bg-[#FFFDF5]/82 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                     {t.searchCustomerNodes}
                   </span>
                   <div className="mt-1 flex min-h-7 items-center gap-2">
-                    <Search className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-white/35" />
+                    <Search className="h-3.5 w-3.5 shrink-0 text-[#1E3AFF] dark:text-[#DCE1FF]/70" />
                     <input
                       aria-label={t.searchCustomerNodes}
-                      className="w-full bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35"
+                      className="w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/65 dark:text-white dark:placeholder:text-white/35"
                       onChange={(event) => setCustomerNodeSearch(event.target.value)}
                       placeholder={t.searchCustomerNodesPlaceholder}
                       type="search"
@@ -3898,13 +3898,13 @@ export function NodesPage({
                     />
                   </div>
                 </label>
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                <label className="nodes-table-filter-field block border border-[#07111F]/18 bg-[#FFFDF5]/82 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                     {t.customerNodeProtocolFilter}
                   </span>
                   <select
                     aria-label={t.customerNodeProtocolFilter}
-                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                     onChange={(event) => setCustomerNodeProtocolFilter(event.target.value as CustomerNodeProtocolFilter)}
                     value={customerNodeProtocolFilter}
                   >
@@ -3916,13 +3916,13 @@ export function NodesPage({
                     ))}
                   </select>
                 </label>
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                <label className="nodes-table-filter-field block border border-[#07111F]/18 bg-[#FFFDF5]/82 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                     {t.customerNodeHostFilter}
                   </span>
                   <select
                     aria-label={t.customerNodeHostFilter}
-                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                     onChange={(event) => setCustomerNodeHostFilter(event.target.value)}
                     value={customerNodeHostFilter}
                   >
@@ -3934,13 +3934,13 @@ export function NodesPage({
                     ))}
                   </select>
                 </label>
-                <label className="block rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.04]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                <label className="nodes-table-filter-field block border border-[#07111F]/18 bg-[#FFFDF5]/82 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.04]">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                     {t.customerNodeStatusFilter}
                   </span>
                   <select
                     aria-label={t.customerNodeStatusFilter}
-                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+                    className="ou-select mt-1 min-h-7 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
                     onChange={(event) => setCustomerNodeStatusFilter(event.target.value as CustomerNodeStatusFilter)}
                     value={customerNodeStatusFilter}
                   >
@@ -3953,7 +3953,7 @@ export function NodesPage({
                   </select>
                 </label>
               </div>
-              <p className="mt-3 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <p className="mt-3 text-xs font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                 {t.matchingCustomerNodes} {filteredCustomerNodes.length} / {visibleCustomerNodes.length}
               </p>
             </div>
@@ -3965,29 +3965,29 @@ export function NodesPage({
             <EmptyState label={t.noMatchingCustomerNodes} />
           ) : (
             <>
-              <details className="border-b border-slate-200 bg-white px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.015]">
-                <summary className="cursor-pointer text-xs font-black uppercase tracking-widest text-slate-600 dark:text-white/55">
+              <details className="border-b border-[#07111F]/16 bg-[#FFFDF5] px-3 py-2.5 dark:border-[#6B7CFF]/18 dark:bg-white/[0.015]">
+                <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.08em] text-[#35405A] dark:text-white/58">
                   {t.advancedFeatures}
                 </summary>
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-3">
-                    <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-white/60">
+                    <label className="inline-flex items-center gap-2 text-xs font-bold text-[#35405A] dark:text-white/60">
                       <input
                         aria-label={t.selectVisibleCustomerNodes}
                         checked={filteredCustomerNodes.length > 0 && selectedVisibleCustomerNodeCount === filteredCustomerNodes.length}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+                        className="h-4 w-4 border-[#07111F]/35 text-[#1E3AFF] focus:ring-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-white/5 dark:text-[#DCE1FF]"
                         onChange={toggleVisibleCustomerNodeSelection}
                         type="checkbox"
                       />
                       {t.selectVisibleCustomerNodes}
                     </label>
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                       {t.selectedCustomerNodes} {selectedCustomerNodes.length}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-primary"
+                      className="inline-flex min-h-9 items-center justify-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/72 px-3 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/60 hover:text-[#1E3AFF] disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:bg-[#6B7CFF]/12 dark:hover:text-[#DCE1FF]"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={copySelectedCustomerNodeLinks}
                       type="button"
@@ -3996,7 +3996,7 @@ export function NodesPage({
                       {t.bulkCopyCustomerNodeLinks}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
+                      className="inline-flex min-h-9 items-center justify-center gap-2 border border-[#1E3AFF]/35 bg-[#DCE1FF]/28 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/60 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/14"
                       disabled={selectedCustomerNodes.length === 0 || !onResetCustomerNodeTraffic}
                       onClick={resetSelectedCustomerNodeTraffic}
                       type="button"
@@ -4004,11 +4004,11 @@ export function NodesPage({
                       <RotateCcw className="h-3.5 w-3.5" />
                       {t.bulkResetCustomerNodeTraffic}
                     </button>
-                    <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <label className="inline-flex min-h-9 items-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/72 px-2.5 text-xs font-bold text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/55">
                       <span className="whitespace-nowrap">{t.bulkAddCustomerNodeTrafficAmount}</span>
                       <input
                         aria-label={t.bulkAddCustomerNodeTrafficAmount}
-                        className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
+                        className="w-16 bg-transparent text-right text-xs font-black text-[#07111F] outline-none dark:text-white"
                         min={0}
                         onChange={(event) => setBulkCustomerNodeTrafficGb(event.target.value)}
                         type="number"
@@ -4016,18 +4016,18 @@ export function NodesPage({
                       />
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#1E3AFF]/35 bg-[#DCE1FF]/28 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/60 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={addTrafficToSelectedCustomerNodes}
                       type="button"
                     >
                       {t.bulkAddCustomerNodeTraffic}
                     </button>
-                    <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <label className="inline-flex min-h-9 items-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/72 px-2.5 text-xs font-bold text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/55">
                       <span className="whitespace-nowrap">{t.bulkRenewCustomerNodeDays}</span>
                       <input
                         aria-label={t.bulkRenewCustomerNodeDays}
-                        className="w-16 bg-transparent text-right text-xs font-black text-slate-800 outline-none dark:text-white"
+                        className="w-16 bg-transparent text-right text-xs font-black text-[#07111F] outline-none dark:text-white"
                         min={0}
                         onChange={(event) => setBulkCustomerNodeRenewDays(event.target.value)}
                         type="number"
@@ -4035,7 +4035,7 @@ export function NodesPage({
                       />
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#1E3AFF]/35 bg-[#DCE1FF]/28 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/60 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={renewSelectedCustomerNodes}
                       type="button"
@@ -4043,18 +4043,18 @@ export function NodesPage({
                       {t.bulkRenewCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#1E3AFF]/35 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:text-[#9EACFF] dark:hover:bg-[#6B7CFF]/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#1E3AFF]/35 bg-[#DCE1FF]/28 px-3 text-xs font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/60 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/30 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={resetSelectedCustomerNodeUsedTraffic}
                       type="button"
                     >
                       {t.bulkResetCustomerNodeUsedTraffic}
                     </button>
-                    <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/50">
+                    <label className="inline-flex min-h-9 items-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/72 px-2.5 text-xs font-bold text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/55">
                       <span className="whitespace-nowrap">{t.bulkCustomerNodeResetPolicy}</span>
                       <select
                         aria-label={t.bulkCustomerNodeResetPolicy}
-                        className="ou-select bg-transparent text-xs font-black text-slate-800 outline-none dark:text-white"
+                        className="ou-select bg-transparent text-xs font-black text-[#07111F] outline-none dark:text-white"
                         onChange={(event) => setBulkCustomerNodeResetPolicy(event.target.value as XrayClientResetPolicy)}
                         value={bulkCustomerNodeResetPolicy}
                       >
@@ -4066,7 +4066,7 @@ export function NodesPage({
                       </select>
                     </label>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#FF3D18]/45 px-3 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FFB299]/30 dark:text-[#FFB299] dark:hover:bg-[#FFB299]/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#FF3D18]/45 bg-[#FFD8C6]/22 px-3 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FFB299]/30 dark:bg-[#FFB299]/10 dark:text-[#FFB299] dark:hover:bg-[#FFB299]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={applySelectedCustomerNodeResetPolicy}
                       type="button"
@@ -4074,7 +4074,7 @@ export function NodesPage({
                       {t.applyCustomerNodeResetPolicy}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/30 dark:text-emerald-300 dark:hover:bg-emerald-400/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#00A878]/45 bg-[#00A878]/10 px-3 text-xs font-bold text-[#007D5E] transition hover:bg-[#00A878]/16 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#35E68E]/30 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4] dark:hover:bg-[#35E68E]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={() => updateSelectedCustomerNodesEnabled(true)}
                       type="button"
@@ -4082,7 +4082,7 @@ export function NodesPage({
                       {t.bulkEnableCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#FF3D18]/45 px-3 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FFB299]/30 dark:text-[#FFB299] dark:hover:bg-[#FFB299]/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#FF3D18]/45 bg-[#FFD8C6]/22 px-3 text-xs font-bold text-[#C92810] transition hover:bg-[#FFD8C6]/55 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FFB299]/30 dark:bg-[#FFB299]/10 dark:text-[#FFB299] dark:hover:bg-[#FFB299]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={() => updateSelectedCustomerNodesEnabled(false)}
                       type="button"
@@ -4090,7 +4090,7 @@ export function NodesPage({
                       {t.bulkDisableCustomerNodes}
                     </button>
                     <button
-                      className="inline-flex min-h-9 items-center justify-center rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10"
+                      className="inline-flex min-h-9 items-center justify-center border border-[#DC2626]/42 bg-[#DC2626]/8 px-3 text-xs font-bold text-[#B91C1C] transition hover:bg-[#DC2626]/12 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#FF8A8A]/28 dark:bg-[#FF8A8A]/10 dark:text-[#FFB4B4] dark:hover:bg-[#FF8A8A]/14"
                       disabled={selectedCustomerNodes.length === 0}
                       onClick={bulkCustomerNodeDeleteConfirming ? deleteSelectedCustomerNodes : () => setBulkCustomerNodeDeleteConfirming(true)}
                       type="button"
@@ -4111,64 +4111,64 @@ export function NodesPage({
                 ) : null}
               </details>
               <div className="overflow-x-auto">
-                <table className="nodes-customer-node-table w-full min-w-[820px] text-left">
-                <thead className="bg-slate-50/70 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-white/[0.03] dark:text-white/40">
+                <table className="nodes-customer-node-table w-full min-w-[860px] table-fixed text-left">
+                <thead className="bg-[#EAF3D1]/58 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:bg-white/[0.03] dark:text-white/42">
                   <tr>
                     <th className="w-10 px-3 py-2.5">{t.selectCustomerNode}</th>
-                    <th className="px-3 py-2.5">{t.customerNodeName}</th>
-                    <th className="px-3 py-2.5">{t.customerName}</th>
-                    <th className="px-3 py-2.5">{t.assignedHost}</th>
-                    <th className="px-3 py-2.5">{t.protocolConfig}</th>
-                    <th className="px-3 py-2.5">{t.maxTraffic}</th>
-                    <th className="px-3 py-2.5">{t.trafficMultiplier}</th>
-                    <th className="px-3 py-2.5">{t.subscriptionRule}</th>
-                    <th className="px-3 py-2.5 text-right">{t.actions}</th>
+                    <th className="w-[15rem] px-3 py-2.5">{t.customerNodeName}</th>
+                    <th className="w-[12rem] px-3 py-2.5">{t.customerName}</th>
+                    <th className="w-[11rem] px-3 py-2.5">{t.assignedHost}</th>
+                    <th className="w-[12rem] px-3 py-2.5">{t.protocolConfig}</th>
+                    <th className="w-[6rem] px-3 py-2.5">{t.maxTraffic}</th>
+                    <th className="w-[6rem] px-3 py-2.5">{t.trafficMultiplier}</th>
+                    <th className="w-[14rem] px-3 py-2.5">{t.subscriptionRule}</th>
+                    <th className="w-[24rem] px-3 py-2.5 text-right">{t.actions}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                <tbody className="divide-y divide-[#07111F]/12 dark:divide-[#6B7CFF]/18">
                   {filteredCustomerNodes.map((node) => {
                     const agent = visibleAgents.find((item) => item.id === node.agentId);
                     const quotaPolicy = findCustomerNodeQuotaPolicy(node, quotaPolicies);
 
                     return (
-                      <tr key={node.id} className="nodes-customer-node-row transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                      <tr key={node.id} className="nodes-customer-node-row transition-colors hover:bg-[#DCE1FF]/42 dark:hover:bg-[#6B7CFF]/10">
                         <td className="nodes-customer-node-row-cell px-3 py-2.5">
                           <input
                             aria-label={`${t.selectCustomerNode} ${node.nodeName}`}
                             checked={selectedCustomerNodeIds.includes(node.id)}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+                            className="h-4 w-4 border-[#07111F]/35 text-[#1E3AFF] focus:ring-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-white/5 dark:text-[#DCE1FF]"
                             onChange={() => toggleCustomerNodeSelection(node.id)}
                             type="checkbox"
                           />
                         </td>
                         <td className="nodes-customer-node-row-cell px-3 py-2.5">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{node.nodeName}</p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                          <p className="text-sm font-bold leading-5 text-[#07111F] [overflow-wrap:anywhere] dark:text-white">{node.nodeName}</p>
+                          <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">
                             {node.remainingDays} {t.unitDays}
                           </p>
                         </td>
-                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold leading-5 text-[#35405A] [overflow-wrap:anywhere] dark:text-white/70">
                           {node.customerName}
                         </td>
-                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold leading-5 text-[#35405A] [overflow-wrap:anywhere] dark:text-white/70">
                           {agent ? getHostEdit(agent).name : t.unknownHost}
                         </td>
                         <td className="nodes-customer-node-row-cell px-3 py-2.5">
-                          <p className="font-mono text-xs font-semibold uppercase text-slate-700 dark:text-white/70">
+                          <p className="font-mono text-xs font-semibold uppercase text-[#07111F] [overflow-wrap:anywhere] dark:text-white/75">
                             {node.protocol}:{node.listenPort}
                           </p>
-                          <p className="mt-1 text-[11px] text-slate-500 dark:text-white/45">
+                          <p className="mt-1 text-[11px] text-[#35405A] [overflow-wrap:anywhere] dark:text-white/45">
                             {node.streamNetwork} / {node.security} / IP {node.ipLimit}
                           </p>
                         </td>
-                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-slate-700 dark:text-white/70">
+                        <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold text-[#35405A] dark:text-white/70">
                           {node.trafficLimitGb} {t.unitGb}
                         </td>
-                        <td aria-label={`x${node.trafficMultiplier}`} className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-black text-slate-700 dark:text-white/70">
+                        <td aria-label={`x${node.trafficMultiplier}`} className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-black text-[#07111F] dark:text-white/70">
                           x{node.trafficMultiplier}
                         </td>
                         <td className="nodes-customer-node-row-cell px-3 py-2.5">
-                          <code className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-white/10 dark:text-white/60">
+                          <code className="block break-all border border-[#07111F]/14 bg-[#EAF3D1]/56 px-2.5 py-1 font-mono text-[11px] leading-5 text-[#35405A] dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/60">
                             {node.subscriptionRule}
                           </code>
                         </td>
@@ -4226,23 +4226,23 @@ export function NodesPage({
           <InfoField label={t.tokenPolicy} value={t.tokenPolicyValue} />
           <InfoField label={t.capabilitySet} value={t.capabilitySetValue} />
 
-          <div className="rounded-xl border border-slate-200 bg-slate-100/80 p-3 dark:border-white/10 dark:bg-black/20">
-            <div className="mb-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+          <div className="nodes-drawer-field border border-[#07111F]/18 bg-[#EAF3D1]/62 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+            <div className="mb-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
               <span>{t.commandPreview}</span>
-              <button aria-label={t.commandPreview} className="rounded-full p-1 hover:bg-white/70 dark:hover:bg-white/10" onClick={copyInstallCommand} type="button">
+              <button aria-label={t.commandPreview} className="border border-[#07111F]/18 bg-[#FFFDF5]/72 p-1 text-[#35405A] hover:border-[#1E3AFF]/45 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:text-[#DCE1FF]" onClick={copyInstallCommand} type="button">
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
-            <p className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-              <KeyRound className="h-3.5 w-3.5 text-slate-400" />
+            <p className="mb-2 flex items-center gap-2 text-xs font-bold text-[#07111F] dark:text-white">
+              <KeyRound className="h-3.5 w-3.5 text-[#1E3AFF]" />
               {installCommand?.agentId ?? t.commandLoading}
             </p>
             {installCommand ? (
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-white/40">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                 {t.tokenExpires} {formatDateTime(installCommand.expiresAt, language)}
               </p>
             ) : null}
-            <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+            <code className="block break-all font-mono text-[10px] leading-5 text-[#35405A] dark:text-white/70">
               {previewError ? t.commandUnavailable : installCommand?.command ?? t.commandLoading}
             </code>
           </div>
@@ -4278,7 +4278,7 @@ export function NodesPage({
               value={getHostEdit(selectedHost).runtimeHostName}
               onChange={(value) => updateHost(selectedHost, { runtimeHostName: value })}
             />
-            <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+            <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
               {t.monthlyTrafficSection}
             </p>
             <InputField
@@ -4338,7 +4338,7 @@ export function NodesPage({
               value={getHostEdit(selectedHost).pingTarget}
               onChange={(value) => updateHost(selectedHost, { pingTarget: value })}
             />
-            <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+            <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
               {t.probeSection}
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -4367,7 +4367,7 @@ export function NodesPage({
               <InfoField label={t.virtualizationLabel} value={selectedHost.hardware.virtualization ?? '-'} />
               <InfoField label={t.primaryNicLabel} value={selectedHost.hardware.primaryNetworkInterface ?? '-'} />
             </div>
-            <p className="pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+            <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
               {t.hardwareProfile}
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -4444,7 +4444,7 @@ export function NodesPage({
             <div className="flex justify-end gap-3 pt-2">
               <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
               <button
-                className="rounded-xl bg-red-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-red-500/20 transition hover:bg-red-400"
+                className="border border-[#DC2626]/50 bg-[#DC2626] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#B91C1C] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#FF8A8A]/35 dark:bg-[#B91C1C] dark:hover:bg-[#DC2626]"
                 disabled={taskMutationBusy}
                 onClick={() => handleDeleteHost(selectedHost)}
                 type="button"
@@ -4464,9 +4464,9 @@ export function NodesPage({
       >
         {linkDetailsCustomerNode && customerNodeLinkMaterial ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{linkDetailsCustomerNode.nodeName}</p>
-              <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-white/45">
+            <div className="nodes-drawer-field border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+              <p className="text-sm font-bold text-[#07111F] [overflow-wrap:anywhere] dark:text-white">{linkDetailsCustomerNode.nodeName}</p>
+              <p className="mt-1 text-xs font-semibold text-[#35405A] [overflow-wrap:anywhere] dark:text-white/45">
                 {linkDetailsCustomerNode.customerName} · {linkDetailsCustomerNode.protocol.toUpperCase()}:{linkDetailsCustomerNode.listenPort}
               </p>
             </div>
@@ -4544,17 +4544,17 @@ export function NodesPage({
             />
           </DrawerSection>
           <details
-            className="rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10"
+            className="nodes-drawer-field border border-[#07111F]/18 bg-[#FFFDF5]/72 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.025]"
             onToggle={(event) => setCustomerAdvancedOpen(event.currentTarget.open)}
             open={customerAdvancedOpen}
           >
-            <summary className="cursor-pointer text-xs font-black text-slate-800 dark:text-white">
+            <summary className="cursor-pointer text-xs font-black text-[#07111F] dark:text-white">
               {t.advancedToggle}
             </summary>
             {customerAdvancedOpen ? (
             <div className="mt-3 space-y-3">
               {t.advancedHint ? (
-                <p className="text-xs leading-6 text-slate-500 dark:text-white/45">{t.advancedHint}</p>
+                <p className="text-xs leading-6 text-[#35405A] dark:text-white/45">{t.advancedHint}</p>
               ) : null}
               <DrawerSection title={t.advancedProfileSection}>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -4590,7 +4590,7 @@ export function NodesPage({
                 </div>
               </DrawerSection>
               <DrawerSection title={t.protocolSpecificConfig}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                   {protocolSectionTitle}
                 </p>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -4704,7 +4704,7 @@ export function NodesPage({
                 {showRealitySettings ? (
                   <div className="space-y-3">
                     <button
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
+                      className="border border-[#07111F]/18 bg-[#FFFDF5]/72 px-4 py-2 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/60 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:text-[#DCE1FF]"
                       onClick={regenerateRealityKeys}
                       type="button"
                     >
@@ -4806,7 +4806,7 @@ export function NodesPage({
                 </div>
               </DrawerSection>
               <DrawerSection title={t.configPreview}>
-                <code className="block whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-slate-100/80 p-3 font-mono text-[10px] leading-5 text-slate-700 dark:border-white/10 dark:bg-black/20 dark:text-white/70">
+                <code className="nodes-drawer-field block whitespace-pre-wrap break-all border border-[#07111F]/18 bg-[#EAF3D1]/62 p-3 font-mono text-[10px] leading-5 text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/70">
                   {customerArtifacts.inboundConfig}
                 </code>
               </DrawerSection>
@@ -4851,13 +4851,13 @@ function SummaryMetric({
   icon: typeof ServerCog;
 }) {
   return (
-    <div className="nodes-summary-metric min-h-[76px] rounded-lg border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
+    <div className="nodes-summary-metric min-h-[76px] border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</p>
+          <p className="mt-1 text-lg font-black text-[#07111F] dark:text-white">{value}</p>
         </div>
-        <Icon className="h-4 w-4 text-blue-500 dark:text-primary" />
+        <Icon className="h-4 w-4 text-[#1E3AFF] dark:text-[#DCE1FF]" />
       </div>
     </div>
   );
@@ -4881,19 +4881,19 @@ function ControlPathStrip({
   return (
     <section
       aria-label={label}
-      className="mt-3 rounded-lg border border-slate-200 bg-slate-50/82 p-3 dark:border-white/10 dark:bg-white/[0.03]"
+      className="mt-3 border border-[#07111F]/18 bg-[#EAF3D1]/58 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.03]"
     >
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-white/40">{label}</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#35405A] dark:text-white/42">{label}</p>
       <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
         {steps.map((step, index) => (
           <li className="flex min-w-0 items-center gap-2" key={step}>
             <span
               aria-hidden="true"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-blue-200 bg-white text-[11px] font-black text-blue-600 dark:border-primary/25 dark:bg-primary/10 dark:text-primary"
+              className="grid h-7 w-7 shrink-0 place-items-center border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[11px] font-black text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF]"
             >
               {index + 1}
             </span>
-            <span className="truncate text-xs font-black text-slate-800 dark:text-white/80">{step}</span>
+            <span className="min-w-0 truncate text-xs font-black text-[#07111F] dark:text-white/80">{step}</span>
           </li>
         ))}
       </ol>
@@ -4905,9 +4905,9 @@ function OperationalEmptyState({ actionLabel, label }: { actionLabel: string; la
   return (
     <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
-        <p className="text-sm font-black text-slate-900 dark:text-white">{label}</p>
+        <p className="text-sm font-black text-[#07111F] dark:text-white">{label}</p>
       </div>
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 dark:border-primary/25 dark:bg-primary/10 dark:text-primary">
+      <div className="border border-[#1E3AFF]/35 bg-[#DCE1FF] px-3 py-2 text-xs font-black text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF]">
         {actionLabel}
       </div>
     </div>
@@ -4933,18 +4933,18 @@ function CustomerNodeLinksPanel({
     <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_196px]">
       <LinkMaterialCard label={t.oneNodeLink} value={shareLink} copyLabel={t.copyLink} onCopy={onCopyShareLink} />
       <LinkMaterialCard label={t.subscriptionLink} value={subscriptionLink} copyLabel={t.copyLink} onCopy={onCopySubscriptionLink} />
-      <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+      <div className="nodes-drawer-field border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
           {t.subscriptionQrCode}
         </p>
         {qrDataUrl ? (
           <img
             alt={t.subscriptionQrCode}
-            className="h-44 w-44 rounded bg-white p-2"
+            className="h-44 w-44 bg-white p-2"
             src={qrDataUrl}
           />
         ) : (
-          <div className="grid h-44 w-44 place-items-center rounded bg-slate-100 text-[10px] font-bold text-slate-400 dark:bg-white/5 dark:text-white/35">
+          <div className="grid h-44 w-44 place-items-center bg-[#EAF3D1]/70 text-[10px] font-bold text-[#35405A]/70 dark:bg-white/5 dark:text-white/35">
             QR
           </div>
         )}
@@ -5045,9 +5045,9 @@ function CustomerNodeBulkImpactPreflight({
 
 function CustomerNodeBulkImpactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#1E3AFF]/35 bg-[#FFFDF5]/85 px-3 py-2 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-all text-sm font-black text-slate-900 dark:text-white">{value}</p>
+    <div className="min-w-0 border border-[#1E3AFF]/35 bg-[#FFFDF5]/85 px-3 py-2 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</p>
+      <p className="mt-1 break-all text-sm font-black text-[#07111F] dark:text-white">{value}</p>
       <span className="sr-only">
         {label} {value}
       </span>
@@ -5066,13 +5066,13 @@ function CustomerNodeBulkImpactPreview({
 }) {
   return (
     <div className={cn(
-      'min-w-0 rounded-lg border bg-[#FFFDF5]/72 p-3 dark:bg-white/[0.025]',
+      'min-w-0 border bg-[#FFFDF5]/72 p-3 dark:bg-white/[0.025]',
       warning ? 'border-[#FF3D18]/45 dark:border-[#FFB299]/20' : 'border-[#D9FF00]/60 dark:border-[#E9FF6A]/20'
     )}>
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</p>
-      <div className={warning ? 'mt-2 space-y-1 text-[#C92810] dark:text-[#FFB299]' : 'mt-2 space-y-1 text-slate-700 dark:text-white/70'}>
+      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{title}</p>
+      <div className={warning ? 'mt-2 space-y-1 text-[#C92810] dark:text-[#FFB299]' : 'mt-2 space-y-1 text-[#35405A] dark:text-white/70'}>
         {values.map((value) => (
-          <p className="truncate text-xs font-bold" key={value} title={value}>
+          <p className="break-words text-xs font-bold" key={value} title={value}>
             {value}
           </p>
         ))}
@@ -5093,20 +5093,20 @@ function LinkMaterialCard({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+    <div className="nodes-drawer-field border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
           {label}
         </p>
         <button
-          className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 transition hover:text-blue-600 dark:border-white/10 dark:text-white/60 dark:hover:text-primary"
+          className="border border-[#07111F]/18 bg-[#FFFDF5]/72 px-3 py-1 text-[10px] font-bold text-[#35405A] transition hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/60 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:text-[#DCE1FF]"
           onClick={onCopy}
           type="button"
         >
           {copyLabel}
         </button>
       </div>
-      <code className="block break-all font-mono text-[10px] leading-5 text-slate-700 dark:text-white/70">
+      <code className="block break-all font-mono text-[10px] leading-5 text-[#35405A] dark:text-white/70">
         {value}
       </code>
     </div>
@@ -5296,7 +5296,7 @@ function ManagedHostCard({
         ? 'bg-[#D9FF00] shadow-[0_0_10px_rgba(217,255,0,0.62)]'
         : agent.status === 'provisioning'
           ? 'bg-[#1E3AFF] shadow-[0_0_10px_rgba(30,58,255,0.52)]'
-          : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.75)]';
+          : 'bg-[#DC2626] shadow-[0_0_10px_rgba(220,38,38,0.68)]';
   const addressFamily = agent.publicAddress.includes(':') ? 'IPv6' : 'IPv4';
   const modeBadge = agent.connectionMode.slice(0, 1).toUpperCase();
 
@@ -5305,27 +5305,27 @@ function ManagedHostCard({
       className="nodes-managed-host-card island-card group flex w-full cursor-pointer flex-col gap-3 p-3 text-[#35405A] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#1E3AFF] hover:shadow-[0_14px_34px_-28px_rgba(30,58,255,0.28)] dark:text-white/75 dark:hover:border-[#6B7CFF]/25 dark:hover:shadow-[0_16px_42px_-32px_rgba(30,58,255,0.4)]"
       onClick={onEdit}
     >
-      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5 dark:border-white/10">
+      <div className="flex items-center justify-between border-b border-[#07111F]/14 pb-2.5 dark:border-[#6B7CFF]/18">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[#1E3AFF] transition-colors group-hover:border-[#1E3AFF] group-hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF] dark:group-hover:border-[#6B7CFF]/35 dark:group-hover:text-[#DCE1FF]">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center border border-[#1E3AFF]/35 bg-[#DCE1FF] text-[#1E3AFF] transition-colors group-hover:border-[#1E3AFF] group-hover:text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF] dark:group-hover:border-[#6B7CFF]/35 dark:group-hover:text-[#DCE1FF]">
             <Globe2 className="h-4 w-4" strokeWidth={1.5} />
           </div>
-          <h3 className="max-w-[12rem] truncate text-sm font-semibold tracking-normal text-slate-900 dark:text-white">{hostEdit.name}</h3>
+          <h3 className="max-w-[12rem] truncate text-sm font-semibold tracking-normal text-[#07111F] dark:text-white">{hostEdit.name}</h3>
           <span className="flex-shrink-0 rounded border border-[#1E3AFF]/35 bg-[#DCE1FF] px-1.5 py-0.5 font-mono text-[10px] text-[#1E3AFF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#9EACFF]">
             {addressFamily}
           </span>
-          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] font-bold text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
+          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border border-[#07111F]/18 bg-[#FFFDF5] text-[10px] font-bold text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.04] dark:text-white/65">
             {modeBadge}
           </span>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
+          <span className="rounded-full border border-[#07111F]/18 bg-[#EAF3D1]/56 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.04] dark:text-white/65">
             {t.statusLabels[agent.status]}
           </span>
           <span className={cn('h-2 w-2 rounded-full', statusTone)} title={t.statusLabels[agent.status]} />
           <button
             aria-label={t.deployHostConfig}
-            className="text-slate-400 transition-colors hover:text-[#1E3AFF] dark:text-white/35 dark:hover:text-[#9EACFF]"
+            className="text-[#35405A]/70 transition-colors hover:text-[#1E3AFF] dark:text-white/35 dark:hover:text-[#9EACFF]"
             onClick={(event) => {
               event.stopPropagation();
               onDeploy();
@@ -5336,7 +5336,7 @@ function ManagedHostCard({
           </button>
           <button
             aria-label={t.editHost}
-            className="text-slate-400 transition-colors hover:text-slate-900 dark:text-white/35 dark:hover:text-white"
+            className="text-[#35405A]/70 transition-colors hover:text-[#07111F] dark:text-white/35 dark:hover:text-white"
             onClick={(event) => {
               event.stopPropagation();
               onEdit();
@@ -5347,7 +5347,7 @@ function ManagedHostCard({
           </button>
           <button
             aria-label={t.deleteHost}
-            className="text-slate-400 transition-colors hover:text-red-600 dark:text-white/30 dark:hover:text-red-300"
+            className="text-[#35405A]/62 transition-colors hover:text-[#B91C1C] dark:text-white/30 dark:hover:text-[#FFB4B4]"
             onClick={(event) => {
               event.stopPropagation();
               onDelete();
@@ -5359,19 +5359,19 @@ function ManagedHostCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/45">
-        <span className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.runtimeHostName}</span>
-        <span className="font-mono text-slate-700 dark:text-white/70">{hostEdit.runtimeHostName}</span>
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#35405A] dark:text-white/45">
+        <span className="font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{t.runtimeHostName}</span>
+        <span className="break-all font-mono text-[#35405A] dark:text-white/70">{hostEdit.runtimeHostName}</span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2 text-[10px] dark:border-white/10 dark:bg-white/[0.03]">
+      <div className="grid grid-cols-2 gap-2 border border-[#07111F]/14 bg-[#EAF3D1]/48 p-2 text-[10px] dark:border-[#6B7CFF]/18 dark:bg-white/[0.03]">
         <div className="min-w-0">
-          <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.lastReport}</p>
-          <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
+          <p className="font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{t.lastReport}</p>
+          <p className="mt-1 truncate font-mono text-[#35405A] dark:text-white/70">{formatTelemetryTimestamp(agent, language)}</p>
         </div>
         <div className="min-w-0">
-          <p className="font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-white/40">{t.loadAverageLabel}</p>
-          <p className="mt-1 truncate font-mono text-slate-700 dark:text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
+          <p className="font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{t.loadAverageLabel}</p>
+          <p className="mt-1 truncate font-mono text-[#35405A] dark:text-white/70">{telemetryReported ? formatLoadAverage(agent) : '-'}</p>
         </div>
       </div>
 
@@ -5397,15 +5397,15 @@ function ManagedHostCard({
       </div>
 
       {agent.status === 'provisioning' ? (
-        <div className="rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-2.5 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
+        <div className="border border-[#1E3AFF]/35 bg-[#DCE1FF]/70 p-2.5 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#35405A] dark:text-white/50">
             <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.versionLabel}</span>
-            <span className="font-mono text-slate-800 dark:text-white/85">{agent.version}</span>
+            <span className="font-mono text-[#07111F] dark:text-white/85">{agent.version}</span>
             <span className="text-[#1E3AFF]/35 dark:text-[#9EACFF]/35">/</span>
             <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.platformLabel}</span>
-            <span className="font-mono text-slate-800 dark:text-white/85">{agent.platform}</span>
+            <span className="font-mono text-[#07111F] dark:text-white/85">{agent.platform}</span>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-white/50">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[#35405A] dark:text-white/50">
             <span className="font-bold uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#9EACFF]">{t.capabilitiesLabel}</span>
             {agent.capabilities.map((capability) => (
               <span
@@ -5464,18 +5464,18 @@ function ManagedHostCard({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4 border-y border-slate-200/80 py-3 dark:border-white/10">
+          <div className="grid grid-cols-2 gap-x-4 border-y border-[#07111F]/14 py-3 dark:border-[#6B7CFF]/18">
             <TrafficMetric
               icon={Download}
               label={t.download}
-              tone="text-emerald-400"
+              tone="text-[#00A878]"
               total={formatBytes(agent.telemetry.downloadTotalBytes ?? agent.telemetry.rxBytes)}
               value={formatRate(agent.telemetry.downloadSpeedBps)}
             />
             <TrafficMetric
               icon={Upload}
               label={t.upload}
-              tone="text-blue-400"
+              tone="text-[#1E3AFF]"
               total={formatBytes(agent.telemetry.uploadTotalBytes ?? agent.telemetry.txBytes)}
               value={formatRate(agent.telemetry.uploadSpeedBps)}
             />
@@ -5508,7 +5508,7 @@ function ManagedHostCard({
           </div>
         </>
       ) : (
-        <div className="rounded-lg border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-3 text-xs font-semibold text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]">
+        <div className="border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-3 text-xs font-semibold text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" strokeWidth={1.5} />
             {sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry}
@@ -5530,7 +5530,7 @@ function ManagedHostCard({
             {canRemoteUpgrade ? (
               <button
                 aria-label={t.remoteUpgradeAgent}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#1E3AFF]/35 bg-[#DCE1FF] px-2.5 py-1.5 text-[10px] font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/75 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/15"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 border border-[#1E3AFF]/35 bg-[#DCE1FF] px-2.5 py-1.5 text-[10px] font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/75 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/15"
                 disabled={remoteUpgradeBusy}
                 onClick={() => onRemoteUpgrade?.()}
                 type="button"
@@ -5541,7 +5541,7 @@ function ManagedHostCard({
             ) : (
               <button
                 aria-label={t.copyUpgradeCommand}
-                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[#D9FF00] bg-[#D9FF00]/[0.18] px-2.5 py-1.5 text-[10px] font-bold text-[#07111F] transition hover:bg-[#D9FF00]/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5] dark:hover:bg-[#E9FF6A]/15"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 border border-[#D9FF00] bg-[#D9FF00]/[0.18] px-2.5 py-1.5 text-[10px] font-bold text-[#07111F] transition hover:bg-[#D9FF00]/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5] dark:hover:bg-[#E9FF6A]/15"
                 disabled={upgradeBusy}
                 onClick={() => onCopyUpgradeCommand()}
                 type="button"
@@ -5551,11 +5551,11 @@ function ManagedHostCard({
               </button>
             )}
           </div>
-          {upgradeError ? <p className="text-[11px] font-semibold text-red-700 dark:text-red-200">{t.upgradeCommandError}</p> : null}
+          {upgradeError ? <p className="text-[11px] font-semibold text-[#B91C1C] dark:text-[#FFB4B4]">{t.upgradeCommandError}</p> : null}
           {upgradeCommand ? (
             <>
-              <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">{t.upgradeCommandCopied}</p>
-              <code className="block max-h-20 overflow-auto break-all border-l border-[#D9FF00] pl-2 font-mono text-[10px] leading-5 text-slate-700 dark:border-[#E9FF6A]/20 dark:text-white/65">
+              <p className="text-[11px] font-semibold text-[#007D5E] dark:text-[#9EF4C4]">{t.upgradeCommandCopied}</p>
+              <code className="block max-h-20 overflow-auto break-all border-l border-[#D9FF00] pl-2 font-mono text-[10px] leading-5 text-[#35405A] dark:border-[#E9FF6A]/20 dark:text-white/65">
                 {upgradeCommand.command}
               </code>
             </>
@@ -5563,43 +5563,43 @@ function ManagedHostCard({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-slate-200 pt-3 text-[11px] dark:border-white/10">
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-dashed border-[#07111F]/16 pt-3 text-[11px] dark:border-[#6B7CFF]/18">
+        <div className="flex items-center gap-1.5 text-[#35405A] dark:text-white/45">
           <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.expiry}
-          <span className="ml-1 font-semibold text-orange-600 dark:text-orange-300">
+          <span className="ml-1 font-semibold text-[#C92810] dark:text-[#FFB299]">
             {remainingDaysUntil(hostEdit.expiresAt)}
             {t.unitDays}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
+        <div className="flex items-center gap-1.5 text-[#35405A] dark:text-white/45">
           <SampleStatusIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.sampleStatus}
           <span
             className={cn(
               'ml-1 max-w-[5rem] truncate font-semibold',
-              !telemetryReported ? 'text-slate-500 dark:text-white/45' : sampleGapDetected ? 'text-[#07111F] dark:text-[#F4FFC5]' : 'text-emerald-700 dark:text-emerald-300'
+              !telemetryReported ? 'text-[#35405A] dark:text-white/45' : sampleGapDetected ? 'text-[#07111F] dark:text-[#F4FFC5]' : 'text-[#007D5E] dark:text-[#9EF4C4]'
             )}
           >
             {sampleStatus}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
+        <div className="flex items-center gap-1.5 text-[#35405A] dark:text-white/45">
           <ServiceHealthIcon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.serviceHealthLabel}
           <span
             className={cn(
               'ml-1 max-w-[6rem] truncate font-semibold',
-              !telemetryReported ? 'text-slate-500 dark:text-white/45' : serviceIssueCount > 0 ? 'text-[#07111F] dark:text-[#F4FFC5]' : 'text-emerald-700 dark:text-emerald-300'
+              !telemetryReported ? 'text-[#35405A] dark:text-white/45' : serviceIssueCount > 0 ? 'text-[#07111F] dark:text-[#F4FFC5]' : 'text-[#007D5E] dark:text-[#9EF4C4]'
             )}
           >
             {serviceHealthSummary}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-slate-500 dark:text-white/45">
+        <div className="flex items-center gap-1.5 text-[#35405A] dark:text-white/45">
           <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
           {t.online}
-          <span className="ml-1 font-semibold text-blue-700 dark:text-primary">
+          <span className="ml-1 font-semibold text-[#1E3AFF] dark:text-[#DCE1FF]">
             {telemetryReported ? `${agent.telemetry.onlineDays ?? 0}${t.unitDays}` : '-'}
           </span>
         </div>
@@ -5636,16 +5636,16 @@ function HostMetric({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-[11px]">
-        <span className="flex items-center gap-1.5 text-slate-500 dark:text-white/50">
+        <span className="flex items-center gap-1.5 text-[#35405A] dark:text-white/50">
           <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
           {label}
         </span>
-        <span className="font-mono font-semibold tabular-nums text-slate-900 dark:text-white/90">{value}</span>
+        <span className="font-mono font-semibold tabular-nums text-[#07111F] dark:text-white/90">{value}</span>
       </div>
-      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 shadow-inner dark:bg-black/45">
+      <div className="mb-1 h-1.5 w-full overflow-hidden rounded-full bg-[#07111F]/14 shadow-inner dark:bg-black/45">
         <div className={cn('h-full rounded-full bg-gradient-to-r', tone)} style={{ width: `${clampPercent(percent)}%` }} />
       </div>
-      <div className="text-right font-mono text-[10px] text-slate-500 dark:text-white/35">{detail}</div>
+      <div className="break-words text-right font-mono text-[10px] text-[#35405A] dark:text-white/35">{detail}</div>
     </div>
   );
 }
@@ -5671,7 +5671,7 @@ function TrafficMetric({
           {value.split(' ')[0]} <span className="font-sans text-[10px] opacity-70">{value.split(' ').slice(1).join(' ')}</span>
         </p>
       </div>
-      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 dark:text-white/35">
+      <div className="mt-1 flex items-center justify-between text-[10px] text-[#35405A] dark:text-white/35">
         <Cloud className="h-3 w-3" strokeWidth={1.5} />
         <span className="font-mono" aria-label={label}>
           {total}
@@ -5696,12 +5696,12 @@ function SegmentMetric({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-white/50">
+      <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#35405A] dark:text-white/50">
         <span className="flex items-center gap-1.5">
           <Icon className="h-3 w-3" strokeWidth={1.5} />
           {label}
         </span>
-        <span className="font-mono font-bold text-slate-900 dark:text-white/90">{value}</span>
+        <span className="font-mono font-bold text-[#07111F] dark:text-white/90">{value}</span>
       </div>
       <div className="mt-2 flex h-2.5 w-full items-center justify-between gap-[2px]">
         {samples.map((sample, index) => (
@@ -5727,7 +5727,7 @@ function RuntimeServiceBadge({
   const statusLabel = status === 'waiting' ? t.serviceWaiting : formatRuntimeServiceStatusLabel(status, t);
 
   return (
-    <div className={cn('min-w-0 rounded-lg border px-2 py-1.5', runtimeServiceBadgeTone(status))}>
+    <div className={cn('min-w-0 border px-2 py-1.5', runtimeServiceBadgeTone(status))}>
       <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em]">{label}</p>
       <p className="mt-0.5 truncate text-[10px] font-semibold">{statusLabel}</p>
     </div>
@@ -5748,19 +5748,19 @@ function InputField({
   value: string;
 }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
+    <label className="nodes-drawer-field block border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</span>
       <span className="mt-2 flex items-center gap-2">
         <input
           aria-label={label}
           autoComplete={type === 'password' ? 'off' : undefined}
-          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
+          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#07111F] outline-none placeholder:text-[#35405A]/65 [overflow-wrap:anywhere] dark:text-white dark:placeholder:text-white/35"
           min={type === 'number' ? 0 : undefined}
           onChange={(event) => onChange(event.target.value)}
           type={type}
           value={value}
         />
-        {suffix ? <span className="text-[10px] font-bold text-slate-400 dark:text-white/35">{suffix}</span> : null}
+        {suffix ? <span className="text-[10px] font-bold text-[#35405A]/72 dark:text-white/42">{suffix}</span> : null}
       </span>
     </label>
   );
@@ -5778,11 +5778,11 @@ function SelectField({
   value: string;
 }) {
   return (
-    <label className="block rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</span>
+    <label className="nodes-drawer-field block border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</span>
       <select
         aria-label={label}
-        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-slate-800 outline-none dark:text-white"
+        className="ou-select mt-2 w-full bg-transparent text-sm font-semibold text-[#07111F] outline-none dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -5808,18 +5808,18 @@ function CheckboxField({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+    <label className="nodes-drawer-field flex cursor-pointer items-start gap-3 border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
       <input
         checked={checked}
-        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500 dark:border-white/20 dark:bg-white/5 dark:text-primary"
+        className="mt-0.5 h-4 w-4 border-[#07111F]/35 text-[#1E3AFF] focus:ring-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-white/5 dark:text-[#DCE1FF]"
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />
       <span className="min-w-0">
-        <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
+        <span className="block text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
           {label}
         </span>
-        {hint ? <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-white/45">{hint}</span> : null}
+        {hint ? <span className="mt-1 block text-xs leading-5 text-[#35405A] dark:text-white/45">{hint}</span> : null}
       </span>
     </label>
   );
@@ -5835,10 +5835,10 @@ function DrawerSection({
   title: string;
 }) {
   return (
-    <section className="space-y-3 border-t border-slate-200 pt-4 first:border-t-0 first:pt-0 dark:border-white/10">
+    <section className="space-y-3 border-t border-[#07111F]/14 pt-4 first:border-t-0 first:pt-0 dark:border-[#6B7CFF]/18">
       <div>
-        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{title}</h4>
-        {hint ? <p className="mt-1 text-xs leading-6 text-slate-500 dark:text-white/45">{hint}</p> : null}
+        <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{title}</h4>
+        {hint ? <p className="mt-1 text-xs leading-6 text-[#35405A] dark:text-white/45">{hint}</p> : null}
       </div>
       <div className="space-y-3">{children}</div>
     </section>
@@ -5847,16 +5847,16 @@ function DrawerSection({
 
 function InfoField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 break-words font-semibold text-slate-700 dark:text-white/70">{value}</p>
+    <div className="nodes-drawer-field border border-[#07111F]/18 bg-[#FFFDF5]/76 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</p>
+      <p className="mt-1 break-words font-semibold text-[#35405A] dark:text-white/70">{value}</p>
     </div>
   );
 }
 
 function CompactInfoField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="nodes-compact-info-field min-h-[58px] rounded-lg border border-[#07111F]/18 bg-[#FFFDF5]/74 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
+    <div className="nodes-compact-info-field min-h-[58px] border border-[#07111F]/18 bg-[#FFFDF5]/74 px-3 py-2 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]">
       <p className="text-[10px] font-bold uppercase leading-4 tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</p>
       <p className="mt-1 break-words text-xs font-black leading-5 text-[#07111F] dark:text-white/78">{value}</p>
     </div>
@@ -5866,7 +5866,7 @@ function CompactInfoField({ label, value }: { label: string; value: string }) {
 function GhostButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
-      className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 dark:border-white/10 dark:text-white/60"
+      className="border border-[#07111F]/18 bg-[#FFFDF5]/72 px-4 py-2 text-xs font-bold text-[#35405A] transition hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/60 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:text-[#DCE1FF]"
       onClick={onClick}
       type="button"
     >
@@ -5877,7 +5877,7 @@ function GhostButton({ label, onClick }: { label: string; onClick: () => void })
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="nodes-empty-state p-3 text-center text-sm font-semibold text-slate-500 dark:text-white/50">
+    <div className="nodes-empty-state p-3 text-center text-sm font-semibold text-[#35405A] dark:text-white/50">
       {label}
     </div>
   );
