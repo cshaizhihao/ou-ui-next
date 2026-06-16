@@ -361,7 +361,7 @@ describe('AppShell', () => {
   it('upgrades navigation and launchpad chrome to taste v2 controls', async () => {
     renderShell(createMockApi({ seedInventory: true }));
 
-    expect(await screen.findByRole('complementary')).toHaveClass('island-panel');
+    expect(await screen.findByRole('complementary')).toHaveClass('ou-shell-sidebar');
     await waitFor(() => {
       expect(document.querySelector('.ou-command-pill')).not.toBeNull();
       expect(document.querySelector('.ou-card-enter')).not.toBeNull();

@@ -114,6 +114,18 @@ describe('workspace chrome fauvist palette', () => {
     expect(sidebar.querySelector('.control-plane-nav-group-description')).toBeNull();
   });
 
+  it('keeps sidebar chrome hard-edged instead of reverting to soft glass badges', () => {
+    render(<Sidebar activePage="forwarding" language="zh" onPageChange={vi.fn()} />);
+
+    const sidebar = screen.getByRole('complementary');
+    const chromeHtml = sidebar.outerHTML;
+
+    expect(sidebar).toHaveClass('ou-shell-sidebar');
+    expect(sidebar).not.toHaveClass('island-panel');
+    expect(chromeHtml).not.toMatch(/\brounded-full\b|\bbackdrop-blur/u);
+    expect(chromeHtml).not.toMatch(/\bbg-white\/|\bbg-black\//u);
+  });
+
   it('keeps topbar global controls on the same fauvist command, execute, and verify colors', () => {
     render(
       <Topbar
@@ -138,6 +150,28 @@ describe('workspace chrome fauvist palette', () => {
     expect(within(quickActionButton).getByText('Ctrl K')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '退出登录' })).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
     expect(screen.getByRole('button', { name: '切换深浅主题' })).toHaveClass('border-[#D9FF00]', 'text-[#07111F]');
+  });
+
+  it('keeps topbar controls compact and square-edged outside expected pill controls', () => {
+    render(
+      <Topbar
+        title="概览"
+        subtitle="运行状态"
+        language="zh"
+        quickActionScope={{ commands: 5, objects: 12 }}
+        onLanguageChange={vi.fn()}
+        onLogout={vi.fn()}
+        onOpenQuickActions={vi.fn()}
+        onToggleTheme={vi.fn()}
+      />
+    );
+
+    const topbar = screen.getByRole('banner');
+
+    expect(topbar).toHaveClass('ou-shell-topbar');
+    expect(topbar.className).not.toMatch(/\bbackdrop-blur\b|\bbg-white\/|\bbg-black\//u);
+    expect(screen.getByRole('button', { name: '退出登录' })).not.toHaveClass('rounded-full');
+    expect(screen.getByRole('button', { name: '切换深浅主题' })).not.toHaveClass('rounded-full');
   });
 
   it('keeps mobile navigation saturated without falling back to gray admin chrome', () => {
@@ -167,6 +201,8 @@ describe('workspace chrome fauvist palette', () => {
 
     const mobileNavigation = screen.getByRole('navigation', { name: '手机快捷导航' });
     expect(mobileNavigation).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(mobileNavigation).toHaveClass('ou-mobile-nav');
+    expect(mobileNavigation.outerHTML).not.toMatch(/\brounded-2xl\b|\bbackdrop-blur\b/u);
     expect(within(mobileNavigation).getByRole('button', { name: '治理' })).toHaveClass(
       'border',
       'border-[#D9FF00]',
@@ -189,6 +225,6 @@ describe('workspace chrome fauvist palette', () => {
     );
     const quickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
     const commandBadge = within(quickActionButton).getByText('5 动作');
-    expect(commandBadge).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.28]', 'text-[#07111F]');
+    expect(commandBadge).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.28]', 'text-[#07111F]', 'whitespace-nowrap');
   });
 });

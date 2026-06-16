@@ -10,7 +10,7 @@ export function ResponsivePage({ children, className }: ResponsivePageProps) {
   return (
     <div
       className={cn(
-        'responsive-page min-h-0 space-y-4 md:h-[calc(100dvh-7.75rem)] md:overflow-y-auto md:pr-1 md:[scrollbar-width:thin] md:[scrollbar-color:rgba(230,25,25,0.35)_transparent] max-md:space-y-3',
+        'responsive-page min-h-0 space-y-4 md:h-[calc(100dvh-7.75rem)] md:overflow-y-auto md:pr-1 md:[scrollbar-width:thin] md:[scrollbar-color:rgba(30,58,255,0.38)_transparent] max-md:space-y-3',
         className
       )}
     >
@@ -30,7 +30,7 @@ export function ResponsiveSection({ children, className, compactOnMobile = true,
       {...props}
       className={cn(
         'responsive-section min-w-0',
-        compactOnMobile && 'max-md:border max-md:border-black/15 max-md:bg-white/90 max-md:p-3 max-md:shadow-sm max-md:backdrop-blur-xl max-md:dark:border-white/10 max-md:dark:bg-black/88',
+        compactOnMobile && 'max-md:border max-md:border-[#07111F]/18 max-md:bg-[#FFFDF5] max-md:p-3 max-md:shadow-sm max-md:dark:border-[#6B7CFF]/22 max-md:dark:bg-[#101827]',
         className
       )}
     >
@@ -48,9 +48,9 @@ export function WorkspaceCockpit({ children, className, ...props }: WorkspaceCoc
     <section
       {...props}
       className={cn(
-        'workspace-cockpit min-h-0 border border-black/15 bg-white/90 shadow-[0_18px_55px_rgba(5,5,5,0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.03] dark:shadow-[0_22px_70px_rgba(0,0,0,0.35)]',
+        'workspace-cockpit min-h-0 border border-[#07111F]/18 bg-[#FFFDF5] shadow-[0_18px_55px_-40px_rgba(7,17,31,0.32)] dark:border-[#6B7CFF]/18 dark:bg-[#101827] dark:shadow-[0_22px_70px_-48px_rgba(0,0,0,0.72)]',
         'overflow-visible',
-        'max-md:border-black/15 max-md:bg-white/92 max-md:shadow-sm max-md:dark:border-white/10 max-md:dark:bg-black/88',
+        'max-md:border-[#07111F]/18 max-md:bg-[#FFFDF5] max-md:shadow-sm max-md:dark:border-[#6B7CFF]/22 max-md:dark:bg-[#101827]',
         className
       )}
     >
@@ -141,7 +141,7 @@ const metricToneClasses = {
   emerald: 'border-[#00A878]/45 bg-[#00A878]/12 text-[#07111F] dark:border-[#00A878]/35 dark:bg-[#00A878]/14 dark:text-[#C7FFE9]',
   amber: 'border-[#D9FF00]/70 bg-[#D9FF00]/24 text-[#07111F] dark:border-[#D9FF00]/42 dark:bg-[#D9FF00]/16 dark:text-[#F2FF9D]',
   red: 'border-[#DC2626]/45 bg-[#FEE2E2]/80 text-[#7F1D1D] dark:border-[#DC2626]/35 dark:bg-[#DC2626]/16 dark:text-[#FECACA]',
-  slate: 'border-[#07111F]/18 bg-[#FFFDF5]/86 text-[#07111F]/76 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/75'
+  slate: 'border-[#07111F]/18 bg-[#FFFDF5]/86 text-[#07111F]/76 dark:border-[#6B7CFF]/16 dark:bg-[#192238] dark:text-white/75'
 } as const;
 
 export function MobileMetricStrip({ className, items }: MobileMetricStripProps) {

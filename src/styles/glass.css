@@ -5,7 +5,6 @@
   border: 1px solid var(--ou-border);
   border-radius: var(--ou-radius);
   box-shadow: var(--ou-shadow);
-  backdrop-filter: blur(12px) saturate(110%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -40,12 +39,12 @@
 }
 
 .dark .island-card {
-  background: rgba(20, 20, 20, 0.84);
+  background: var(--ou-surface-strong);
   border-color: var(--ou-border);
 }
 
 .dark .ou-card {
-  background: rgba(20, 20, 20, 0.84);
+  background: var(--ou-surface-strong);
   border-color: var(--ou-border);
 }
 

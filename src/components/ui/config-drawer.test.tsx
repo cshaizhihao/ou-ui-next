@@ -170,4 +170,20 @@ describe('ConfigDrawer', () => {
       expect(background).not.toHaveAttribute('inert');
     });
   });
+
+  it('renders as a hard-edged operations drawer instead of a glass modal', async () => {
+    const user = userEvent.setup();
+
+    render(<DrawerHarness />);
+
+    await user.click(screen.getByRole('button', { name: 'Open Drawer' }));
+
+    const overlay = document.querySelector('.overlay.open');
+    const dialog = await screen.findByRole('dialog', { name: 'Runtime Details' });
+
+    expect(overlay).toHaveClass('ou-drawer-overlay');
+    expect(dialog).toHaveClass('ou-config-drawer');
+    expect(dialog.outerHTML).not.toMatch(/\bbackdrop-blur\b|\bbg-white\/|\bbg-black\/|\brounded-full\b/u);
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveClass('ou-drawer-close');
+  });
 });

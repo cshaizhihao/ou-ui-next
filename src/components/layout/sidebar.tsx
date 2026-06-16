@@ -121,11 +121,11 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   return (
     <aside
       aria-label={sidebarLabel}
-      className="control-plane-sidebar island-panel h-full min-h-0 w-[272px] flex-shrink-0 border-[#07111F] bg-[#FFFDF5] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827]"
+      className="control-plane-sidebar ou-shell-sidebar h-full min-h-0 w-[272px] flex-shrink-0 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_22px_64px_-42px_rgba(7,17,31,0.24)] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:shadow-[0_30px_96px_-54px_rgba(0,0,0,0.9)]"
     >
       <div className="flex h-20 shrink-0 items-center justify-between border-b border-[#07111F]/25 bg-[#DCE1FF]/70 px-6 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center border border-[#1E3AFF] bg-[#FFFDF5] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/35 dark:bg-white/[0.04] dark:text-[#DDE3FF]">
+          <div className="flex h-9 w-9 items-center justify-center border border-[#1E3AFF] bg-[#FFFDF5] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/35 dark:bg-[#192238] dark:text-[#DDE3FF]">
             <BrandLogo />
           </div>
           <div className="min-w-0">
@@ -136,10 +136,10 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           </div>
         </div>
         <div className="hidden items-center gap-2 lg:flex">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#1E3AFF]/30 bg-[#FFFDF5] text-[#1E3AFF] dark:border-[#6B7CFF]/28 dark:bg-white/[0.04] dark:text-[#DDE3FF]">
+          <span className="flex h-8 w-8 items-center justify-center border border-[#1E3AFF]/30 bg-[#FFFDF5] text-[#1E3AFF] dark:border-[#6B7CFF]/28 dark:bg-[#192238] dark:text-[#DDE3FF]">
             <LayoutGrid className="h-3.5 w-3.5" />
           </span>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9FF00] bg-[#D9FF00]/[0.26] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
+          <span className="flex h-8 w-8 items-center justify-center border border-[#D9FF00] bg-[#D9FF00]/[0.26] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
             <ShieldCheck className="h-3.5 w-3.5" />
           </span>
         </div>
@@ -155,7 +155,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           className="control-plane-shell-status-strip grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border border-[#00A878] bg-[#00A878]/[0.12] p-3 shadow-sm shadow-[#00A878]/10 dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10"
           role="region"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#00A878] bg-[#FFFDF5] text-xs font-semibold text-[#007D5E] shadow-sm dark:border-[#35E68E]/35 dark:bg-black/40 dark:text-[#9EF4C4]">
+          <div className="flex h-9 w-9 items-center justify-center border border-[#00A878] bg-[#FFFDF5] text-xs font-semibold text-[#007D5E] shadow-sm dark:border-[#35E68E]/35 dark:bg-[#07111F] dark:text-[#9EF4C4]">
             M
           </div>
           <div className="min-w-0">
@@ -169,7 +169,7 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
               <ShieldCheck className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{evidenceLabel}</span>
             </span>
-            <span className="flex min-w-0 items-center gap-1.5 border border-[#00A878]/50 bg-[#FFFDF5]/58 px-2 py-1 dark:bg-black/20">
+            <span className="flex min-w-0 items-center gap-1.5 border border-[#00A878]/50 bg-[#FFFDF5] px-2 py-1 dark:bg-[#07111F]">
               <Signal className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{onlineLabel}</span>
             </span>

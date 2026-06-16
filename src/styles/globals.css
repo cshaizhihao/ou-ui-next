@@ -8,7 +8,7 @@
 :root {
   color-scheme: light;
   --ou-bg: #fdfff1;
-  --ou-surface: rgba(255, 253, 245, 0.96);
+  --ou-surface: #fffdf5;
   --ou-surface-strong: #fffdf5;
   --ou-surface-muted: #eaf3d1;
   --ou-border: rgba(7, 17, 31, 0.26);
@@ -40,7 +40,7 @@
 .dark {
   color-scheme: dark;
   --ou-bg: #07111f;
-  --ou-surface: rgba(16, 24, 39, 0.94);
+  --ou-surface: #101827;
   --ou-surface-strong: #101827;
   --ou-surface-muted: #192238;
   --ou-border: rgba(107, 124, 255, 0.2);
@@ -207,7 +207,6 @@ button {
   border: 1px solid var(--ou-border);
   border-radius: var(--ou-radius);
   box-shadow: var(--ou-shadow);
-  backdrop-filter: blur(20px) saturate(140%);
 }
 
 .surface-shell-strong {
