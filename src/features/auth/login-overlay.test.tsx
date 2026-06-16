@@ -1,4 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { LoginOverlay } from './login-overlay';
@@ -103,6 +105,36 @@ describe('LoginOverlay', () => {
     expect(passwordField).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('renders a more prominent motion banner and keeps it covered by reduced-motion rules', () => {
+    render(
+      <LoginOverlay
+        authenticated={false}
+        language="zh"
+        onAuthenticated={vi.fn()}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    const banner = document.querySelector('.login-motion-banner');
+    const glassCss = readFileSync(join(process.cwd(), 'src/styles/glass.css'), 'utf8');
+    const animationsCss = readFileSync(join(process.cwd(), 'src/styles/animations.css'), 'utf8');
+    const bannerScope = banner as HTMLElement;
+
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveClass('login-motion-banner');
+    expect(screen.getByText('实时控制通道')).toBeInTheDocument();
+    expect(screen.getByText('LIVE')).toBeInTheDocument();
+    expect(within(bannerScope).getAllByText('会话校验')).toHaveLength(2);
+    expect(within(bannerScope).getAllByText('策略同步')).toHaveLength(2);
+    expect(within(bannerScope).getAllByText('审计留痕')).toHaveLength(2);
+    expect(within(bannerScope).getAllByText('工作区就绪')).toHaveLength(2);
+    expect(glassCss).toMatch(/\.login-motion-banner\s*\{[\s\S]*background:/u);
+    expect(glassCss).toMatch(/\.login-motion-banner__track\s*\{[\s\S]*mask-image:/u);
+    expect(animationsCss).toMatch(
+      /prefers-reduced-motion: reduce[\s\S]*\.login-motion-banner::before,[\s\S]*\.login-motion-banner__pulse,[\s\S]*\.login-motion-banner__loop,[\s\S]*\.login-copy-transition/u
+    );
+  });
+
   it('locks the login overlay to the viewport center instead of drifting to a corner', () => {
     render(
       <LoginOverlay
@@ -194,14 +226,14 @@ describe('LoginOverlay', () => {
       )
       .mockResolvedValueOnce(
         new Response(
-        JSON.stringify({
-          data: {
-            authenticated: true,
-            csrfToken: 'csrf-login-session-001',
-            sessionId: 'operator-session-login-001'
-          },
-          requestId: 'req-login-overlay-session'
-        }),
+          JSON.stringify({
+            data: {
+              authenticated: true,
+              csrfToken: 'csrf-login-session-001',
+              sessionId: 'operator-session-login-001'
+            },
+            requestId: 'req-login-overlay-session'
+          }),
           {
             status: 201,
             headers: {

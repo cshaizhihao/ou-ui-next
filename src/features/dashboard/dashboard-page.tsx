@@ -1,10 +1,4 @@
-import {
-  Activity,
-  Archive,
-  ArrowRight,
-  Network,
-  RadioTower
-} from 'lucide-react';
+import { Activity, Archive, Network, RadioTower } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
@@ -28,19 +22,19 @@ import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-pag
 type DashboardPageProps = {
   agents: Agent[];
   nodes: ManagedNode[];
-  tasks: DeployTask[];
-  auditLogs: AuditLog[];
+  tasks?: DeployTask[];
+  auditLogs?: AuditLog[];
   forwardingRules: ForwardingRuleView[];
   subscriptions: SubscriptionBundle[];
-  configRevisions: RuntimeConfigRevision[];
-  preflightPlans: RuntimePreflightPlan[];
-  runtimeSnapshots: RuntimeSnapshot[];
+  configRevisions?: RuntimeConfigRevision[];
+  preflightPlans?: RuntimePreflightPlan[];
+  runtimeSnapshots?: RuntimeSnapshot[];
   trafficRollups: TrafficRollup[];
   trafficRollupCompactions: TrafficRollupCompaction[];
   trafficRollupExportBusy?: boolean;
   trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicyReadModel;
   trafficRollupRetentionBusy?: boolean;
-  systemAlerts: SystemAlert[];
+  systemAlerts?: SystemAlert[];
   language: AppLanguage;
   onExportTrafficRollups?: (dimension: TrafficRollup['dimension']) => void;
   onExportTrafficRollupCompactions?: (dimension: TrafficRollup['dimension']) => void;
@@ -167,127 +161,8 @@ const copy = {
     hostTelemetryRegion: '主机遥测',
     releaseEvidenceRegion: '发布证据',
     auditAlertRegion: '审计与告警',
-    responseActionsRegion: '首屏处置入口',
-    responseActionsTitle: '首屏处置入口',
-    responseActions: {
-      hosts: '接入主机',
-      forwarding: '配置转发',
-      releaseEvidence: '查看发布证据'
-    },
-    productionReadinessRegion: '生产就绪门禁',
-    productionReadinessTitle: '生产就绪门禁',
-    productionReadinessGateCount: (count: number, language: AppLanguage) => `${formatNumber(count, language)} 条门禁`,
-    productionReadinessStates: {
-      ready: '就绪',
-      issues: '关注',
-      waiting: '等待'
-    },
-    productionReadinessGateLabels: {
-      host: '主机通道',
-      traffic: '流量链路',
-      release: '发布证据',
-      alerts: '告警压力'
-    },
-    productionReadinessValues: {
-      trafficEnabled: '启用'
-    },
-    productionReadinessDetails: {
-      host: (online: number, total: number, language: AppLanguage) =>
-        `${formatNumber(online, language)}/${formatNumber(total, language)} 在线`,
-      traffic: (forwardingCount: number, nodeCount: number, language: AppLanguage) =>
-        `${formatNumber(forwardingCount, language)} 转发 · ${formatNumber(nodeCount, language)} 节点`,
-      release: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
-        `配置 ${formatNumber(configCount, language)} · 预检 ${formatNumber(preflightCount, language)} · 快照 ${formatNumber(snapshotCount, language)}`,
-      alerts: (alertCount: number, language: AppLanguage) => `${formatNumber(alertCount, language)} 活动告警`
-    },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
-    releaseEvidence: 'Release Evidence',
-    releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
-      `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
-    latestConfigRevision: '最新配置版本',
-    latestPreflightPlan: '最新预检计划',
-    latestSnapshot: '最新快照',
-    noReleaseEvidence: '暂无发布证据',
-    rollbackBoundary: '回滚边界',
-    rollbackReady: '回滚可用',
-    rollbackLocked: '回滚不可用',
-    rollbackWaiting: '等待执行记录',
-    rollbackReadyDescription: '最近执行保留可回滚快照与审计线索。',
-    rollbackLockedDescription: '最近执行未开放回滚，需进入发布证据工作区确认。',
-    auditAlertEvidence: 'Audit & Alerts',
-    auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
-      `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
-    latestExecution: '最近执行',
-    latestExecutionEmpty: '等待发布任务',
-    activeAlerts: '活动告警',
-    alertsEmpty: '暂无活动系统告警。',
-    searchAlerts: '搜索告警',
-    searchAlertsPlaceholder: '搜索资源、消息、任务、回滚、去重键或元数据',
-    alertSeverity: '告警级别',
-    allAlertSeverities: '全部级别',
-    alertSeverityFilterLabels: {
-      critical: '仅严重',
-      warning: '仅警告'
-    },
-    matchingAlerts: '当前匹配',
-    noMatchingAlerts: '没有匹配的活动告警。',
-    viewAlertEvidence: '查看告警证据',
-    copyVisibleAlertEvidence: '复制当前告警证据',
-    copyVisibleAlertRecoveryPlans: '复制当前恢复计划',
-    alertEvidenceTitle: '告警证据',
-    alertEvidenceDescription: '集中查看告警上下文、资源、去重键与元数据。',
-    alertSummary: '告警摘要',
-    alertContext: '告警上下文',
-    alertMetadata: '元数据',
-    alertRecoveryPlan: '恢复计划',
-    alertFailureReason: '失败原因',
-    alertSourceTask: '源任务',
-    alertRollbackTask: '回滚任务',
-    alertNextStep: '下一步',
-    copyAlertEvidence: '复制告警证据',
-    copyAlertRecoveryPlan: '复制恢复计划',
-    noMetadata: '暂无元数据',
-    id: 'ID',
-    kind: '类型',
-    severity: '级别',
-    status: '状态',
-    resource: '资源',
-    resourceType: '资源类型',
-    resourceId: '资源 ID',
-    observedAt: '观测时间',
-    dedupeKey: '去重键',
-    message: '消息',
-    latestAudit: '最新审计',
-    auditEmpty: '等待第一条变更审计事件。',
-    alertKindLabels: {
-      'agent.telemetry_sampling_gap': '采样缺口',
-      'agent.offline': '主机离线',
-      'agent.runtime_service_unhealthy': '服务异常',
-      'agent.high_latency': '高延迟',
-      'command_outbox.overdue': '命令超时',
-      'command_outbox.dead_letter': '命令死信',
-      'runtime.apply_health_failed': '应用健康失败',
-      'runtime.reload_failed': '重载失败',
-      'audit.write_failed': '审计写入失败',
-      'external_archive.sink_failed': '外部归档失败',
-      'system_alert_notification.overdue': '通知超时',
-      'system_alert_notification.dead_letter': '通知死信',
-      'subscription_source.sync_warning': '订阅源告警',
-      'subscription_source.sync_failed': '订阅源失败',
-      'quota.exceeded': '配额超限'
-    },
-    alertSeverityLabels: {
-      warning: '警告',
-      critical: '严重'
-    },
-    deadLetterReasonLabels: {
-      prefix: '死信原因',
-      ack: 'ACK',
-      result: '结果',
-      unknown: '未知',
-      other: '其它'
-    }
   },
   en: {
     cards: {
@@ -404,143 +279,12 @@ const copy = {
     hostTelemetryRegion: 'Host Telemetry',
     releaseEvidenceRegion: 'Release Evidence',
     auditAlertRegion: 'Audit & Alerts',
-    responseActionsRegion: 'First-screen Response',
-    responseActionsTitle: 'First-screen Response',
-    responseActions: {
-      hosts: 'Enroll Hosts',
-      forwarding: 'Configure Forwarding',
-      releaseEvidence: 'Review Release Evidence'
-    },
-    productionReadinessRegion: 'Production readiness gates',
-    productionReadinessTitle: 'Production readiness gates',
-    productionReadinessGateCount: (count: number, language: AppLanguage) =>
-      `${formatNumber(count, language)} ${count === 1 ? 'gate' : 'gates'}`,
-    productionReadinessStates: {
-      ready: 'Ready',
-      issues: 'Review',
-      waiting: 'Waiting'
-    },
-    productionReadinessGateLabels: {
-      host: 'Host Channel',
-      traffic: 'Traffic Path',
-      release: 'Release Evidence',
-      alerts: 'Alert Pressure'
-    },
-    productionReadinessValues: {
-      trafficEnabled: 'Enabled'
-    },
-    productionReadinessDetails: {
-      host: (online: number, total: number, language: AppLanguage) =>
-        `${formatNumber(online, language)}/${formatNumber(total, language)} online`,
-      traffic: (forwardingCount: number, nodeCount: number, language: AppLanguage) =>
-        `${formatNumber(forwardingCount, language)} forwarding · ${formatNumber(nodeCount, language)} ${nodeCount === 1 ? 'node' : 'nodes'}`,
-      release: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
-        `Config ${formatNumber(configCount, language)} · Preflight ${formatNumber(preflightCount, language)} · Snapshot ${formatNumber(snapshotCount, language)}`,
-      alerts: (alertCount: number, language: AppLanguage) =>
-        `${formatNumber(alertCount, language)} active ${alertCount === 1 ? 'alert' : 'alerts'}`
-    },
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
-    releaseEvidence: 'Release Evidence',
-    releaseEvidenceSummary: (configCount: number, preflightCount: number, snapshotCount: number, language: AppLanguage) =>
-      `Config ${formatNumber(configCount, language)} / Preflight ${formatNumber(preflightCount, language)} / Snapshot ${formatNumber(snapshotCount, language)}`,
-    latestConfigRevision: 'Latest Config Revision',
-    latestPreflightPlan: 'Latest Preflight Plan',
-    latestSnapshot: 'Latest Snapshot',
-    noReleaseEvidence: 'No release evidence available',
-    rollbackBoundary: 'Rollback Boundary',
-    rollbackReady: 'Rollback Ready',
-    rollbackLocked: 'Rollback Locked',
-    rollbackWaiting: 'Waiting for execution record',
-    rollbackReadyDescription: 'Latest execution retains rollback snapshot and audit cues.',
-    rollbackLockedDescription: 'Latest execution has no open rollback. Review release evidence before recovery.',
-    auditAlertEvidence: 'Audit & Alerts',
-    auditAlertSummary: (auditCount: number, alertCount: number, language: AppLanguage) =>
-      `Audit ${formatNumber(auditCount, language)} / Alerts ${formatNumber(alertCount, language)}`,
-    latestExecution: 'Latest Execution',
-    latestExecutionEmpty: 'Waiting for release task',
-    activeAlerts: 'Active Alerts',
-    alertsEmpty: 'No active system alerts.',
-    searchAlerts: 'Search Alerts',
-    searchAlertsPlaceholder: 'Search resource, message, task, rollback, dedupe key, or metadata',
-    alertSeverity: 'Alert Severity',
-    allAlertSeverities: 'All severities',
-    alertSeverityFilterLabels: {
-      critical: 'Critical only',
-      warning: 'Warning only'
-    },
-    matchingAlerts: 'Matching',
-    noMatchingAlerts: 'No matching active alerts.',
-    viewAlertEvidence: 'View Alert Evidence',
-    copyVisibleAlertEvidence: 'Copy Visible Alert Evidence',
-    copyVisibleAlertRecoveryPlans: 'Copy Visible Recovery Plans',
-    alertEvidenceTitle: 'Alert Evidence',
-    alertEvidenceDescription: 'Inspect alert context, resource, dedupe key, and metadata.',
-    alertSummary: 'Alert Summary',
-    alertContext: 'Alert Context',
-    alertMetadata: 'Metadata',
-    alertRecoveryPlan: 'Recovery Plan',
-    alertFailureReason: 'Failure Reason',
-    alertSourceTask: 'Source Task',
-    alertRollbackTask: 'Rollback Task',
-    alertNextStep: 'Next Step',
-    copyAlertEvidence: 'Copy Alert Evidence',
-    copyAlertRecoveryPlan: 'Copy Recovery Plan',
-    noMetadata: 'No metadata',
-    id: 'ID',
-    kind: 'Kind',
-    severity: 'Severity',
-    status: 'Status',
-    resource: 'Resource',
-    resourceType: 'Resource Type',
-    resourceId: 'Resource ID',
-    observedAt: 'Observed At',
-    dedupeKey: 'Dedupe Key',
-    message: 'Message',
-    latestAudit: 'Latest Audit',
-    auditEmpty: 'Waiting for the first change audit event.',
-    alertKindLabels: {
-      'agent.telemetry_sampling_gap': 'Sampling Gap',
-      'agent.offline': 'Agent Offline',
-      'agent.runtime_service_unhealthy': 'Runtime Service',
-      'agent.high_latency': 'High Latency',
-      'command_outbox.overdue': 'Command Overdue',
-      'command_outbox.dead_letter': 'Command Dead Letter',
-      'runtime.apply_health_failed': 'Apply Health Failed',
-      'runtime.reload_failed': 'Reload Failed',
-      'audit.write_failed': 'Audit Write Failed',
-      'external_archive.sink_failed': 'Archive Sink Failed',
-      'system_alert_notification.overdue': 'Notification Overdue',
-      'system_alert_notification.dead_letter': 'Notification Dead Letter',
-      'subscription_source.sync_warning': 'Source Sync Warning',
-      'subscription_source.sync_failed': 'Source Sync Failed',
-      'quota.exceeded': 'Quota Exceeded'
-    },
-    alertSeverityLabels: {
-      warning: 'Warning',
-      critical: 'Critical'
-    },
-    deadLetterReasonLabels: {
-      prefix: 'Dead-letter reasons',
-      ack: 'ACK',
-      result: 'Result',
-      unknown: 'Unknown',
-      other: 'Other'
-    }
   }
 } as const;
 type DashboardCopy = (typeof copy)[AppLanguage];
-type ResponseAction = {
-  id: string;
-  icon: typeof Activity;
-  label: string;
-  metric: string;
-  tone: 'blue' | 'orange' | 'slate';
-  onClick: () => void;
-};
-
-type ProductionReadinessState = 'ready' | 'issues' | 'waiting';
-type ConnectivityStageState = ProductionReadinessState;
+type ConnectivityStageState = 'ready' | 'issues' | 'waiting';
 type ConnectivityStage = {
   id: 'host' | 'mounted-host' | 'node';
   cx: number;
@@ -550,52 +294,6 @@ type ConnectivityStage = {
   state: ConnectivityStageState;
   tone: string;
 };
-type ProductionReadinessGate = {
-  id: string;
-  label: string;
-  value: string;
-  detail: string;
-  state: ProductionReadinessState;
-  tone: 'blue' | 'green' | 'orange' | 'chartreuse';
-};
-
-const responseActionToneClasses = {
-  blue: {
-    card: 'border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] hover:bg-[#1E3AFF] hover:text-white dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/14 dark:text-[#F4F8FF] dark:hover:bg-[#6B7CFF] dark:hover:text-[#07111F]',
-    icon: 'border-[#1E3AFF] bg-[#1E3AFF] text-white dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]'
-  },
-  orange: {
-    card: 'border-[#FF3D18] bg-[#FFD8C6]/72 text-[#07111F] hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]',
-    icon: 'border-[#FF3D18] bg-[#FF3D18] text-white dark:border-[#FF6A3A] dark:bg-[#FF6A3A] dark:text-[#07111F]'
-  },
-  slate: {
-    card: 'border-[#07111F] bg-[#D9FF00]/28 text-[#07111F] hover:bg-[#D9FF00] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#EAFF5A] dark:hover:text-[#07111F]',
-    icon: 'border-[#07111F] bg-[#07111F] text-[#D9FF00] dark:border-[#EAFF5A] dark:bg-[#EAFF5A] dark:text-[#07111F]'
-  }
-} as const;
-
-const productionReadinessToneClasses = {
-  blue: {
-    item: 'border-[#1E3AFF] bg-[#DCE1FF]/72 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/12',
-    badge: 'border-[#1E3AFF] bg-[#1E3AFF] text-white dark:border-[#6B7CFF] dark:bg-[#6B7CFF] dark:text-[#07111F]',
-    rail: 'bg-[#1E3AFF]'
-  },
-  green: {
-    item: 'border-[#00A878] bg-[#00A878]/[0.12] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10',
-    badge: 'border-[#00A878] bg-[#00A878] text-white dark:border-[#35E68E] dark:bg-[#35E68E] dark:text-[#07111F]',
-    rail: 'bg-[#00A878]'
-  },
-  orange: {
-    item: 'border-[#FF3D18] bg-[#FF3D18]/[0.12] dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12',
-    badge: 'border-[#FF3D18] bg-[#FF3D18] text-white dark:border-[#FF6A3A] dark:bg-[#FF6A3A] dark:text-[#07111F]',
-    rail: 'bg-[#FF3D18]'
-  },
-  chartreuse: {
-    item: 'border-[#D9FF00] bg-[#D9FF00]/[0.26] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12',
-    badge: 'border-[#07111F] bg-[#D9FF00] text-[#07111F] dark:border-[#EAFF5A] dark:bg-[#EAFF5A] dark:text-[#07111F]',
-    rail: 'bg-[#D9FF00]'
-  }
-} as const;
 
 function clampPercent(value: number) {
   if (!Number.isFinite(value)) {
@@ -636,18 +334,10 @@ function getConnectivityStageTone(state: ConnectivityStageState, fallback: strin
 export function DashboardPage({
   agents,
   nodes,
-  tasks,
-  auditLogs,
   forwardingRules,
   subscriptions,
-  configRevisions,
-  preflightPlans,
-  runtimeSnapshots,
-  systemAlerts,
   language,
   onOpenHostWorkspace,
-  onOpenForwardingWorkspace,
-  onOpenReleaseEvidenceWorkspace,
   onRefresh
 }: DashboardPageProps) {
   const t = copy[language];
@@ -689,62 +379,6 @@ export function DashboardPage({
       tone: getConnectivityStageTone(nodeConnectivityState, '#00A878')
     }
   ];
-  const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
-  const latestTask = tasks[0];
-  const latestConfigRevision = getLatestReleaseRecord(configRevisions, (revision) => revision.createdAt);
-  const latestPreflightPlan = getLatestReleaseRecord(preflightPlans, (plan) => plan.createdAt);
-  const latestRuntimeSnapshot = getLatestReleaseRecord(runtimeSnapshots, (snapshot) => snapshot.capturedAt);
-  const responseActions: ResponseAction[] = [];
-  const productionReadinessGates = createProductionReadinessGates({
-    activeAlerts,
-    activeForwarding,
-    configRevisions,
-    language,
-    nodes,
-    onlineAgents,
-    preflightPlans,
-    runtimeSnapshots,
-    t,
-    totalAgents: agents.length
-  });
-  const productionReadinessState: ProductionReadinessState = productionReadinessGates.some((gate) => gate.state === 'issues')
-    ? 'issues'
-    : productionReadinessGates.some((gate) => gate.state === 'waiting')
-      ? 'waiting'
-      : 'ready';
-
-  if (onOpenHostWorkspace) {
-    responseActions.push({
-      id: 'hosts',
-      icon: Activity,
-      label: t.responseActions.hosts,
-      metric: `${formatNumber(onlineAgents, language)}/${formatNumber(agents.length, language)}`,
-      tone: 'blue',
-      onClick: onOpenHostWorkspace
-    });
-  }
-
-  if (onOpenForwardingWorkspace) {
-    responseActions.push({
-      id: 'forwarding',
-      icon: Network,
-      label: t.responseActions.forwarding,
-      metric: formatNumber(activeForwarding, language),
-      tone: 'orange',
-      onClick: onOpenForwardingWorkspace
-    });
-  }
-
-  if (onOpenReleaseEvidenceWorkspace) {
-    responseActions.push({
-      id: 'releaseEvidence',
-      icon: Archive,
-      label: t.responseActions.releaseEvidence,
-      metric: formatNumber(configRevisions.length + preflightPlans.length + runtimeSnapshots.length, language),
-      tone: 'slate',
-      onClick: onOpenReleaseEvidenceWorkspace
-    });
-  }
 
   const cockpitCards = [
     {
@@ -877,25 +511,25 @@ export function DashboardPage({
             </div>
           </GlassCard>
 
-          <div className="dashboard-control-plane-metric-grid grid grid-cols-2 gap-2 xl:grid-cols-4 max-sm:grid-cols-1">
+          <div className="dashboard-control-plane-metric-grid grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-1">
             {cockpitCards.map((card) => {
               const Icon = card.icon;
               return (
                 <div
                   key={card.label}
-                  className="group relative min-h-[68px] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.3)] transition duration-200 hover:-translate-y-0.5 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]"
+                  className="group relative min-h-[60px] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.3)] transition duration-200 hover:-translate-y-0.5 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]"
                 >
                   <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
-                  <div className="flex h-full flex-col justify-between gap-2">
-                    <div className="flex items-start justify-between gap-3">
+                  <div className="flex h-full flex-col justify-between gap-1.5">
+                    <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">{card.label}</p>
-                      <span className={`grid h-7 w-7 flex-shrink-0 place-items-center rounded-md bg-gradient-to-br ${card.tone} text-[#F4F8FF] shadow-sm shadow-black/20 transition duration-200 group-hover:scale-105`}>
+                      <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-md bg-gradient-to-br ${card.tone} text-[#F4F8FF] shadow-sm shadow-black/20 transition duration-200 group-hover:scale-105`}>
                         <Icon className="h-4 w-4" />
                       </span>
                     </div>
                     <div>
-                      <p className="text-2xl font-black tracking-[-0.035em] text-[#07111F] dark:text-[#F4F8FF]">{card.value}</p>
-                      <p className="mt-1 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{card.detail}</p>
+                      <p className="text-[1.45rem] font-black leading-none tracking-[-0.03em] text-[#07111F] dark:text-[#F4F8FF]">{card.value}</p>
+                      <p className="mt-1 truncate text-[11px] font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{card.detail}</p>
                     </div>
                   </div>
                 </div>
@@ -903,33 +537,9 @@ export function DashboardPage({
             })}
           </div>
 
-          {responseActions.length > 0 ? (
-            <section aria-label={t.responseActionsRegion} className="dashboard-response-actions rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_14px_32px_-28px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.responseActionsTitle}</h4>
-                </div>
-                <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.24] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
-                  {formatNumber(responseActions.length, language)} routes
-                </span>
-              </div>
-              <div className="dashboard-response-action-grid mt-2 grid gap-2 md:grid-cols-3">
-                {responseActions.map((action) => (
-                  <ResponseActionButton key={action.id} action={action} />
-                ))}
-              </div>
-            </section>
-          ) : null}
         </section>
 
         <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-3">
-          <ProductionReadinessPanel
-            gates={productionReadinessGates}
-            language={language}
-            state={productionReadinessState}
-            t={t}
-          />
-
           <section aria-label={t.hostTelemetryRegion} className="min-w-0">
             <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -949,69 +559,6 @@ export function DashboardPage({
                 ) : (
                   visibleHostProbes.map((agent) => <CompactHostProbeCard key={agent.id} agent={agent} language={language} t={t} />)
                 )}
-              </div>
-            </GlassCard>
-          </section>
-
-          <section aria-label={t.releaseEvidenceRegion} className="min-w-0">
-            <GlassCard className="flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/72">{t.releaseEvidence}</p>
-                  <p className="mt-1 text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">
-                    {t.releaseEvidenceSummary(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language)}
-                  </p>
-                </div>
-                {latestTask ? (
-                  <span className="rounded-full border border-[#07111F]/25 bg-[#DCE1FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/14 dark:text-white">
-                    {latestTask.status}
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <EvidenceChip label="Config" value={formatNumber(configRevisions.length, language)} />
-                <EvidenceChip label="Preflight" value={formatNumber(preflightPlans.length, language)} />
-                <EvidenceChip label="Snapshot" value={formatNumber(runtimeSnapshots.length, language)} />
-              </div>
-              <ReleaseRollbackBoundary task={latestTask} t={t} />
-              {latestConfigRevision || latestPreflightPlan || latestRuntimeSnapshot ? (
-                <div className="mt-3 grid gap-2">
-                  {latestConfigRevision ? (
-                    <ReleaseEvidenceRow label={t.latestConfigRevision} record={latestConfigRevision} />
-                  ) : null}
-                  {latestPreflightPlan ? (
-                    <ReleaseEvidenceRow label={t.latestPreflightPlan} record={latestPreflightPlan} />
-                  ) : null}
-                  {latestRuntimeSnapshot ? (
-                    <ReleaseEvidenceRow label={t.latestSnapshot} record={latestRuntimeSnapshot} />
-                  ) : null}
-                </div>
-              ) : null}
-              {latestTask ? (
-                <p className="mt-3 truncate text-xs font-semibold text-[#35405A] dark:text-white/[.48]">
-                  {t.latestExecution}: {latestTask.status}
-                </p>
-              ) : null}
-            </GlassCard>
-          </section>
-
-          <section aria-label={t.auditAlertRegion} className="min-w-0">
-            <GlassCard className="flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">{t.auditAlertEvidence}</p>
-                  <p className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.auditAlertSummary(auditLogs.length, activeAlerts, language)}</p>
-                </div>
-                <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.22] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/20 dark:bg-[#EAFF5A]/10 dark:text-[#F4FFC5]">
-                  {activeAlerts > 0 ? formatNumber(activeAlerts, language) : '0'}
-                </span>
-              </div>
-              {auditLogs[0]?.message ? (
-                <p className="mt-3 truncate text-xs font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{auditLogs[0].message}</p>
-              ) : null}
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <EvidenceChip label="Audit" value={formatNumber(auditLogs.length, language)} />
-                <EvidenceChip label="Alerts" value={formatNumber(activeAlerts, language)} />
               </div>
             </GlassCard>
           </section>
@@ -1058,37 +605,6 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
   );
 }
 
-function ResponseActionButton({ action }: { action: ResponseAction }) {
-  const Icon = action.icon;
-  const tone = responseActionToneClasses[action.tone];
-
-  return (
-    <button
-      className={cn(
-                'group min-h-[60px] rounded-lg border p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/55 active:translate-y-0 dark:focus-visible:ring-[#6B7CFF]/60',
-        tone.card
-      )}
-      onClick={action.onClick}
-      type="button"
-    >
-      <span className="flex items-start justify-between gap-3">
-        <span className={cn('grid h-7 w-7 flex-shrink-0 place-items-center rounded-md border shadow-sm transition duration-200 group-hover:scale-105', tone.icon)}>
-          <Icon className="h-4 w-4" />
-        </span>
-        <span className="rounded-full border border-[#07111F]/25 bg-[#FFFDF5] px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:border-white/10 dark:bg-white/5 dark:text-white/60">
-          {action.metric}
-        </span>
-      </span>
-      <span className="mt-2 flex items-center justify-between gap-3">
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-black">{action.label}</span>
-        </span>
-        <ArrowRight className="h-4 w-4 flex-shrink-0 transition duration-200 group-hover:translate-x-0.5" />
-      </span>
-    </button>
-  );
-}
-
 function countMountedForwardingHosts(forwardingRules: ForwardingRuleView[]) {
   const mountedHosts = new Set<string>();
 
@@ -1113,132 +629,6 @@ function countMountedForwardingHosts(forwardingRules: ForwardingRuleView[]) {
   return mountedHosts.size;
 }
 
-function createProductionReadinessGates({
-  activeAlerts,
-  activeForwarding,
-  configRevisions,
-  language,
-  nodes,
-  onlineAgents,
-  preflightPlans,
-  runtimeSnapshots,
-  t,
-  totalAgents
-}: {
-  activeAlerts: number;
-  activeForwarding: number;
-  configRevisions: RuntimeConfigRevision[];
-  language: AppLanguage;
-  nodes: ManagedNode[];
-  onlineAgents: number;
-  preflightPlans: RuntimePreflightPlan[];
-  runtimeSnapshots: RuntimeSnapshot[];
-  t: DashboardCopy;
-  totalAgents: number;
-}): ProductionReadinessGate[] {
-  const hostState: ProductionReadinessState =
-    totalAgents === 0 ? 'waiting' : onlineAgents === totalAgents ? 'ready' : 'issues';
-  const trafficState: ProductionReadinessState =
-    activeForwarding > 0 && nodes.length > 0 ? 'ready' : activeForwarding > 0 || nodes.length > 0 ? 'issues' : 'waiting';
-  const releaseState: ProductionReadinessState =
-    configRevisions.length > 0 && preflightPlans.length > 0 && runtimeSnapshots.length > 0 ? 'ready' : 'waiting';
-  const alertState: ProductionReadinessState = activeAlerts > 0 ? 'issues' : 'ready';
-
-  return [
-    {
-      id: 'host',
-      label: t.productionReadinessGateLabels.host,
-      value: t.productionReadinessStates[hostState],
-      detail: t.productionReadinessDetails.host(onlineAgents, totalAgents, language),
-      state: hostState,
-      tone: 'blue'
-    },
-    {
-      id: 'traffic',
-      label: t.productionReadinessGateLabels.traffic,
-      value:
-        trafficState === 'ready'
-          ? t.productionReadinessValues.trafficEnabled
-          : t.productionReadinessStates[trafficState],
-      detail: t.productionReadinessDetails.traffic(activeForwarding, nodes.length, language),
-      state: trafficState,
-      tone: 'green'
-    },
-    {
-      id: 'release',
-      label: t.productionReadinessGateLabels.release,
-      value: t.productionReadinessStates[releaseState],
-      detail: t.productionReadinessDetails.release(configRevisions.length, preflightPlans.length, runtimeSnapshots.length, language),
-      state: releaseState,
-      tone: 'orange'
-    },
-    {
-      id: 'alerts',
-      label: t.productionReadinessGateLabels.alerts,
-      value: t.productionReadinessStates[alertState],
-      detail: t.productionReadinessDetails.alerts(activeAlerts, language),
-      state: alertState,
-      tone: 'chartreuse'
-    }
-  ];
-}
-
-function ProductionReadinessPanel({
-  gates,
-  language,
-  state,
-  t
-}: {
-  gates: ProductionReadinessGate[];
-  language: AppLanguage;
-  state: ProductionReadinessState;
-  t: DashboardCopy;
-}) {
-  return (
-    <section
-      aria-label={t.productionReadinessRegion}
-      className="dashboard-production-readiness motion-safe:animate-[ou-panel-in_180ms_ease-out] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-[0_14px_32px_-28px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/20 dark:bg-[#101827] dark:shadow-black/20"
-      data-production-readiness-state={state}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.productionReadinessTitle}</h4>
-        </div>
-        <span className="rounded-full border border-[#07111F]/25 bg-[#D9FF00]/[0.24] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
-          {t.productionReadinessGateCount(gates.length, language)}
-        </span>
-      </div>
-      <div className="dashboard-production-readiness-grid mt-3 grid gap-2 sm:grid-cols-2">
-        {gates.map((gate) => {
-          const tone = productionReadinessToneClasses[gate.tone];
-
-          return (
-            <div
-              className={cn(
-                'group relative min-h-[64px] overflow-hidden rounded-lg border p-2 text-[#07111F] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-24px_rgba(7,17,31,0.42)] dark:text-[#F4F8FF]',
-                tone.item
-              )}
-              data-production-readiness-gate-state={gate.state}
-              key={gate.id}
-            >
-              <span className={cn('absolute inset-x-0 top-0 h-1', tone.rail)} aria-hidden="true" />
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 text-[10px] font-black uppercase leading-4 tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">
-                  {gate.label}
-                </p>
-                <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', tone.badge)}>
-                  {gate.value}
-                </span>
-              </div>
-              <p className="mt-2 text-xs font-black leading-5 text-[#07111F] dark:text-[#F4F8FF]">{gate.detail}</p>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function CompactProbeBar({ label, percent, value }: { label: string; percent: number; value: string }) {
   return (
     <div className="min-w-0 rounded-md bg-[#EAF3D1]/70 p-2 dark:bg-white/[0.04]">
@@ -1257,121 +647,6 @@ function EmptySignal({ label }: { label: string }) {
   return (
     <div className="rounded-lg border border-dashed border-[#07111F] bg-[#FFFDF5]/78 p-4 text-xs font-semibold text-[#536078] dark:border-[#6B7CFF]/18 dark:bg-white/[0.03] dark:text-[#B8C2E6]/68">
       {label}
-    </div>
-  );
-}
-
-function getLatestReleaseRecord<T>(items: readonly T[], getTimestamp: (item: T) => string | undefined) {
-  return items.reduce<T | undefined>((latest, current) => {
-    if (!latest) {
-      return current;
-    }
-
-    const latestTimestamp = getTimestamp(latest);
-    const currentTimestamp = getTimestamp(current);
-
-    if (!latestTimestamp) {
-      return currentTimestamp ? current : latest;
-    }
-
-    if (!currentTimestamp) {
-      return latest;
-    }
-
-    return currentTimestamp > latestTimestamp ? current : latest;
-  }, undefined);
-}
-
-function getReleaseStatusTone(status?: string) {
-  switch (status) {
-    case 'applied':
-    case 'passed':
-    case 'verified':
-      return 'border border-[#00A878]/35 bg-[#00A878]/12 text-[#07111F] dark:border-[#00A878]/30 dark:bg-[#00A878]/16 dark:text-[#C7FFE9]';
-    case 'preflight_ready':
-    case 'captured':
-      return 'border border-[#1E3AFF]/35 bg-[#DCE1FF]/86 text-[#07111F] dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/18 dark:text-[#DDE3FF]';
-    case 'rolled_back':
-    case 'restored':
-      return 'border border-[#FF3D18]/35 bg-[#FFD8C6]/70 text-[#07111F] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/16 dark:text-[#FFD8C6]';
-    case 'failed':
-    case 'expired':
-      return 'border border-[#DC2626]/40 bg-[#FEE2E2]/82 text-[#7F1D1D] dark:border-[#DC2626]/35 dark:bg-[#DC2626]/16 dark:text-[#FECACA]';
-    case 'compiled':
-    case 'pending':
-    default:
-      return 'border border-[#07111F]/18 bg-[#FFFDF5]/86 text-[#35405A] dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/72';
-  }
-}
-
-function ReleaseRollbackBoundary({ task, t }: { task?: DeployTask; t: DashboardCopy }) {
-  const state = task ? (task.rollbackAvailable ? 'ready' : 'locked') : 'waiting';
-  const statusLabel = task ? (task.rollbackAvailable ? t.rollbackReady : t.rollbackLocked) : t.rollbackWaiting;
-  const description = task ? (task.rollbackAvailable ? t.rollbackReadyDescription : t.rollbackLockedDescription) : '';
-  const stateClasses =
-    state === 'ready'
-      ? 'border-[#07111F] bg-[#D9FF00]/40 text-[#07111F] dark:border-[#EAFF5A]/30 dark:bg-[#EAFF5A]/14 dark:text-[#F4FFC5]'
-      : 'border-[#07111F]/25 bg-[#DCE1FF]/72 text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/12 dark:text-[#F4F8FF]';
-
-  return (
-    <div
-      className={cn(
-        'mt-3 border px-3 py-2.5 motion-safe:animate-[ou-panel-in_180ms_ease-out]',
-        stateClasses
-      )}
-      data-release-rollback-state={state}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{t.rollbackBoundary}</p>
-          <p className="mt-1 text-sm font-black">{statusLabel}</p>
-        </div>
-        {task ? (
-          <span className="rounded-full border border-[#07111F]/25 bg-[#FFFDF5] px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#F4F8FF]/78">
-            {task.status}
-          </span>
-        ) : null}
-      </div>
-      {description ? (
-        <p className="mt-2 text-[11px] font-semibold leading-4 opacity-80">{description}</p>
-      ) : null}
-      {task ? (
-        <div className="mt-2 grid gap-1 font-mono text-[10px] font-black uppercase tracking-widest opacity-78 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <span className="truncate">{task.id}</span>
-          <span className="truncate sm:text-right">{task.operation}</span>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ReleaseEvidenceRow({
-  label,
-  record
-}: {
-  label: string;
-  record: { id: string; status: string };
-}) {
-  return (
-    <div className="border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 py-2.5 transition duration-200 ease-out hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/42 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:hover:border-[#6B7CFF]/34 dark:hover:bg-[#1E3AFF]/10">
-      <div className="flex min-w-0 items-start justify-between gap-3 max-sm:flex-col">
-        <div className="min-w-0 max-w-full">
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/70">{label}</p>
-          <p className="mt-1 break-all text-sm font-black leading-5 text-[#07111F] dark:text-white">{record.id}</p>
-        </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${getReleaseStatusTone(record.status)}`}>
-          {record.status}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function EvidenceChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 py-2.5 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04]">
-      <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-[#B8C2E6]/70">{label}</p>
-      <p className="mt-1 truncate text-sm font-black text-[#07111F] dark:text-white">{value}</p>
     </div>
   );
 }

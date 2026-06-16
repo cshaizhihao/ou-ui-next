@@ -22,6 +22,8 @@ const copy = {
   zh: {
     title: 'OU-UI Next 控制面板',
     subtitle: '初始化安全连接',
+    bannerLabel: '实时控制通道',
+    bannerChips: ['会话校验', '策略同步', '审计留痕', '工作区就绪'],
     usernameLabel: '用户名',
     passwordLabel: '密码',
     usernamePlaceholder: '输入管理员用户名',
@@ -33,6 +35,8 @@ const copy = {
   en: {
     title: 'OU-UI Next Control Panel',
     subtitle: 'Initialize secure connection',
+    bannerLabel: 'Live control channel',
+    bannerChips: ['Session check', 'Policy sync', 'Audit trail', 'Workspace ready'],
     usernameLabel: 'Username',
     passwordLabel: 'Password',
     usernamePlaceholder: 'Enter admin username',
@@ -130,6 +134,8 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     return null;
   }
 
+  const bannerChips = t.bannerChips;
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -192,6 +198,32 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
             variant="login"
             onLanguageChange={onLanguageChange}
           />
+          <div className="login-motion-banner" aria-hidden="true">
+            <div className="login-motion-banner__header">
+              <span className="login-motion-banner__badge">
+                <span className="login-motion-banner__pulse" />
+                LIVE
+              </span>
+              <span className="login-motion-banner__label">{t.bannerLabel}</span>
+            </div>
+            <div className="login-motion-banner__track">
+              <div className="login-motion-banner__loop">
+                {bannerChips.map((chip, index) => (
+                  <span className={cn('login-motion-banner__chip', loginMotionChipToneClasses[index % loginMotionChipToneClasses.length])} key={`${chip}-${index}`}>
+                    {chip}
+                  </span>
+                ))}
+                {bannerChips.map((chip, index) => (
+                  <span
+                    className={cn('login-motion-banner__chip', loginMotionChipToneClasses[index % loginMotionChipToneClasses.length])}
+                    key={`${chip}-repeat-${index}`}
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
           <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-white/40">
             OU-UI NEXT
           </p>
@@ -264,3 +296,9 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     </div>
   );
 }
+
+const loginMotionChipToneClasses = [
+  'border-[#1E3AFF] bg-[#1E3AFF] text-[#FDFFF1] dark:border-[#6B7CFF]/70 dark:bg-[#6B7CFF] dark:text-[#F4F8FF]',
+  'border-[#07111F] bg-[#D9FF00] text-[#07111F] dark:border-[#EAFF5A]/70 dark:bg-[#EAFF5A] dark:text-[#07111F]',
+  'border-[#FF3D18] bg-[#FF3D18] text-[#FFFDF5] dark:border-[#FF6A3A]/70 dark:bg-[#FF6A3A] dark:text-[#F4F8FF]'
+] as const;

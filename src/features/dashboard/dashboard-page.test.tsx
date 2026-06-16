@@ -1,40 +1,11 @@
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
-import type {
-  Agent,
-  AuditLog,
-  ManagedNode,
-  RuntimeConfigRevision,
-  RuntimePreflightPlan,
-  RuntimeSnapshot,
-  SystemAlert,
-  DeployTask,
-  TrafficRollup,
-  TrafficRollupCompaction
-} from '../../domain';
+import type { Agent, ManagedNode } from '../../domain';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
+import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-page';
 import { DashboardPage } from './dashboard-page';
 
 const GB = 1024 ** 3;
-const task: DeployTask = {
-  id: 'task-release-001',
-  operation: 'forward.apply',
-  resourceType: 'forward',
-  resourceId: 'forward-rule-01',
-  status: 'succeeded',
-  targetId: 'forward-rule-01',
-  targetLabel: '东京游戏转发',
-  summary: 'Apply forwarding policy',
-  createdAt: '2026-06-05T10:15:00.000Z',
-  updatedAt: '2026-06-05T10:16:00.000Z',
-  actor: 'operator',
-  requestedBy: 'operator',
-  requestId: 'req-release-001',
-  sourceIp: 'ui-preview',
-  rollbackAvailable: true,
-  attempts: 1,
-  steps: []
-};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -95,735 +66,158 @@ function createAgent(): Agent {
   };
 }
 
-const baseForwardingRule: ForwardingRuleView = {
-  id: 'forward-rule-01',
-  name: '东京游戏转发',
-  ownerName: 'Acme',
-  protocol: 'tcp',
-  tunnelId: 'tunnel-01',
-  tunnelName: 'Direct Tunnel',
-  sourceAgentId: 'agent-hkg-01',
-  entryNodeIds: ['agent-hkg-01'],
-  sourceAddress: '0.0.0.0',
-  listenAddress: '0.0.0.0',
-  listenPort: 2443,
-  targetAddress: '10.8.0.10',
-  targetPort: 9443,
-  enabled: true,
-  portStatus: 'allocated',
-  bindings: [],
-  bindingCount: 1,
-  quotaBytes: 50 * GB,
-  usedBytes: 0,
-  monthlyResetDay: 9,
-  currentUsedTrafficGb: 0,
-  rateLimitMbps: 100,
-  rateLimitMode: 'bi-directional',
-  rateLimitDirection: 'both',
-  ipRateLimitMbps: 20,
-  billingDirection: 'both',
-  pricePerGb: 0,
-  tunnelMode: 'direct',
-  strategy: 'fifo',
-  maxConnections: 100,
-  maxConnectionsPerIp: 10,
-  proxyProtocol: false
-} satisfies ForwardingRuleView;
+function createNode(): ManagedNode {
+  return {
+    id: 'customer-node-01',
+    agentId: 'agent-hkg-01',
+    name: '客户节点 A',
+    status: 'healthy',
+    entrypoint: 'edge.example.com:443',
+    modules: [],
+    activeInboundCount: 1,
+    activeForwardCount: 0,
+    updatedAt: '2026-06-05T10:00:00.000Z'
+  };
+}
+
+function createForwardingRule(): ForwardingRuleView {
+  return {
+    id: 'forward-rule-01',
+    name: '东京游戏转发',
+    ownerName: 'Acme',
+    protocol: 'tcp',
+    tunnelId: 'tunnel-01',
+    tunnelName: 'Direct Tunnel',
+    sourceAgentId: 'agent-hkg-01',
+    entryNodeIds: ['agent-hkg-01'],
+    sourceAddress: '0.0.0.0',
+    listenAddress: '0.0.0.0',
+    listenPort: 2443,
+    targetAddress: '10.8.0.10',
+    targetPort: 9443,
+    enabled: true,
+    portStatus: 'allocated',
+    bindings: [],
+    bindingCount: 1,
+    quotaBytes: 50 * GB,
+    usedBytes: 0,
+    monthlyResetDay: 9,
+    currentUsedTrafficGb: 0,
+    rateLimitMbps: 100,
+    rateLimitMode: 'bi-directional',
+    rateLimitDirection: 'both',
+    ipRateLimitMbps: 20,
+    billingDirection: 'both',
+    pricePerGb: 0,
+    tunnelMode: 'direct',
+    strategy: 'fifo',
+    maxConnections: 100,
+    maxConnectionsPerIp: 10,
+    proxyProtocol: false
+  };
+}
 
 function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}) {
-  const props = {
+  const onRefresh = vi.fn();
+  const onOpenHostWorkspace = vi.fn();
+
+  const props: Parameters<typeof DashboardPage>[0] = {
     agents: [createAgent()],
-    nodes: [
-      {
-        id: 'customer-node-01',
-        agentId: 'agent-hkg-01',
-        name: '客户节点 A',
-        status: 'healthy',
-        entrypoint: 'edge.example.com:443',
-        modules: [],
-        activeInboundCount: 1,
-        activeForwardCount: 0,
-        updatedAt: '2026-06-05T10:00:00.000Z'
-      } satisfies ManagedNode
-    ],
-    tasks: [task],
-    auditLogs: [
-      {
-        id: 'audit-dashboard-001',
-        action: 'task.succeeded',
-        actor: 'operator',
-        scope: 'control-plane',
-        resourceType: 'forward',
-        operation: 'forward.apply',
-        result: 'succeeded',
-        targetId: 'forward-rule-01',
-        targetLabel: '东京游戏转发',
-        taskId: task.id,
-        severity: 'info',
-        message: 'Forwarding policy applied',
-        createdAt: '2026-06-05T10:16:30.000Z',
-        sourceIp: 'ui-preview',
-        requestId: 'req-release-001',
-        hash: 'sha256:audit-dashboard'
-      }
-    ] as AuditLog[],
-    forwardingRules: [
-      baseForwardingRule
-    ],
-    subscriptions: [],
-    configRevisions: [
-      {
-        id: 'cfg-dashboard-001',
-        taskId: task.id,
-        operation: 'forward.apply',
-        targetId: 'forward-rule-01',
-        targetLabel: '东京游戏转发',
-        agentId: 'agent-hkg-01',
-        moduleKind: 'port-forwarding',
-        artifactUri: 'ou-ui://artifacts/config-revisions/cfg-dashboard-001.json',
-        checksum: 'sha256:cfg-dashboard',
-        signature: 'sig-v1:dashboard',
-        preflightPlanId: 'preflight-dashboard-001',
-        snapshotBeforeId: 'snapshot-dashboard-001',
-        status: 'applied',
-        createdAt: '2026-06-05T10:14:00.000Z',
-        createdBy: 'operator',
-        appliedAt: '2026-06-05T10:16:00.000Z',
-        diffSummary: { added: 1, changed: 1, removed: 0 },
-        artifact: {}
-      }
-    ] as RuntimeConfigRevision[],
-    preflightPlans: [
-      {
-        id: 'preflight-dashboard-001',
-        taskId: task.id,
-        configRevisionId: 'cfg-dashboard-001',
-        targetId: 'forward-rule-01',
-        agentId: 'agent-hkg-01',
-        moduleKind: 'port-forwarding',
-        status: 'passed',
-        checks: [{ id: 'port-free', label: 'Port available', status: 'passed', severity: 'critical' }],
-        createdAt: '2026-06-05T10:14:20.000Z',
-        completedAt: '2026-06-05T10:14:40.000Z'
-      }
-    ] as RuntimePreflightPlan[],
-    runtimeSnapshots: [
-      {
-        id: 'snapshot-dashboard-001',
-        taskId: task.id,
-        targetId: 'forward-rule-01',
-        targetLabel: '东京游戏转发',
-        agentId: 'agent-hkg-01',
-        moduleKind: 'port-forwarding',
-        reason: 'pre_apply',
-        status: 'captured',
-        checksum: 'sha256:snapshot-dashboard',
-        capturedAt: '2026-06-05T10:14:10.000Z',
-        capturedBy: 'operator',
-        state: {}
-      }
-    ] as RuntimeSnapshot[],
-    trafficRollups: [] as TrafficRollup[],
-    trafficRollupCompactions: [] as TrafficRollupCompaction[],
-    trafficRollupExportBusy: false,
-    trafficRollupRetentionPolicy: undefined,
-    trafficRollupRetentionBusy: false,
-    systemAlerts: [
-      {
-        id: 'alert-dashboard-001',
-        kind: 'agent.high_latency',
-        severity: 'warning',
-        status: 'active',
-        title: 'Latency elevated',
-        message: 'Agent latency is elevated',
-        resourceType: 'agent',
-        resourceId: 'agent-hkg-01',
-        resourceLabel: '香港入口主机',
-        observedAt: '2026-06-05T10:17:00.000Z',
-        dedupeKey: 'agent-hkg-01:latency'
-      }
-    ] as SystemAlert[],
-    language: 'zh' as const,
-    onRefresh: vi.fn(),
+    nodes: [createNode()],
+    forwardingRules: [createForwardingRule()],
+    subscriptions: [] as SubscriptionBundle[],
+    trafficRollups: [],
+    trafficRollupCompactions: [],
+    language: 'zh',
+    onRefresh,
+    onOpenHostWorkspace,
     ...overrides
   };
 
-  return render(<DashboardPage {...props} />);
+  return {
+    onRefresh,
+    onOpenHostWorkspace,
+    ...render(<DashboardPage {...props} />)
+  };
 }
 
 describe('DashboardPage', () => {
-  it('frames the home screen as a formal Master control-plane overview', () => {
+  it('frames the home screen as a compact control-plane cockpit', () => {
     renderPage();
 
-    const shell = screen.getByRole('region', { name: 'Master Control Plane Overview' });
+    const cockpit = screen.getByRole('region', { name: 'Master Control Plane Overview' });
+    const controlSurface = within(cockpit).getByRole('region', { name: '控制面' });
+    const operationsRail = within(cockpit).getByRole('region', { name: '运维侧栏' });
+    const hostTelemetry = within(cockpit).getByRole('region', { name: '主机遥测' });
+    const controlSurfaceCard = controlSurface.querySelector('.dashboard-control-plane-surface');
 
-    expect(shell).toHaveClass('dashboard-control-plane');
-    expect(screen.getByText('Master Control Plane')).toBeInTheDocument();
-    expect(screen.getByText('主机')).toBeInTheDocument();
-    expect(screen.getByText('已挂载主机')).toBeInTheDocument();
-    expect(screen.getByText('节点')).toBeInTheDocument();
-    expect(screen.getByText('Release Evidence')).toBeInTheDocument();
-    expect(screen.getByText('Config 1 / Preflight 1 / Snapshot 1')).toBeInTheDocument();
-    expect(screen.getByText('Audit & Alerts')).toBeInTheDocument();
-    expect(screen.getByText('Audit 1 / Alerts 1')).toBeInTheDocument();
-    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('!bg-[#FFFDF5]');
-    expect(document.querySelector('.dashboard-control-plane-surface')).toHaveClass('dark:!bg-[#07111F]');
-    expect(screen.queryByText('实时查看核心资源、交付链路与服务状态。')).not.toBeInTheDocument();
-    expect(screen.getByText('Release Evidence')).toHaveClass('text-[#35405A]');
-    expect(document.querySelector('.dashboard-control-plane-media')).not.toBeNull();
-    expect(document.querySelector('.dashboard-control-plane-metric-grid')).not.toBeNull();
-    expect(document.querySelector('.dashboard-control-plane-hosts')).not.toBeNull();
-    expect(document.querySelector('[style*="picsum.photos"]')).toBeNull();
-    expect(screen.queryByText('控制面正在呼吸')).not.toBeInTheDocument();
-  });
-
-  it('keeps overview cards compact in fixed grids without bento waterfall or oversized card shells', () => {
-    renderPage({
-      onOpenHostWorkspace: vi.fn(),
-      onOpenForwardingWorkspace: vi.fn(),
-      onOpenReleaseEvidenceWorkspace: vi.fn()
-    });
-
-    const overview = screen.getByRole('region', { name: 'Master Control Plane Overview' });
-    const surface = overview.querySelector('.dashboard-control-plane-surface');
-    const media = overview.querySelector('.dashboard-control-plane-media');
-    const metricGrid = overview.querySelector('.dashboard-control-plane-metric-grid');
-    const responseGrid = overview.querySelector('.dashboard-response-action-grid');
-    const readinessGrid = overview.querySelector('.dashboard-production-readiness-grid');
-    const overviewHtml = overview.outerHTML;
-
-    expect(surface).not.toHaveClass('min-h-[34rem]');
-    expect(surface).not.toHaveClass('min-h-[25rem]');
-    expect(surface).toHaveClass('min-h-0');
-    expect(surface?.outerHTML).not.toContain('p-5');
-    expect(surface?.outerHTML).not.toContain('md:p-6');
-    expect(media).not.toHaveClass('min-h-40');
-    expect(media).toHaveClass('min-h-[8.5rem]');
-    expect(metricGrid).not.toBeNull();
-    expect(metricGrid).toHaveClass('grid-cols-2');
-    expect(metricGrid).toHaveClass('xl:grid-cols-4');
-    expect(metricGrid?.outerHTML).not.toContain('row-span');
-    expect(metricGrid?.outerHTML).not.toContain('col-span-2');
-    expect(metricGrid?.outerHTML).not.toContain('min-h-36');
-    expect(metricGrid?.outerHTML).not.toContain('min-h-[104px]');
-    expect(metricGrid?.outerHTML).not.toContain('min-h-[92px]');
-    expect(metricGrid?.outerHTML).not.toContain('min-h-[78px]');
-    expect(metricGrid?.outerHTML).toContain('min-h-[68px]');
-    expect(responseGrid).not.toBeNull();
-    expect(responseGrid?.outerHTML).not.toContain('min-h-24');
-    expect(responseGrid?.outerHTML).not.toContain('min-h-[76px]');
-    expect(responseGrid?.outerHTML).toContain('min-h-[60px]');
-    expect(readinessGrid?.outerHTML).not.toContain('min-h-[104px]');
-    expect(readinessGrid?.outerHTML).not.toContain('min-h-[82px]');
-    expect(readinessGrid?.outerHTML).not.toContain('min-h-[72px]');
-    expect(readinessGrid?.outerHTML).toContain('min-h-[64px]');
-    expect(overviewHtml).not.toContain('dashboard-control-plane-bento');
-    expect(overviewHtml).not.toContain('masonry');
-    expect(overviewHtml).not.toContain('columns-');
-    expect(overviewHtml).not.toContain('grid-flow-row-dense');
-    expect(overviewHtml).not.toContain('row-span');
-    expect(overviewHtml).not.toContain('space-y-6');
-  });
-
-  it('keeps long release evidence identifiers inside their mobile row container', () => {
-    renderPage({
-      configRevisions: [
-        {
-          id: 'cfg-customer-node-release-with-very-long-runtime-artifact-identifier-20260615',
-          taskId: task.id,
-          operation: 'inbound.update',
-          targetId: 'customer-node-01',
-          targetLabel: '客户节点 A',
-          agentId: 'agent-hkg-01',
-          moduleKind: 'xray',
-          artifactUri: 'ou-ui://artifacts/config-revisions/long.json',
-          checksum: 'sha256:cfg-dashboard-long',
-          signature: 'sig-v1:dashboard-long',
-          preflightPlanId: 'preflight-dashboard-001',
-          snapshotBeforeId: 'snapshot-dashboard-001',
-          status: 'compiled',
-          createdAt: '2026-06-05T10:18:00.000Z',
-          createdBy: 'operator',
-          diffSummary: { added: 1, changed: 0, removed: 0 },
-          artifact: {}
-        }
-      ]
-    });
-
-    const longRecord = screen.getByText('cfg-customer-node-release-with-very-long-runtime-artifact-identifier-20260615');
-    const releaseRow = longRecord.closest('[class*="hover:border"]');
-
-    expect(longRecord).toHaveClass('break-all');
-    expect(longRecord).not.toHaveClass('truncate');
-    expect(releaseRow?.outerHTML).toContain('max-sm:flex-col');
-  });
-
-  it('renders an operator-facing cockpit instead of dashboard waterfall sections', () => {
-    renderPage();
-
-    expect(screen.getByRole('heading', { name: '连通性' })).toBeInTheDocument();
-    expect(screen.queryByText('实时查看核心资源、交付链路与服务状态。')).not.toBeInTheDocument();
+    expect(cockpit).toHaveClass('dashboard-control-plane');
+    expect(controlSurfaceCard).toHaveClass('dashboard-control-plane-surface');
+    expect(within(controlSurface).getByRole('img', { name: '主机到已挂载主机到节点连通性' })).toBeInTheDocument();
+    expect(within(cockpit).getByRole('button', { name: '刷新视图' })).toBeInTheDocument();
+    expect(within(hostTelemetry).getByRole('button', { name: '管理主机' })).toBeInTheDocument();
+    expect(operationsRail).toBeInTheDocument();
     expect(screen.getByText('主机接入')).toBeInTheDocument();
     expect(screen.getByText('客户节点')).toBeInTheDocument();
-    expect(screen.getAllByText('端口转发').length).toBeGreaterThan(0);
+    expect(screen.getByText('端口转发')).toBeInTheDocument();
     expect(screen.getByText('订阅交付')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' })).toBeInTheDocument();
-    expect(document.querySelector('.dashboard-connectivity-flow')).toBeInTheDocument();
-    expect(document.querySelectorAll('.dashboard-connectivity-node')).toHaveLength(3);
-    expect(screen.getByText('香港入口主机')).toBeInTheDocument();
-
-    expect(screen.queryByText('用量账本')).not.toBeInTheDocument();
-    expect(screen.queryByText('活动告警')).not.toBeInTheDocument();
-    expect(screen.queryByRole('searchbox', { name: '搜索用量账本' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('searchbox', { name: '搜索告警' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Release Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Audit & Alerts' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Response Actions')).not.toBeInTheDocument();
+    expect(screen.queryByText('Production Readiness')).not.toBeInTheDocument();
   });
 
-  it('binds the host mounted host and node connectivity animation to live operational evidence', () => {
-    renderPage({
-      forwardingRules: [
-        {
-          ...baseForwardingRule,
-          entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
-          bindings: [
-            {
-              agentId: 'agent-hkg-01',
-              listenAddress: '0.0.0.0',
-              listenPort: 2443,
-              protocol: 'tcp',
-              targetAddress: '10.8.0.10',
-              targetPort: 9443,
-              status: 'allocated'
-            },
-            {
-              agentId: 'agent-sin-02',
-              listenAddress: '0.0.0.0',
-              listenPort: 2443,
-              protocol: 'tcp',
-              targetAddress: '10.8.0.10',
-              targetPort: 9443,
-              status: 'allocated'
-            }
-          ],
-          bindingCount: 2
-        }
-      ]
-    });
-
-    const connectivity = screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' });
-
-    expect(connectivity).toHaveTextContent('主机');
-    expect(connectivity).toHaveTextContent('1/1 在线');
-    expect(connectivity).toHaveTextContent('已挂载主机');
-    expect(connectivity).toHaveTextContent('2 入口');
-    expect(connectivity).toHaveTextContent('节点');
-    expect(connectivity).toHaveTextContent('1/1 健康');
-    expect(document.querySelector('[data-connectivity-stage="host"]')).toHaveAttribute('data-connectivity-count', '1/1');
-    expect(document.querySelector('[data-connectivity-stage="mounted-host"]')).toHaveAttribute('data-connectivity-count', '2');
-    expect(document.querySelector('[data-connectivity-stage="node"]')).toHaveAttribute('data-connectivity-count', '1/1');
-  });
-
-  it('renders the connectivity topology as operational state animation instead of decorative copy', () => {
-    renderPage({
-      agents: [
-        {
-          ...createAgent(),
-          status: 'online'
-        },
-        {
-          ...createAgent(),
-          id: 'agent-sin-02',
-          name: '新加坡挂载主机',
-          status: 'degraded'
-        }
-      ],
-      nodes: [
-        {
-          id: 'customer-node-01',
-          agentId: 'agent-hkg-01',
-          name: '客户节点 A',
-          status: 'healthy',
-          entrypoint: 'edge.example.com:443',
-          modules: [],
-          activeInboundCount: 1,
-          activeForwardCount: 0,
-          updatedAt: '2026-06-05T10:00:00.000Z'
-        },
-        {
-          id: 'customer-node-02',
-          agentId: 'agent-sin-02',
-          name: '客户节点 B',
-          status: 'warning',
-          entrypoint: 'sg.example.com:443',
-          modules: [],
-          activeInboundCount: 1,
-          activeForwardCount: 0,
-          updatedAt: '2026-06-05T10:00:00.000Z'
-        }
-      ],
-      forwardingRules: [
-        {
-          ...baseForwardingRule,
-          entryNodeIds: ['agent-hkg-01', 'agent-sin-02'],
-          bindings: [
-            {
-              agentId: 'agent-hkg-01',
-              listenAddress: '0.0.0.0',
-              listenPort: 2443,
-              protocol: 'tcp',
-              targetAddress: '10.8.0.10',
-              targetPort: 9443,
-              status: 'allocated'
-            },
-            {
-              agentId: 'agent-sin-02',
-              listenAddress: '0.0.0.0',
-              listenPort: 2443,
-              protocol: 'tcp',
-              targetAddress: '10.8.0.10',
-              targetPort: 9443,
-              status: 'allocated'
-            }
-          ],
-          bindingCount: 2
-        }
-      ]
-    });
-
-    const topology = screen.getByRole('img', { name: '主机到已挂载主机到节点连通性' });
-    const flowPackets = topology.querySelectorAll('.dashboard-connectivity-packet');
-    const hostStage = topology.querySelector('[data-connectivity-stage="host"]');
-    const mountedHostStage = topology.querySelector('[data-connectivity-stage="mounted-host"]');
-    const nodeStage = topology.querySelector('[data-connectivity-stage="node"]');
-
-    expect(topology).toHaveClass('dashboard-connectivity-topology');
-    expect(flowPackets).toHaveLength(2);
-    expect(hostStage).toHaveAttribute('data-connectivity-state', 'issues');
-    expect(mountedHostStage).toHaveAttribute('data-connectivity-state', 'ready');
-    expect(nodeStage).toHaveAttribute('data-connectivity-state', 'issues');
-    expect(topology.outerHTML).toContain('#1E3AFF');
-    expect(topology.outerHTML).toContain('#D9FF00');
-    expect(topology.outerHTML).toContain('#FF3D18');
-    expect(topology.outerHTML).not.toContain('控制面正在呼吸');
-    expect(topology.outerHTML).not.toContain('实时查看核心资源');
-  });
-
-  it('keeps the host to mounted host to node flow animated even while waiting for live objects', () => {
-    renderPage({
-      agents: [],
-      nodes: [],
-      forwardingRules: []
-    });
-
-    const flow = document.querySelector('.dashboard-connectivity-flow');
-    expect(flow).not.toBeNull();
-    expect(flow).toHaveClass('svg-line-dash', 'opacity-35');
-  });
-
-  it('uses the primary blue control-plane palette instead of cyan in the dashboard cockpit', () => {
+  it('uses a v2 control-surface visual system for the dashboard topology and metrics', () => {
     renderPage();
 
-    const cockpit = document.querySelector('.dashboard-control-plane');
-    expect(cockpit).not.toBeNull();
-    expect((cockpit as HTMLElement).outerHTML).toContain('#1E3AFF');
-    expect((cockpit as HTMLElement).outerHTML).not.toContain('cyan-');
+    const cockpit = screen.getByRole('region', { name: 'Master Control Plane Overview' });
+    const cockpitHtml = cockpit.outerHTML;
+
+    expect(cockpit).toHaveClass('dashboard-control-plane');
+    expect(cockpitHtml).toContain('#1E3AFF');
+    expect(cockpitHtml).toContain('#FF3D18');
+    expect(cockpitHtml).toContain('#D9FF00');
+    expect(cockpitHtml).toContain('#00A878');
+    expect(cockpitHtml).toContain('#FFFDF5');
+    expect(cockpitHtml).toContain('#FDFFF1');
+    expect(cockpitHtml).toContain('dashboard-control-plane-media');
+    expect(cockpitHtml).toContain('dashboard-control-plane-metric-grid');
+    expect(cockpitHtml).not.toContain('sky-');
+    expect(cockpitHtml).not.toContain('indigo-');
+    expect(cockpitHtml).not.toContain('cyan-');
+    expect(cockpitHtml).not.toContain('purple-');
+    expect(cockpitHtml).not.toContain('violet-');
+    expect(cockpitHtml).not.toContain('amber-');
+    expect(cockpitHtml).not.toContain('rose-');
+    expect(cockpitHtml).not.toContain('background-clip:text');
   });
 
-  it('keeps the dashboard cockpit on the fauvist operational palette without sky or indigo drift', () => {
+  it('keeps the dashboard cockpit compact without masonry or oversized cards', () => {
     renderPage();
 
-    const cockpit = document.querySelector('.dashboard-control-plane');
-    expect(cockpit).not.toBeNull();
+    const cockpit = screen.getByRole('region', { name: 'Master Control Plane Overview' });
+    const controlSurface = within(cockpit).getByRole('region', { name: '控制面' });
+    const hostTelemetry = within(cockpit).getByRole('region', { name: '主机遥测' });
+    const cockpitHtml = cockpit.outerHTML;
 
-    const markup = (cockpit as HTMLElement).outerHTML;
-    expect(markup).toContain('#1E3AFF');
-    expect(markup).toContain('#FF3D18');
-    expect(markup).toContain('#D9FF00');
-    expect(markup).not.toContain('sky-');
-    expect(markup).not.toContain('indigo-');
-    expect(markup).not.toContain('cyan-');
-    expect(markup).not.toContain('purple-');
-    expect(markup).not.toContain('violet-');
-    expect(markup).not.toContain('amber-');
-    expect(markup).not.toContain('rose-');
-    expect(markup).not.toContain('background-clip:text');
+    expect(cockpit).toHaveClass('grid', 'grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]');
+    expect(cockpit).toHaveClass('max-xl:grid-cols-1');
+    expect(controlSurface).toHaveClass('grid');
+    expect(hostTelemetry).toHaveClass('min-w-0');
+    expect(cockpitHtml).not.toContain('masonry');
+    expect(cockpitHtml).not.toContain('columns-');
+    expect(cockpitHtml).not.toContain('grid-flow-row-dense');
+    expect(cockpitHtml).not.toContain('row-span');
+    expect(cockpitHtml).not.toContain('col-span');
   });
 
-  it('uses acid chartreuse signal tone for degraded host probes without amber drift', () => {
-    renderPage({
-      agents: [
-        {
-          ...createAgent(),
-          status: 'degraded'
-        }
-      ]
-    });
-
-    const hostTelemetry = screen.getByRole('region', { name: '主机遥测' });
-    expect(hostTelemetry.outerHTML).toContain('#D9FF00');
-    expect(hostTelemetry.outerHTML).not.toContain('amber-');
-  });
-
-  it('switches cockpit copy to English without restoring removed ledger and alert panels', () => {
-    renderPage({ language: 'en' });
-
-    expect(screen.getByRole('heading', { name: 'Connectivity' })).toBeInTheDocument();
-    expect(screen.queryByText('Monitor core resources, delivery paths, and service readiness in real time.')).not.toBeInTheDocument();
-    expect(screen.getByText('Host Access')).toBeInTheDocument();
-    expect(screen.getByText('Customer Nodes')).toBeInTheDocument();
-    expect(screen.getByText('Forwarding')).toBeInTheDocument();
-    expect(screen.getByText('Subscriptions')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Host to mounted host to node connectivity' })).toBeInTheDocument();
-
-    expect(screen.queryByText('Single-screen Control Cockpit')).not.toBeInTheDocument();
-    expect(screen.queryByText('一屏总览控制台')).not.toBeInTheDocument();
-    expect(screen.queryByText('Only the four primary lanes stay here; ledger, alerts, and audit live in their workspaces.')).not.toBeInTheDocument();
-  });
-
-  it('keeps the refresh action wired from the compact cockpit header', async () => {
-    const onRefresh = vi.fn();
-    renderPage({ onRefresh });
+  it('wires refresh and host management actions from the cockpit', async () => {
+    const { onRefresh, onOpenHostWorkspace } = renderPage();
 
     await screen.getByRole('button', { name: '刷新视图' }).click();
+    await screen.getByRole('button', { name: '管理主机' }).click();
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
-  });
-
-  it('offers first-screen response actions for host forwarding and release evidence workspaces', async () => {
-    const onOpenHostWorkspace = vi.fn();
-    const onOpenForwardingWorkspace = vi.fn();
-    const onOpenReleaseEvidenceWorkspace = vi.fn();
-
-    renderPage({
-      onOpenHostWorkspace,
-      onOpenForwardingWorkspace,
-      onOpenReleaseEvidenceWorkspace
-    });
-
-    const responseRail = screen.getByRole('region', { name: '首屏处置入口' });
-
-    expect(responseRail).not.toHaveTextContent('从总览直接进入主机、转发与发布证据处置。');
-    expect(responseRail).not.toHaveTextContent('安装 Agent、检查遥测、进入受控主机工作区');
-    expect(responseRail).not.toHaveTextContent('进入端口转发工作区处理端口、配额和策略');
-    expect(responseRail).not.toHaveTextContent('检查执行记录、预检、快照与回滚线索');
-    expect(within(responseRail).getByRole('button', { name: /接入主机/ })).toBeInTheDocument();
-    expect(within(responseRail).getByRole('button', { name: /配置转发/ })).toBeInTheDocument();
-    expect(within(responseRail).getByRole('button', { name: /查看发布证据/ })).toBeInTheDocument();
-
-    await within(responseRail).getByRole('button', { name: /接入主机/ }).click();
-    await within(responseRail).getByRole('button', { name: /配置转发/ }).click();
-    await within(responseRail).getByRole('button', { name: /查看发布证据/ }).click();
-
     expect(onOpenHostWorkspace).toHaveBeenCalledTimes(1);
-    expect(onOpenForwardingWorkspace).toHaveBeenCalledTimes(1);
-    expect(onOpenReleaseEvidenceWorkspace).toHaveBeenCalledTimes(1);
-  });
-
-  it('localizes first-screen response actions in English', () => {
-    renderPage({
-      language: 'en',
-      onOpenHostWorkspace: vi.fn(),
-      onOpenForwardingWorkspace: vi.fn(),
-      onOpenReleaseEvidenceWorkspace: vi.fn()
-    });
-
-    const responseRail = screen.getByRole('region', { name: 'First-screen Response' });
-
-    expect(responseRail).not.toHaveTextContent('Jump from overview into host, forwarding, and release evidence handling.');
-    expect(responseRail).not.toHaveTextContent('Install Agents, inspect telemetry, and open managed hosts');
-    expect(responseRail).not.toHaveTextContent('Handle ports, quotas, and policy state in forwarding');
-    expect(responseRail).not.toHaveTextContent('Inspect execution records, preflight, snapshots, and rollback cues');
-    expect(within(responseRail).getByRole('button', { name: /Enroll Hosts/ })).toBeInTheDocument();
-    expect(within(responseRail).getByRole('button', { name: /Configure Forwarding/ })).toBeInTheDocument();
-    expect(within(responseRail).getByRole('button', { name: /Review Release Evidence/ })).toBeInTheDocument();
-  });
-
-  it('splits the first screen into a control surface and an operations rail', () => {
-    renderPage({ onOpenHostWorkspace: vi.fn() });
-
-    expect(screen.getByRole('region', { name: '控制面' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '运维侧栏' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '主机遥测' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '发布证据' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '审计与告警' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '管理主机' })).toBeInTheDocument();
-  });
-
-  it('surfaces the latest release evidence chain directly on the home control plane', () => {
-    renderPage();
-
-    const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
-    const markup = releaseEvidence.outerHTML;
-
-    expect(releaseEvidence).toHaveTextContent('cfg-dashboard-001');
-    expect(releaseEvidence).toHaveTextContent('applied');
-    expect(releaseEvidence).toHaveTextContent('preflight-dashboard-001');
-    expect(releaseEvidence).toHaveTextContent('passed');
-    expect(releaseEvidence).toHaveTextContent('snapshot-dashboard-001');
-    expect(releaseEvidence).toHaveTextContent('captured');
-    expect(markup).toContain('#00A878');
-    expect(markup).toContain('#1E3AFF');
-    expect(markup).toContain('#07111F');
-    expect(markup).not.toMatch(/\b(?:border|bg|text|ring)-(?:emerald|blue|orange|red|slate)-/u);
-    expect(markup).not.toMatch(/\brounded-(?:xl|2xl)\b/u);
-  });
-
-  it('compresses empty release and audit states instead of repeating placeholder filler', () => {
-    renderPage({
-      tasks: [],
-      auditLogs: [],
-      configRevisions: [],
-      preflightPlans: [],
-      runtimeSnapshots: [],
-      systemAlerts: []
-    });
-
-    const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
-    const auditAlerts = screen.getByRole('region', { name: '审计与告警' });
-
-    expect((releaseEvidence.textContent?.match(/暂无发布证据/g) ?? [])).toHaveLength(0);
-    expect((releaseEvidence.textContent?.match(/等待发布任务/g) ?? [])).toHaveLength(0);
-    expect(releaseEvidence).toHaveTextContent('Config 0 / Preflight 0 / Snapshot 0');
-    expect(releaseEvidence).toHaveTextContent('回滚边界');
-    expect(releaseEvidence.querySelectorAll('.dashboard-empty-evidence-row')).toHaveLength(0);
-    expect(auditAlerts).toHaveTextContent('Audit 0 / Alerts 0');
-    expect(auditAlerts).not.toHaveTextContent('等待第一条变更审计事件。');
-  });
-
-  it('surfaces rollback readiness as a first-screen release evidence boundary', () => {
-    renderPage();
-
-    const releaseEvidence = screen.getByRole('region', { name: '发布证据' });
-    const rollbackBoundary = releaseEvidence.querySelector('[data-release-rollback-state="ready"]');
-
-    expect(rollbackBoundary).not.toBeNull();
-    expect(rollbackBoundary).toHaveTextContent('回滚可用');
-    expect(rollbackBoundary).toHaveTextContent('task-release-001');
-    expect(rollbackBoundary).toHaveTextContent('forward.apply');
-    expect(rollbackBoundary).toHaveTextContent('succeeded');
-  });
-
-  it('summarizes production readiness gates on the dashboard first screen', () => {
-    renderPage();
-
-    const readiness = screen.getByRole('region', { name: '生产就绪门禁' });
-
-    expect(readiness).toHaveAttribute('data-production-readiness-state', 'issues');
-    expect(readiness).toHaveTextContent('生产就绪门禁');
-    expect(readiness).not.toHaveTextContent('把主机、流量、发布证据和告警压力压缩成可操作门禁。');
-    expect(readiness).toHaveTextContent('4 条门禁');
-    expect(readiness).toHaveTextContent('主机通道');
-    expect(readiness).toHaveTextContent('就绪');
-    expect(readiness).toHaveTextContent('1/1 在线');
-    expect(readiness).toHaveTextContent('流量链路');
-    expect(readiness).toHaveTextContent('启用');
-    expect(readiness).toHaveTextContent('1 转发 · 1 节点');
-    expect(readiness).toHaveTextContent('发布证据');
-    expect(readiness).toHaveTextContent('就绪');
-    expect(readiness).toHaveTextContent('配置 1 · 预检 1 · 快照 1');
-    expect(readiness).toHaveTextContent('告警压力');
-    expect(readiness).toHaveTextContent('关注');
-    expect(readiness).toHaveTextContent('1 活动告警');
-    expect(readiness.outerHTML).toContain('#1E3AFF');
-    expect(readiness.outerHTML).toContain('#FF3D18');
-    expect(readiness.outerHTML).toContain('#D9FF00');
-    expect(readiness.outerHTML).toContain('#00A878');
-    expect(readiness).toHaveClass('motion-safe:animate-[ou-panel-in_180ms_ease-out]');
-  });
-
-  it('keeps production readiness gates readable inside the operations rail', () => {
-    renderPage();
-
-    const readiness = screen.getByRole('region', { name: '生产就绪门禁' });
-    const gateGrid = readiness.querySelector('.dashboard-production-readiness-grid');
-
-    expect(gateGrid).not.toBeNull();
-    expect(gateGrid).toHaveClass('sm:grid-cols-2');
-    expect(gateGrid).not.toHaveClass('xl:grid-cols-4');
-    expect(within(readiness).getByText('主机通道')).not.toHaveClass('truncate');
-  });
-
-  it('localizes production readiness gates in English', () => {
-    renderPage({ language: 'en' });
-
-    const readiness = screen.getByRole('region', { name: 'Production readiness gates' });
-
-    expect(readiness).toHaveAttribute('data-production-readiness-state', 'issues');
-    expect(readiness).toHaveTextContent('Production readiness gates');
-    expect(readiness).not.toHaveTextContent('Compress host, traffic, release evidence, and alert pressure into actionable gates.');
-    expect(readiness).toHaveTextContent('4 gates');
-    expect(readiness).toHaveTextContent('Host Channel');
-    expect(readiness).toHaveTextContent('Ready');
-    expect(readiness).toHaveTextContent('1/1 online');
-    expect(readiness).toHaveTextContent('Traffic Path');
-    expect(readiness).toHaveTextContent('Enabled');
-    expect(readiness).toHaveTextContent('1 forwarding · 1 node');
-    expect(readiness).toHaveTextContent('Release Evidence');
-    expect(readiness).toHaveTextContent('Ready');
-    expect(readiness).toHaveTextContent('Config 1 · Preflight 1 · Snapshot 1');
-    expect(readiness).toHaveTextContent('Alert Pressure');
-    expect(readiness).toHaveTextContent('Review');
-    expect(readiness).toHaveTextContent('1 active alert');
-  });
-
-  it('localizes rollback readiness on the release evidence rail in English', () => {
-    renderPage({ language: 'en' });
-
-    const releaseEvidence = screen.getByRole('region', { name: 'Release Evidence' });
-    const rollbackBoundary = releaseEvidence.querySelector('[data-release-rollback-state="ready"]');
-
-    expect(rollbackBoundary).not.toBeNull();
-    expect(rollbackBoundary).toHaveTextContent('Rollback Ready');
-    expect(rollbackBoundary).toHaveTextContent('task-release-001');
-    expect(rollbackBoundary).toHaveTextContent('forward.apply');
-  });
-
-  it('uses a fauvist control surface without dashboard decorative orb layers', () => {
-    renderPage();
-
-    const surface = document.querySelector('.dashboard-control-plane-surface');
-    const decorativeOrb = document.querySelector('.dashboard-control-plane-surface .blur-3xl.rounded-full');
-
-    expect(surface).toHaveClass('self-start');
-    expect(surface).toHaveClass('!bg-[#FFFDF5]');
-    expect(surface).toHaveClass('dark:!bg-[#07111F]');
-    expect(surface).not.toHaveClass('!bg-[#F4F4F0]');
-    expect(decorativeOrb).toBeNull();
-  });
-
-  it('keeps host probe panel copy readable on the fauvist surface', () => {
-    renderPage();
-
-    expect(screen.getByText('主机探针')).toHaveClass('text-[#07111F]');
-    expect(screen.getByText('主机探针')).toHaveClass('dark:text-[#F4F8FF]');
-    expect(screen.queryByText('Agent 遥测 / 运行服务 / 流量 / 延迟')).not.toBeInTheDocument();
-  });
-
-  it('uses a fixed responsive title scale instead of clamp sizing in the dashboard hero', () => {
-    renderPage();
-
-    const heroHeading = screen.getByRole('heading', { name: '连通性' });
-
-    expect(heroHeading.className).not.toContain('clamp(');
-    expect(heroHeading).toHaveClass('text-4xl');
-    expect(heroHeading).toHaveClass('md:text-5xl');
-  });
-
-  it('uses the fauvist palette instead of the previous industrial red black scheme', () => {
-    renderPage();
-
-    const hero = document.querySelector('.dashboard-control-plane-surface');
-    const media = document.querySelector('.dashboard-control-plane-media');
-
-    expect(hero).toHaveClass('!bg-[#FFFDF5]');
-    expect(hero).toHaveClass('dark:!bg-[#07111F]');
-    expect(media).toHaveClass('bg-[#FFFDF5]');
-    expect(media).toHaveClass('dark:bg-[#101827]');
-    expect(media?.outerHTML).not.toContain('fill-[#F8FAFC]');
-    expect(media?.outerHTML).not.toContain('stroke: #07111f');
-    expect(document.querySelector('.svg-flow-stop-1')).toHaveAttribute('stop-color', '#1E3AFF');
-    expect(document.querySelector('.svg-flow-stop-2')).toHaveAttribute('stop-color', '#D9FF00');
-    expect(document.querySelector('.svg-flow-stop-3')).toHaveAttribute('stop-color', '#FF3D18');
-    expect(document.querySelector('[stop-color="#e61919"]')).toBeNull();
-    expect(document.querySelector('[fill="#e0f2fe"]')).toBeNull();
   });
 });

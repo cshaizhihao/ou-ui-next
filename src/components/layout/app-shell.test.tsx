@@ -454,20 +454,23 @@ describe('AppShell', () => {
     expect(screen.getByText('接入服务器').closest('button')).toHaveClass('min-h-[68px]', 'p-2.5');
   });
 
-  it('routes dashboard first-screen response actions into forwarding and release evidence workspaces', async () => {
+  it('routes dashboard first-screen response actions into the compact dashboard cockpit', async () => {
     const user = userEvent.setup();
 
-    renderShell(createMockApi({ seedInventory: true, seedRuntimeEvidence: true }));
+    renderShell(createMockApi({ seedInventory: true }));
 
-    const responseRail = await screen.findByRole('region', { name: '首屏处置入口' });
+    const cockpit = await screen.findByRole('region', { name: 'Master Control Plane Overview' });
+    const controlSurface = within(cockpit).getByRole('region', { name: '控制面' });
+    const hostTelemetry = within(cockpit).getByRole('region', { name: '主机遥测' });
 
-    await user.click(within(responseRail).getByRole('button', { name: /配置转发/ }));
-    expect((await screen.findAllByRole('heading', { name: '端口转发' })).length).toBeGreaterThan(0);
+    expect(within(controlSurface).getByRole('img', { name: '主机到已挂载主机到节点连通性' })).toBeInTheDocument();
+    expect(within(controlSurface).getByRole('button', { name: '刷新视图' })).toBeInTheDocument();
+    expect(within(hostTelemetry).getByRole('button', { name: '管理主机' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '首屏处置入口' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Release Evidence')).not.toBeInTheDocument();
 
-    await clickNavigation(user, '概览');
-    await user.click(within(await screen.findByRole('region', { name: '首屏处置入口' })).getByRole('button', { name: /查看发布证据/ }));
-
-    expect((await screen.findAllByRole('heading', { name: '执行记录' })).length).toBeGreaterThan(0);
+    await user.click(within(cockpit).getByRole('button', { name: '刷新视图' }));
+    expect(screen.getByRole('button', { name: '刷新视图' })).toBeInTheDocument();
   });
 
   afterEach(() => {

@@ -892,6 +892,155 @@
   width: min(100%, 26rem);
 }
 
+.login-motion-banner {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(7, 17, 31, 0.32);
+  border-radius: 0;
+  background:
+    linear-gradient(135deg, rgba(30, 58, 255, 0.18) 0%, rgba(30, 58, 255, 0.08) 26%, transparent 26%),
+    linear-gradient(225deg, rgba(255, 61, 24, 0.16) 0%, rgba(255, 61, 24, 0.06) 24%, transparent 24%),
+    linear-gradient(180deg, rgba(234, 243, 209, 0.94) 0%, rgba(255, 253, 245, 0.98) 100%);
+  box-shadow:
+    0 20px 48px -34px rgba(7, 17, 31, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  padding: 0.9rem 1rem 0.95rem;
+}
+
+.dark .login-motion-banner {
+  border-color: rgba(107, 124, 255, 0.3);
+  background:
+    linear-gradient(135deg, rgba(107, 124, 255, 0.2) 0%, rgba(107, 124, 255, 0.08) 26%, transparent 26%),
+    linear-gradient(225deg, rgba(255, 106, 58, 0.18) 0%, rgba(255, 106, 58, 0.07) 24%, transparent 24%),
+    linear-gradient(180deg, rgba(16, 24, 39, 0.98) 0%, rgba(7, 17, 31, 0.96) 100%);
+  box-shadow:
+    0 24px 56px -38px rgba(0, 0, 0, 0.86),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.login-motion-banner::before {
+  content: '';
+  position: absolute;
+  inset: -18% auto -18% 0;
+  width: 42%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(217, 255, 0, 0.2) 46%, rgba(30, 58, 255, 0.18) 72%, transparent 100%);
+  opacity: 0.95;
+  mix-blend-mode: multiply;
+}
+
+.dark .login-motion-banner::before {
+  mix-blend-mode: screen;
+}
+
+.login-motion-banner::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(7, 17, 31, 0.42) 22%, rgba(255, 61, 24, 0.48) 52%, rgba(217, 255, 0, 0.52) 78%, transparent 100%);
+  opacity: 0.9;
+}
+
+.login-motion-banner__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.5rem;
+}
+
+.login-motion-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+  border: 1px solid rgba(7, 17, 31, 0.3);
+  background: #07111f;
+  color: #fdfff1;
+  padding: 0.3rem 0.55rem 0.28rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dark .login-motion-banner__badge {
+  border-color: rgba(244, 248, 255, 0.18);
+  background: #f4f8ff;
+  color: #07111f;
+}
+
+.login-motion-banner__pulse {
+  border-radius: 999px;
+  background: #d9ff00;
+  box-shadow: 0 0 0 4px rgba(217, 255, 0, 0.16);
+  flex: none;
+  height: 0.45rem;
+  width: 0.45rem;
+}
+
+.login-motion-banner__label {
+  min-width: 0;
+  color: #07111f;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dark .login-motion-banner__label {
+  color: #d8e0ff;
+}
+
+.login-motion-banner__track {
+  position: relative;
+  margin-top: 0.75rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+.login-motion-banner__track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 253, 245, 0.14) 48%, transparent 100%);
+  mix-blend-mode: screen;
+}
+
+.login-motion-banner__loop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+}
+
+.login-motion-banner__chip {
+  flex: 0 0 auto;
+  border: 1px solid rgba(7, 17, 31, 0.22);
+  border-radius: 0;
+  box-shadow: 0 10px 18px -18px rgba(7, 17, 31, 0.28);
+  padding: 0.42rem 0.7rem 0.38rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dark .login-motion-banner__chip {
+  border-color: rgba(244, 248, 255, 0.12);
+}
+
 .login-box-shake {
   animation: loginShake 220ms ease;
 }
