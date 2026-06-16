@@ -354,15 +354,6 @@
     transparent;
 }
 
-.subscription-ops-links-panel > article,
-.subscription-ops-readiness-panel {
-  background: var(--ou-surface-strong);
-  border-color: rgba(30, 58, 255, 0.17);
-  box-shadow:
-    0 18px 48px -34px rgba(30, 58, 255, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.64);
-}
-
 .subscription-ops-client-row {
   position: relative;
   overflow: hidden;
@@ -563,14 +554,6 @@
   background:
     linear-gradient(180deg, rgba(107, 124, 255, 0.075), rgba(16, 24, 39, 0.8)),
     rgba(16, 24, 39, 0.84);
-}
-
-.dark .subscription-ops-links-panel > article,
-.dark .subscription-ops-readiness-panel {
-  border-color: rgba(107, 124, 255, 0.16);
-  box-shadow:
-    0 24px 70px -44px rgba(30, 58, 255, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .dark .customer-ops-cockpit {

@@ -202,7 +202,7 @@ function renderPage(overrides: Partial<Parameters<typeof SubscriptionMixerPage>[
 }
 
 describe('SubscriptionMixerPage', () => {
-  it('renders a cockpit-style first screen with a left control rail and a right workspace', () => {
+  it('renders a compact subscription workspace toolbar with the active data workspace', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
       subscriptionInventoryNodes: inventoryNodes,
@@ -272,20 +272,31 @@ describe('SubscriptionMixerPage', () => {
     });
 
     const cockpit = screen.getByRole('region', { name: '订阅工作台' });
-    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
     const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
-    const groups = within(cockpit).getByRole('region', { name: '代理组' });
+    const cockpitGrid = cockpit.querySelector('.subscription-workbench-grid');
 
-    expect(within(sources).getByText('订阅身份', { selector: 'p' })).toBeInTheDocument();
-    expect(within(sources).getByText('节点库存', { selector: 'p' })).toBeInTheDocument();
-    expect(within(sources).getByText('导出配置', { selector: 'p' })).toBeInTheDocument();
-    expect(within(sources).getByRole('button', { name: '新增订阅身份' })).toBeInTheDocument();
-    expect(within(sources).getByRole('button', { name: '导入订阅源' })).toBeInTheDocument();
+    expect(cockpit).toHaveClass('subscription-workbench');
+    expect(cockpitGrid).toHaveClass('subscription-workbench-grid');
+    expect(inventory).toHaveClass('subscription-workbench-inventory');
+    expect(within(cockpit).queryByRole('region', { name: '外部订阅源' })).not.toBeInTheDocument();
+    expect(within(cockpit).queryByRole('region', { name: '代理组' })).not.toBeInTheDocument();
+
     expect(within(inventory).getByRole('button', { name: '订阅身份' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '外部订阅源' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '节点库存' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '代理集合' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '导出配置' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '导出文件' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '导入订阅源' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '新增订阅身份' })).toBeInTheDocument();
+    expect(within(inventory).getByRole('button', { name: '新增导出配置' })).toBeInTheDocument();
 
-    expect(within(groups).getByRole('region', { name: '订阅链接' })).toBeInTheDocument();
-    expect(within(groups).getByRole('region', { name: '订阅链路就绪' })).toBeInTheDocument();
-    expect(within(groups).getByRole('article', { name: 'Acme 香港 Premium 订阅' })).toBeInTheDocument();
+    expect(screen.getByText('Acme 香港 Premium 订阅').closest('tr')).toHaveClass('subscription-ops-client-row');
+    expect(screen.queryByRole('region', { name: '订阅链接' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅链路就绪' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅分发门禁' })).not.toBeInTheDocument();
+    expect(cockpit.querySelector('.subscription-overview-panel')).not.toBeInTheDocument();
+    expect(cockpit.querySelector('.subscription-ops-readiness-panel')).not.toBeInTheDocument();
   });
 
   it('keeps export profile proxy groups compact by default and only exposes layout handles in edit mode', async () => {
@@ -344,7 +355,7 @@ describe('SubscriptionMixerPage', () => {
     expect(within(groupCard).getByRole('button', { name: /Resize Premium Auto card/i })).toBeInTheDocument();
   });
 
-  it('uses the primary blue and signal orange control-plane palette in the subscription cockpit', () => {
+  it('uses the primary blue and signal orange control-plane palette around the subscription workspace', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
       subscriptionInventoryNodes: inventoryNodes,
@@ -368,11 +379,12 @@ describe('SubscriptionMixerPage', () => {
     });
 
     const cockpit = screen.getByRole('region', { name: '订阅工作台' });
+    const pageHtml = document.body.innerHTML;
 
     expect(cockpit.outerHTML).toContain('#1E3AFF');
     expect(cockpit.outerHTML).toContain('#DCE1FF');
-    expect(cockpit.outerHTML).toContain('#FF3D18');
-    expect(cockpit.outerHTML).toContain('#FFD8C6');
+    expect(pageHtml).toContain('#FF3D18');
+    expect(pageHtml).toContain('#FFD8C6');
     expect(cockpit.outerHTML).not.toContain('sky-');
     expect(cockpit.outerHTML).not.toContain('indigo-');
     expect(cockpit.outerHTML).not.toContain('cyan-');
@@ -426,7 +438,7 @@ describe('SubscriptionMixerPage', () => {
     expect(editLayoutButton.compareDocumentPosition(profileNameField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('uses a v2 subscription distribution cockpit visual system for publishable subscription operations', () => {
+  it('uses a compact subscription distribution cockpit visual system for publishable subscription operations', () => {
     renderPage({
       subscriptionSources: [source, backupSource],
       subscriptionInventoryNodes: inventoryNodes,
@@ -467,34 +479,38 @@ describe('SubscriptionMixerPage', () => {
     });
 
     const cockpit = screen.getByRole('region', { name: '订阅工作台' });
-    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
     const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
-    const groups = within(cockpit).getByRole('region', { name: '代理组' });
-    const quickLinks = within(groups).getByRole('region', { name: '订阅链接' });
-    const readiness = within(groups).getByRole('region', { name: '订阅链路就绪' });
     const clientRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
+    const cockpitHtml = cockpit.outerHTML;
+    const pageHtml = document.body.innerHTML;
 
     expect(cockpit).toHaveClass('subscription-workbench');
-    expect(sources).toHaveClass('subscription-workbench-sources');
+    expect(cockpit.querySelector('.subscription-workbench-grid')).toHaveClass('subscription-workbench-grid');
     expect(inventory).toHaveClass('subscription-workbench-inventory');
-    expect(groups).toHaveClass('subscription-workbench-groups');
-    expect(quickLinks).toHaveClass('subscription-ops-links-panel');
-    expect(readiness).toHaveClass('subscription-ops-readiness-panel');
+    expect(within(cockpit).getByRole('button', { name: '外部订阅源' })).toBeInTheDocument();
+    expect(within(cockpit).getByRole('button', { name: '代理集合' })).toBeInTheDocument();
+    expect(within(cockpit).getByRole('button', { name: '导出配置' })).toBeInTheDocument();
+    expect(within(cockpit).getByRole('button', { name: '导出文件' })).toBeInTheDocument();
+    expect(within(cockpit).queryByRole('region', { name: '外部订阅源' })).not.toBeInTheDocument();
+    expect(within(cockpit).queryByRole('region', { name: '代理组' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅链接' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅链路就绪' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅分发门禁' })).not.toBeInTheDocument();
+    expect(cockpit.querySelector('.subscription-overview-panel')).not.toBeInTheDocument();
+    expect(cockpit.querySelector('.subscription-ops-readiness-panel')).not.toBeInTheDocument();
     expect(clientRow).toHaveClass('subscription-ops-client-row');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#1E3AFF');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#DCE1FF');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FF3D18');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).toContain('#FFD8C6');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('sky-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('indigo-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('cyan-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('purple-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('violet-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('amber-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain('rose-');
-    expect(`${cockpit.outerHTML}${sources.outerHTML}${inventory.outerHTML}${groups.outerHTML}${clientRow?.outerHTML ?? ''}`).not.toContain(
-      'background-clip:text'
-    );
+    expect(cockpitHtml).toContain('#1E3AFF');
+    expect(cockpitHtml).toContain('#DCE1FF');
+    expect(pageHtml).toContain('#FF3D18');
+    expect(pageHtml).toContain('#FFD8C6');
+    expect(cockpitHtml).not.toContain('sky-');
+    expect(cockpitHtml).not.toContain('indigo-');
+    expect(cockpitHtml).not.toContain('cyan-');
+    expect(cockpitHtml).not.toContain('purple-');
+    expect(cockpitHtml).not.toContain('violet-');
+    expect(cockpitHtml).not.toContain('amber-');
+    expect(cockpitHtml).not.toContain('rose-');
+    expect(cockpitHtml).not.toContain('background-clip:text');
   });
 
   it('keeps the subscription distribution cockpit compact without masonry or oversized cards', () => {
@@ -539,39 +555,36 @@ describe('SubscriptionMixerPage', () => {
 
     const cockpit = screen.getByRole('region', { name: '订阅工作台' });
     const cockpitGrid = cockpit.querySelector('.subscription-workbench-grid');
-    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
     const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
-    const groups = within(cockpit).getByRole('region', { name: '代理组' });
-    const quickLinks = within(groups).getByRole('region', { name: '订阅链接' });
-    const quickLinkCard = within(quickLinks).getByRole('article', { name: 'Acme 香港 Premium 订阅' });
-    const readiness = within(groups).getByRole('region', { name: '订阅链路就绪' });
-    const overviewPanel = inventory.querySelector('.subscription-overview-panel');
-    const gates = within(sources).getByRole('region', { name: '订阅分发门禁' });
-    const sourceGate = within(gates).getByRole('group', { name: '来源同步' });
+    const workspaceButtons = ['订阅身份', '外部订阅源', '节点库存', '代理集合', '导出配置', '导出文件'].map((name) =>
+      within(inventory).getByRole('button', { name })
+    );
 
     expect(cockpitGrid).not.toBeNull();
-    expect(cockpitGrid as HTMLElement).toHaveClass('subscription-workbench-grid', 'xl:grid-cols-[18rem_minmax(0,1fr)_20rem]');
-    expect(sources).toHaveClass('p-3');
-    expect(sources).not.toHaveClass('p-4');
+    expect(cockpitGrid as HTMLElement).toHaveClass('subscription-workbench-grid');
+    expect(cockpitGrid as HTMLElement).not.toHaveClass('xl:grid-cols-[18rem_minmax(0,1fr)_20rem]');
+    expect(cockpit.querySelector('.subscription-workbench-sources')).not.toBeInTheDocument();
+    expect(cockpit.querySelector('.subscription-workbench-groups')).not.toBeInTheDocument();
+    expect(inventory).toHaveClass('max-md:pb-0');
+    expect(inventory).not.toHaveClass('max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]');
     expect(inventory.firstElementChild).toHaveClass('space-y-3', 'p-3');
-    expect(overviewPanel).not.toBeNull();
-    expect(overviewPanel as HTMLElement).toHaveClass('subscription-overview-panel', 'p-3');
-    expect(overviewPanel as HTMLElement).not.toHaveClass('p-4', 'rounded-xl');
-    expect(quickLinks).toHaveClass('gap-3');
-    expect(quickLinks).not.toHaveClass('gap-4');
-    expect(quickLinkCard).toHaveClass('subscription-quick-link-card', 'p-3');
-    expect(quickLinkCard).not.toHaveClass('p-5');
-    expect(readiness).toHaveClass('p-3');
-    expect(readiness).not.toHaveClass('rounded-xl', 'p-4');
-    expect(sourceGate).toHaveClass('subscription-distribution-gate-row', 'min-h-[76px]', 'px-3', 'py-2.5');
-    expect(sourceGate).not.toHaveClass('min-h-20', 'px-4', 'py-3');
+    workspaceButtons.forEach((button) => {
+      expect(button).toHaveClass('px-4', 'py-2', 'text-xs');
+      expect(button).not.toHaveClass('p-5', 'rounded-xl');
+    });
+    expect(within(inventory).getByRole('button', { name: '导入订阅源' })).toHaveClass('px-4', 'py-2', 'text-xs');
+    expect(within(inventory).getByRole('button', { name: '新增订阅身份' })).toHaveClass('px-4', 'py-2', 'text-xs');
+    expect(within(inventory).getByRole('button', { name: '新增导出配置' })).toHaveClass('px-4', 'py-2', 'text-xs');
 
-    const layoutHtml = `${cockpit.outerHTML}${quickLinks.outerHTML}${readiness.outerHTML}`;
+    const layoutHtml = cockpit.outerHTML;
     expect(layoutHtml).not.toContain('masonry');
     expect(layoutHtml).not.toContain('columns-');
     expect(layoutHtml).not.toContain('grid-flow-row-dense');
     expect(layoutHtml).not.toContain('row-span');
     expect(layoutHtml).not.toContain('col-span');
+    expect(layoutHtml).not.toContain('subscription-overview-panel');
+    expect(layoutHtml).not.toContain('subscription-ops-readiness-panel');
+    expect(layoutHtml).not.toContain('subscription-ops-gate-panel');
   });
 
   it('keeps every subscription distribution data table dense across workspaces', async () => {
@@ -699,7 +712,8 @@ describe('SubscriptionMixerPage', () => {
     expect(pageHtml).not.toContain('避免把不可用订阅交给客户');
   });
 
-  it('surfaces subscription distribution gates on the control rail', () => {
+  it('removes subscription distribution gates from the compact workspace shell', async () => {
+    const user = userEvent.setup();
     renderPage({
       subscriptionSources: [
         source,
@@ -743,13 +757,14 @@ describe('SubscriptionMixerPage', () => {
     });
 
     const cockpit = screen.getByRole('region', { name: '订阅工作台' });
-    const sources = within(cockpit).getByRole('region', { name: '外部订阅源' });
-    const gates = within(sources).getByRole('region', { name: '订阅分发门禁' });
 
-    expect(within(gates).getByRole('group', { name: '来源同步' })).toHaveTextContent('异常');
-    expect(within(gates).getByRole('group', { name: '库存命中' })).toHaveTextContent('就绪');
-    expect(within(gates).getByRole('group', { name: '导出产物' })).toHaveTextContent('就绪');
-    expect(within(gates).getByRole('group', { name: '订阅入口' })).toHaveTextContent('异常');
+    expect(within(cockpit).queryByRole('region', { name: '外部订阅源' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅分发门禁' })).not.toBeInTheDocument();
+
+    await user.click(within(cockpit).getByRole('button', { name: '外部订阅源' }));
+
+    expect(screen.getByRole('region', { name: '外部订阅源 数据表' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅分发门禁' })).not.toBeInTheDocument();
   });
 
   it('keeps subscription operation drawers on explicit OU action colors instead of default template utilities', async () => {
@@ -843,7 +858,7 @@ describe('SubscriptionMixerPage', () => {
     expect((emptyNodesDrawer as HTMLElement).outerHTML).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|orange|red|slate|emerald)-/u);
   });
 
-  it('shows copyable subscription links and QR codes on the first screen', async () => {
+  it('opens copyable subscription links and QR codes from the client workspace', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
     vi.stubGlobal('navigator', {
@@ -854,22 +869,27 @@ describe('SubscriptionMixerPage', () => {
 
     renderPage({ subscriptionClients: [subscriptionClient] });
 
-    const quickLinks = screen.getByRole('region', { name: '订阅链接' });
-    const card = within(quickLinks).getByRole('article', { name: 'Acme 香港 Premium 订阅' });
+    expect(screen.queryByRole('region', { name: '订阅链接' })).not.toBeInTheDocument();
 
-    expect(within(card).getByText(/\/sub\/secure-acme-hkg\/uri\/sub_acme_hkg_premium$/)).toBeInTheDocument();
-    expect(within(card).getByText('Acme Team')).toBeInTheDocument();
-    expect(within(card).getByText('2 个节点')).toBeInTheDocument();
-    expect(await within(card).findByRole('img', { name: 'Acme 香港 Premium 订阅 订阅二维码' })).toBeInTheDocument();
+    const acmeRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
+    expect(acmeRow).toHaveClass('subscription-ops-client-row');
+    expect(within(acmeRow as HTMLElement).getByText('Acme Team')).toBeInTheDocument();
+    expect(within(acmeRow as HTMLElement).getByText(/2 命中节点/)).toBeInTheDocument();
 
-    await user.click(within(card).getByRole('button', { name: '复制订阅链接 Acme 香港 Premium 订阅' }));
+    await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '查看订阅链接' }));
+    const drawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
+
+    expect(within(drawer).getByText(/\/sub\/secure-acme-hkg\/uri\/sub_acme_hkg_premium$/)).toBeInTheDocument();
+    expect(await within(drawer).findByRole('img', { name: 'URI 订阅二维码' })).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: '复制 URI 链接' }));
 
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/\/sub\/secure-acme-hkg\/uri\/sub_acme_hkg_premium$/)
     );
   });
 
-  it('summarizes end-to-end subscription pipeline readiness on the first screen', () => {
+  it('removes the legacy subscription pipeline readiness panel from the compact workspace', () => {
     const acmeProvider: ProxyProviderConfig = {
       id: 'provider-source-hk-premium',
       name: '香港 Premium Provider',
@@ -913,23 +933,10 @@ describe('SubscriptionMixerPage', () => {
       subscriptionExportFiles: [exportFile]
     });
 
-    const readiness = screen.getByRole('region', { name: '订阅链路就绪' });
-    const expectMetric = (label: string, value: string) => {
-      const metric = within(readiness).getByText(label).closest('div');
-
-      expect(metric).not.toBeNull();
-      expect(within(metric as HTMLElement).getByText(value)).toBeInTheDocument();
-    };
-
-    expectMetric('链路完整度', '5 / 5');
-    expectMetric('可发布导出', '1');
-    expectMetric('可用节点', '2');
-    expectMetric('异常来源', '1');
-    expect(within(readiness).getByText('来源 2 · 库存 2 · 代理集合 2 · 导出 1 · 身份 1')).toBeInTheDocument();
-    expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅链路就绪' })).not.toBeInTheDocument();
   });
 
-  it('frames subscription pipeline readiness and bulk impact preflight as a blue control surface with orange risk cues', async () => {
+  it('keeps bulk impact preflight risk cues after removing pipeline readiness from the first screen', async () => {
     const user = userEvent.setup();
     const warningSource: SubscriptionSource = {
       ...backupSource,
@@ -982,13 +989,7 @@ describe('SubscriptionMixerPage', () => {
       ]
     });
 
-    const readiness = screen.getByRole('region', { name: '订阅链路就绪' });
-    expect(readiness).toHaveClass('border-[#1E3AFF]/35', 'bg-[#DCE1FF]/45');
-    const readinessMetricGrid = readiness.querySelector('.subscription-pipeline-readiness-metric-grid');
-    expect(readinessMetricGrid).toHaveClass('xl:w-[26rem]');
-    expect(readinessMetricGrid).not.toHaveClass('xl:w-[30rem]', 'xl:w-[34rem]');
-    expect(within(readiness).getByText('订阅链路就绪')).toHaveClass('text-[#1E3AFF]', 'dark:text-[#9EACFF]');
-    expect(within(readiness).getByText('Acme 香港 Premium 订阅 - Acme Mihomo Export · URI / Clash / Mihomo')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '订阅链路就绪' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '订阅身份' }));
     await user.click(screen.getByRole('checkbox', { name: '选择 Acme 香港 Premium 订阅' }));

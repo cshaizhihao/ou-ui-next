@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import QRCode from 'qrcode';
 import {
-  CheckCircle2,
   Copy,
   Download,
   FileSliders,
@@ -10,9 +9,7 @@ import {
   Pencil,
   Plus,
   RefreshCcw,
-  Shuffle,
-  Trash2,
-  type LucideIcon
+  Trash2
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
@@ -272,9 +269,6 @@ type ExportProfileDraft = {
 const copy = {
   zh: {
     title: '订阅管理',
-    operationalOverview: '运营总览',
-    operationalOverviewHint: '',
-    operationalOverviewSteps: [],
     clientsTab: '订阅身份',
     sourcesTab: '外部订阅源',
     inventoryTab: '节点库存',
@@ -286,9 +280,6 @@ const copy = {
     clientCount: '订阅身份',
     inventoryCount: '节点库存',
     exportCount: '导出文件',
-    quickLinksTitle: '订阅链接',
-    quickLinkNodeCount: (count: string) => `${count} 个节点`,
-    quickLinkQrLabel: (name: string) => `${name} 订阅二维码`,
     clientTitle: '客户订阅规则',
     clientHint: '',
     customerName: '客户名称',
@@ -414,35 +405,6 @@ const copy = {
     providerImpactProviders: '代理集合',
     providerImpactRelatedExports: '关联导出文件',
     providerImpactProviderPreview: '代理集合预览',
-    pipelineReadiness: '订阅链路就绪',
-    pipelineReadinessHint: '',
-    pipelineCompleteness: '链路完整度',
-    pipelinePublishableExports: '可发布导出',
-    pipelineUsableNodes: '可用节点',
-    pipelineRiskSources: '异常来源',
-    pipelineStageSummary: (sources: string, nodes: string, providers: string, exports: string, clients: string) =>
-      `来源 ${sources} · 库存 ${nodes} · 代理集合 ${providers} · 导出 ${exports} · 身份 ${clients}`,
-    distributionGates: '订阅分发门禁',
-    distributionGatesHint: '',
-    distributionGateReady: '就绪',
-    distributionGateIssues: '异常',
-    distributionGateWaiting: '等待',
-    distributionSourceGate: '来源同步',
-    distributionSourceGateReady: '所有来源最近同步可用。',
-    distributionSourceGateIssues: '存在失败、暂停或同步警告。',
-    distributionSourceGateWaiting: '等待外部订阅源接入。',
-    distributionInventoryGate: '库存命中',
-    distributionInventoryGateReady: '已有可用节点进入订阅库存。',
-    distributionInventoryGateIssues: '库存节点全部不可发布。',
-    distributionInventoryGateWaiting: '等待来源同步生成节点库存。',
-    distributionExportGate: '导出产物',
-    distributionExportGateReady: '已有可发布导出文件。',
-    distributionExportGateIssues: '导出文件引用缺失的身份或代理集合。',
-    distributionExportGateWaiting: '等待导出配置生成订阅文件。',
-    distributionEntryGate: '订阅入口',
-    distributionEntryGateReady: '启用身份具备节点与格式入口。',
-    distributionEntryGateIssues: '存在配额、到期或停用守护风险。',
-    distributionEntryGateWaiting: '等待订阅身份或输出格式配置。',
     selectSource: '选择',
     selectVisibleSources: '选择当前订阅源',
     selectedSources: '已选订阅源',
@@ -551,9 +513,6 @@ const copy = {
   },
   en: {
     title: 'Subscription Management',
-    operationalOverview: 'Operational Overview',
-    operationalOverviewHint: '',
-    operationalOverviewSteps: [],
     clientsTab: 'Identities',
     sourcesTab: 'External Sources',
     inventoryTab: 'Node Inventory',
@@ -565,9 +524,6 @@ const copy = {
     clientCount: 'Identities',
     inventoryCount: 'Node Inventory',
     exportCount: 'Export Files',
-    quickLinksTitle: 'Subscription Links',
-    quickLinkNodeCount: (count: string) => `${count} nodes`,
-    quickLinkQrLabel: (name: string) => `${name} Subscription QR Code`,
     clientTitle: 'Client Subscription Rules',
     clientHint: '',
     customerName: 'Customer Name',
@@ -695,35 +651,6 @@ const copy = {
     providerImpactProviders: 'Proxy Providers',
     providerImpactRelatedExports: 'Related Export Files',
     providerImpactProviderPreview: 'Provider Preview',
-    pipelineReadiness: 'Subscription Pipeline Ready',
-    pipelineReadinessHint: '',
-    pipelineCompleteness: 'Pipeline Completeness',
-    pipelinePublishableExports: 'Publishable Exports',
-    pipelineUsableNodes: 'Usable Nodes',
-    pipelineRiskSources: 'Risk Sources',
-    pipelineStageSummary: (sources: string, nodes: string, providers: string, exports: string, clients: string) =>
-      `Sources ${sources} · Inventory ${nodes} · Providers ${providers} · Exports ${exports} · Identities ${clients}`,
-    distributionGates: 'Subscription Distribution Gates',
-    distributionGatesHint: '',
-    distributionGateReady: 'Ready',
-    distributionGateIssues: 'Issues',
-    distributionGateWaiting: 'Waiting',
-    distributionSourceGate: 'Source Sync',
-    distributionSourceGateReady: 'All sources have usable sync state.',
-    distributionSourceGateIssues: 'A source is failed, paused, or warning.',
-    distributionSourceGateWaiting: 'Waiting for external sources.',
-    distributionInventoryGate: 'Inventory Match',
-    distributionInventoryGateReady: 'Usable nodes are available in inventory.',
-    distributionInventoryGateIssues: 'Inventory nodes are not publishable.',
-    distributionInventoryGateWaiting: 'Waiting for source sync to create inventory.',
-    distributionExportGate: 'Export Artifacts',
-    distributionExportGateReady: 'Publishable export files are available.',
-    distributionExportGateIssues: 'Export files reference missing identities or providers.',
-    distributionExportGateWaiting: 'Waiting for export files.',
-    distributionEntryGate: 'Subscription Entry',
-    distributionEntryGateReady: 'Enabled identities have nodes and formats.',
-    distributionEntryGateIssues: 'Quota, expiry, disabled, or guardrail risk exists.',
-    distributionEntryGateWaiting: 'Waiting for identities or output formats.',
     selectSource: 'Select',
     selectVisibleSources: 'Select Visible Sources',
     selectedSources: 'Selected Sources',
@@ -1788,29 +1715,6 @@ type ProviderGenerationImpactSummary = ExportGenerationImpactSummary & {
   providerCount: number;
 };
 
-type PipelineReadinessSummary = {
-  completeStages: number;
-  totalStages: number;
-  publishableExportCount: number;
-  usableNodeCount: number;
-  riskSourceCount: number;
-  stageCounts: {
-    sources: number;
-    nodes: number;
-    providers: number;
-    exports: number;
-    clients: number;
-  };
-  exportLabels: string[];
-};
-type DistributionGateState = 'ready' | 'issues' | 'waiting';
-type DistributionGate = {
-  detail: string;
-  label: string;
-  state: DistributionGateState;
-  value: string;
-};
-
 function createBulkClientImpactSummary(
   clients: SubscriptionClientIdentity[],
   nodes: SubscriptionInventoryNode[],
@@ -1890,183 +1794,6 @@ function createExportGenerationImpactSummary(
     formatCount: formatLabelsByValue.size,
     providerReferenceCount: providerIds.size
   };
-}
-
-function createPipelineReadinessSummary({
-  clients,
-  exportFiles,
-  inventoryNodes,
-  language,
-  providers,
-  sources
-}: {
-  clients: SubscriptionClientIdentity[];
-  exportFiles: SubscriptionExportFile[];
-  inventoryNodes: SubscriptionInventoryNode[];
-  language: AppLanguage;
-  providers: ProxyProviderConfig[];
-  sources: SubscriptionSource[];
-}): PipelineReadinessSummary {
-  const clientIds = new Set(clients.map((client) => client.id));
-  const providerIds = new Set(providers.map((provider) => provider.id));
-  const publishableExports = exportFiles.filter(
-    (file) =>
-      clientIds.has(file.subscriptionClientId) &&
-      file.formats.length > 0 &&
-      file.selectedProviderIds.length > 0 &&
-      file.selectedProviderIds.every((providerId) => providerIds.has(providerId))
-  );
-  const usableNodeCount = inventoryNodes.filter(
-    (node) => node.rawUrl && !['disabled', 'expired', 'quota-exceeded', 'error'].includes(node.status ?? '')
-  ).length;
-  const riskSourceCount = sources.filter((source) => source.status === 'warning' || source.status === 'failed' || source.status === 'paused').length;
-  const stageCounts = {
-    sources: sources.length,
-    nodes: usableNodeCount,
-    providers: providers.length,
-    exports: publishableExports.length,
-    clients: clients.length
-  };
-  const completeStages = Object.values(stageCounts).filter((count) => count > 0).length;
-
-  return {
-    completeStages,
-    totalStages: 5,
-    publishableExportCount: publishableExports.length,
-    usableNodeCount,
-    riskSourceCount,
-    stageCounts,
-    exportLabels: publishableExports.slice(0, 5).map((file) => `${file.name} · ${file.formats.map((format) => getClientFormatLabel(format, language)).join(' / ')}`)
-  };
-}
-
-function hasPublishableInventoryNode(node: SubscriptionInventoryNode) {
-  return Boolean(node.rawUrl) && !['disabled', 'expired', 'quota-exceeded', 'error'].includes(node.status ?? '');
-}
-
-function hasClientDistributionRisk(client: SubscriptionClientIdentity) {
-  const expiresAtMs = Date.parse(client.expiresAt);
-  const expired = Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now();
-
-  return Boolean(client.quotaExceeded || client.runtimeDisabledByPolicy || client.guardrailReason || expired || !client.enabled);
-}
-
-function createSubscriptionDistributionGates({
-  clients,
-  exportFiles,
-  inventoryNodes,
-  providers,
-  sources,
-  t
-}: {
-  clients: SubscriptionClientIdentity[];
-  exportFiles: SubscriptionExportFile[];
-  inventoryNodes: SubscriptionInventoryNode[];
-  providers: ProxyProviderConfig[];
-  sources: SubscriptionSource[];
-  t: (typeof copy)[AppLanguage];
-}): DistributionGate[] {
-  const clientIds = new Set(clients.map((client) => client.id));
-  const providerIds = new Set(providers.map((provider) => provider.id));
-  const usableNodeCount = inventoryNodes.filter(hasPublishableInventoryNode).length;
-  const sourceHasIssue = sources.some(
-    (source) =>
-      source.status === 'warning' ||
-      source.status === 'failed' ||
-      source.status === 'paused' ||
-      Boolean(source.syncWarnings?.length)
-  );
-  const exportHasIssue = exportFiles.some(
-    (file) =>
-      !clientIds.has(file.subscriptionClientId) ||
-      file.formats.length === 0 ||
-      file.selectedProviderIds.length === 0 ||
-      file.selectedProviderIds.some((providerId) => !providerIds.has(providerId))
-  );
-  const publishableExportCount = exportFiles.filter(
-    (file) =>
-      clientIds.has(file.subscriptionClientId) &&
-      file.formats.length > 0 &&
-      file.selectedProviderIds.length > 0 &&
-      file.selectedProviderIds.every((providerId) => providerIds.has(providerId))
-  ).length;
-  const entryHasIssue = clients.some(hasClientDistributionRisk);
-  const entryReadyCount = clients.filter(
-    (client) => {
-      const outputFormats = client.outputFormats?.length ? client.outputFormats : client.formats;
-
-      return (
-        client.enabled &&
-        client.formats.length > 0 &&
-        outputFormats.length > 0 &&
-        findClientMatchingInventoryNodes(inventoryNodes, client).some(hasPublishableInventoryNode)
-      );
-    }
-  ).length;
-  const formatGateValue = (state: DistributionGateState) => {
-    if (state === 'ready') {
-      return t.distributionGateReady;
-    }
-
-    if (state === 'issues') {
-      return t.distributionGateIssues;
-    }
-
-    return t.distributionGateWaiting;
-  };
-  const sourceState: DistributionGateState = sources.length === 0 ? 'waiting' : sourceHasIssue ? 'issues' : 'ready';
-  const inventoryState: DistributionGateState =
-    usableNodeCount > 0 ? 'ready' : inventoryNodes.length > 0 ? 'issues' : 'waiting';
-  const exportState: DistributionGateState =
-    publishableExportCount > 0 ? 'ready' : exportHasIssue ? 'issues' : 'waiting';
-  const entryState: DistributionGateState = entryHasIssue ? 'issues' : entryReadyCount > 0 ? 'ready' : 'waiting';
-
-  return [
-    {
-      detail:
-        sourceState === 'ready'
-          ? t.distributionSourceGateReady
-          : sourceState === 'issues'
-            ? t.distributionSourceGateIssues
-            : t.distributionSourceGateWaiting,
-      label: t.distributionSourceGate,
-      state: sourceState,
-      value: formatGateValue(sourceState)
-    },
-    {
-      detail:
-        inventoryState === 'ready'
-          ? t.distributionInventoryGateReady
-          : inventoryState === 'issues'
-            ? t.distributionInventoryGateIssues
-            : t.distributionInventoryGateWaiting,
-      label: t.distributionInventoryGate,
-      state: inventoryState,
-      value: formatGateValue(inventoryState)
-    },
-    {
-      detail:
-        exportState === 'ready'
-          ? t.distributionExportGateReady
-          : exportState === 'issues'
-            ? t.distributionExportGateIssues
-            : t.distributionExportGateWaiting,
-      label: t.distributionExportGate,
-      state: exportState,
-      value: formatGateValue(exportState)
-    },
-    {
-      detail:
-        entryState === 'ready'
-          ? t.distributionEntryGateReady
-          : entryState === 'issues'
-            ? t.distributionEntryGateIssues
-            : t.distributionEntryGateWaiting,
-      label: t.distributionEntryGate,
-      state: entryState,
-      value: formatGateValue(entryState)
-    }
-  ];
 }
 
 function createProviderGenerationImpactSummary(
@@ -2249,18 +1976,6 @@ export function SubscriptionMixerPage({
     () => createBulkClientImpactSummary(selectedClients, inventoryNodes, sources),
     [inventoryNodes, selectedClients, sources]
   );
-  const pipelineReadinessSummary = useMemo(
-    () =>
-      createPipelineReadinessSummary({
-        clients,
-        exportFiles: subscriptionExportFiles,
-        inventoryNodes,
-        language,
-        providers: proxyProviders,
-        sources
-      }),
-    [clients, inventoryNodes, language, proxyProviders, sources, subscriptionExportFiles]
-  );
   const sourceImpactSummary = useMemo(
     () => createSourceImpactSummary(selectedSources, subscriptionInventoryNodes, language),
     [language, selectedSources, subscriptionInventoryNodes]
@@ -2317,38 +2032,6 @@ export function SubscriptionMixerPage({
   const exportGenerationImpactSummary = useMemo(
     () => createExportGenerationImpactSummary(selectedExportFiles, clients, language),
     [clients, language, selectedExportFiles]
-  );
-  const distributionGates = useMemo(
-    () =>
-      createSubscriptionDistributionGates({
-        clients,
-        exportFiles,
-        inventoryNodes,
-        providers,
-        sources,
-        t
-      }),
-    [clients, exportFiles, inventoryNodes, providers, sources, t]
-  );
-  const controlRailMetrics = useMemo(
-    () => [
-      {
-        icon: Shuffle,
-        label: t.clientCount,
-        value: formatNumber(clients.length, language)
-      },
-      {
-        icon: Layers3,
-        label: t.inventoryCount,
-        value: formatNumber(inventoryNodes.length, language)
-      },
-      {
-        icon: FileSliders,
-        label: profileT.tab,
-        value: formatNumber(subscriptionExportProfiles.length, language)
-      }
-    ],
-    [clients.length, inventoryNodes.length, language, profileT.tab, subscriptionExportProfiles.length, t.clientCount, t.inventoryCount]
   );
   const selectedVisibleExportFileCount = useMemo(
     () => filteredExportFiles.filter((file) => selectedExportFileIds.includes(file.id)).length,
@@ -3142,87 +2825,33 @@ export function SubscriptionMixerPage({
       </ResponsiveSection>
 
       <WorkspaceCockpit aria-label="订阅工作台" className="subscription-workbench subscription-ops-cockpit stagger-2">
-        <div className="subscription-workbench-grid grid min-h-0 grid-cols-1 gap-0 xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
-          <section
-            aria-label={t.sourcesTab}
-            className="subscription-workbench-sources border-b border-[#07111F]/16 bg-[#FFFDF5]/82 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.025] xl:border-b-0 xl:border-r"
-            role="region"
-          >
-            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
-              <div className="border border-[#07111F]/18 bg-[#FFFDF5]/74 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[#1E3AFF] dark:text-[#9EACFF]" />
-                  <p className="text-sm font-semibold text-[#07111F] dark:text-white">{t.operationalOverview}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                {controlRailMetrics.map((metric) => (
-                  <SummaryMetric key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} />
-                ))}
-              </div>
-
-              <SubscriptionDistributionGatePanel gates={distributionGates} t={t} />
-
-              <div className="flex flex-wrap gap-2">
-                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openSourceDrawer}>
-                  <Download className="h-3.5 w-3.5" />
-                  {t.importSource}
-                </GlowButton>
-                <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openClientDrawer()}>
-                  <Plus className="h-3.5 w-3.5" />
-                  {t.addClient}
-                </GlowButton>
-              </div>
-            </div>
-          </section>
-
-          <WorkspaceCockpitScroller
-            aria-label={t.inventoryTab}
-            className="subscription-workbench-inventory subscription-ops-workspace min-h-0"
-          >
+        <div className="subscription-workbench-grid grid min-h-0 grid-cols-1 gap-0">
+          <WorkspaceCockpitScroller aria-label={t.inventoryTab} className="subscription-workbench-inventory subscription-ops-workspace min-h-0 max-md:pb-0">
             <div className="space-y-3 p-3">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <WorkspaceButton active={activeWorkspace === 'clients'} label={t.clientsTab} onClick={() => setActiveWorkspace('clients')} />
                 <WorkspaceButton active={activeWorkspace === 'sources'} label={t.sourcesTab} onClick={() => setActiveWorkspace('sources')} />
                 <WorkspaceButton active={activeWorkspace === 'inventory'} label={t.inventoryTab} onClick={() => setActiveWorkspace('inventory')} />
                 <WorkspaceButton active={activeWorkspace === 'providers'} label={t.providersTab} onClick={() => setActiveWorkspace('providers')} />
                 <WorkspaceButton active={activeWorkspace === 'profiles'} label={profileT.tab} onClick={() => setActiveWorkspace('profiles')} />
                 <WorkspaceButton active={activeWorkspace === 'exports'} label={t.exportsTab} onClick={() => setActiveWorkspace('exports')} />
-              </div>
-
-              <section className="subscription-overview-panel stagger-2 border border-[#1E3AFF]/25 bg-[#DCE1FF]/40 p-3 dark:border-[#6B7CFF]/15 dark:bg-[#6B7CFF]/10">
-                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
-                  <SummaryMetric icon={Shuffle} label={t.clientCount} value={formatNumber(clients.length, language)} />
-                  <SummaryMetric icon={Layers3} label={t.inventoryCount} value={formatNumber(inventoryNodes.length, language)} />
-                  <SummaryMetric icon={FileSliders} label={profileT.tab} value={formatNumber(exportProfiles.length, language)} />
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={openSourceDrawer}>
+                    <Download className="h-3.5 w-3.5" />
+                    {t.importSource}
+                  </GlowButton>
+                  <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openClientDrawer()}>
+                    <Plus className="h-3.5 w-3.5" />
+                    {t.addClient}
+                  </GlowButton>
+                  <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={() => openProfileDrawer()}>
+                    <FileSliders className="h-3.5 w-3.5" />
+                    {profileT.add}
+                  </GlowButton>
                 </div>
-              </section>
+              </div>
             </div>
           </WorkspaceCockpitScroller>
-
-          <section
-            aria-label={profileT.proxyGroups}
-            className="subscription-workbench-groups border-t border-[#07111F]/16 bg-[#FFFDF5]/78 p-3 dark:border-[#6B7CFF]/20 dark:bg-white/[0.025] xl:border-l xl:border-t-0"
-            role="region"
-          >
-            <div className="flex flex-col gap-3 xl:sticky xl:top-0">
-              <GlowButton className="w-fit gap-2 px-4 py-2 text-xs" onClick={() => openProfileDrawer()}>
-                <FileSliders className="h-3.5 w-3.5" />
-                {profileT.add}
-              </GlowButton>
-
-              <SubscriptionQuickLinks
-                clients={clients}
-                language={language}
-                onCopyLink={(client) => copyText(createDefaultSubscriptionUrl(client))}
-                onOpenLinks={openSubscriptionLinkDrawer}
-                t={t}
-              />
-
-              <PipelineReadinessPanel language={language} summary={pipelineReadinessSummary} t={t} />
-            </div>
-          </section>
         </div>
       </WorkspaceCockpit>
 
@@ -5023,118 +4652,6 @@ function ProviderTable({
   );
 }
 
-function SubscriptionQuickLinks({
-  clients,
-  language,
-  onCopyLink,
-  onOpenLinks,
-  t
-}: {
-  clients: SubscriptionClientIdentity[];
-  language: AppLanguage;
-  onCopyLink: (client: SubscriptionClientIdentity) => void;
-  onOpenLinks: (client: SubscriptionClientIdentity) => void;
-  t: (typeof copy)[AppLanguage];
-}) {
-  if (clients.length === 0) {
-    return null;
-  }
-
-  return (
-    <section
-      aria-label={t.quickLinksTitle}
-      className="subscription-ops-links-panel stagger-2 grid grid-cols-1 gap-3 xl:grid-cols-2"
-    >
-      {clients.map((client) => {
-        const url = createDefaultSubscriptionUrl(client);
-        const formatLabel = getClientFormatLabel('plain', language);
-
-        return (
-          <article
-            aria-label={client.displayName}
-            className="subscription-quick-link-card border border-slate-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/[0.035]"
-            key={client.id}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                    {client.displayName} · {formatLabel}
-                  </h4>
-                  <span className="rounded-full border border-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-200">
-                    {client.enabled ? t.enabled : t.disabled}
-                  </span>
-                </div>
-                <p className="mt-1 flex flex-wrap items-center gap-1 text-xs font-semibold text-slate-600 dark:text-white/55">
-                  <span>{client.customerName ?? client.email}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{t.quickLinkNodeCount(formatNumber(client.generatedNodeCount, language))}</span>
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  aria-label={`${t.copySubscriptionLink} ${client.displayName}`}
-                  className={compactNeutralActionButtonClass}
-                  onClick={() => onCopyLink(client)}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.copySubscriptionLink}
-                </button>
-                <button
-                  aria-label={`${t.viewSubscriptionLinks} ${client.displayName}`}
-                  className={compactNeutralActionButtonClass}
-                  onClick={() => onOpenLinks(client)}
-                  type="button"
-                >
-                  <FileSliders className="h-3.5 w-3.5" />
-                  {t.viewSubscriptionLinks}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="space-y-2.5">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
-                    {formatLabel}
-                  </p>
-                  <p className="mt-1 break-all bg-slate-50/80 p-2.5 font-mono text-[11px] leading-5 text-slate-700 dark:bg-white/[0.035] dark:text-white/65">
-                    {url}
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <MiniMetric label={t.usedTraffic} value={`${formatBytes(client.usedTrafficBytes)} / ${formatBytes(client.trafficLimitBytes)}`} />
-                  <MiniMetric label={t.expires} value={formatDateTime(client.expiresAt, language)} />
-                  <MiniMetric label={t.formats} value={client.formats.map((format) => getClientFormatLabel(format, language)).join(', ')} />
-                </div>
-              </div>
-              <SubscriptionQrCode
-                alt={t.quickLinkQrLabel(client.displayName)}
-                downloadLabel={t.downloadQrCode(formatLabel)}
-                filename={createSubscriptionQrFilename(client, 'plain')}
-                pendingLabel={t.qrCodeUnavailable}
-                url={url}
-              />
-            </div>
-          </article>
-        );
-      })}
-    </section>
-  );
-}
-
-function MiniMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-lg border border-slate-200 bg-white/70 p-2 dark:border-white/10 dark:bg-white/[0.03]">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-      <p className="mt-1 truncate text-xs font-black text-slate-800 dark:text-white/80" title={value}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function DataSection({ children, hint, title }: { children: ReactNode; hint?: string; title: string }) {
   return (
     <section className="stagger-3 island-card overflow-hidden">
@@ -5175,142 +4692,6 @@ function WorkspaceButton({ active, label, onClick }: { active: boolean; label: s
     >
       {label}
     </button>
-  );
-}
-
-function SummaryMetric({
-  label,
-  value,
-  icon: Icon
-}: {
-  label: string;
-  value: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="min-h-[76px] border border-slate-200 bg-white/50 p-3 dark:border-white/10 dark:bg-black/10">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{label}</p>
-          <p className="mt-1.5 text-lg font-black text-slate-900 dark:text-white">{value}</p>
-        </div>
-        <Icon className="h-5 w-5 text-blue-500 dark:text-primary" />
-      </div>
-    </div>
-  );
-}
-
-function PipelineReadinessPanel({
-  language,
-  summary,
-  t
-}: {
-  language: AppLanguage;
-  summary: PipelineReadinessSummary;
-  t: (typeof copy)[AppLanguage];
-}) {
-  const stageSummary = t.pipelineStageSummary(
-    formatNumber(summary.stageCounts.sources, language),
-    formatNumber(summary.stageCounts.nodes, language),
-    formatNumber(summary.stageCounts.providers, language),
-    formatNumber(summary.stageCounts.exports, language),
-    formatNumber(summary.stageCounts.clients, language)
-  );
-
-  return (
-    <section
-      aria-label={t.pipelineReadiness}
-      className="subscription-ops-readiness-panel mt-3 border border-[#1E3AFF]/35 bg-[#DCE1FF]/45 p-3 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10"
-    >
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#9EACFF]">{t.pipelineReadiness}</p>
-          {t.pipelineReadinessHint ? (
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600 dark:text-white/55">{t.pipelineReadinessHint}</p>
-          ) : null}
-          <p className="mt-3 text-xs font-bold text-slate-700 dark:text-white/70">{stageSummary}</p>
-          {summary.exportLabels.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {summary.exportLabels.map((label) => (
-                <span
-                  className="rounded-full border border-[#1E3AFF]/35 bg-[#FFFDF5] px-2.5 py-1 text-[11px] font-bold text-[#07111F] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04] dark:text-white/70"
-                  key={label}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="subscription-pipeline-readiness-metric-grid grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[26rem]">
-          <BulkImpactMetric
-            label={t.pipelineCompleteness}
-            value={`${formatNumber(summary.completeStages, language)} / ${formatNumber(summary.totalStages, language)}`}
-          />
-          <BulkImpactMetric label={t.pipelinePublishableExports} value={formatNumber(summary.publishableExportCount, language)} />
-          <BulkImpactMetric label={t.pipelineUsableNodes} value={formatNumber(summary.usableNodeCount, language)} />
-          <BulkImpactMetric label={t.pipelineRiskSources} tone="signal" value={formatNumber(summary.riskSourceCount, language)} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SubscriptionDistributionGatePanel({
-  gates,
-  t
-}: {
-  gates: DistributionGate[];
-  t: (typeof copy)[AppLanguage];
-}) {
-  return (
-    <section
-      aria-label={t.distributionGates}
-      className="subscription-ops-gate-panel overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_18px_44px_-38px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
-      role="region"
-    >
-      <div className="border-b border-[#07111F] bg-[#1E3AFF] px-4 py-3 text-white dark:border-[#6B7CFF]/30 dark:bg-[#1E3AFF]/80">
-        <p className="text-xs font-black uppercase tracking-widest">{t.distributionGates}</p>
-        {t.distributionGatesHint ? (
-          <p className="mt-1 text-[11px] leading-5 text-white/82">{t.distributionGatesHint}</p>
-        ) : null}
-      </div>
-      <div className="grid grid-cols-1 divide-y divide-[#07111F]/20 dark:divide-[#6B7CFF]/20">
-        {gates.map((gate) => (
-          <SubscriptionDistributionGateRow gate={gate} key={gate.label} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SubscriptionDistributionGateRow({ gate }: { gate: DistributionGate }) {
-  const stateClass = {
-    ready: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#006B50] dark:bg-[#00A878]/[0.14] dark:text-[#7FF3C9]',
-    issues: 'border-[#FF3D18] bg-[#FF3D18]/[0.13] text-[#C92810] dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
-    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#425200] dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]'
-  } satisfies Record<DistributionGateState, string>;
-
-  return (
-    <article
-      aria-label={gate.label}
-      className="subscription-distribution-gate-row group relative min-h-[76px] px-3 py-2.5 transition-[background-color,transform] duration-200 ease-out hover:bg-[#EAF3D1]/70 motion-reduce:transition-none dark:hover:bg-white/[0.055]"
-      role="group"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#07111F] dark:text-white">{gate.label}</p>
-          <p className="mt-1 text-[11px] leading-5 text-[#35405A] dark:text-white/55">{gate.detail}</p>
-        </div>
-        <span className={`shrink-0 border px-2.5 py-1 text-xs font-black ${stateClass[gate.state]}`}>
-          {gate.value}
-        </span>
-      </div>
-      <span
-        aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-75 bg-[#1E3AFF] transition-transform duration-200 ease-out group-hover:scale-x-100 motion-reduce:transition-none"
-      />
-    </article>
   );
 }
 
