@@ -124,6 +124,7 @@ export type {
   SubscriptionInventoryNode,
   SubscriptionInventoryNodeStatus,
   SubscriptionNode,
+  SubscriptionProducerFormat,
   ProxyProviderConfig,
   SubscriptionSource,
   SubscriptionSourceKind,
@@ -146,6 +147,21 @@ export {
   readSubscriptionSourceDeleteId,
   selectSubscriptionExportProfileForClient
 } from './subscription';
+export {
+  applySubscriptionTemplate,
+  getSubscriptionProducer,
+  listSubscriptionProducers,
+  resolveSubscriptionOutputFormatAlias
+} from './subscription-producers';
+export type {
+  AppliedSubscriptionTemplate,
+  SubscriptionOutputFormatAlias,
+  SubscriptionProducer,
+  SubscriptionProducerId,
+  SubscriptionProducerKind,
+  SubscriptionTemplateDefinition,
+  SubscriptionTemplateInstruction
+} from './subscription-producers';
 export {
   applySubscriptionSourceRules,
   countCrossSourceSubscriptionInventoryDuplicates,

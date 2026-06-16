@@ -102,7 +102,14 @@ export type SubscriptionSourceImportMetadata = {
   };
 };
 
-export type SubscriptionClientOutputFormat = 'clash' | 'mihomo' | 'v2ray' | 'sing-box' | 'uri';
+export type SubscriptionClientOutputFormat =
+  | 'clash'
+  | 'mihomo'
+  | 'v2ray'
+  | 'sing-box'
+  | 'uri'
+  | 'shadowrocket'
+  | 'stash';
 
 export type SubscriptionExportProfileMetadata = {
   profileId: string;
@@ -1167,7 +1174,9 @@ function createClientMetadataFromDraft(
       mihomo: subscriptionUrls.mihomo,
       v2ray: subscriptionUrls.json,
       'sing-box': subscriptionUrls['sing-box'],
-      uri: subscriptionUrls.plain
+      uri: subscriptionUrls.plain,
+      shadowrocket: subscriptionUrls.shadowrocket,
+      stash: subscriptionUrls.stash
     },
     clientRule: {
       protocolFilter: draft.protocol,
@@ -1325,8 +1334,10 @@ function buildSubscriptionUrls(draft: ClientDraft) {
     json: `${prefix}/v2ray/${subId}${suffix ? `?${suffix}` : ''}`,
     clash: `${prefix}/clash/${subId}${suffix ? `?${suffix}` : ''}`,
     mihomo: `${prefix}/mihomo/${subId}${suffix ? `?${suffix}` : ''}`,
-    'sing-box': `${prefix}/sing-box/${subId}${suffix ? `?${suffix}` : ''}`
-  } satisfies Record<SubscriptionClientFormat, string>;
+    'sing-box': `${prefix}/sing-box/${subId}${suffix ? `?${suffix}` : ''}`,
+    shadowrocket: `${prefix}/shadowrocket/${subId}${suffix ? `?${suffix}` : ''}`,
+    stash: `${prefix}/stash/${subId}${suffix ? `?${suffix}` : ''}`
+  } satisfies Record<SubscriptionClientFormat | 'shadowrocket' | 'stash', string>;
 }
 
 function createBrowserPublicBaseUrl() {

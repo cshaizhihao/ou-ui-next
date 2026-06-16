@@ -42,6 +42,7 @@ import {
 } from './api-contract';
 import {
   isPublicSubscriptionFormat,
+  normalizePublicSubscriptionFormat,
   renderPublicSubscriptionOutput,
   type PublicSubscriptionFormat,
   type PublicSubscriptionOutput
@@ -2336,6 +2337,11 @@ async function routeRequest(
     if (!isPublicSubscriptionFormat(publicSubscriptionPath.format)) {
       throw createHttpError(404, 'not_found', `Subscription format not found: ${publicSubscriptionPath.format}`);
     }
+    const publicSubscriptionFormat = normalizePublicSubscriptionFormat(publicSubscriptionPath.format);
+
+    if (!publicSubscriptionFormat) {
+      throw createHttpError(404, 'not_found', `Subscription format not found: ${publicSubscriptionPath.format}`);
+    }
 
     const clients = await api.listSubscriptionClients();
     const client = clients.find(
@@ -2360,13 +2366,13 @@ async function routeRequest(
       throw createSubscriptionQuotaExceededError(client);
     }
 
-    if (!isSubscriptionFormatAllowed(client, publicSubscriptionPath.format)) {
+    if (!isSubscriptionFormatAllowed(client, publicSubscriptionFormat)) {
       throw createHttpError(403, 'permission.denied', `Subscription format is not enabled: ${publicSubscriptionPath.format}`);
     }
 
-    consumePublicSubscriptionRequest(client, publicSubscriptionPath.format);
+    consumePublicSubscriptionRequest(client, publicSubscriptionFormat);
     const exportProfiles = await api.listSubscriptionExportProfiles();
-    const exportProfile = selectSubscriptionExportProfileForClient(exportProfiles, client, publicSubscriptionPath.format);
+    const exportProfile = selectSubscriptionExportProfileForClient(exportProfiles, client, publicSubscriptionFormat);
 
     sendRaw(
       response,
@@ -2374,7 +2380,7 @@ async function routeRequest(
       renderPublicSubscriptionOutput({
         client,
         exportProfile,
-        format: publicSubscriptionPath.format,
+        format: publicSubscriptionFormat,
         inbounds: await api.listInbounds(),
         externalNodes: await api.listSubscriptionInventoryNodes()
       })

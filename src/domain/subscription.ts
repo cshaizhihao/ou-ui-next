@@ -50,15 +50,24 @@ export type ProxyGroupTemplate = {
   nodeIds?: string[];
 };
 
+export type SubscriptionProducerFormat =
+  | 'uri'
+  | 'v2ray'
+  | 'clash'
+  | 'mihomo'
+  | 'sing-box'
+  | 'shadowrocket'
+  | 'stash';
+
 export type SubscriptionExportProfile = {
   id: string;
   name: string;
-  client: 'clash' | 'mihomo' | 'surge' | 'sing-box';
+  client: 'clash' | 'mihomo' | 'surge' | 'sing-box' | 'shadowrocket' | 'stash';
   sourceIds: string[];
   includeFilter: string;
   excludeFilter: string;
   regionFilter: string[];
-  outputFormats: SubscriptionClientOutputFormat[];
+  outputFormats: SubscriptionProducerFormat[];
   templateName: string;
   proxyGroups: ProxyGroupTemplate[];
   includeTrafficHeaders: boolean;
@@ -75,7 +84,7 @@ export type SubscriptionAccessToken = {
 
 export type SubscriptionClientFormat = 'plain' | 'json' | 'clash' | 'mihomo' | 'sing-box';
 
-export type SubscriptionClientOutputFormat = 'clash' | 'mihomo' | 'v2ray' | 'sing-box' | 'uri';
+export type SubscriptionClientOutputFormat = SubscriptionProducerFormat;
 
 export type SubscriptionClientSortStrategy = 'latency' | 'name' | 'region' | 'manual';
 
@@ -227,9 +236,24 @@ export type SubscriptionBundle = {
 const subscriptionSourceKinds: SubscriptionSourceKind[] = ['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual'];
 const subscriptionDedupeKeys: SubscriptionSource['dedupeKey'][] = ['server-port', 'uuid', 'name-region'];
 const subscriptionClientFormats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
-const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = ['clash', 'mihomo', 'v2ray', 'sing-box', 'uri'];
+const subscriptionClientOutputFormats: SubscriptionClientOutputFormat[] = [
+  'clash',
+  'mihomo',
+  'v2ray',
+  'sing-box',
+  'uri',
+  'shadowrocket',
+  'stash'
+];
 const subscriptionClientSortStrategies: SubscriptionClientSortStrategy[] = ['latency', 'name', 'region', 'manual'];
-const subscriptionExportProfileClients: SubscriptionExportProfile['client'][] = ['clash', 'mihomo', 'surge', 'sing-box'];
+const subscriptionExportProfileClients: SubscriptionExportProfile['client'][] = [
+  'clash',
+  'mihomo',
+  'surge',
+  'sing-box',
+  'shadowrocket',
+  'stash'
+];
 const proxyGroupStrategies: ProxyGroupTemplate['strategy'][] = ['select', 'url-test', 'fallback', 'load-balance'];
 const defaultSubscriptionBundleId = 'sub-global-premium';
 
@@ -543,13 +567,14 @@ function calculateSubscriptionBundleHealthScore(sources: SubscriptionSource[]) {
 
 function mapSubscriptionOutputFormatToExportTarget(format: SubscriptionClientOutputFormat) {
   if (format === 'sing-box') return 'Sing-box';
-  if (format === 'clash' || format === 'mihomo') return 'Clash';
+  if (format === 'clash' || format === 'mihomo' || format === 'stash') return 'Clash';
+  if (format === 'shadowrocket') return 'Surge';
   return undefined;
 }
 
 function mapSubscriptionProfileClientToExportTarget(client: SubscriptionExportProfile['client']) {
   if (client === 'sing-box') return 'Sing-box';
-  if (client === 'surge') return 'Surge';
+  if (client === 'surge' || client === 'shadowrocket') return 'Surge';
   return 'Clash';
 }
 

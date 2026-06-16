@@ -941,7 +941,9 @@ function createSubscriptionClientExportMetadata(
       mihomo: createSubscriptionUrl('mihomo'),
       v2ray: createSubscriptionUrl('v2ray'),
       'sing-box': createSubscriptionUrl('sing-box'),
-      uri: createSubscriptionUrl('uri')
+      uri: createSubscriptionUrl('uri'),
+      shadowrocket: createSubscriptionUrl('shadowrocket'),
+      stash: createSubscriptionUrl('stash')
     },
     clientRule: {
       protocolFilter: client.protocol as SubscriptionClientRuleMetadata['protocol'],
@@ -988,7 +990,9 @@ function createCustomerNodeSubscriptionMetadata(metadata: CustomerNodeConfigMeta
     v2ray: metadata.subscriptionUrlPreview?.v2ray || createSubscriptionUrl('v2ray'),
     clash: metadata.subscriptionUrlPreview?.clash || createSubscriptionUrl('clash'),
     mihomo: metadata.subscriptionUrlPreview?.mihomo || createSubscriptionUrl('mihomo'),
-    'sing-box': metadata.subscriptionUrlPreview?.['sing-box'] || createSubscriptionUrl('sing-box')
+    'sing-box': metadata.subscriptionUrlPreview?.['sing-box'] || createSubscriptionUrl('sing-box'),
+    shadowrocket: metadata.subscriptionUrlPreview?.shadowrocket || createSubscriptionUrl('shadowrocket'),
+    stash: metadata.subscriptionUrlPreview?.stash || createSubscriptionUrl('stash')
   };
 
   return {

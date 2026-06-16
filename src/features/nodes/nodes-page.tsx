@@ -171,7 +171,7 @@ export type CustomerNodeConfigMetadata = {
   subscriptionClientId?: string;
   subId?: string;
   securePathPreview?: string;
-  subscriptionUrlPreview?: Partial<Record<'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box', string>>;
+  subscriptionUrlPreview?: Partial<Record<'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box' | 'shadowrocket' | 'stash', string>>;
   enabled?: boolean;
 };
 
@@ -2355,7 +2355,7 @@ function createCustomerSubscriptionMaterial(draft: CustomerDraft, customerFallba
   const subscriptionClientId = `sub-client-${createCustomerSlug(`${customerName}-${subId}`, 'customer-node')}`.slice(0, 160);
   const securePathPreview = `/${createStableSecret(`${subscriptionClientId}:${subId}:secure-path`, 24)}`;
   const publicBaseUrl = createBrowserPublicBaseUrl();
-  const createUrl = (format: 'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box') =>
+  const createUrl = (format: 'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box' | 'shadowrocket' | 'stash') =>
     `${publicBaseUrl}/sub${securePathPreview}/${format}/${encodeURIComponent(subId)}`;
 
   return {
@@ -2367,7 +2367,9 @@ function createCustomerSubscriptionMaterial(draft: CustomerDraft, customerFallba
       v2ray: createUrl('v2ray'),
       clash: createUrl('clash'),
       mihomo: createUrl('mihomo'),
-      'sing-box': createUrl('sing-box')
+      'sing-box': createUrl('sing-box'),
+      shadowrocket: createUrl('shadowrocket'),
+      stash: createUrl('stash')
     }
   };
 }
