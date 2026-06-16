@@ -1069,10 +1069,12 @@ describe('NodesPage', () => {
 
   it('uses the OU node surface vocabulary for customer tables, bulk controls, and drawer fields', async () => {
     const user = userEvent.setup();
+    const longNodeName = 'Very Long Customer Node Name That Should Wrap Across The Control Plane Surface Without Escaping Its Cell';
+    const longSubscriptionRule = 'subscription-rule-with-a-very-long-token-that-must-break-inside-the-table-cell';
     const longInbound = createInbound({
-      label: 'Very Long Customer Node Name That Should Wrap Across The Control Plane Surface Without Escaping Its Cell',
+      label: longNodeName,
       customerName: 'Very Long Enterprise Customer Name With 中文字符 And English Segments',
-      subscriptionRule: 'subscription-rule-with-a-very-long-token-that-must-break-inside-the-table-cell'
+      subscriptionRule: longSubscriptionRule
     });
 
     render(
@@ -1093,8 +1095,8 @@ describe('NodesPage', () => {
     const customerWorkspace = screen.getByRole('region', { name: '客户节点配置' });
     const customerHtml = customerWorkspace.outerHTML;
     const firstRow = customerWorkspace.querySelector('.nodes-customer-node-row');
-    const nodeName = screen.getByText(longInbound.label);
-    const subscriptionRule = screen.getByText(longInbound.subscriptionRule);
+    const nodeName = screen.getByText(longNodeName);
+    const subscriptionRule = screen.getByText(longSubscriptionRule);
     const actionButton = customerWorkspace.querySelector('.nodes-node-action-button');
 
     expect(customerWorkspace.querySelector('.nodes-customer-filter-bar')).toHaveClass(
