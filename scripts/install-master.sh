@@ -7483,37 +7483,16 @@ run_timestamp_evidence_menu() {
 show_menu() {
   while true; do
     cat <<'EOT'
-OU-UI Next 快捷菜单
-  1) 查看面板信息
-  2) 查看登录信息
-  3) 查看服务状态
-  4) 查看实时日志
-  5) 重启服务
-  6) 从 GitHub 更新
-  7) 修改端口/证书
-  8) 运行安装诊断
-  9) 备份控制面状态
-  10) 从备份恢复控制面状态
-  11) 重置控制面状态
-  12) 轮换登录凭据
-  13) 卸载面板
-  14) 一键修复安装异常
-  15) 运行生产烟测
-  16) 运行浏览器烟测
-  17) 运行通知烟测
-  18) 生成生产验收证据包
-  19) 校验生产验收证据包
-  20) 运行 webhook 烟测
-  21) 运行最终现场验收
-  22) 复核最终现场验收证据包
-  23) 运行外部归档烟测
-  24) 生成干净服务器安装证据摘要
-  25) 生成归档 provider 侧不可变证据摘要
-  26) 全量生产发布复核
-  27) 运行全量生产发布验收
-  0) 退出
++------------------------------------------------------------+
+|                  OU-UI Next 快捷菜单                      |
++------------------------------------------------------------+
+|  1) 面板信息    2) 登录信息    3) 服务状态    4) 实时日志 |
+|  5) 重启服务    6) 从 GitHub 更新    7) 端口/证书   8) 诊断 |
+|  9) 备份状态   10) 恢复状态   11) 重置状态   12) 轮换凭据 |
+| 13) 一键修复   14) 卸载       0) 退出                      |
++------------------------------------------------------------+
 EOT
-    echo "快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复 r=重置状态 m=改端口/证书 d=诊断 sm=生产烟测 bs=浏览器烟测 ns=通知烟测 ws=webhook烟测 as=归档烟测 ape=归档provider证据 te=时间戳证据 cie=干净安装证据 qa=验收证据 qv=校验证据 qf=最终验收 qvf=最终复核 qvr=发布复核 qfa=发布验收 f=一键修复 x=卸载"
+    echo "快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份状态 rb=恢复状态 r=重置状态 rc=轮换登录凭据 m=改端口/证书 d=诊断 f=一键修复 x=卸载"
     read -r -p "请选择操作: " choice
 
     case "${choice}" in
@@ -7536,33 +7515,8 @@ EOT
       10|rb|RB|restore|RESTORE) read -r -p "请输入备份文件路径： " backup_file; restore_control_plane_state "${backup_file}" ;;
       11|r|R) reset_control_plane_state ;;
       12|rc|RC|rotate|ROTATE) rotate_operator_credentials ;;
-      14|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
-      15|sm|SM|smoke|SMOKE) run_production_smoke ;;
-      16|bs|BS|browser-smoke|BROWSER-SMOKE|smoke-browser|SMOKE-BROWSER) run_production_browser_smoke ;;
-      17|ns|NS|notification-smoke|NOTIFICATION-SMOKE|smoke-notification|SMOKE-NOTIFICATION) run_production_notification_smoke ;;
-      18|qa|QA|acceptance|ACCEPTANCE|accept|ACCEPT) run_production_acceptance ;;
-      19|qv|QV|verify-acceptance|VERIFY-ACCEPTANCE|acceptance-verify|ACCEPTANCE-VERIFY)
-        read -r -p "请输入验收证据包目录或 manifest.json 路径：" acceptance_path
-        verify_production_acceptance "${acceptance_path}"
-        ;;
-      20|ws|WS|webhook-smoke|WEBHOOK-SMOKE|smoke-webhook|SMOKE-WEBHOOK) run_production_webhook_smoke ;;
-      21|qf|QF|final-acceptance|FINAL-ACCEPTANCE|acceptance-final|ACCEPTANCE-FINAL|field-acceptance|FIELD-ACCEPTANCE) run_final_production_acceptance ;;
-      22|qvf|QVF|final-acceptance-verify|FINAL-ACCEPTANCE-VERIFY|verify-final-acceptance|VERIFY-FINAL-ACCEPTANCE|field-acceptance-verify|FIELD-ACCEPTANCE-VERIFY)
-        read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" final_acceptance_path
-        verify_final_production_acceptance_bundle "${final_acceptance_path}"
-        ;;
-      23|as|AS|archive-smoke|ARCHIVE-SMOKE|smoke-archive|SMOKE-ARCHIVE|external-archive-smoke|EXTERNAL-ARCHIVE-SMOKE) run_production_archive_smoke ;;
-      24|cie|CIE|clean-install-evidence|CLEAN-INSTALL-EVIDENCE|install-evidence-summary|INSTALL-EVIDENCE-SUMMARY|clean-install-summary|CLEAN-INSTALL-SUMMARY) run_clean_install_evidence_menu ;;
-      25|ape|APE|archive-provider-evidence|ARCHIVE-PROVIDER-EVIDENCE|provider-evidence|PROVIDER-EVIDENCE|archive-provider-summary|ARCHIVE-PROVIDER-SUMMARY) run_archive_provider_evidence_menu ;;
-      26|te|TE|timestamp-evidence|TIMESTAMP-EVIDENCE|timestamp-summary|TIMESTAMP-SUMMARY|timestamp-proof|TIMESTAMP-PROOF) run_timestamp_evidence_menu ;;
-      27|qvr|QVR|production-release-verify|PRODUCTION-RELEASE-VERIFY|release-verify|RELEASE-VERIFY|field-release-verify|FIELD-RELEASE-VERIFY)
-        read -r -p "请输入最终验收证据包目录或 manifest.json 路径：" release_acceptance_path
-        verify_production_release_acceptance_bundle "${release_acceptance_path}"
-        ;;
-      28|qfa|QFA|production-release-acceptance|PRODUCTION-RELEASE-ACCEPTANCE|release-acceptance|RELEASE-ACCEPTANCE|field-release-acceptance|FIELD-RELEASE-ACCEPTANCE)
-        log "全量生产发布验收需要命令行传入 Telegram、archive/provider/timestamp/clean-install/Agent 证据参数；请运行 'ou qfa --help' 查看用法。"
-        ;;
-      13|x|X) do_uninstall ;;
+      13|f|F|fix|FIX|repair|REPAIR) do_quick_fix ;;
+      14|x|X) do_uninstall ;;
       0|q|Q) break ;;
       *) log "未知选项。" ;;
     esac
@@ -7915,7 +7869,7 @@ show_cli_help() {
 用法: ou-ui-next <命令>
 
 不带参数时会直接打开快捷菜单。涉及更新、重配、重启、重置和卸载时请使用 root 执行，例如：sudo ou f。
-常用快捷: ou p=面板信息, ou c=登录信息, ou rc=轮换登录凭据, ou rs=重启服务, ou u=更新, ou sf=刷新前端静态资源, ou b=备份状态, ou r=重置状态, ou m=改端口/证书, ou d=诊断, ou sm=生产烟测, ou bs=浏览器烟测, ou ns=通知烟测, ou ws=webhook烟测, ou as=归档烟测, ou ape=归档provider证据, ou te=时间戳证据, ou cie=干净安装证据, ou qa=验收证据, ou qv=校验证据, ou qf=最终验收, ou qvf=最终复核, ou qvr=发布复核, ou qfa=发布验收, ou f=一键修复, ou x=卸载。
+常用快捷: ou p=面板信息, ou c=登录信息, ou rs=重启服务, ou u=更新, ou b=备份状态, ou rb=恢复状态, ou r=重置状态, ou rc=轮换登录凭据, ou m=改端口/证书, ou d=诊断, ou f=一键修复, ou x=卸载。高级命令见下方命令列表。
 
 命令:
   status      查看服务状态
@@ -9204,25 +9158,31 @@ configure_nginx() {
 print_summary() {
   PUBLIC_ENDPOINT="$(panel_redirect_target)"
 
-  printf "\n%b============================================================%b\n" "${GREEN}" "${RESET}"
-  printf "%bOU-UI Next Master 安装完成%b\n" "${BOLD}${GREEN}" "${RESET}"
-  printf "%b============================================================%b\n" "${GREEN}" "${RESET}"
-  printf "%b访问链接：%b %s\n" "${BOLD}" "${RESET}" "${PUBLIC_ENDPOINT}"
-  printf "%b安全路径：%b /%s\n" "${BOLD}" "${RESET}" "${SECURE_PATH}"
-  printf "%b操作员账号：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_USER}"
-  printf "%b操作员密码：%b %s\n" "${BOLD}" "${RESET}" "${ADMIN_PASSWORD}"
-  printf "%b前端登录页：%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "${RESET}"
-  printf "%bAgent 引导令牌：%b 已写入 %s（仅用于后端校验，不在前端明文展示）\n" "${BOLD}" "${RESET}" "${BACKEND_ENV_FILE}"
-  printf "%b管理命令：%b ou\n" "${BOLD}" "${RESET}"
-  printf "%b快捷入口：%b ou-ui / ou / ouui / ou-ui-next\n" "${BOLD}" "${RESET}"
+  printf "\n"
+  printf "%b%s%b\n" "${GREEN}" '  ____   _   _   _   _   _   _' "${RESET}"
+  printf "%b%s%b\n" "${GREEN}" ' / __ \ | | | | | | | \ | | | \ | |' "${RESET}"
+  printf "%b%s%b\n" "${GREEN}" '| |  | || | | | | | |  \| | |  \| |' "${RESET}"
+  printf "%b%s%b\n" "${GREEN}" '| |__| || |_| |_| | | |\  | | |\  |' "${RESET}"
+  printf "%b%s%b\n" "${GREEN}" ' \____/  \___/\___/  |_| \_| |_| \_|' "${RESET}"
+  printf "%b%s%b\n" "${BOLD}${GREEN}" '        OU-UI NEXT MASTER' "${RESET}"
+  printf "%b%s%b\n" "${GREEN}" '============================================================' "${RESET}"
+  printf "%b安装摘要%b\n" "${BOLD}${GREEN}" "${RESET}"
+  printf "%b%-14s%b %s\n" "${BOLD}" "访问链接：" "${RESET}" "${PUBLIC_ENDPOINT}"
+  printf "%b%-14s%b /%s\n" "${BOLD}" "安全路径：" "${RESET}" "${SECURE_PATH}"
+  printf "%b%-14s%b %s\n" "${BOLD}" "操作员账号：" "${RESET}" "${ADMIN_USER}"
+  printf "%b%-14s%b %s\n" "${BOLD}" "操作员密码：" "${RESET}" "${ADMIN_PASSWORD}"
+  printf "%b%-14s%b 已启用（不会再弹系统认证框）\n" "${BOLD}" "前端登录页：" "${RESET}"
+  printf "%b%-14s%b 已写入 %s（仅用于后端校验，不在前端明文展示）\n" "${BOLD}" "Agent 引导令牌：" "${RESET}" "${BACKEND_ENV_FILE}"
+  printf "%b%-14s%b ou\n" "${BOLD}" "管理命令：" "${RESET}"
+  printf "%b%-14s%b ou-ui / ou / ouui / ou-ui-next\n" "${BOLD}" "快捷入口：" "${RESET}"
   if [[ "${HAS_DOMAIN}" == "yes" ]]; then
-    printf "%bSSL 证书：%b Let's Encrypt 自动签发与自动续期已启用\n" "${BOLD}" "${RESET}"
+    printf "%b%-14s%b Let's Encrypt 自动签发与自动续期已启用\n" "${BOLD}" "SSL 证书：" "${RESET}"
   else
-    printf "%bSSL 证书：%b 当前为 IP + 端口模式，未启用 HTTPS\n" "${BOLD}" "${RESET}"
+    printf "%b%-14s%b 当前为 IP + 端口模式，未启用 HTTPS\n" "${BOLD}" "SSL 证书：" "${RESET}"
   fi
-  printf "%b后端服务：%b systemctl status %s\n" "${BOLD}" "${RESET}" "${SERVICE_NAME}"
-  printf "%bNginx 配置：%b %s\n" "${BOLD}" "${RESET}" "${NGINX_CONF}"
-  printf "%b============================================================%b\n\n" "${GREEN}" "${RESET}"
+  printf "%b%-14s%b systemctl status %s\n" "${BOLD}" "后端服务：" "${RESET}" "${SERVICE_NAME}"
+  printf "%b%-14s%b %s\n" "${BOLD}" "Nginx 配置：" "${RESET}" "${NGINX_CONF}"
+  printf "%b%s%b\n\n" "${GREEN}" '============================================================' "${RESET}"
 }
 
 main() {

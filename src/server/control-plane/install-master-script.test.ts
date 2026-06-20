@@ -2520,7 +2520,25 @@ describe('install-master.sh contract', () => {
   it('deploys from GitHub and installs the management shortcut commands', () => {
     expect(script).toContain('https://github.com/cshaizhihao/ou-ui-next.git');
     expect(script).toContain('git clone --branch "${DEFAULT_REPO_REF}" --depth 1 "${DEFAULT_REPO_URL}" "${APP_DIR}"');
-    expect(script).toContain('管理命令：%b ou');
+    expect(script).toContain('安装摘要');
+    expect(script).toContain('%b%-14s%b ou');
+    expect(script).toContain('+------------------------------------------------------------+');
+    expect(script).toContain('|                  OU-UI Next 快捷菜单                      |');
+    expect(script).toContain('| 13) 一键修复   14) 卸载       0) 退出                      |');
+    expect(script).toContain('快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份状态 rb=恢复状态 r=重置状态 rc=轮换登录凭据 m=改端口/证书 d=诊断 f=一键修复 x=卸载');
+    expect(script).not.toContain('15) 运行生产烟测');
+    expect(script).not.toContain('16) 运行浏览器烟测');
+    expect(script).not.toContain('17) 运行通知烟测');
+    expect(script).not.toContain('18) 生成生产验收证据包');
+    expect(script).not.toContain('19) 校验生产验收证据包');
+    expect(script).not.toContain('20) 运行 webhook 烟测');
+    expect(script).not.toContain('21) 运行最终现场验收');
+    expect(script).not.toContain('22) 复核最终现场验收证据包');
+    expect(script).not.toContain('23) 运行外部归档烟测');
+    expect(script).not.toContain('24) 生成干净服务器安装证据摘要');
+    expect(script).not.toContain('25) 生成归档 provider 侧不可变证据摘要');
+    expect(script).not.toContain('26) 全量生产发布复核');
+    expect(script).not.toContain('27) 运行全量生产发布验收');
     expect(script).toContain('reconfigure 修改端口/证书并重新运行安装向导');
     expect(script).toContain('update|upgrade|u)');
     expect(script).toContain('fix|repair|f)');
@@ -2584,7 +2602,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('clean-install-evidence|install-evidence-summary|clean-install-summary|cie)');
     expect(script).toContain('reset-state|reset|r)');
     expect(script).toContain('uninstall|remove|x)');
-    expect(script).toContain('快捷入口：%b ou-ui / ou / ouui / ou-ui-next');
+    expect(script).toContain('快捷入口：');
+    expect(script).toContain('ou-ui / ou / ouui / ou-ui-next');
     expect(script).toContain('link_management_cli_alias "/usr/local/bin/ouui"');
     expect(script).toContain('link_management_cli_alias "/usr/local/bin/ou-ui"');
     expect(script).toContain('link_management_cli_alias "/usr/local/bin/ou"');
@@ -7778,10 +7797,10 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(script).toContain('pre-restore-${storage_mode}-$(date -u +%Y%m%dT%H%M%SZ)');
     expect(script).toContain('restore_staging_path="${state_file}.restore-$(date -u +%Y%m%dT%H%M%SZ)-$$"');
     expect(script).toContain('mv "${restore_staging_path}" "${state_file}"');
-    expect(script).toContain('9) 备份控制面状态');
-    expect(script).toContain('10) 从备份恢复控制面状态');
-    expect(script).toContain('12) 轮换登录凭据');
-    expect(script).toContain('快捷键：p=面板信息 c=登录信息 rc=轮换登录凭据 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份 rb=恢复');
+    expect(script).toContain('9) 备份状态');
+    expect(script).toContain('10) 恢复状态');
+    expect(script).toContain('12) 轮换凭据');
+    expect(script).toContain('快捷键：p=面板信息 c=登录信息 s=服务状态 l=实时日志 rs=重启服务 u=更新 b=备份状态 rb=恢复状态 r=重置状态 rc=轮换登录凭据 m=改端口/证书 d=诊断 f=一键修复 x=卸载');
     expect(script).toContain('10|rb|RB|restore|RESTORE)');
     expect(script).toContain('12|rc|RC|rotate|ROTATE)');
     expect(script).toContain('backup-state|backup|b)');
@@ -8536,7 +8555,8 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
   });
 
   it('prints a readable Simplified Chinese install summary', () => {
-    expect(script).toContain('OU-UI Next Master 安装完成');
+    expect(script).toContain('OU-UI NEXT MASTER');
+    expect(script).toContain('安装摘要');
     expect(script).toContain('访问链接：');
     expect(script).toContain('安全路径：');
     expect(script).toContain('Agent 引导令牌：');
