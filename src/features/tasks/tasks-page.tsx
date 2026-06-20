@@ -17,6 +17,7 @@ import type {
   AgentLogRetentionPolicyReadModel,
   AgentLogRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
+import { copyText as copyToClipboard } from '../../lib/copy';
 import { formatDateTime, formatNumber } from '../shared/format';
 
 type TasksPageProps = {
@@ -746,10 +747,6 @@ function createTaskContextPayload({
   };
 }
 
-function copyText(value: string) {
-  void navigator.clipboard?.writeText(value);
-}
-
 function readTaskMetadataBoolean(task: DeployTask, key: string) {
   const value = task.metadata?.[key];
 
@@ -825,11 +822,11 @@ function createTaskRemediationPlanText(task: DeployTask, plan: TaskRemediationPl
 }
 
 function copyTaskRemediationPlan(task: DeployTask, plan: TaskRemediationPlan) {
-  copyText(createTaskRemediationPlanText(task, plan));
+  copyToClipboard(createTaskRemediationPlanText(task, plan));
 }
 
 function copyTaskRemediationPlans(tasks: DeployTask[], labels: (typeof copy)[AppLanguage]) {
-  copyText(
+  copyToClipboard(
     tasks
       .map((task) => createTaskRemediationPlanText(task, createTaskRemediationPlan(task, labels)))
       .join('\n\n')
@@ -923,7 +920,7 @@ function copyTaskFailureEvidencePackage(
   relatedArchives: AgentLogArchive[],
   relatedChunks: AgentLogChunk[]
 ) {
-  copyText(
+  copyToClipboard(
     stringifyJson(
       createTaskFailureEvidencePackage({
         bundle,
@@ -1656,7 +1653,7 @@ function TaskDetailsDrawer({
               </p>
             </div>
             <div className="mt-4 flex justify-end">
-              <GlowButton className="px-4 py-2 text-xs" onClick={() => copyText(stringifyJson(contextPayload))}>
+              <GlowButton className="px-4 py-2 text-xs" onClick={() => copyToClipboard(stringifyJson(contextPayload))}>
                 <Copy className="h-3.5 w-3.5" />
                 {t.copyTaskContext}
               </GlowButton>
@@ -2046,7 +2043,7 @@ function AgentLogPanel({
       return;
     }
 
-    copyText(stringifyJson(createAgentLogContextPayload(filteredChunks)));
+    copyToClipboard(stringifyJson(createAgentLogContextPayload(filteredChunks)));
   }
 
   return (
@@ -2230,7 +2227,7 @@ function AgentLogArchivePanel({
       return;
     }
 
-    copyText(stringifyJson(createAgentLogArchiveContextPayload(filteredArchives)));
+    copyToClipboard(stringifyJson(createAgentLogArchiveContextPayload(filteredArchives)));
   }
 
   return (
@@ -2532,7 +2529,7 @@ export function TasksPage({
       })
     );
 
-    copyText(
+    copyToClipboard(
       stringifyJson({
         taskCount: contexts.length,
         tasks: contexts

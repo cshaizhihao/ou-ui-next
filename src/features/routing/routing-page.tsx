@@ -6,6 +6,7 @@ import { GlassCard } from '../../components/ui/glass-card';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { RoutingPolicy } from '../../domain';
+import { copyText as copyToClipboard } from '../../lib/copy';
 import { formatNumber } from '../shared/format';
 
 export type { RoutingPolicy };
@@ -513,7 +514,7 @@ export function RoutingPage({ policies, language, taskMutationBusy = false, onRu
       return;
     }
 
-    void navigator.clipboard?.writeText(createRoutingCompilePlanText(selectedPolicies));
+    void copyToClipboard(createRoutingCompilePlanText(selectedPolicies));
   }
 
   function compileManualRule() {

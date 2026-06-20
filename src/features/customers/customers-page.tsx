@@ -10,6 +10,7 @@ import {
 } from '../../components/layout/responsive-page';
 import type { CustomerReadModel } from '../../domain';
 import { cn } from '../../lib/cn';
+import { copyText as copyToClipboard } from '../../lib/copy';
 import { formatBytes, formatDateTime, formatNumber } from '../shared/format';
 
 type CustomersPageProps = {
@@ -253,10 +254,6 @@ function createCustomerSummaryText(
   ].join('\n');
 }
 
-function copyText(value: string) {
-  void navigator.clipboard?.writeText(value);
-}
-
 function calculateTrafficPercent(customer: CustomerReadModel) {
   if (customer.trafficLimitBytes <= 0) {
     return 0;
@@ -451,7 +448,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
       .join('\n\n');
 
     if (resourceText) {
-      copyText(resourceText);
+      void copyToClipboard(resourceText);
     }
   }
 
@@ -461,7 +458,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
       .join('\n\n');
 
     if (summaryText) {
-      copyText(summaryText);
+      void copyToClipboard(summaryText);
     }
   }
 
@@ -774,7 +771,7 @@ export function CustomersPage({ focusIntent, customers, language, returnFocusRef
               <button
                 className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white shadow-lg shadow-blue-600/15 transition hover:bg-blue-500 dark:bg-primary dark:text-slate-950"
                 onClick={() =>
-                  copyText(createCustomerResourceIdText(resourceDrawerCustomer, t.resourceSectionLabels, t.noResources))
+                  void copyToClipboard(createCustomerResourceIdText(resourceDrawerCustomer, t.resourceSectionLabels, t.noResources))
                 }
                 type="button"
               >

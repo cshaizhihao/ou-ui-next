@@ -56,6 +56,7 @@ import {
   XRAY_HIGH_PORT_MIN
 } from '../../domain/xray-port-allocation';
 import { cn } from '../../lib/cn';
+import { copyText } from '../../lib/copy';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import {
   createCustomerNodeEnabledUpdate,
@@ -3227,7 +3228,7 @@ export function NodesPage({
       return;
     }
 
-    void navigator.clipboard?.writeText(installCommand.command);
+    void copyText(installCommand.command);
   }
 
   async function copyAgentUpgradeCommand(agent: Agent) {
@@ -3243,7 +3244,7 @@ export function NodesPage({
 
       const command = await onPreviewAgentUpgradeCommand(agent, reason);
       setUpgradeCommands((current) => ({ ...current, [agent.id]: command }));
-      copyText(command.command);
+      void copyText(command.command);
     } catch {
       setUpgradeErrorAgentIds((current) => [...new Set([...current, agent.id])]);
     } finally {
@@ -3263,14 +3264,6 @@ export function NodesPage({
     }
 
     onRemoteAgentUpgrade(agent, getAgentRecoveryReason(agent));
-  }
-
-  function copyText(value: string) {
-    if (!value || typeof navigator === 'undefined') {
-      return;
-    }
-
-    void navigator.clipboard?.writeText(value);
   }
 
   function toggleCustomerNodeSelection(nodeId: string) {
@@ -3299,11 +3292,11 @@ export function NodesPage({
   }
 
   function copyCustomerNodeShareLink(node: CustomerNodeRecord) {
-    copyText(createCustomerNodeLinkMaterial(node, t.customerName).shareLink);
+    void copyText(createCustomerNodeLinkMaterial(node, t.customerName).shareLink);
   }
 
   function copyCustomerNodeSubscriptionLink(node: CustomerNodeRecord) {
-    copyText(createCustomerNodeLinkMaterial(node, t.customerName).subscriptionLink);
+    void copyText(createCustomerNodeLinkMaterial(node, t.customerName).subscriptionLink);
   }
 
   function copySelectedCustomerNodeLinks() {
@@ -3314,7 +3307,7 @@ export function NodesPage({
     ].join('\n'));
 
     if (links.length > 0) {
-      copyText(links.join('\n\n'));
+      void copyText(links.join('\n\n'));
     }
   }
 

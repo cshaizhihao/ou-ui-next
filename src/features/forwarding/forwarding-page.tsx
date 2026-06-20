@@ -32,6 +32,7 @@ import type {
   RateLimitMode,
   TunnelMode
 } from '../../domain';
+import { copyText as copyToClipboard } from '../../lib/copy';
 import { formatBytes, formatNumber } from '../shared/format';
 
 export type ForwardingRuleView = {
@@ -1108,7 +1109,7 @@ export function ForwardingPage({
       return;
     }
 
-    void navigator.clipboard?.writeText(lastEntryEndpoints.join('\n'));
+    void copyToClipboard(lastEntryEndpoints.join('\n'));
   }
 
   function updateDraft(patch: Partial<ForwardDraft>) {

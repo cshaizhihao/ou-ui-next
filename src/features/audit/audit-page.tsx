@@ -10,6 +10,7 @@ import {
 } from '../../components/layout/responsive-page';
 import type { AuditLog } from '../../domain/audit';
 import type { AuditChainVerification } from '../../services/api/control-plane-api';
+import { copyText as copyToClipboard } from '../../lib/copy';
 import { formatDateTime, formatNumber } from '../shared/format';
 
 type AuditPageProps = {
@@ -409,7 +410,7 @@ function createAuditEvidenceText(log: AuditLog) {
 }
 
 function copyAuditEvidence(log: AuditLog) {
-  void navigator.clipboard?.writeText(createAuditEvidenceText(log));
+  void copyToClipboard(createAuditEvidenceText(log));
 }
 
 function createAuditEvidenceSetPayload(logs: AuditLog[]) {
@@ -431,11 +432,11 @@ function copyAuditEvidenceSet(logs: AuditLog[]) {
     return;
   }
 
-  void navigator.clipboard?.writeText(JSON.stringify(createAuditEvidenceSetPayload(logs), null, 2));
+  void copyToClipboard(JSON.stringify(createAuditEvidenceSetPayload(logs), null, 2));
 }
 
 function copyAuditVerificationResult(logs: AuditLog[], verification: AuditChainVerification) {
-  void navigator.clipboard?.writeText(JSON.stringify(createAuditVerificationPayload(logs, verification), null, 2));
+  void copyToClipboard(JSON.stringify(createAuditVerificationPayload(logs, verification), null, 2));
 }
 
 function AuditSummaryCard({

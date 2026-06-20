@@ -5,7 +5,18 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'dist-server', 'coverage', 'node_modules'] },
+  {
+    ignores: [
+      '**/dist',
+      '**/dist/**',
+      '**/dist-server',
+      '**/dist-server/**',
+      '**/coverage',
+      '**/coverage/**',
+      '**/node_modules',
+      '**/node_modules/**'
+    ]
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

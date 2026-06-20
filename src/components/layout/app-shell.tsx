@@ -54,6 +54,7 @@ import {
   preflightControlPlaneBackupPackage
 } from './control-plane-backup';
 import { createOperatorSessionUrl } from '../../features/auth/operator-session-url';
+import { copyText } from '../../lib/copy';
 import { createDefaultTelegramBotSettings, createDefaultTelegramNotificationPolicy } from '../../services/api/telegram-bot';
 import type {
   AgentLogArchiveExportReadModel,
@@ -2319,7 +2320,7 @@ export function AppShell({ ready }: AppShellProps) {
 
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
-          void navigator.clipboard?.writeText(createCustomerNodeAllSubscriptionText(subscriptionMetadata));
+          void copyText(createCustomerNodeAllSubscriptionText(subscriptionMetadata));
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
           break;
@@ -2336,7 +2337,7 @@ export function AppShell({ ready }: AppShellProps) {
 
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
-          void navigator.clipboard?.writeText(subscriptionMetadata.subscriptionUrlPreview.clash);
+          void copyText(subscriptionMetadata.subscriptionUrlPreview.clash);
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
           break;
@@ -2352,7 +2353,7 @@ export function AppShell({ ready }: AppShellProps) {
           }
 
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
-          void navigator.clipboard?.writeText(createCustomerNodeShareLink(metadata));
+          void copyText(createCustomerNodeShareLink(metadata));
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
           break;
@@ -2456,7 +2457,7 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          void navigator.clipboard?.writeText(command.value);
+          void copyText(command.value);
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
           break;
@@ -3055,7 +3056,7 @@ export function AppShell({ ready }: AppShellProps) {
       return;
     }
 
-    void navigator.clipboard?.writeText(JSON.stringify(controlPlaneBackup, null, 2));
+    void copyText(JSON.stringify(controlPlaneBackup, null, 2));
   }, [controlPlaneBackup]);
 
   const handlePreflightControlPlaneBackup = useCallback(

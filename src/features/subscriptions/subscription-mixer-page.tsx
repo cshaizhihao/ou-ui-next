@@ -23,6 +23,7 @@ import { EditableCardFrame, EditableCardStage } from '../../components/layout/ed
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import { applySubscriptionSourceRules, selectSubscriptionInventoryNodes } from '../../domain';
+import { copyText as copyToClipboard } from '../../lib/copy';
 import type {
   ProxyGroupTemplate,
   ProxyProviderConfig,
@@ -1455,10 +1456,6 @@ function createProxyProviderUrl(provider: ProxyProviderConfig) {
   return `${createBrowserPublicBaseUrl()}/proxy-providers/${encodeURIComponent(provider.id)}.yaml`;
 }
 
-function copyText(value: string) {
-  void navigator.clipboard?.writeText(value);
-}
-
 function openExternalLink(value: string) {
   globalThis.open?.(value, '_blank', 'noopener,noreferrer');
 }
@@ -2370,7 +2367,7 @@ export function SubscriptionMixerPage({
     const links = selectedClients.map(createDefaultSubscriptionUrl);
 
     if (links.length > 0) {
-      copyText(links.join('\n'));
+      void copyToClipboard(links.join('\n'));
     }
   }
 
@@ -2381,7 +2378,7 @@ export function SubscriptionMixerPage({
     ].join('\n'));
 
     if (links.length > 0) {
-      copyText(links.join('\n\n'));
+      void copyToClipboard(links.join('\n\n'));
     }
   }
 
@@ -2389,7 +2386,7 @@ export function SubscriptionMixerPage({
     const diagnostics = selectedClients.map(createSubscriptionDiagnosticsText);
 
     if (diagnostics.length > 0) {
-      copyText(diagnostics.join('\n\n'));
+      void copyToClipboard(diagnostics.join('\n\n'));
     }
   }
 
@@ -2397,7 +2394,7 @@ export function SubscriptionMixerPage({
     const links = selectedInventoryNodes.flatMap((node) => (node.rawUrl ? [node.rawUrl] : []));
 
     if (links.length > 0) {
-      copyText(links.join('\n'));
+      void copyToClipboard(links.join('\n'));
     }
   }
 
@@ -2409,7 +2406,7 @@ export function SubscriptionMixerPage({
     });
 
     if (links.length > 0) {
-      copyText(links.join('\n\n'));
+      void copyToClipboard(links.join('\n\n'));
     }
   }
 
@@ -2451,12 +2448,12 @@ export function SubscriptionMixerPage({
     const links = selectedProviders.map((provider) => `${provider.name}\n${createProxyProviderUrl(provider)}`);
 
     if (links.length > 0) {
-      copyText(links.join('\n\n'));
+      void copyToClipboard(links.join('\n\n'));
     }
   }
 
   function copyProviderUrl(provider: ProxyProviderConfig) {
-    copyText(`${provider.name}\n${createProxyProviderUrl(provider)}`);
+    void copyToClipboard(`${provider.name}\n${createProxyProviderUrl(provider)}`);
   }
 
   function generateProviderExportFiles(provider: ProxyProviderConfig) {
@@ -2487,12 +2484,12 @@ export function SubscriptionMixerPage({
   }
 
   function copyClientAllFormatSubscriptionUrls(client: SubscriptionClientIdentity) {
-    copyText(createClientAllFormatSubscriptionText(client, language));
+    void copyToClipboard(createClientAllFormatSubscriptionText(client, language));
   }
 
   function copyNodeRawUrl(node: SubscriptionInventoryNode) {
     if (node.rawUrl) {
-      copyText(node.rawUrl);
+      void copyToClipboard(node.rawUrl);
     }
   }
 
@@ -2500,7 +2497,7 @@ export function SubscriptionMixerPage({
     const links = nodes.flatMap((node) => (node.rawUrl ? [node.rawUrl] : []));
 
     if (links.length > 0) {
-      copyText(links.join('\n'));
+      void copyToClipboard(links.join('\n'));
     }
   }
 
@@ -2567,7 +2564,7 @@ export function SubscriptionMixerPage({
   function copyExportFileSubscriptionUrl(file: SubscriptionExportFile) {
     const client = clients.find((item) => item.id === file.subscriptionClientId);
 
-    copyText(createExportFileSubscriptionUrl(file, client));
+    void copyToClipboard(createExportFileSubscriptionUrl(file, client));
   }
 
   function updateSelectedClientDrafts(updateDraft: (draft: ClientDraft) => ClientDraft) {
@@ -3070,7 +3067,7 @@ export function SubscriptionMixerPage({
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex justify-end gap-2">
-                            <IconButton label={t.copySubscriptionLink} onClick={() => copyText(createDefaultSubscriptionUrl(client))}>
+                            <IconButton label={t.copySubscriptionLink} onClick={() => copyToClipboard(createDefaultSubscriptionUrl(client))}>
                               <Copy className="h-3.5 w-3.5" />
                             </IconButton>
                             <IconButton label={t.copyAllSubscriptionLinks} onClick={() => copyClientAllFormatSubscriptionUrls(client)}>
@@ -3949,7 +3946,7 @@ export function SubscriptionMixerPage({
                 </p>
                 <button
                   className={compactCommandActionButtonClass}
-                  onClick={() => copyText(createSubscriptionUsageHeaderLine(linkDrawerClient))}
+                  onClick={() => copyToClipboard(createSubscriptionUsageHeaderLine(linkDrawerClient))}
                   type="button"
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -3967,7 +3964,7 @@ export function SubscriptionMixerPage({
                 </p>
                 <button
                   className={compactNeutralActionButtonClass}
-                  onClick={() => copyText(createSubscriptionDiagnosticsText(linkDrawerClient))}
+                  onClick={() => copyToClipboard(createSubscriptionDiagnosticsText(linkDrawerClient))}
                   type="button"
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -4014,7 +4011,7 @@ export function SubscriptionMixerPage({
                     <div className="flex flex-wrap gap-2">
                       <button
                         className={compactNeutralActionButtonClass}
-                        onClick={() => copyText(url)}
+                        onClick={() => copyToClipboard(url)}
                         type="button"
                       >
                         <Copy className="h-3.5 w-3.5" />
