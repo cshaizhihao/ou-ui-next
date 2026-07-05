@@ -16,6 +16,13 @@ Known completed V2.0.0 foundation work:
 - V2.0.0 verification passed with lint, typecheck, full tests, and build.
 - The `V2.0.0` tag has been pushed.
 
+Post-V2.0.0 progress already landed on `main`:
+
+- Forwarding UI now reuses the same supported / blocked runtime control registry as runtime artifacts.
+- Forwarding entry selection disables Agents without `port-forwarding` capability instead of silently accepting unsupported hosts.
+- Forwarding rules now expose rule-level runtime diagnosis states: `ready`, `waiting`, `degraded`, `blocked`, and `failed`.
+- Forwarding diagnosis includes rule and binding status, runtime service evidence, nftables/GOST counter evidence, quota/guardrail suspension, blocked Agent controls, impacted binding count, and next-action hints.
+
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 
 ## Hard Machine Constraints
@@ -454,4 +461,3 @@ The long-term goal is complete only when all core criteria below are true:
 - `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` pass at the final milestone.
 - All stage commits have been pushed.
 - The final report lists completed work, remaining non-core items, verification results, commit hashes, and the recommended next release version.
-

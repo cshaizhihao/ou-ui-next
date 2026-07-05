@@ -34,6 +34,56 @@ export const FORWARDING_RUNTIME_BLOCKED_CONTROLS = [
 export type ForwardingRuntimeSupportedControl = (typeof FORWARDING_RUNTIME_SUPPORTED_CONTROLS)[number];
 export type ForwardingRuntimeBlockedControl = (typeof FORWARDING_RUNTIME_BLOCKED_CONTROLS)[number];
 
+export type ForwardingRuntimeDiagnosisState = 'ready' | 'waiting' | 'degraded' | 'blocked' | 'failed';
+
+export type ForwardingRuntimeDiagnosisReason =
+  | 'rule-disabled'
+  | 'no-entry-binding'
+  | 'no-runtime-service'
+  | 'deploying'
+  | 'paused'
+  | 'releasing'
+  | 'port-conflict'
+  | 'runtime-apply-failed'
+  | 'quota-exceeded'
+  | 'runtime-disabled-by-policy'
+  | 'guardrail'
+  | 'blocked-runtime-controls'
+  | 'missing-traffic-counters';
+
+export type ForwardingRuntimeDiagnosisAction =
+  | 'apply'
+  | 'resume'
+  | 'pause'
+  | 'repair'
+  | 'inspect-agent'
+  | 'resolve-conflict'
+  | 'reset-quota'
+  | 'enable-rule';
+
+export type ForwardingRuntimeDiagnosis = {
+  state: ForwardingRuntimeDiagnosisState;
+  reasons: ForwardingRuntimeDiagnosisReason[];
+  blockedControls: ForwardingRuntimeBlockedControl[];
+  nextActions: ForwardingRuntimeDiagnosisAction[];
+  hasRuntimeEvidence: boolean;
+  impactedBindingCount: number;
+};
+
+type ForwardingRuntimeDiagnosticRule = Pick<
+  ForwardRule,
+  | 'enabled'
+  | 'ports'
+  | 'portStatus'
+  | 'ipRateLimitMbps'
+  | 'maxConnections'
+  | 'maxConnectionsPerIp'
+  | 'proxyProtocol'
+  | 'quotaExceeded'
+  | 'runtimeDisabledByPolicy'
+  | 'guardrailReason'
+>;
+
 export type TunnelChainHop = {
   agentId: string;
   region: string;
@@ -113,6 +163,148 @@ export type ForwardRule = {
   runtimeDisabledByPolicy?: boolean;
   guardrailReason?: string;
 };
+
+export function collectBlockedForwardingRuntimeControls(
+  rule: Pick<ForwardRule, 'ipRateLimitMbps' | 'maxConnections' | 'maxConnectionsPerIp' | 'proxyProtocol'>
+): ForwardingRuntimeBlockedControl[] {
+  const blockedControls: ForwardingRuntimeBlockedControl[] = [];
+
+  if ((rule.ipRateLimitMbps ?? 0) > 0) {
+    blockedControls.push('ipRateLimitMbps');
+  }
+
+  if (rule.maxConnections > 0) {
+    blockedControls.push('maxConnections');
+  }
+
+  if (rule.maxConnectionsPerIp > 0) {
+    blockedControls.push('maxConnectionsPerIp');
+  }
+
+  if (rule.proxyProtocol) {
+    blockedControls.push('proxyProtocol');
+  }
+
+  return blockedControls;
+}
+
+function uniqueForwardingDiagnosisReasons(reasons: ForwardingRuntimeDiagnosisReason[]) {
+  return Array.from(new Set(reasons));
+}
+
+function uniqueForwardingDiagnosisActions(actions: ForwardingRuntimeDiagnosisAction[]) {
+  return Array.from(new Set(actions));
+}
+
+export function diagnoseForwardingRuntime(rule: ForwardingRuntimeDiagnosticRule): ForwardingRuntimeDiagnosis {
+  const reasons: ForwardingRuntimeDiagnosisReason[] = [];
+  const actions: ForwardingRuntimeDiagnosisAction[] = [];
+  const blockedControls = collectBlockedForwardingRuntimeControls(rule);
+  const hasRuntimeEvidence = rule.ports.some((binding) => (binding.runtimeServiceNames ?? []).length > 0);
+  const impactedBindingCount = rule.ports.filter((binding) => binding.status !== 'allocated').length;
+  const hasBindingConflict = rule.ports.some((binding) => binding.status === 'conflict');
+  const hasBindingFailure = rule.ports.some((binding) => binding.status === 'failed');
+  const hasBindingDeploying = rule.ports.some((binding) => binding.status === 'deploying');
+  const hasBindingPaused = rule.ports.some((binding) => binding.status === 'paused');
+  const hasBindingReleasing = rule.ports.some((binding) => binding.status === 'releasing');
+
+  if (!rule.enabled) {
+    reasons.push('rule-disabled');
+    actions.push('enable-rule');
+  }
+
+  if (rule.ports.length === 0) {
+    reasons.push('no-entry-binding');
+    actions.push('apply');
+  }
+
+  if (!hasRuntimeEvidence) {
+    reasons.push('no-runtime-service');
+    actions.push('apply');
+  }
+
+  if (blockedControls.length > 0) {
+    reasons.push('blocked-runtime-controls');
+    actions.push('inspect-agent');
+  }
+
+  if (rule.quotaExceeded) {
+    reasons.push('quota-exceeded');
+    actions.push('reset-quota');
+  }
+
+  if (rule.runtimeDisabledByPolicy) {
+    reasons.push('runtime-disabled-by-policy');
+    actions.push('resume');
+  }
+
+  if (rule.guardrailReason) {
+    reasons.push('guardrail');
+    actions.push('inspect-agent');
+  }
+
+  if (rule.portStatus === 'conflict' || hasBindingConflict) {
+    reasons.push('port-conflict');
+    actions.push('resolve-conflict');
+  }
+
+  if (rule.portStatus === 'failed' || hasBindingFailure) {
+    reasons.push('runtime-apply-failed');
+    actions.push('repair', 'inspect-agent');
+  }
+
+  if (rule.portStatus === 'deploying' || hasBindingDeploying) {
+    reasons.push('deploying');
+    actions.push('inspect-agent');
+  }
+
+  if (rule.portStatus === 'paused' || hasBindingPaused) {
+    reasons.push('paused');
+    actions.push('resume');
+  }
+
+  if (rule.portStatus === 'releasing' || hasBindingReleasing) {
+    reasons.push('releasing');
+    actions.push('inspect-agent');
+  }
+
+  const bindingsWithCounters = rule.ports.filter(
+    (binding) => (binding.inboundBytes ?? 0) > 0 || (binding.outboundBytes ?? 0) > 0 || Boolean(binding.lastCounterSampleAt)
+  );
+
+  if (hasRuntimeEvidence && rule.enabled && rule.portStatus === 'allocated' && bindingsWithCounters.length === 0) {
+    reasons.push('missing-traffic-counters');
+    actions.push('inspect-agent');
+  }
+
+  const state: ForwardingRuntimeDiagnosisState =
+    rule.portStatus === 'failed' || hasBindingFailure
+      ? 'failed'
+      : rule.portStatus === 'conflict' ||
+          hasBindingConflict ||
+          rule.runtimeDisabledByPolicy ||
+          rule.quotaExceeded ||
+          Boolean(rule.guardrailReason)
+        ? 'blocked'
+        : blockedControls.length > 0 || reasons.includes('missing-traffic-counters') || impactedBindingCount > 0
+          ? 'degraded'
+          : !rule.enabled || rule.ports.length === 0 || !hasRuntimeEvidence || ['deploying', 'paused', 'releasing'].includes(rule.portStatus)
+            ? 'waiting'
+            : 'ready';
+
+  if (state === 'ready' && actions.length === 0) {
+    actions.push('pause');
+  }
+
+  return {
+    state,
+    reasons: uniqueForwardingDiagnosisReasons(reasons),
+    blockedControls,
+    nextActions: uniqueForwardingDiagnosisActions(actions),
+    hasRuntimeEvidence,
+    impactedBindingCount
+  };
+}
 
 export function calculateForwardingMeteredBytes(rule: Pick<ForwardRule, 'billingDirection' | 'inboundBytes' | 'outboundBytes'>) {
   switch (rule.billingDirection) {

@@ -53,6 +53,10 @@ export type {
   ForwardProtocol,
   ForwardRule,
   ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeDiagnosis,
+  ForwardingRuntimeDiagnosisAction,
+  ForwardingRuntimeDiagnosisReason,
+  ForwardingRuntimeDiagnosisState,
   ForwardingRuntimeSupportedControl,
   ForwardStrategy,
   PortAllocationStatus,
@@ -62,6 +66,8 @@ export type {
   TunnelType
 } from './forwarding';
 export {
+  collectBlockedForwardingRuntimeControls,
+  diagnoseForwardingRuntime,
   FORWARDING_RUNTIME_BLOCKED_CONTROLS,
   FORWARDING_RUNTIME_SUPPORTED_CONTROLS
 } from './forwarding';

@@ -86,7 +86,11 @@ function createRule(overrides: Partial<ForwardingRuleView> = {}): ForwardingRule
         targetPort: 8443,
         protocol: 'tcp+udp',
         status: 'allocated',
-        runtimeServiceNames: [`ou-forward-${id}-${agentId}.service`]
+        runtimeServiceNames: [`ou-forward-${id}-${agentId}.service`],
+        inboundBytes: 1024,
+        outboundBytes: 2048,
+        lastCounterSampleAt: '2026-06-04T04:00:00.000Z',
+        counterSource: 'nftables'
       }
     ],
     bindingCount: 1,
@@ -695,6 +699,106 @@ describe('ForwardingPage', () => {
     expect(within(readiness).getByRole('group', { name: 'Waiting' })).toHaveTextContent('1');
   });
 
+  it('shows rule-level runtime diagnosis states with reasons and recovery actions', () => {
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[
+          createRule({
+            id: 'forward-ready',
+            name: 'Ready Forward'
+          }),
+          createRule({
+            id: 'forward-missing-counters',
+            name: 'Missing Counter Forward',
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 2443,
+                targetAddress: '10.0.0.20',
+                targetPort: 9443,
+                protocol: 'tcp+udp',
+                status: 'allocated',
+                runtimeServiceNames: ['ou-forward-forward-missing-counters-agent-hkg-01.service']
+              }
+            ]
+          }),
+          createRule({
+            id: 'forward-quota-blocked',
+            name: 'Quota Blocked Forward',
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'forward_rule_quota_exceeded'
+          }),
+          createRule({
+            id: 'forward-apply-failed',
+            name: 'Apply Failed Forward',
+            portStatus: 'failed',
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 4443,
+                targetAddress: '10.0.0.30',
+                targetPort: 9443,
+                protocol: 'tcp+udp',
+                status: 'failed',
+                runtimeServiceNames: ['ou-forward-forward-apply-failed-agent-hkg-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Port forwarding cockpit' });
+    const readiness = within(cockpit).getByRole('region', { name: 'Runtime Readiness' });
+    const tableRegion = getForwardingRuleTableRegion();
+
+    expect(within(cockpit).getByRole('group', { name: 'Risk flags' })).toHaveTextContent('3');
+    expect(within(readiness).getByRole('group', { name: 'Ready' })).toHaveTextContent('1');
+    expect(within(readiness).getByRole('group', { name: 'Issues' })).toHaveTextContent('3');
+    expect(within(readiness).getByRole('group', { name: 'Waiting' })).toHaveTextContent('0');
+
+    const readyDiagnosis = within(tableRegion).getByRole('group', { name: 'Runtime diagnosis for Ready Forward' });
+    expect(readyDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'ready');
+    expect(within(readyDiagnosis).getByText('No blockers')).toBeInTheDocument();
+    expect(within(readyDiagnosis).getByText('Pause')).toHaveAttribute('data-runtime-diagnosis-action', 'pause');
+
+    const degradedDiagnosis = within(tableRegion).getByRole('group', { name: 'Runtime diagnosis for Missing Counter Forward' });
+    expect(degradedDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
+    expect(within(degradedDiagnosis).getByText('Missing traffic counters')).toHaveAttribute(
+      'data-runtime-diagnosis-reason',
+      'missing-traffic-counters'
+    );
+    expect(within(degradedDiagnosis).getByText('Inspect Agent')).toHaveAttribute(
+      'data-runtime-diagnosis-action',
+      'inspect-agent'
+    );
+
+    const blockedDiagnosis = within(tableRegion).getByRole('group', { name: 'Runtime diagnosis for Quota Blocked Forward' });
+    expect(blockedDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'blocked');
+    expect(within(blockedDiagnosis).getByText('Quota exceeded')).toHaveAttribute(
+      'data-runtime-diagnosis-reason',
+      'quota-exceeded'
+    );
+    expect(within(blockedDiagnosis).getByText('Reset quota')).toHaveAttribute('data-runtime-diagnosis-action', 'reset-quota');
+    expect(within(blockedDiagnosis).getByText('Resume')).toHaveAttribute('data-runtime-diagnosis-action', 'resume');
+
+    const failedDiagnosis = within(tableRegion).getByRole('group', { name: 'Runtime diagnosis for Apply Failed Forward' });
+    expect(failedDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'failed');
+    expect(within(failedDiagnosis).getByText('Apply failed')).toHaveAttribute(
+      'data-runtime-diagnosis-reason',
+      'runtime-apply-failed'
+    );
+    expect(within(failedDiagnosis).getByText('Repair')).toHaveAttribute('data-runtime-diagnosis-action', 'repair');
+  });
+
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
@@ -990,7 +1094,7 @@ describe('ForwardingPage', () => {
     expect(policyRow).not.toBeNull();
     expect(quotaRow).not.toBeNull();
     expect(within(policyRow).getByText('Quota suspended')).toHaveClass('border-[#DC2626]', 'bg-[#DC2626]/[0.10]', 'text-[#B91C1C]');
-    expect(within(quotaRow).getByText('Quota exceeded')).toHaveClass('border-[#FF3D18]', 'bg-[#FFD8C6]/72', 'text-[#B93C17]');
+    expect(within(quotaRow).getAllByText('Quota exceeded')[0]).toHaveClass('border-[#FF3D18]', 'bg-[#FFD8C6]/72', 'text-[#B93C17]');
     expect(within(policyRow).getByText('forward_rule_disabled_by_policy')).toHaveClass('text-[#B91C1C]');
     expect(within(quotaRow).getByText('forward_rule_quota_exceeded')).toHaveClass('text-[#B93C17]');
     expect(deleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');

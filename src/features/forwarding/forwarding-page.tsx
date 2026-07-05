@@ -22,13 +22,22 @@ import {
 } from '../../components/layout/responsive-page';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
-import { FORWARDING_RUNTIME_BLOCKED_CONTROLS, FORWARDING_RUNTIME_SUPPORTED_CONTROLS } from '../../domain';
+import {
+  collectBlockedForwardingRuntimeControls,
+  diagnoseForwardingRuntime,
+  FORWARDING_RUNTIME_BLOCKED_CONTROLS,
+  FORWARDING_RUNTIME_SUPPORTED_CONTROLS
+} from '../../domain';
 import type {
   Agent,
   BillingDirection,
   ForwardPortBinding,
   ForwardProtocol,
   ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeDiagnosis,
+  ForwardingRuntimeDiagnosisAction,
+  ForwardingRuntimeDiagnosisReason,
+  ForwardingRuntimeDiagnosisState,
   ForwardingRuntimeSupportedControl,
   ForwardStrategy,
   PortAllocationStatus,
@@ -250,6 +259,9 @@ const copy = {
     runtimeSupportedControls: '可下发',
     runtimeBlockedControls: '阻断',
     runtimeBlockedStatus: 'Agent runtime blocked',
+    runtimeDiagnosis: '运行时诊断',
+    runtimeDiagnosisForRule: (name: string) => `${name} 的运行时诊断`,
+    runtimeDiagnosisNoIssue: '暂无阻断',
     portForwardingUnavailable: '缺少 port-forwarding',
     runtimeEvidence: '运行时证据',
     runtimeEvidenceForRule: (name: string) => `${name} 的运行时证据`,
@@ -332,6 +344,38 @@ const copy = {
       maxConnections: '最大连接',
       maxConnectionsPerIp: '单 IP 连接',
       proxyProtocol: 'Proxy Protocol'
+    },
+    runtimeDiagnosisStateLabels: {
+      ready: '就绪',
+      waiting: '等待',
+      degraded: '降级',
+      blocked: '阻断',
+      failed: '失败'
+    },
+    runtimeDiagnosisReasonLabels: {
+      'rule-disabled': '规则未启用',
+      'no-entry-binding': '缺少入口绑定',
+      'no-runtime-service': '缺少运行时服务',
+      deploying: '正在下发',
+      paused: '已暂停',
+      releasing: '正在释放',
+      'port-conflict': '端口冲突',
+      'runtime-apply-failed': '下发失败',
+      'quota-exceeded': '配额已超限',
+      'runtime-disabled-by-policy': '策略已停用运行时',
+      guardrail: '触发 guardrail',
+      'blocked-runtime-controls': '包含阻断控制项',
+      'missing-traffic-counters': '缺少流量计数'
+    },
+    runtimeDiagnosisActionLabels: {
+      apply: '下发',
+      resume: '恢复',
+      pause: '暂停',
+      repair: '修复',
+      'inspect-agent': '检查 Agent',
+      'resolve-conflict': '处理冲突',
+      'reset-quota': '重置配额',
+      'enable-rule': '启用规则'
     },
     strategyOptions: {
       fifo: '顺序',
@@ -428,6 +472,9 @@ const copy = {
     runtimeSupportedControls: 'Ready Controls',
     runtimeBlockedControls: 'Blocked Controls',
     runtimeBlockedStatus: 'Agent runtime blocked',
+    runtimeDiagnosis: 'Runtime Diagnosis',
+    runtimeDiagnosisForRule: (name: string) => `Runtime diagnosis for ${name}`,
+    runtimeDiagnosisNoIssue: 'No blockers',
     portForwardingUnavailable: 'port-forwarding missing',
     runtimeEvidence: 'Runtime Evidence',
     runtimeEvidenceForRule: (name: string) => `Runtime evidence for ${name}`,
@@ -512,6 +559,38 @@ const copy = {
       maxConnections: 'Max connections',
       maxConnectionsPerIp: 'Max per IP',
       proxyProtocol: 'Proxy Protocol'
+    },
+    runtimeDiagnosisStateLabels: {
+      ready: 'Ready',
+      waiting: 'Waiting',
+      degraded: 'Degraded',
+      blocked: 'Blocked',
+      failed: 'Failed'
+    },
+    runtimeDiagnosisReasonLabels: {
+      'rule-disabled': 'Rule disabled',
+      'no-entry-binding': 'No entry binding',
+      'no-runtime-service': 'No runtime service',
+      deploying: 'Deploying',
+      paused: 'Paused',
+      releasing: 'Releasing',
+      'port-conflict': 'Port conflict',
+      'runtime-apply-failed': 'Apply failed',
+      'quota-exceeded': 'Quota exceeded',
+      'runtime-disabled-by-policy': 'Runtime stopped by policy',
+      guardrail: 'Guardrail active',
+      'blocked-runtime-controls': 'Blocked controls present',
+      'missing-traffic-counters': 'Missing traffic counters'
+    },
+    runtimeDiagnosisActionLabels: {
+      apply: 'Apply',
+      resume: 'Resume',
+      pause: 'Pause',
+      repair: 'Repair',
+      'inspect-agent': 'Inspect Agent',
+      'resolve-conflict': 'Resolve conflict',
+      'reset-quota': 'Reset quota',
+      'enable-rule': 'Enable rule'
     },
     strategyOptions: {
       fifo: 'FIFO',
@@ -764,6 +843,7 @@ function createForwardingBulkImpactSummary(
   let pausedOrDisabledCount = 0;
 
   rules.forEach((rule) => {
+    const diagnosis = createForwardingRuntimeDiagnosis(rule);
     customerLabels.add(rule.ownerName || rule.name);
     usedBytes += Math.max(rule.usedBytes, 0);
 
@@ -771,14 +851,10 @@ function createForwardingBulkImpactSummary(
       pausedOrDisabledCount += 1;
     }
 
-    if (rule.quotaExceeded || rule.runtimeDisabledByPolicy || rule.portStatus === 'conflict' || rule.portStatus === 'failed') {
-      const reason =
-        rule.guardrailReason ||
-        (rule.portStatus === 'conflict' || rule.portStatus === 'failed'
-          ? t.portStatusLabels[rule.portStatus]
-          : rule.quotaExceeded
-            ? t.quotaExceeded
-            : t.quotaSuspended);
+    if (diagnosis.state === 'blocked' || diagnosis.state === 'failed' || diagnosis.state === 'degraded') {
+      const primaryReason =
+        diagnosis.reasons[0] ? t.runtimeDiagnosisReasonLabels[diagnosis.reasons[0]] : t.runtimeDiagnosisStateLabels[diagnosis.state];
+      const reason = rule.guardrailReason || primaryReason;
       guardrailRisks.push(`${rule.name}: ${reason}`);
     }
 
@@ -801,24 +877,33 @@ function createForwardingBulkImpactSummary(
   };
 }
 
+function createForwardingRuntimeDiagnosis(rule: ForwardingRuleView): ForwardingRuntimeDiagnosis {
+  return diagnoseForwardingRuntime({
+    enabled: rule.enabled,
+    ports: rule.bindings,
+    portStatus: rule.portStatus,
+    ipRateLimitMbps: rule.ipRateLimitMbps,
+    maxConnections: rule.maxConnections,
+    maxConnectionsPerIp: rule.maxConnectionsPerIp,
+    proxyProtocol: rule.proxyProtocol,
+    quotaExceeded: rule.quotaExceeded,
+    runtimeDisabledByPolicy: rule.runtimeDisabledByPolicy,
+    guardrailReason: rule.guardrailReason
+  });
+}
+
 function getForwardingRuntimeReadinessState(rule: ForwardingRuleView): ForwardingRuntimeReadinessState {
-  if (
-    rule.quotaExceeded ||
-    rule.runtimeDisabledByPolicy ||
-    Boolean(rule.guardrailReason) ||
-    rule.portStatus === 'conflict' ||
-    rule.portStatus === 'failed'
-  ) {
-    return 'issues';
+  const diagnosisState = createForwardingRuntimeDiagnosis(rule).state;
+
+  if (diagnosisState === 'ready') {
+    return 'ready';
   }
 
-  const hasRuntimeService = rule.bindings.some((binding) => (binding.runtimeServiceNames ?? []).length > 0);
-
-  if (!rule.enabled || !hasRuntimeService || ['deploying', 'paused', 'releasing'].includes(rule.portStatus)) {
+  if (diagnosisState === 'waiting') {
     return 'waiting';
   }
 
-  return 'ready';
+  return 'issues';
 }
 
 function createForwardingRuntimeReadinessMetrics(
@@ -912,25 +997,7 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView, entryNodeIds
 }
 
 function getBlockedRuntimeControlsFromRule(rule: ForwardingRuleView): ForwardingRuntimeBlockedControl[] {
-  const blockedControls: ForwardingRuntimeBlockedControl[] = [];
-
-  if (rule.ipRateLimitMbps > 0) {
-    blockedControls.push('ipRateLimitMbps');
-  }
-
-  if (rule.maxConnections > 0) {
-    blockedControls.push('maxConnections');
-  }
-
-  if (rule.maxConnectionsPerIp > 0) {
-    blockedControls.push('maxConnectionsPerIp');
-  }
-
-  if (rule.proxyProtocol) {
-    blockedControls.push('proxyProtocol');
-  }
-
-  return blockedControls;
+  return collectBlockedForwardingRuntimeControls(rule);
 }
 
 export function ForwardingPage({
@@ -997,9 +1064,11 @@ export function ForwardingPage({
   const hasBulkMigrationConflict = bulkMigrationConflicts.length > 0;
   const enabledCount = visibleRules.filter((rule) => rule.enabled).length;
   const bindingCount = visibleRules.reduce((sum, rule) => sum + rule.bindingCount, 0);
-  const riskFlagCount = visibleRules.filter(
-    (rule) => rule.quotaExceeded || rule.runtimeDisabledByPolicy || rule.portStatus === 'conflict' || Boolean(rule.guardrailReason)
-  ).length;
+  const riskFlagCount = visibleRules.filter((rule) => {
+    const diagnosisState = createForwardingRuntimeDiagnosis(rule).state;
+
+    return diagnosisState === 'blocked' || diagnosisState === 'failed' || diagnosisState === 'degraded';
+  }).length;
   const editingRule = drawer.type === 'edit' ? visibleRules.find((rule) => rule.id === drawer.ruleId) : undefined;
   const listenPort = parsePort(draft.listenPort);
   const targetPort = parsePort(draft.targetPort);
@@ -1979,6 +2048,82 @@ function ForwardingBulkImpactPreflight({
   );
 }
 
+function ForwardingRuntimeDiagnosisStrip({
+  diagnosis,
+  ruleName,
+  t
+}: {
+  diagnosis: ForwardingRuntimeDiagnosis;
+  ruleName: string;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.10] text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.12] dark:text-[#7FF3C9]',
+    waiting: 'border-[#07111F]/25 bg-[#FFFDF5] text-[#35405A] dark:border-white/10 dark:bg-white/[0.05] dark:text-white/65',
+    degraded: 'border-[#FF3D18] bg-[#D9FF00]/[0.18] text-[#B93C17] dark:border-[#FF6A3A]/25 dark:bg-[#D9FF00]/[0.08] dark:text-[#EAFF5A]',
+    blocked: 'border-[#FF3D18] bg-[#FF3D18]/[0.10] text-[#C9220C] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB197]',
+    failed: 'border-[#DC2626] bg-[#DC2626]/[0.10] text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]'
+  } satisfies Record<ForwardingRuntimeDiagnosisState, string>;
+  const reasonPreview =
+    diagnosis.reasons.length > 0
+      ? diagnosis.reasons.slice(0, 3)
+      : ([] as ForwardingRuntimeDiagnosisReason[]);
+  const actionPreview: ForwardingRuntimeDiagnosisAction[] = diagnosis.nextActions.slice(0, 3);
+
+  return (
+    <div
+      aria-label={t.runtimeDiagnosisForRule(ruleName)}
+      className="forwarding-runtime-diagnosis mt-2 border border-[#07111F]/20 bg-[#FFFDF5]/82 p-2.5 shadow-[0_10px_24px_-22px_rgba(7,17,31,0.24)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]"
+      data-runtime-diagnosis-state={diagnosis.state}
+      role="group"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[9px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">
+          {t.runtimeDiagnosis}
+        </span>
+        <span className={`border px-2 py-0.5 text-[9px] font-black uppercase ${stateClass[diagnosis.state]}`}>
+          {t.runtimeDiagnosisStateLabels[diagnosis.state]}
+        </span>
+        {diagnosis.impactedBindingCount > 0 ? (
+          <span className="border border-[#FF3D18] bg-[#FF3D18]/[0.09] px-2 py-0.5 text-[9px] font-black uppercase text-[#C9220C] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]">
+            {diagnosis.impactedBindingCount}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {reasonPreview.length > 0 ? (
+          reasonPreview.map((reason) => (
+            <span
+              className="border border-[#07111F]/18 bg-[#EAF3D1]/70 px-2 py-0.5 text-[9px] font-bold uppercase text-[#07111F] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65"
+              data-runtime-diagnosis-reason={reason}
+              key={reason}
+            >
+              {t.runtimeDiagnosisReasonLabels[reason]}
+            </span>
+          ))
+        ) : (
+          <span className="border border-[#00A878] bg-[#00A878]/[0.08] px-2 py-0.5 text-[9px] font-bold uppercase text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.10] dark:text-[#7FF3C9]">
+            {t.runtimeDiagnosisNoIssue}
+          </span>
+        )}
+      </div>
+      {actionPreview.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {actionPreview.map((action) => (
+            <span
+              className="border border-[#1E3AFF] bg-[#DCE1FF]/70 px-2 py-0.5 text-[9px] font-black uppercase text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/10 dark:text-primary"
+              data-runtime-diagnosis-action={action}
+              key={action}
+            >
+              {t.runtimeDiagnosisActionLabels[action]}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ForwardingRuntimeCapabilityMatrix({ t }: { t: (typeof copy)['zh' | 'en'] }) {
   const supportedControls = FORWARDING_RUNTIME_SUPPORTED_CONTROLS.map((control) => ({
     id: control,
@@ -2274,6 +2419,8 @@ function ForwardingRuleIdentity({
   rule: ForwardingRuleView;
   t: (typeof copy)['zh' | 'en'];
 }) {
+  const diagnosis = createForwardingRuntimeDiagnosis(rule);
+
   return (
     <div className="min-w-0">
       <p className="text-sm font-bold text-[#07111F] dark:text-white">{rule.name}</p>
@@ -2302,6 +2449,7 @@ function ForwardingRuleIdentity({
           {rule.guardrailReason}
         </p>
       ) : null}
+      <ForwardingRuntimeDiagnosisStrip diagnosis={diagnosis} ruleName={rule.name} t={t} />
       <ForwardingRuntimeEvidenceCard language={language} rule={rule} t={t} />
     </div>
   );
