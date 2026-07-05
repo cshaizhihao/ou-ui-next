@@ -2585,6 +2585,96 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('rejects tunnel create tasks that conflict with projected forwarding entry bindings', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-04T04:01:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    await api.createTask(
+      {
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-tunnel-conflict-2443',
+        targetLabel: 'Existing tunnel entry forwarding',
+        summary: 'Create existing tunnel entry forwarding',
+        metadata: {
+          agentIds: ['agent-hkg-01'],
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.20.0.8',
+          targetPort: 9443,
+          protocol: 'tcp',
+          name: 'Existing tunnel entry forwarding',
+          ownerName: 'Acme Team',
+          billingDirection: 'both'
+        }
+      },
+      mutationContext('forward-tunnel-conflict-2443')
+    );
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'tunnel.create',
+          resourceType: 'tunnel',
+          targetId: 'tunnel-conflicting-2443',
+          targetLabel: 'Conflicting tunnel entry',
+          summary: 'Create conflicting tunnel entry',
+          metadata: {
+            accountId: 'acct-beta',
+            name: 'Conflicting tunnel entry',
+            type: 'port-forward',
+            entryAgentIds: ['agent-hkg-01'],
+            exitAgentIds: ['agent-sin-02'],
+            listenAddress: '127.0.0.1',
+            listenPort: 2443,
+            targetAddress: '10.20.0.9',
+            targetPort: 9443,
+            protocol: 'tcp+udp',
+            inAddress: '0.0.0.0',
+            trafficRatio: 1
+          }
+        },
+        mutationContext('tunnel-conflicting-2443')
+      )
+    ).rejects.toMatchObject({
+      code: 'forward.port_conflict',
+      details: {
+        conflicts: [
+          expect.objectContaining({
+            ruleId: 'forward-tunnel-conflict-2443',
+            ruleName: 'Existing tunnel entry forwarding',
+            agentId: 'agent-hkg-01',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            protocol: 'tcp',
+            source: 'forward-rule'
+          })
+        ]
+      }
+    });
+    expect((await api.listTasks()).map((task) => task.targetId)).not.toContain('tunnel-conflicting-2443');
+    expect(await api.listAuditLogs()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'forward.port_conflict',
+          resourceType: 'tunnel',
+          result: 'denied',
+          targetId: 'tunnel-conflicting-2443'
+        })
+      ])
+    );
+  });
+
   it('projects Agent-reported port conflicts into forwarding rule status', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants

@@ -32,7 +32,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 - Xray inbound create/update 的 `metadata.clients[]` 已进入 API contract / OpenAPI，Control Plane 会拒绝重复的 client identity、email 或 subscription rule。
 - Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
 - Forwarding artifact 和工作区会显式声明 Agent runtime 已支持和未支持的控制项；artifact 会携带编译期 runtime diagnosis，规则行会展示 ready / waiting / degraded / blocked / failed 诊断，避免把 `proxyProtocol`、IP 级限速或连接数限制误写成已完整落地。
-- Forwarding create/update 在任务入队前会检查已存在规则和 queued/running/retrying 任务，拒绝同 Agent、同监听端口、重叠协议或通配监听地址的冲突绑定。
+- Forwarding create/update 和 tunnel create/update/redeploy 在任务入队前会检查已存在规则和进行中的端口转发任务，拒绝同 Agent、同监听端口、重叠协议或通配监听地址的冲突绑定。
 - README 按已实现、Preview、Roadmap 分层描述，未完成能力不会再包装成生产完成项。
 
 ## V2.0.0 亮点
@@ -41,7 +41,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | --- | --- |
 | Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、结构化 `clients[]` 校验、Xray config preflight、systemd runtime restart |
 | Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额和过期策略可以按 client 评估 |
-| Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；create/update 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
+| Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
 | 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路，README 明确区分当前支持与后续门户能力 |
 | 发布准备 | 项目版本更新为 `2.0.0`，README 重写，能力边界更准确 |
 
@@ -56,7 +56,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Xray 多 client inbound | 已实现 | Control Plane artifact 支持 `clients[]`，API/OpenAPI 校验多 client metadata，Agent profile 支持逐 client telemetry/guardrail |
 | Xray 协议 | 已实现 | runtime apply 支持 `vless`、`vmess`、`trojan`、`shadowsocks` |
 | Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议 |
-| Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，create/update 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
+| Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
 | Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断和安全路径重新生成 |
 | 用户订阅门户 | Roadmap | 独立客户门户、真实 token 轮换 UI、设备级绑定仍需继续补齐 |
@@ -174,7 +174,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - 规则级 `rateLimitMbps`，支持 one-way / bi-directional 方向。
 - nftables 计数采集，用于 forwarding telemetry 和 quota read model。
 - 暂停、恢复、删除会停止或移除对应 systemd unit 和计数规则。
-- Control Plane 会在 create/update 任务入队前检查已存在规则和进行中的 forwarding 任务，命中同 Agent、同监听端口、协议重叠或通配监听地址重叠时返回 `forward.port_conflict`。
+- Control Plane 会在 forwarding create/update 和 tunnel create/update/redeploy 入队前检查已存在规则和进行中的端口转发任务，命中同 Agent、同监听端口、协议重叠或通配监听地址重叠时返回 `forward.port_conflict`。
 - Runtime artifact 会带出 `control-plane-compiled` 阶段的诊断、planned service 和 blocked controls，方便任务预览与后续 Agent evidence 对齐。
 - 面板会根据规则、绑定、runtime service、计数样本、quota/guardrail 和 Agent blocked controls 显示 `ready`、`waiting`、`degraded`、`blocked`、`failed` 诊断，以及 apply / resume / repair / inspect 等下一步动作。
 

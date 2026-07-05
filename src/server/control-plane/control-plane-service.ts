@@ -595,9 +595,13 @@ function forwardingProtocolsOverlap(
   return first === second || first === 'tcp+udp' || second === 'tcp+udp';
 }
 
+function isForwardPortConflictOperation(operation: CreateTaskInput['operation']) {
+  return ['forward.create', 'forward.update', 'tunnel.create', 'tunnel.update', 'tunnel.redeploy'].includes(operation);
+}
+
 function readForwardPortBindingRequest(metadata: Record<string, unknown> | undefined): ForwardPortBindingRequest | undefined {
   const listenPort = readNumberMetadata(metadata, 'listenPort');
-  const agentIds = metadata?.entryNodeIds ?? metadata?.agentIds;
+  const agentIds = metadata?.entryNodeIds ?? metadata?.entryAgentIds ?? metadata?.agentIds;
 
   if (!listenPort || !Array.isArray(agentIds)) {
     return undefined;
@@ -648,7 +652,7 @@ function projectForwardPortConflictRules(existingRules: ForwardRule[], existingT
 }
 
 function findForwardPortConflicts(taskInput: CreateTaskInput, existingRules: ForwardRule[], existingTasks: DeployTask[]) {
-  if (taskInput.operation !== 'forward.create' && taskInput.operation !== 'forward.update') {
+  if (!isForwardPortConflictOperation(taskInput.operation)) {
     return [];
   }
 
@@ -659,7 +663,12 @@ function findForwardPortConflicts(taskInput: CreateTaskInput, existingRules: For
   }
 
   const selectedAgentIds = new Set(bindingRequest.agentIds);
-  const editingRuleId = taskInput.operation === 'forward.update' ? taskInput.targetId : '';
+  const editingRuleId =
+    taskInput.operation === 'forward.update' ||
+    taskInput.operation === 'tunnel.update' ||
+    taskInput.operation === 'tunnel.redeploy'
+      ? taskInput.targetId
+      : '';
 
   return projectForwardPortConflictRules(existingRules, existingTasks)
     .flatMap(createForwardRuleConflictCandidates)
@@ -670,7 +679,7 @@ function findForwardPortConflicts(taskInput: CreateTaskInput, existingRules: For
         candidate.listenPort === bindingRequest.listenPort &&
         forwardingProtocolsOverlap(candidate.protocol, bindingRequest.protocol) &&
         forwardingListenAddressesOverlap(candidate.listenAddress, bindingRequest.listenAddress)
-    )
+    );
 }
 
 function gbFromBytes(bytes: number | undefined) {
@@ -2965,9 +2974,7 @@ export function createControlPlaneService({
       const idempotencyKey = createIdempotencyRecordKey(mutationContext);
       const resourceType = taskInput.resourceType ?? inferResourceType(taskInput.operation);
       const forwardPortConflictRules =
-        taskInput.operation === 'forward.create' || taskInput.operation === 'forward.update'
-          ? await repository.listForwardRules()
-          : [];
+        isForwardPortConflictOperation(taskInput.operation) ? await repository.listForwardRules() : [];
 
       const result = await repository.transaction<CreateTaskTransactionResult>(async (transaction) => {
         const existingRecord = await transaction.findIdempotencyRecord(idempotencyKey);
