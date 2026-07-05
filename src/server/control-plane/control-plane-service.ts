@@ -22,6 +22,7 @@ import type {
   TrafficRollupCompaction
 } from '../../domain';
 import {
+  applyForwardRuleTask,
   buildRuntimeArtifact,
   composeAgentInstallCommand,
   composeAgentUpgradeCommand,
@@ -536,6 +537,140 @@ function readForwardRuleAgentIds(rule: Awaited<ReturnType<ControlPlaneTransactio
         .filter((agentId): agentId is string => typeof agentId === 'string' && agentId.trim() !== '')
     )
   ];
+}
+
+type ForwardPortProtocol = ForwardRule['ports'][number]['protocol'];
+type ForwardPortStatus = ForwardRule['ports'][number]['status'];
+
+type ForwardPortBindingRequest = {
+  agentIds: string[];
+  listenAddress: string;
+  listenPort: number;
+  protocol: ForwardPortProtocol;
+};
+
+type ForwardPortConflictCandidate = Omit<ForwardPortBindingRequest, 'agentIds'> & {
+  agentId: string;
+  ruleId: string;
+  ruleName: string;
+  source: 'forward-rule';
+};
+
+const reservingForwardPortStatuses = new Set<ForwardPortStatus>(['deploying', 'allocated', 'paused', 'releasing']);
+
+function readNumberMetadata(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function readForwardProtocolMetadata(metadata: Record<string, unknown> | undefined): ForwardPortProtocol {
+  const value = metadata?.protocol;
+  return value === 'udp' || value === 'tcp+udp' ? value : 'tcp';
+}
+
+function normalizeForwardListenAddress(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : '0.0.0.0';
+}
+
+function forwardingListenAddressesOverlap(first: string, second: string) {
+  const wildcardAddresses = new Set(['0.0.0.0', '::', '*']);
+
+  return first === second || wildcardAddresses.has(first) || wildcardAddresses.has(second);
+}
+
+function forwardingProtocolsOverlap(
+  first: ForwardPortProtocol,
+  second: ForwardPortProtocol
+) {
+  return first === second || first === 'tcp+udp' || second === 'tcp+udp';
+}
+
+function readForwardPortBindingRequest(metadata: Record<string, unknown> | undefined): ForwardPortBindingRequest | undefined {
+  const listenPort = readNumberMetadata(metadata, 'listenPort');
+  const agentIds = metadata?.entryNodeIds ?? metadata?.agentIds;
+
+  if (!listenPort || !Array.isArray(agentIds)) {
+    return undefined;
+  }
+
+  const selectedAgentIds = [
+    ...new Set(agentIds.filter((agentId): agentId is string => typeof agentId === 'string' && agentId.trim() !== ''))
+  ];
+
+  if (selectedAgentIds.length === 0) {
+    return undefined;
+  }
+
+  return {
+    agentIds: selectedAgentIds,
+    listenAddress: normalizeForwardListenAddress(metadata?.listenAddress),
+    listenPort,
+    protocol: readForwardProtocolMetadata(metadata)
+  };
+}
+
+function createForwardRuleConflictCandidates(rule: ForwardRule): ForwardPortConflictCandidate[] {
+  return rule.ports
+    .filter((binding) => reservingForwardPortStatuses.has(binding.status))
+    .map((binding) => ({
+      agentId: binding.agentId,
+      ruleId: rule.id,
+      ruleName: rule.name,
+      listenAddress: normalizeForwardListenAddress(binding.listenAddress),
+      listenPort: binding.listenPort,
+      protocol: binding.protocol,
+      source: 'forward-rule' as const
+    }));
+}
+
+function sortTasksForForwardPortReplay(tasks: DeployTask[]) {
+  return clone(tasks).sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt);
+    const rightTime = Date.parse(right.createdAt);
+    const timeDelta = (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime);
+
+    return timeDelta === 0 ? left.id.localeCompare(right.id) : timeDelta;
+  });
+}
+
+function projectForwardPortConflictRules(existingRules: ForwardRule[], existingTasks: DeployTask[]) {
+  return sortTasksForForwardPortReplay(existingTasks).reduce(applyForwardRuleTask, clone(existingRules));
+}
+
+function findForwardPortConflicts(taskInput: CreateTaskInput, existingRules: ForwardRule[], existingTasks: DeployTask[]) {
+  if (taskInput.operation !== 'forward.create' && taskInput.operation !== 'forward.update') {
+    return [];
+  }
+
+  const bindingRequest = readForwardPortBindingRequest(taskInput.metadata);
+
+  if (!bindingRequest) {
+    return [];
+  }
+
+  const selectedAgentIds = new Set(bindingRequest.agentIds);
+  const editingRuleId = taskInput.operation === 'forward.update' ? taskInput.targetId : '';
+
+  return projectForwardPortConflictRules(existingRules, existingTasks)
+    .flatMap(createForwardRuleConflictCandidates)
+    .filter(
+      (candidate) =>
+        candidate.ruleId !== editingRuleId &&
+        selectedAgentIds.has(candidate.agentId) &&
+        candidate.listenPort === bindingRequest.listenPort &&
+        forwardingProtocolsOverlap(candidate.protocol, bindingRequest.protocol) &&
+        forwardingListenAddressesOverlap(candidate.listenAddress, bindingRequest.listenAddress)
+    )
 }
 
 function gbFromBytes(bytes: number | undefined) {
@@ -2829,6 +2964,10 @@ export function createControlPlaneService({
       const requestBodyHash = createRequestHash(taskInput);
       const idempotencyKey = createIdempotencyRecordKey(mutationContext);
       const resourceType = taskInput.resourceType ?? inferResourceType(taskInput.operation);
+      const forwardPortConflictRules =
+        taskInput.operation === 'forward.create' || taskInput.operation === 'forward.update'
+          ? await repository.listForwardRules()
+          : [];
 
       const result = await repository.transaction<CreateTaskTransactionResult>(async (transaction) => {
         const existingRecord = await transaction.findIdempotencyRecord(idempotencyKey);
@@ -2959,6 +3098,43 @@ export function createControlPlaneService({
               denialReason: highRiskConfirmationDenial.denialReason,
               before: highRiskConfirmationDenial.before,
               after: highRiskConfirmationDenial.after
+            }
+          };
+        }
+
+        const forwardPortConflicts = findForwardPortConflicts(
+          taskInput,
+          forwardPortConflictRules,
+          await transaction.listTasks()
+        );
+
+        if (forwardPortConflicts.length > 0) {
+          const denialReason = 'Port forwarding listen binding conflicts with an existing rule or pending task.';
+
+          await appendLedgerAuditLog(
+            transaction,
+            createDeniedAudit(
+              taskInput,
+              resourceType,
+              mutationContext,
+              'forward.port_conflict',
+              denialReason,
+              requestBodyHash,
+              {
+                operation: taskInput.operation,
+                targetId: taskInput.targetId,
+                metadata: taskInput.metadata ?? {},
+                conflicts: forwardPortConflicts
+              }
+            )
+          );
+
+          return {
+            type: 'error' as const,
+            code: 'forward.port_conflict',
+            details: {
+              denialReason,
+              conflicts: forwardPortConflicts
             }
           };
         }

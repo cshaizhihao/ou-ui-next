@@ -2421,6 +2421,170 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('rejects forwarding create tasks that conflict with projected entry bindings', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-04T04:01:00.000Z',
+      inventory: {
+        agents: []
+      }
+    });
+
+    const existingTask = await api.createTask(
+      {
+        operation: 'forward.create',
+        resourceType: 'forward',
+        targetId: 'forward-existing-2443',
+        targetLabel: 'Existing HTTPS forwarding',
+        summary: 'Create existing forwarding',
+        metadata: {
+          agentIds: ['agent-hkg-01'],
+          listenAddress: '0.0.0.0',
+          listenPort: 2443,
+          targetAddress: '10.10.0.8',
+          targetPort: 9443,
+          protocol: 'tcp',
+          name: 'Existing HTTPS forwarding',
+          ownerName: 'Acme Team',
+          billingDirection: 'both'
+        }
+      },
+      mutationContext('forward-existing-2443')
+    );
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'forward.create',
+          resourceType: 'forward',
+          targetId: 'forward-conflicting-2443',
+          targetLabel: 'Conflicting HTTPS forwarding',
+          summary: 'Create conflicting forwarding',
+          metadata: {
+            agentIds: ['agent-hkg-01'],
+            listenAddress: '127.0.0.1',
+            listenPort: 2443,
+            targetAddress: '10.10.0.9',
+            targetPort: 9443,
+            protocol: 'tcp+udp',
+            name: 'Conflicting HTTPS forwarding',
+            ownerName: 'Beta Team',
+            billingDirection: 'both'
+          }
+        },
+        mutationContext('forward-conflicting-2443')
+      )
+    ).rejects.toMatchObject({
+      code: 'forward.port_conflict',
+      details: {
+        conflicts: [
+          expect.objectContaining({
+            ruleId: 'forward-existing-2443',
+            ruleName: 'Existing HTTPS forwarding',
+            agentId: 'agent-hkg-01',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            protocol: 'tcp',
+            source: 'forward-rule'
+          })
+        ]
+      }
+    });
+    expect(await api.listForwardRules()).toEqual([
+      expect.objectContaining({ id: 'forward-existing-2443' })
+    ]);
+    expect((await api.listTasks()).map((task) => task.targetId)).not.toContain('forward-conflicting-2443');
+    expect(await api.listAuditLogs()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'forward.port_conflict',
+          result: 'denied',
+          targetId: 'forward-conflicting-2443'
+        })
+      ])
+    );
+
+    const [outboxItem] = await api.listCommandOutbox();
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-forward-existing-2443-ack',
+      commandId: outboxItem.commandId,
+      taskId: existingTask.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: new Date(Date.parse(outboxItem.deadlineAt) - 30_000).toISOString(),
+      payload: {
+        duplicate: false
+      }
+    });
+    await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-forward-existing-2443-result',
+      commandId: outboxItem.commandId,
+      taskId: existingTask.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: new Date(Date.parse(outboxItem.deadlineAt) - 15_000).toISOString(),
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : undefined
+      }
+    });
+
+    expect(await api.listForwardRules()).toEqual([
+      expect.objectContaining({
+        id: 'forward-existing-2443',
+        portStatus: 'allocated',
+        ports: [expect.objectContaining({ status: 'allocated' })]
+      })
+    ]);
+    await expect(
+      api.createTask(
+        {
+          operation: 'forward.create',
+          resourceType: 'forward',
+          targetId: 'forward-conflicting-after-apply-2443',
+          targetLabel: 'Conflicting allocated HTTPS forwarding',
+          summary: 'Create allocated conflicting forwarding',
+          metadata: {
+            agentIds: ['agent-hkg-01'],
+            listenAddress: '127.0.0.1',
+            listenPort: 2443,
+            targetAddress: '10.10.0.10',
+            targetPort: 9443,
+            protocol: 'tcp',
+            name: 'Conflicting allocated HTTPS forwarding',
+            ownerName: 'Gamma Team',
+            billingDirection: 'both'
+          }
+        },
+        mutationContext('forward-conflicting-after-apply-2443')
+      )
+    ).rejects.toMatchObject({
+      code: 'forward.port_conflict',
+      details: {
+        conflicts: [
+          expect.objectContaining({
+            ruleId: 'forward-existing-2443',
+            ruleName: 'Existing HTTPS forwarding',
+            agentId: 'agent-hkg-01',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            protocol: 'tcp',
+            source: 'forward-rule'
+          })
+        ]
+      }
+    });
+  });
+
   it('projects Agent-reported port conflicts into forwarding rule status', async () => {
     const repository = createInMemoryControlPlaneRepository({
       permissionGrants: seedPermissionGrants
