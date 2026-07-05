@@ -1454,6 +1454,36 @@ describe('OpenAPI v1 contract', () => {
     expect(getSchemaProperty(schemas.TaskMetadata, 'xrayProtocol')).toMatchObject({
       enum: ['vmess', 'vless', 'trojan', 'shadowsocks']
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'clientEmail')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'clientCredential')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'clients')).toMatchObject({
+      type: 'array',
+      minItems: 1,
+      maxItems: 1024
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'clients').items).toEqual({
+      $ref: '#/components/schemas/XrayClientTaskMetadata'
+    });
+    expect(getSchemaProperty(schemas.XrayClientTaskMetadata, 'clientIdentity')).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.XrayClientTaskMetadata, 'runtimeDisabledByPolicy')).toMatchObject({
+      type: 'boolean'
+    });
+    expect(getSchemaProperty(schemas.XrayClientTaskMetadata, 'expiresAt')).toMatchObject({
+      type: 'string',
+      format: 'date-time'
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'realityPublicKey')).toMatchObject({
       type: 'string',
       maxLength: 255

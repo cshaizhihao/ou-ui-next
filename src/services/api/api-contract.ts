@@ -127,6 +127,34 @@ const agentInstallProfileSchema = z
       });
     }
   });
+const xrayClientTaskMetadataSchema = z
+  .object({
+    clientIdentity: z.string().trim().min(1).max(255).optional(),
+    clientEmail: z.string().trim().min(1).max(255).optional(),
+    clientCredential: z.string().trim().min(1).max(255).optional(),
+    password: z.string().trim().min(1).max(255).optional(),
+    clientLevel: z.number().int().nonnegative().max(65_535).optional(),
+    clientComment: z.string().trim().max(500).optional(),
+    telegramId: z.string().trim().max(120).optional(),
+    resetPolicy: xrayClientResetPolicySchema.optional(),
+    vmessSecurity: z.string().trim().min(1).max(80).optional(),
+    shadowsocksMethod: z.string().trim().min(1).max(120).optional(),
+    hysteriaAuth: z.string().trim().min(1).max(255).optional(),
+    flow: z.string().trim().max(80).optional(),
+    ipLimit: z.number().int().nonnegative().optional(),
+    trafficLimitGb: z.number().int().nonnegative().optional(),
+    monthlyResetDay: z.number().int().min(1).max(31).optional(),
+    currentUsedTrafficGb: z.number().nonnegative().optional(),
+    remainingDays: z.number().int().nonnegative().optional(),
+    expiresAt: optionalUtcDateTimeSchema,
+    subscriptionRule: z.string().trim().min(1).max(500).optional(),
+    enabled: z.boolean().optional(),
+    quotaExceeded: z.boolean().optional(),
+    clientExpired: z.boolean().optional(),
+    runtimeDisabledByPolicy: z.boolean().optional(),
+    guardrailReason: z.string().trim().max(160).optional()
+  })
+  .catchall(z.unknown());
 const taskMetadataSchema = z
   .object({
     hostName: z.string().trim().min(1).max(120).optional(),
@@ -149,6 +177,7 @@ const taskMetadataSchema = z
     clientIdentity: z.string().trim().min(1).max(255).optional(),
     clientEmail: z.string().trim().min(1).max(255).optional(),
     clientCredential: z.string().trim().min(1).max(255).optional(),
+    clients: z.array(xrayClientTaskMetadataSchema).min(1).max(1024).optional(),
     clientLevel: z.number().int().nonnegative().max(65_535).optional(),
     clientComment: z.string().trim().max(500).optional(),
     telegramId: z.string().trim().max(120).optional(),
@@ -261,6 +290,59 @@ const taskMetadataSchema = z
   })
   .catchall(z.unknown());
 
+type TaskMetadataInput = z.infer<typeof taskMetadataSchema>;
+type XrayClientTaskMetadataInput = NonNullable<TaskMetadataInput['clients']>[number];
+
+function normalizeXrayClientMetadataKey(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function addDuplicateXrayClientMetadataIssues(metadata: TaskMetadataInput, context: z.RefinementCtx) {
+  const clients = metadata.clients ?? [];
+
+  clients.forEach((client, index) => {
+    const hasTraceableIdentity = Boolean(
+      normalizeXrayClientMetadataKey(client.clientIdentity) || normalizeXrayClientMetadataKey(client.clientEmail)
+    );
+
+    if (!hasTraceableIdentity) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Xray client metadata requires clientIdentity or clientEmail.',
+        path: ['metadata', 'clients', index, 'clientIdentity']
+      });
+    }
+  });
+
+  (['clientIdentity', 'clientEmail', 'subscriptionRule'] as const).forEach((field) => {
+    const seen = new Map<string, number>();
+
+    clients.forEach((client: XrayClientTaskMetadataInput, index) => {
+      const value = normalizeXrayClientMetadataKey(client[field]);
+
+      if (!value) {
+        return;
+      }
+
+      const previousIndex = seen.get(value);
+
+      if (previousIndex !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Xray clients must have unique ${field}.`,
+          path: ['metadata', 'clients', index, field],
+          params: {
+            previousIndex
+          }
+        });
+        return;
+      }
+
+      seen.set(value, index);
+    });
+  });
+}
+
 export const agentInstallCommandRequestSchema = z.object({
   installProfile: agentInstallProfileSchema,
   publicBaseUrl: z.string().trim().min(1).url().optional()
@@ -328,6 +410,9 @@ export const createTaskRequestSchema = z
       requiresForwardingRuntimeMetadata ||
       requiresTunnelRuntimeMetadata ||
       (request.operation === 'forward.apply' && metadata !== undefined);
+    const validatesXrayClientMetadata =
+      (request.operation === 'inbound.create' || request.operation === 'inbound.update') &&
+      metadata?.clients !== undefined;
 
     if (hasHostOnboardingMetadata && !metadata.installProfile) {
       context.addIssue({
@@ -335,6 +420,10 @@ export const createTaskRequestSchema = z
         message: 'Agent host onboarding requires the complete install profile.',
         path: ['metadata', 'installProfile']
       });
+    }
+
+    if (validatesXrayClientMetadata && metadata) {
+      addDuplicateXrayClientMetadataIssues(metadata, context);
     }
 
     if (validatesForwardingRuntimeMetadata) {

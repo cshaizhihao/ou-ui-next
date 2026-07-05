@@ -1604,6 +1604,101 @@ describe('v1 API runtime contract', () => {
     ).toThrow();
   });
 
+  it('validates structured multi-client Xray task metadata', () => {
+    const createMultiClientRequest = (clients: unknown[]) => ({
+      operation: 'inbound.create' as const,
+      resourceType: 'inbound' as const,
+      targetId: 'customer-node-hkg-shared',
+      targetLabel: 'Shared VLESS inbound',
+      summary: 'Create shared multi-client inbound',
+      metadata: {
+        nodeId: 'customer-node-hkg-shared',
+        agentId: 'agent-hkg-01',
+        customerNodeName: 'Shared VLESS inbound',
+        customerName: 'Acme Team',
+        serverAddress: 'edge.customer.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        streamNetwork: 'tcp',
+        security: 'tls',
+        clients
+      }
+    });
+
+    expect(
+      createTaskRequestSchema.parse(
+        createMultiClientRequest([
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            subscriptionRule: 'alice-sub',
+            trafficLimitGb: 100,
+            monthlyResetDay: 5,
+            remainingDays: 30,
+            expiresAt: '2026-12-31'
+          },
+          {
+            clientIdentity: 'bob',
+            password: 'bob-token',
+            clientEmail: 'bob@example.com',
+            subscriptionRule: 'bob-sub',
+            trafficLimitGb: 200,
+            monthlyResetDay: 15,
+            ipLimit: 2,
+            enabled: false,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'xray_client_monthly_quota_exceeded'
+          }
+        ])
+      )
+    ).toMatchObject({
+      metadata: {
+        clients: [
+          {
+            clientIdentity: 'alice',
+            expiresAt: '2026-12-31T23:59:59.000Z'
+          },
+          {
+            clientIdentity: 'bob',
+            runtimeDisabledByPolicy: true
+          }
+        ]
+      }
+    });
+
+    expect(() =>
+      createTaskRequestSchema.parse(
+        createMultiClientRequest([
+          { clientIdentity: 'alice', clientEmail: 'alice@example.com', subscriptionRule: 'alice-sub' },
+          { clientIdentity: ' Alice ', clientEmail: 'bob@example.com', subscriptionRule: 'bob-sub' }
+        ])
+      )
+    ).toThrow(/unique clientIdentity/);
+
+    expect(() =>
+      createTaskRequestSchema.parse(
+        createMultiClientRequest([
+          { clientIdentity: 'alice', clientEmail: 'same@example.com', subscriptionRule: 'alice-sub' },
+          { clientIdentity: 'bob', clientEmail: 'SAME@example.com', subscriptionRule: 'bob-sub' }
+        ])
+      )
+    ).toThrow(/unique clientEmail/);
+
+    expect(() =>
+      createTaskRequestSchema.parse(
+        createMultiClientRequest([
+          { clientIdentity: 'alice', clientEmail: 'alice@example.com', subscriptionRule: 'shared-sub' },
+          { clientIdentity: 'bob', clientEmail: 'bob@example.com', subscriptionRule: 'SHARED-sub' }
+        ])
+      )
+    ).toThrow(/unique subscriptionRule/);
+
+    expect(() => createTaskRequestSchema.parse(createMultiClientRequest([{}]))).toThrow(
+      /requires clientIdentity or clientEmail/
+    );
+  });
+
   it('accepts Agent forwarding traffic counter telemetry samples', () => {
     expect(
       agentEventsRequestSchema.parse({

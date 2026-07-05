@@ -6080,6 +6080,93 @@ components:
         metadata:
           $ref: '#/components/schemas/TaskMetadata'
       additionalProperties: false
+    XrayClientTaskMetadata:
+      type: object
+      description: Per-client metadata for multi-client Xray inbound create/update tasks.
+      properties:
+        clientIdentity:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clientEmail:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clientCredential:
+          type: string
+          minLength: 1
+          maxLength: 255
+        password:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clientLevel:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        clientComment:
+          type: string
+          maxLength: 500
+        telegramId:
+          type: string
+          maxLength: 120
+        resetPolicy:
+          type: string
+          enum:
+            - never
+            - daily
+            - weekly
+            - monthly
+        vmessSecurity:
+          type: string
+          minLength: 1
+          maxLength: 80
+        shadowsocksMethod:
+          type: string
+          minLength: 1
+          maxLength: 120
+        hysteriaAuth:
+          type: string
+          minLength: 1
+          maxLength: 255
+        flow:
+          type: string
+          maxLength: 80
+        ipLimit:
+          type: integer
+          minimum: 0
+        trafficLimitGb:
+          type: integer
+          minimum: 0
+        monthlyResetDay:
+          type: integer
+          minimum: 1
+          maximum: 31
+        currentUsedTrafficGb:
+          type: number
+          minimum: 0
+        remainingDays:
+          type: integer
+          minimum: 0
+        expiresAt:
+          type: string
+          format: date-time
+        subscriptionRule:
+          type: string
+          minLength: 1
+          maxLength: 500
+        enabled:
+          type: boolean
+        quotaExceeded:
+          type: boolean
+        clientExpired:
+          type: boolean
+        runtimeDisabledByPolicy:
+          type: boolean
+        guardrailReason:
+          type: string
+          maxLength: 160
+      additionalProperties: true
     TaskMetadata:
       type: object
       description: Structured operator-supplied metadata for host onboarding, quota ownership, and multi-host forwarding tasks.
@@ -6150,6 +6237,49 @@ components:
             - trojan
             - shadowsocks
         clientIdentity:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clientEmail:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clientCredential:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clients:
+          type: array
+          minItems: 1
+          maxItems: 1024
+          items:
+            $ref: '#/components/schemas/XrayClientTaskMetadata'
+        clientLevel:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        clientComment:
+          type: string
+          maxLength: 500
+        telegramId:
+          type: string
+          maxLength: 120
+        resetPolicy:
+          type: string
+          enum:
+            - never
+            - daily
+            - weekly
+            - monthly
+        vmessSecurity:
+          type: string
+          minLength: 1
+          maxLength: 80
+        shadowsocksMethod:
+          type: string
+          minLength: 1
+          maxLength: 120
+        hysteriaAuth:
           type: string
           minLength: 1
           maxLength: 255
