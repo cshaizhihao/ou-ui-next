@@ -152,6 +152,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - TLS / Reality stream settings 编译。
 - 多 client inbound artifact：`metadata.clients[]` 会生成 Xray `settings.clients`、`clientPolicies[]` 和 `subscription.shareUris[]`。
 - 被 quota / expiry guardrail 标记为 `runtimeDisabledByPolicy` 的 client 会保留在 `clientPolicies[]` 和订阅诊断中，但不会进入实际 Xray `settings.clients`。
+- 自动 guardrail 任务会按 client 派生 disable / resume intent，多 client inbound 不再因为共享一个 inbound 而整体跳过。
 - 同端口同协议 inbound fragment 合并，保留独立 client profile。
 - Xray `StatsService` 计数采集、monthly reset、配额/过期 guardrail。
 - `xray run -test` preflight，失败时不会把配置当作成功运行。

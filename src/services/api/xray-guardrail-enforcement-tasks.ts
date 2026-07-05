@@ -41,9 +41,16 @@ function computeRemainingDays(expiresAt: string | undefined, observedAt: string,
   return Math.max(Math.ceil((expiresAtMs - observedAtMs) / (24 * 60 * 60 * 1000)), 0);
 }
 
-function createPolicyId(inbound: XrayInbound) {
-  const client = inbound.clients[0];
-  return client ? readCustomerNodePolicyId(inbound, client) : `customer-node:${inbound.id}`;
+function createPolicyId(inbound: XrayInbound, client: XrayInbound['clients'][number]) {
+  const scopedInbound =
+    inbound.clients.length > 1
+      ? {
+          ...inbound,
+          clientIdentity: undefined
+        }
+      : inbound;
+
+  return readCustomerNodePolicyId(scopedInbound, client);
 }
 
 function isAutomaticGuardrailTask(task: DeployTask) {
@@ -70,26 +77,27 @@ function readLatestAutomaticGuardrailTask(tasks: DeployTask[], targetId: string,
     .sort(compareTasksByCreatedAt)[0];
 }
 
-function createCustomerNodeTaskMetadata(inbound: XrayInbound, observedAt: string, enabled: boolean) {
-  const client = inbound.clients[0];
-
-  if (!client) {
-    return undefined;
-  }
-
+function readClientUsedTrafficBytes(client: XrayInbound['clients'][number]) {
   const usedTrafficBytes =
     (client.manualUsedTrafficBytes ?? 0) > 0
       ? client.manualUsedTrafficBytes
       : client.usedTrafficBytes;
 
+  return usedTrafficBytes;
+}
+
+function readClientTaskIdentity(inbound: XrayInbound, client: XrayInbound['clients'][number]) {
+  return inbound.clients.length > 1 ? client.id : inbound.clientIdentity ?? client.id;
+}
+
+function createClientTaskMetadata(
+  inbound: XrayInbound,
+  client: XrayInbound['clients'][number],
+  observedAt: string,
+  enabled: boolean
+) {
   return {
-    nodeId: inbound.id,
-    agentId: inbound.agentId ?? '',
-    customerNodeName: inbound.label,
-    customerName: inbound.customerName ?? client.email,
-    xrayProtocol: inbound.protocol,
-    listenPort: inbound.listenPort,
-    clientIdentity: inbound.clientIdentity ?? client.id,
+    clientIdentity: readClientTaskIdentity(inbound, client),
     clientEmail: client.email,
     clientCredential: client.password ?? client.auth ?? client.id,
     clientLevel: client.level ?? 0,
@@ -98,11 +106,46 @@ function createCustomerNodeTaskMetadata(inbound: XrayInbound, observedAt: string
     resetPolicy: client.resetPolicy ?? 'never',
     shadowsocksMethod: client.method ?? '2022-blake3-aes-128-gcm',
     hysteriaAuth: client.auth ?? client.password ?? client.id,
+    flow: client.flow ?? inbound.flow ?? '',
+    ipLimit: client.ipLimit,
+    trafficLimitGb: Math.round(bytesToGb(client.trafficLimitBytes)),
+    monthlyResetDay: client.monthlyResetDay ?? 1,
+    currentUsedTrafficGb: bytesToGb(readClientUsedTrafficBytes(client)),
+    remainingDays: computeRemainingDays(client.expiresAt, observedAt, inbound.remainingDays),
+    enabled,
+    quotaExceeded: client.quotaExceeded ?? false,
+    clientExpired: client.clientExpired ?? false,
+    runtimeDisabledByPolicy: client.runtimeDisabledByPolicy ?? false,
+    guardrailReason: client.guardrailReason ?? 'ok',
+    ...(client.security?.trim() ? { vmessSecurity: client.security.trim() } : {})
+  };
+}
+
+function createCustomerNodeTaskMetadata(
+  inbound: XrayInbound,
+  observedAt: string,
+  affectedClient: XrayInbound['clients'][number],
+  action: 'disable' | 'resume'
+) {
+  const clients = inbound.clients.map((client) => {
+    const isAffectedClient = client.id === affectedClient.id || client.email === affectedClient.email;
+    const enabled = isAffectedClient ? action === 'resume' : client.enabled && !client.runtimeDisabledByPolicy;
+
+    return createClientTaskMetadata(inbound, client, observedAt, enabled);
+  });
+  const activeClientCount = clients.filter((client) => client.enabled).length;
+
+  return {
+    nodeId: inbound.id,
+    agentId: inbound.agentId ?? '',
+    customerNodeName: inbound.label,
+    customerName: inbound.customerName ?? affectedClient.email,
+    xrayProtocol: inbound.protocol,
+    listenPort: inbound.listenPort,
     streamNetwork: inbound.streamSettings.network,
     security: inbound.streamSettings.security,
     sni: inbound.streamSettings.sni ?? '',
     path: inbound.streamSettings.path ?? '',
-    flow: client.flow ?? inbound.flow ?? '',
     fingerprint: inbound.streamSettings.fingerprint ?? inbound.reality.fingerprint ?? '',
     alpn: inbound.tls.alpn,
     realityPublicKey: inbound.reality.publicKey ?? '',
@@ -113,15 +156,11 @@ function createCustomerNodeTaskMetadata(inbound: XrayInbound, observedAt: string
     fallbackDestination: inbound.fallbacks[0]?.destination ?? '',
     fallbackXver: inbound.fallbacks[0]?.xver ?? 0,
     sniffingEnabled: inbound.sniffingEnabled,
-    ipLimit: client.ipLimit,
-    trafficLimitGb: Math.round(bytesToGb(client.trafficLimitBytes)),
-    monthlyResetDay: client.monthlyResetDay ?? 1,
-    currentUsedTrafficGb: bytesToGb(usedTrafficBytes),
-    remainingDays: computeRemainingDays(client.expiresAt, observedAt, inbound.remainingDays),
     subscriptionRule: inbound.subscriptionRule ?? 'manual',
-    enabled,
-    ...(inbound.serverAddress?.trim() ? { serverAddress: inbound.serverAddress.trim() } : {}),
-    ...(client.security?.trim() ? { vmessSecurity: client.security.trim() } : {})
+    ...createClientTaskMetadata(inbound, affectedClient, observedAt, action === 'resume'),
+    enabled: activeClientCount > 0,
+    clients,
+    ...(inbound.serverAddress?.trim() ? { serverAddress: inbound.serverAddress.trim() } : {})
   };
 }
 
@@ -136,24 +175,19 @@ function createSummaryPrefix(action: 'disable' | 'resume', guardrailReason: stri
 function createIntent(
   inbound: XrayInbound,
   trigger: XrayGuardrailEnforcementTrigger,
+  client: XrayInbound['clients'][number],
   action: 'disable' | 'resume'
 ): XrayGuardrailTaskIntent | undefined {
   if (!inbound.agentId?.trim()) {
     return undefined;
   }
 
-  if (!XrayRuntimeProtocols.has(inbound.protocol) || inbound.clients.length !== 1) {
+  if (!XrayRuntimeProtocols.has(inbound.protocol)) {
     return undefined;
   }
 
-  const client = inbound.clients[0];
-  const metadata = createCustomerNodeTaskMetadata(inbound, trigger.observedAt, action === 'resume');
-
-  if (!metadata) {
-    return undefined;
-  }
-
-  const policyId = createPolicyId(inbound);
+  const metadata = createCustomerNodeTaskMetadata(inbound, trigger.observedAt, client, action);
+  const policyId = createPolicyId(inbound, client);
   const requestId = ['req', 'xray-guardrail', action, inbound.id, client.id, trigger.kind, trigger.id].join(':');
   const idempotencyKey = ['system', 'quota-enforcer', 'inbound.update', inbound.id, client.id, action, trigger.kind, trigger.id].join(':');
 
@@ -187,44 +221,45 @@ export function deriveXrayGuardrailTaskIntents(
   trigger: XrayGuardrailEnforcementTrigger
 ) {
   return afterInbounds.flatMap((inbound) => {
-    if (!XrayRuntimeProtocols.has(inbound.protocol) || inbound.clients.length !== 1) {
+    if (!XrayRuntimeProtocols.has(inbound.protocol) || inbound.clients.length === 0) {
       return [];
     }
 
-    const client = inbound.clients[0];
-    const policyId = createPolicyId(inbound);
-    const latestDisableTask = readLatestAutomaticGuardrailTask(tasks, inbound.id, policyId, 'disable');
-    const latestResumeTask = readLatestAutomaticGuardrailTask(tasks, inbound.id, policyId, 'resume');
-    const latestSucceededResumeTask =
-      latestResumeTask?.status === 'succeeded'
-        ? latestResumeTask
-        : undefined;
-    const latestSucceededDisableTask =
-      latestDisableTask?.status === 'succeeded'
-        ? latestDisableTask
-        : undefined;
-    const hasActiveResume = latestResumeTask ? ACTIVE_TASK_STATUSES.has(latestResumeTask.status) : false;
-    const disableAlreadyEnforced =
-      latestDisableTask
-      && (ACTIVE_TASK_STATUSES.has(latestDisableTask.status) || latestDisableTask.status === 'succeeded')
-      && (!latestSucceededResumeTask || latestDisableTask.createdAt > latestSucceededResumeTask.createdAt);
-    const needsResume =
-      latestSucceededDisableTask
-      && (!latestResumeTask
-        || latestSucceededDisableTask.createdAt > latestResumeTask.createdAt
-        || latestResumeTask.status === 'failed'
-        || latestResumeTask.status === 'canceled');
+    return inbound.clients.flatMap((client) => {
+      const policyId = createPolicyId(inbound, client);
+      const latestDisableTask = readLatestAutomaticGuardrailTask(tasks, inbound.id, policyId, 'disable');
+      const latestResumeTask = readLatestAutomaticGuardrailTask(tasks, inbound.id, policyId, 'resume');
+      const latestSucceededResumeTask =
+        latestResumeTask?.status === 'succeeded'
+          ? latestResumeTask
+          : undefined;
+      const latestSucceededDisableTask =
+        latestDisableTask?.status === 'succeeded'
+          ? latestDisableTask
+          : undefined;
+      const hasActiveResume = latestResumeTask ? ACTIVE_TASK_STATUSES.has(latestResumeTask.status) : false;
+      const disableAlreadyEnforced =
+        latestDisableTask
+        && (ACTIVE_TASK_STATUSES.has(latestDisableTask.status) || latestDisableTask.status === 'succeeded')
+        && (!latestSucceededResumeTask || latestDisableTask.createdAt > latestSucceededResumeTask.createdAt);
+      const needsResume =
+        latestSucceededDisableTask
+        && (!latestResumeTask
+          || latestSucceededDisableTask.createdAt > latestResumeTask.createdAt
+          || latestResumeTask.status === 'failed'
+          || latestResumeTask.status === 'canceled');
 
-    if (client.runtimeDisabledByPolicy) {
-      const disableIntent = disableAlreadyEnforced ? undefined : createIntent(inbound, trigger, 'disable');
-      return disableIntent ? [disableIntent] : [];
-    }
+      if (client.runtimeDisabledByPolicy) {
+        const disableIntent = disableAlreadyEnforced ? undefined : createIntent(inbound, trigger, client, 'disable');
+        return disableIntent ? [disableIntent] : [];
+      }
 
-    if (hasActiveResume || !needsResume) {
-      return [];
-    }
+      if (hasActiveResume || !needsResume) {
+        return [];
+      }
 
-    const resumeIntent = createIntent(inbound, trigger, 'resume');
-    return resumeIntent ? [resumeIntent] : [];
+      const resumeIntent = createIntent(inbound, trigger, client, 'resume');
+      return resumeIntent ? [resumeIntent] : [];
+    });
   });
 }
