@@ -2446,6 +2446,8 @@ describe('SubscriptionMixerPage', () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
     const open = vi.fn();
+    const confirm = vi.fn(() => false);
+    const onSaveClient = vi.fn();
     const guardedClient: SubscriptionClientIdentity = {
       ...subscriptionClient,
       quotaResetAt: '2026-07-01T00:00:00.000Z',
@@ -2460,7 +2462,8 @@ describe('SubscriptionMixerPage', () => {
       }
     });
     vi.stubGlobal('open', open);
-    renderPage({ subscriptionClients: [guardedClient] });
+    vi.stubGlobal('confirm', confirm);
+    renderPage({ subscriptionClients: [guardedClient], onSaveClient });
 
     await user.click(screen.getByRole('button', { name: '查看订阅链接' }));
     const drawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
@@ -2507,6 +2510,37 @@ describe('SubscriptionMixerPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Guardrail: subscription.quota_exceeded'));
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining('Subscription-Userinfo: upload=0; download=137438953472; total=1099511627776; expire=1798761599')
+    );
+
+    await user.click(within(drawer).getByRole('button', { name: '重新生成安全路径' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Acme 香港 Premium 订阅'));
+    expect(onSaveClient).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(within(drawer).getByRole('button', { name: '重新生成安全路径' }));
+
+    expect(onSaveClient).toHaveBeenCalledTimes(1);
+    const rotatedMetadata = onSaveClient.mock.calls[0]?.[0] as {
+      accessTokenPreview: string;
+      securePathPreview: string;
+      subscriptionUrlPreview: { clash: string; mihomo: string; uri: string };
+      clientRule: { access: { tokenPreview: string; securePathPreview: string } };
+    };
+
+    expect(rotatedMetadata.accessTokenPreview).toBe(guardedClient.accessTokenPreview);
+    expect(rotatedMetadata.clientRule.access.tokenPreview).toBe(guardedClient.accessTokenPreview);
+    expect(rotatedMetadata.securePathPreview).toMatch(/^\/[A-Za-z0-9]{24}$/);
+    expect(rotatedMetadata.securePathPreview).not.toBe('/secure-acme-hkg');
+    expect(rotatedMetadata.clientRule.access.securePathPreview).toBe(rotatedMetadata.securePathPreview);
+    expect(rotatedMetadata.subscriptionUrlPreview.clash).toContain(
+      `/sub${rotatedMetadata.securePathPreview}/clash/sub_acme_hkg_premium`
+    );
+    expect(rotatedMetadata.subscriptionUrlPreview.mihomo).toContain(
+      `/sub${rotatedMetadata.securePathPreview}/mihomo/sub_acme_hkg_premium`
+    );
+    expect(rotatedMetadata.subscriptionUrlPreview.uri).toContain(
+      `/sub${rotatedMetadata.securePathPreview}/uri/sub_acme_hkg_premium`
     );
 
     await user.click(within(drawer).getByRole('button', { name: '打开 Mihomo 链接' }));

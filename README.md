@@ -56,8 +56,8 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议 |
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
-| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区 |
-| 用户订阅门户 | Roadmap | 独立客户门户、token 轮换 UI、订阅自助诊断、设备级绑定仍需继续补齐 |
+| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断和安全路径重新生成 |
+| 用户订阅门户 | Roadmap | 独立客户门户、真实 token 轮换 UI、设备级绑定仍需继续补齐 |
 | SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储，适合单 Master 部署和安装器闭环 |
 | 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的强 schema、迁移和 HA 仍是后续重点 |
 
@@ -189,11 +189,12 @@ Preview / blocked 能力：
 - URI、v2ray base64、Clash/Mihomo、sing-box、Shadowrocket、Stash 等输出。
 - 外部订阅源导入、解析、同步状态和导出文件。
 - 与 Xray client / customer node 的用量、到期、规则关联。
+- 订阅链接抽屉支持二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和安全路径重新生成。
 
 后续重点：
 
 - 独立用户订阅门户。
-- token 轮换、订阅链接重签发和泄露撤销。
+- 真实 token 轮换、泄露撤销和设备级绑定。
 - 导入诊断报告：格式错误、协议不兼容、节点重复、字段丢失。
 - proxy group / rule provider 模板化能力。
 
@@ -269,7 +270,7 @@ P0：
 
 P1：
 
-- 订阅门户、token 轮换、订阅诊断报告。
+- 订阅门户、真实 token 轮换、泄露撤销和设备级绑定。
 - Tunnel entry/exit、质量探测、故障切换和运行状态面板。
 - SQLite JSON-state 迁移到更强的领域表结构。
 - 更接近 3X-UI 的 Xray hot diff / reload 管线。

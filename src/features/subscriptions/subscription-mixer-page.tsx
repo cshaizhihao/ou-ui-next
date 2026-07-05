@@ -347,6 +347,8 @@ const copy = {
     copySubscriptionUsageHeader: '复制订阅用量头',
     subscriptionAccessStats: '访问统计',
     copySubscriptionDiagnostics: '复制订阅诊断',
+    regenerateSecurePath: '重新生成安全路径',
+    confirmRegenerateSecurePath: (name: string) => `确认重新生成 ${name} 的安全路径？旧订阅地址将失效。`,
     lastOnline: '上次在线',
     lastGenerated: '上次生成',
     generatedNodes: '生成节点',
@@ -591,6 +593,9 @@ const copy = {
     copySubscriptionUsageHeader: 'Copy Usage Header',
     subscriptionAccessStats: 'Access Statistics',
     copySubscriptionDiagnostics: 'Copy Subscription Diagnostics',
+    regenerateSecurePath: 'Regenerate Secure Path',
+    confirmRegenerateSecurePath: (name: string) =>
+      `Regenerate secure path for ${name}? Existing subscription URLs will stop working.`,
     lastOnline: 'Last Online',
     lastGenerated: 'Last Generated',
     generatedNodes: 'Generated Nodes',
@@ -2487,6 +2492,36 @@ export function SubscriptionMixerPage({
     void copyToClipboard(createClientAllFormatSubscriptionText(client, language));
   }
 
+  function regenerateClientSecurePath(client: SubscriptionClientIdentity) {
+    const confirmed =
+      typeof window === 'undefined' || window.confirm(t.confirmRegenerateSecurePath(client.displayName));
+
+    if (!confirmed) {
+      return;
+    }
+
+    const draft = {
+      ...createDraftFromClient(client),
+      securePathPreview: createSecurePathPreview()
+    };
+    const metadata = createClientMetadataFromDraft(draft, client.generatedNodeCount, client.id);
+
+    onSaveClient(
+      {
+        ...metadata,
+        accessTokenPreview: client.accessTokenPreview,
+        clientRule: {
+          ...metadata.clientRule,
+          access: {
+            ...metadata.clientRule.access,
+            tokenPreview: client.accessTokenPreview
+          }
+        }
+      },
+      'update'
+    );
+  }
+
   function copyNodeRawUrl(node: SubscriptionInventoryNode) {
     if (node.rawUrl) {
       void copyToClipboard(node.rawUrl);
@@ -3962,14 +3997,25 @@ export function SubscriptionMixerPage({
                 <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
                   {t.subscriptionAccessStats}
                 </p>
-                <button
-                  className={compactNeutralActionButtonClass}
-                  onClick={() => copyToClipboard(createSubscriptionDiagnosticsText(linkDrawerClient))}
-                  type="button"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  {t.copySubscriptionDiagnostics}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={compactNeutralActionButtonClass}
+                    disabled={taskMutationBusy}
+                    onClick={() => regenerateClientSecurePath(linkDrawerClient)}
+                    type="button"
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                    {t.regenerateSecurePath}
+                  </button>
+                  <button
+                    className={compactNeutralActionButtonClass}
+                    onClick={() => copyToClipboard(createSubscriptionDiagnosticsText(linkDrawerClient))}
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {t.copySubscriptionDiagnostics}
+                  </button>
+                </div>
               </div>
               <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                 <SubscriptionDiagnosticField
