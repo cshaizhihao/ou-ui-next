@@ -31,6 +31,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray runtime artifacts now preserve operator intent and guardrail evidence for `runtimeDisabledByPolicy` clients while excluding those clients from active Xray `settings.clients`, so quota/expiry-disabled users are not applied to the runtime but their policy and subscription diagnostics remain visible.
 - Xray automatic guardrail enforcement now derives disable / resume tasks per client for multi-client inbounds and emits full `metadata.clients[]` so one customer's quota/expiry state does not cause the shared inbound to skip enforcement or lose peer client policy.
 - Xray inbound create/update now validates structured `metadata.clients[]` in the API contract and OpenAPI docs, including duplicate identity/email/subscription-rule rejection for traceable multi-client tasks.
+- Xray inbound delete artifacts now emit `remove_inbound` with no active runtime clients while preserving disabled policy evidence, so delete tasks cannot look like an upsert in Agent evidence.
 - Public subscription output now emits conversion diagnostic headers for selected, URI-converted, and unconverted node counts so format/rendering issues are visible without parsing the generated body.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.

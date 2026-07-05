@@ -30,6 +30,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 
 - Xray customer node 不再只按单 client 原型建模，runtime artifact 已支持 `metadata.clients[]` 编译为多 client inbound、逐 client policy 和逐 client share URI。
 - Xray inbound create/update 的 `metadata.clients[]` 已进入 API contract / OpenAPI，Control Plane 会拒绝重复的 client identity、email 或 subscription rule。
+- Xray inbound delete artifact 会生成 `remove_inbound`，并强制清空 runtime `settings.clients`，避免删除任务仍携带 active client evidence。
 - Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
 - Forwarding artifact 和工作区会显式声明 Agent runtime 已支持和未支持的控制项；artifact 会携带编译期 runtime diagnosis，规则行会展示 ready / waiting / degraded / blocked / failed 诊断，避免把 `proxyProtocol`、IP 级限速或连接数限制误写成已完整落地。
 - Forwarding create/update 和 tunnel create/update/redeploy 在任务入队前会检查已存在规则和进行中的端口转发任务，拒绝同 Agent、同监听端口、重叠协议或通配监听地址的冲突绑定。
@@ -39,7 +40,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 
 | 方向 | V2.0.0 变化 |
 | --- | --- |
-| Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、结构化 `clients[]` 校验、Xray config preflight、systemd runtime restart |
+| Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、结构化 `clients[]` 校验、delete remove artifact、Xray config preflight、systemd runtime restart |
 | Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额和过期策略可以按 client 评估 |
 | Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
 | 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路，README 明确区分当前支持与后续门户能力 |

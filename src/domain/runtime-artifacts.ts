@@ -665,13 +665,23 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const realityPublicKey = readString(metadata, 'realityPublicKey', '');
   const realityShortId = readString(metadata, 'realityShortId', '');
   const fingerprint = readString(metadata, 'fingerprint', streamSettings.security === 'reality' ? 'chrome' : '');
-  const clientPolicies = buildXrayClientPolicies({
+  const compiledClientPolicies = buildXrayClientPolicies({
     metadata,
     protocol,
     task,
     agentId,
     customerName
   });
+  const clientPolicies =
+    task.operation === 'inbound.delete'
+      ? compiledClientPolicies.map((client) => ({
+          ...client,
+          operatorEnabled: false,
+          enabled: false,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: client.guardrailReason ?? 'inbound_deleted'
+        }))
+      : compiledClientPolicies;
   const primaryClientPolicy = clientPolicies[0];
   const activeClientPolicies = clientPolicies.filter((client) => client.enabled);
   const shareUris = clientPolicies.map((client) => ({

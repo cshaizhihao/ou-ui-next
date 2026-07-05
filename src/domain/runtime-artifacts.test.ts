@@ -201,6 +201,57 @@ describe('runtime artifacts', () => {
     ).toThrow('Unsupported Xray inbound protocol: hysteria');
   });
 
+  it('compiles Xray inbound deletes into remove artifacts without active runtime clients', () => {
+    const artifact = buildRuntimeArtifact({
+      task: {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Removed Inbound',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'acme-delete',
+          clientCredential: 'acme-delete-token',
+          clientEmail: 'acme-delete@example.com',
+          security: 'tls',
+          sni: 'edge.example.com'
+        }),
+        operation: 'inbound.delete',
+        summary: 'Delete customer Xray inbound'
+      },
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as {
+      action: string;
+      clientPolicy: {
+        clientEmail: string;
+        operatorEnabled: boolean;
+        enabled: boolean;
+        runtimeDisabledByPolicy: boolean;
+        guardrailReason: string;
+      };
+      runtimeCapabilities: { activeClientCount: number; totalClientCount: number };
+      subscription: { shareUris: Array<{ enabled: boolean }> };
+      xray: { inbound: { settings: { clients: unknown[] } } };
+    };
+
+    expect(artifact.action).toBe('remove_inbound');
+    expect(artifact.xray.inbound.settings.clients).toEqual([]);
+    expect(artifact.clientPolicy).toMatchObject({
+      clientEmail: 'acme-delete@example.com',
+      operatorEnabled: false,
+      enabled: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'inbound_deleted'
+    });
+    expect(artifact.subscription.shareUris).toEqual([expect.objectContaining({ enabled: false })]);
+    expect(artifact.runtimeCapabilities).toMatchObject({
+      activeClientCount: 0,
+      totalClientCount: 1
+    });
+  });
+
   it('normalizes VLESS and VMess credentials into valid UUIDs for real Xray configs', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({
