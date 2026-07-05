@@ -320,11 +320,22 @@ export function dedupeSubscriptionInventoryNodes(
   });
 }
 
+export function applySubscriptionSourceRulesWithStats(
+  nodes: SubscriptionInventoryNode[],
+  rules: SubscriptionSourceRuleSet = {}
+) {
+  const filteredNodes = nodes.filter((node) => matchesSourceFilters(node, rules));
+  const dedupedNodes = dedupeSubscriptionInventoryNodes(filteredNodes, rules.dedupeKey ?? 'server-port');
+
+  return {
+    nodes: dedupedNodes,
+    filteredNodeCount: nodes.length - filteredNodes.length,
+    dedupedNodeCount: filteredNodes.length - dedupedNodes.length
+  };
+}
+
 export function applySubscriptionSourceRules(nodes: SubscriptionInventoryNode[], rules: SubscriptionSourceRuleSet = {}) {
-  return dedupeSubscriptionInventoryNodes(
-    nodes.filter((node) => matchesSourceFilters(node, rules)),
-    rules.dedupeKey ?? 'server-port'
-  );
+  return applySubscriptionSourceRulesWithStats(nodes, rules).nodes;
 }
 
 export function selectSubscriptionInventoryNodes(nodes: SubscriptionInventoryNode[], rules: SubscriptionClientRuleSet = {}) {

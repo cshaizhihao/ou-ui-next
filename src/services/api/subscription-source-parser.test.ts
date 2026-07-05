@@ -281,4 +281,71 @@ proxies:
     ]);
     expect(result.nodes).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: 'DIRECT' })]));
   });
+
+  it('reports incompatible and malformed nodes without pretending the sync fully succeeded', () => {
+    const source = createSource({
+      kind: 'v2ray-uri',
+      includeFilter: 'Premium',
+      dedupeKey: 'server-port'
+    });
+    const rawSubscription = [
+      'vless://b6dcba68-6949-45ea-a3ef-e45e5778d7aa@hk-vless.example.com:8443?type=tcp&security=tls&sni=hk-vless.example.com#HK%20Premium%20VLESS',
+      'vless://duplicate@hk-vless.example.com:8443?type=tcp#HK%20Premium%20Duplicate',
+      'trojan://standard@example.com:443?security=tls#SG%20Standard',
+      'tuic://unsupported@example.com:443#Unsupported%20TUIC',
+      'vmess://not-json'
+    ].join('\n');
+
+    const result = parseSubscriptionSourceContent({
+      source,
+      body: rawSubscription,
+      syncedAt
+    });
+
+    expect(result).toMatchObject({
+      sourceId: 'source-external-hk',
+      status: 'warning',
+      nodeCount: 1,
+      warnings: [
+        'subscription_source.unsupported_protocol_nodes:1',
+        'subscription_source.invalid_nodes:1',
+        'subscription_source.filtered_nodes:1',
+        'subscription_source.deduped_nodes:1'
+      ]
+    });
+    expect(result.nodes).toEqual([
+      expect.objectContaining({
+        name: 'HK Premium VLESS',
+        protocol: 'vless',
+        server: 'hk-vless.example.com',
+        port: 8443
+      })
+    ]);
+  });
+
+  it('explains when valid nodes are removed by source filters', () => {
+    const source = createSource({
+      kind: 'clash',
+      includeFilter: 'Premium'
+    });
+
+    const result = parseSubscriptionSourceContent({
+      source,
+      syncedAt,
+      body: `
+proxies:
+  - name: SG Standard Trojan
+    type: trojan
+    server: sg-standard.example.com
+    port: 443
+    password: secret
+`
+    });
+
+    expect(result).toMatchObject({
+      status: 'warning',
+      nodeCount: 0,
+      warnings: ['subscription_source.filtered_nodes:1']
+    });
+  });
 });

@@ -1504,7 +1504,11 @@ describe('SubscriptionMixerPage', () => {
         {
           ...source,
           status: 'warning',
-          syncWarnings: ['subscription_source.cross_source_duplicates:2']
+          syncWarnings: [
+            'subscription_source.cross_source_duplicates:2',
+            'subscription_source.unsupported_protocol_nodes:1',
+            'subscription_source.invalid_nodes:3'
+          ]
         }
       ]
     });
@@ -1514,10 +1518,12 @@ describe('SubscriptionMixerPage', () => {
     const warning = screen.getByText('跨源重复节点 2 个');
 
     expect(warning).toBeInTheDocument();
+    expect(screen.getByText('不兼容协议节点 1 个')).toBeInTheDocument();
     expect(warning.closest('div')?.outerHTML).toContain('orange-');
     expect(warning.closest('div')?.outerHTML).not.toContain('amber-');
     expect(warning.closest('div')?.outerHTML).not.toContain('rose-');
     expect(screen.queryByText('subscription_source.cross_source_duplicates:2')).not.toBeInTheDocument();
+    expect(screen.queryByText('subscription_source.unsupported_protocol_nodes:1')).not.toBeInTheDocument();
   });
 
   it('does not synthesize proxy providers or export files in the page layer', async () => {

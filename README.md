@@ -188,6 +188,7 @@ Preview / blocked 能力：
 
 - URI、v2ray base64、Clash/Mihomo、sing-box、Shadowrocket、Stash 等输出。
 - 外部订阅源导入、解析、同步状态和导出文件。
+- 外部订阅源同步会报告不兼容协议、字段缺失或无法解析节点、源规则过滤、同源去重、跨源重复和远程抓取失败原因。
 - 与 Xray client / customer node 的用量、到期、规则关联。
 - 订阅链接抽屉支持二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和安全路径重新生成。
 
@@ -195,7 +196,7 @@ Preview / blocked 能力：
 
 - 独立用户订阅门户。
 - 真实 token 轮换、泄露撤销和设备级绑定。
-- 导入诊断报告：格式错误、协议不兼容、节点重复、字段丢失。
+- 更完整的导入诊断报告：原始文件片段定位、格式转换 diff、节点不兼容修复建议。
 - proxy group / rule provider 模板化能力。
 
 ## 环境变量

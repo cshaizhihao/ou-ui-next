@@ -26,6 +26,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Task release evidence now reads forwarding runtime diagnosis from runtime artifacts and surfaces it in release rows, task details, failure drawers, copied task context, and copied failure evidence packages.
 - Xray customer-node upsert tasks now preserve explicit client `expiresAt` values from the UI / read model into task metadata and runtime `clientPolicies`; renew actions update both `remainingDays` and `expiresAt`.
 - Subscription link drawers now support confirmed secure-path regeneration that rewrites all public output URLs for that identity while preserving the existing token preview; real token rotation remains Roadmap.
+- Subscription source sync now emits structured diagnostics for incompatible protocols, malformed nodes, source-rule filtering, same-source dedupe, cross-source duplicates, and remote fetch failures instead of collapsing every import problem into a generic empty-source warning.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

@@ -1109,8 +1109,40 @@ function formatSourceSyncWarning(warning: string, language: AppLanguage) {
       : `${formatNumber(count, language)} cross-source duplicates`;
   }
 
+  const countedWarningMatch = /^subscription_source\.(unsupported_protocol_nodes|invalid_nodes|filtered_nodes|deduped_nodes):(\d+)$/.exec(warning);
+
+  if (countedWarningMatch) {
+    const [, kind, rawCount] = countedWarningMatch;
+    const count = Number(rawCount);
+
+    if (kind === 'unsupported_protocol_nodes') {
+      return language === 'zh'
+        ? `不兼容协议节点 ${formatNumber(count, language)} 个`
+        : `${formatNumber(count, language)} incompatible protocol nodes`;
+    }
+
+    if (kind === 'invalid_nodes') {
+      return language === 'zh'
+        ? `字段缺失或无法解析节点 ${formatNumber(count, language)} 个`
+        : `${formatNumber(count, language)} nodes missing required fields`;
+    }
+
+    if (kind === 'filtered_nodes') {
+      return language === 'zh'
+        ? `被订阅源规则过滤 ${formatNumber(count, language)} 个节点`
+        : `${formatNumber(count, language)} nodes filtered by source rules`;
+    }
+
+    return language === 'zh'
+      ? `同源重复节点去重 ${formatNumber(count, language)} 个`
+      : `${formatNumber(count, language)} same-source duplicate nodes removed`;
+  }
+
   if (warning.startsWith('subscription_source.sync_failed:')) {
-    return language === 'zh' ? '同步失败，请检查订阅源' : 'Sync failed; check the source';
+    const reason = warning.replace(/^subscription_source\.sync_failed:/, '').trim();
+    return language === 'zh'
+      ? `同步失败${reason ? `：${reason}` : '，请检查订阅源'}`
+      : `Sync failed${reason ? `: ${reason}` : '; check the source'}`;
   }
 
   if (warning === 'subscription_source.empty_or_unsupported') {

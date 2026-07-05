@@ -1,6 +1,6 @@
 import YAML from 'yaml';
 import type { SubscriptionInventoryNode, SubscriptionSource, SubscriptionSourceSyncResult } from '../../domain';
-import { applySubscriptionSourceRules } from '../../domain/subscription-rules';
+import { applySubscriptionSourceRulesWithStats } from '../../domain/subscription-rules';
 
 type ParseSubscriptionSourceInput = {
   source: SubscriptionSource;
@@ -8,6 +8,37 @@ type ParseSubscriptionSourceInput = {
   syncedAt?: string;
   trafficHeader?: string | null;
 };
+
+type ParsedSourceNodes = {
+  nodes: SubscriptionInventoryNode[];
+  unsupportedProtocolNodeCount: number;
+  invalidNodeCount: number;
+};
+
+const supportedSubscriptionProtocols = new Set(['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria']);
+const supportedUriSchemes = new Set(['vless', 'vmess', 'trojan', 'ss', 'hysteria', 'hysteria2']);
+const singBoxUtilityOutboundTypes = new Set([
+  'block',
+  'direct',
+  'dns',
+  'selector',
+  'urltest',
+  'url-test',
+  'fallback',
+  'load-balance'
+]);
+
+function createEmptyParsedSourceNodes(): ParsedSourceNodes {
+  return {
+    nodes: [],
+    unsupportedProtocolNodeCount: 0,
+    invalidNodeCount: 0
+  };
+}
+
+function isSupportedSubscriptionProtocol(protocol: string) {
+  return supportedSubscriptionProtocols.has(normalizeProtocol(protocol));
+}
 
 function decodeBase64(value: string) {
   const normalized = value.trim().replace(/-/g, '+').replace(/_/g, '/');
@@ -277,16 +308,35 @@ function createShadowsocksNode(source: SubscriptionSource, rawUrl: string, index
   }
 }
 
-function parseUriNodes(source: SubscriptionSource, body: string): SubscriptionInventoryNode[] {
-  return decodeMaybeBase64Subscription(body)
+function parseUriNodes(source: SubscriptionSource, body: string): ParsedSourceNodes {
+  const result = createEmptyParsedSourceNodes();
+  const lines = decodeMaybeBase64Subscription(body)
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => /^[a-z0-9+.-]+:\/\//i.test(line))
-    .map((line, index) => createUriNode(source, line, index))
-    .filter((node): node is SubscriptionInventoryNode => Boolean(node));
+    .filter((line) => /^[a-z0-9+.-]+:\/\//i.test(line));
+
+  lines.forEach((line, index) => {
+    const scheme = line.slice(0, line.indexOf('://')).toLowerCase();
+
+    if (!supportedUriSchemes.has(scheme)) {
+      result.unsupportedProtocolNodeCount += 1;
+      return;
+    }
+
+    const node = createUriNode(source, line, index);
+
+    if (node) {
+      result.nodes.push(node);
+    } else {
+      result.invalidNodeCount += 1;
+    }
+  });
+
+  return result;
 }
 
-function parseClashNodes(source: SubscriptionSource, body: string): SubscriptionInventoryNode[] {
+function parseClashNodes(source: SubscriptionSource, body: string): ParsedSourceNodes {
+  const result = createEmptyParsedSourceNodes();
   const document = YAML.parse(body) as unknown;
   const proxies = Array.isArray(document)
     ? document
@@ -294,35 +344,42 @@ function parseClashNodes(source: SubscriptionSource, body: string): Subscription
       ? (document as { proxies: unknown[] }).proxies
       : [];
 
-  return proxies
-    .map((item, index): SubscriptionInventoryNode | undefined => {
-      if (!item || typeof item !== 'object') {
-        return undefined;
-      }
+  proxies.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      result.invalidNodeCount += 1;
+      return;
+    }
 
-      const proxy = item as Record<string, unknown>;
-      const name = readString(proxy.name, `Proxy ${index + 1}`);
-      const protocol = normalizeProtocol(readString(proxy.type, 'unknown'));
-      const server = readString(proxy.server);
-      const port = readNumber(proxy.port);
+    const proxy = item as Record<string, unknown>;
+    const name = readString(proxy.name, `Proxy ${index + 1}`);
+    const protocol = normalizeProtocol(readString(proxy.type, 'unknown'));
+    const server = readString(proxy.server);
+    const port = readNumber(proxy.port);
 
-      if (!server || !port || protocol === 'unknown') {
-        return undefined;
-      }
+    if (!isSupportedSubscriptionProtocol(protocol)) {
+      result.unsupportedProtocolNodeCount += 1;
+      return;
+    }
 
-      return {
-        id: createNodeId(source, protocol, server, port, name, index),
-        sourceId: source.id,
-        name,
-        protocol,
-        server,
-        port,
-        latencyMs: 0,
-        tags: createTags(source, protocol, name),
-        clashConfig: proxy
-      };
-    })
-    .filter((node): node is SubscriptionInventoryNode => Boolean(node));
+    if (!server || !port) {
+      result.invalidNodeCount += 1;
+      return;
+    }
+
+    result.nodes.push({
+      id: createNodeId(source, protocol, server, port, name, index),
+      sourceId: source.id,
+      name,
+      protocol,
+      server,
+      port,
+      latencyMs: 0,
+      tags: createTags(source, protocol, name),
+      clashConfig: proxy
+    });
+  });
+
+  return result;
 }
 
 function readNestedRecord(value: unknown, key: string) {
@@ -348,12 +405,6 @@ function createSingBoxNode(
 ): SubscriptionInventoryNode | undefined {
   const rawType = readString(outbound.type).toLowerCase();
   const protocol = normalizeProtocol(rawType);
-  const supportedProtocols = new Set(['vless', 'vmess', 'trojan', 'shadowsocks', 'hysteria']);
-
-  if (!supportedProtocols.has(protocol)) {
-    return undefined;
-  }
-
   const name = readString(outbound.tag, `${protocol.toUpperCase()} ${index + 1}`);
   const server = readString(outbound.server);
   const port = readNumber(outbound.server_port ?? outbound.port);
@@ -425,7 +476,8 @@ function createSingBoxNode(
   };
 }
 
-function parseSingBoxNodes(source: SubscriptionSource, body: string): SubscriptionInventoryNode[] {
+function parseSingBoxNodes(source: SubscriptionSource, body: string): ParsedSourceNodes {
+  const result = createEmptyParsedSourceNodes();
   const document = JSON.parse(body) as unknown;
   const outbounds = Array.isArray(document)
     ? document
@@ -433,9 +485,34 @@ function parseSingBoxNodes(source: SubscriptionSource, body: string): Subscripti
       ? document.outbounds
       : [];
 
-  return outbounds
-    .map((item, index) => (isRecord(item) ? createSingBoxNode(source, item, index) : undefined))
-    .filter((node): node is SubscriptionInventoryNode => Boolean(node));
+  outbounds.forEach((item, index) => {
+    if (!isRecord(item)) {
+      result.invalidNodeCount += 1;
+      return;
+    }
+
+    const rawType = readString(item.type).toLowerCase();
+    const protocol = normalizeProtocol(rawType);
+
+    if (singBoxUtilityOutboundTypes.has(rawType)) {
+      return;
+    }
+
+    if (!isSupportedSubscriptionProtocol(protocol)) {
+      result.unsupportedProtocolNodeCount += 1;
+      return;
+    }
+
+    const node = createSingBoxNode(source, item, index);
+
+    if (node) {
+      result.nodes.push(node);
+    } else {
+      result.invalidNodeCount += 1;
+    }
+  });
+
+  return result;
 }
 
 function parseSourceNodes(source: SubscriptionSource, body: string) {
@@ -450,24 +527,46 @@ function parseSourceNodes(source: SubscriptionSource, body: string) {
   return parseClashNodes(source, body);
 }
 
+function appendCountWarning(warnings: string[], code: string, count: number) {
+  if (count > 0) {
+    warnings.push(`${code}:${count}`);
+  }
+}
+
 export function parseSubscriptionSourceContent({
   source,
   body,
   syncedAt = new Date().toISOString(),
   trafficHeader
 }: ParseSubscriptionSourceInput): SubscriptionSourceSyncResult {
-  const rawNodes = parseSourceNodes(source, body);
-  const nodes = applySubscriptionSourceRules(rawNodes, {
+  const parsed = parseSourceNodes(source, body);
+  const ruleResult = applySubscriptionSourceRulesWithStats(parsed.nodes, {
     includeFilter: source.includeFilter,
     excludeFilter: source.excludeFilter,
     dedupeKey: source.dedupeKey
   });
-  const warnings = rawNodes.length === 0 ? ['subscription_source.empty_or_unsupported'] : [];
+  const nodes = ruleResult.nodes;
+  const warnings: string[] = [];
+  const hasParseIssues = parsed.unsupportedProtocolNodeCount > 0 || parsed.invalidNodeCount > 0;
+
+  appendCountWarning(warnings, 'subscription_source.unsupported_protocol_nodes', parsed.unsupportedProtocolNodeCount);
+  appendCountWarning(warnings, 'subscription_source.invalid_nodes', parsed.invalidNodeCount);
+
+  if (hasParseIssues || nodes.length === 0) {
+    appendCountWarning(warnings, 'subscription_source.filtered_nodes', ruleResult.filteredNodeCount);
+    appendCountWarning(warnings, 'subscription_source.deduped_nodes', ruleResult.dedupedNodeCount);
+  }
+
+  if (parsed.nodes.length === 0 && parsed.unsupportedProtocolNodeCount === 0 && parsed.invalidNodeCount === 0) {
+    warnings.push('subscription_source.empty_or_unsupported');
+  }
+
+  const hasActionableParseWarnings = hasParseIssues || nodes.length === 0;
   const traffic = parseSubscriptionTrafficHeader(source.id, trafficHeader);
 
   return {
     sourceId: source.id,
-    status: nodes.length > 0 ? 'synced' : 'warning',
+    status: nodes.length > 0 && !hasActionableParseWarnings ? 'synced' : 'warning',
     nodeCount: nodes.length,
     syncedAt,
     nodes,
