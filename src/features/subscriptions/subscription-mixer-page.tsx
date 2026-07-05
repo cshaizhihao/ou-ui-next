@@ -973,6 +973,15 @@ const clientFormatOptions = [
   label: Record<AppLanguage, string>;
 }>;
 
+const profileOutputFormatOptions = [
+  ...clientFormatOptions.map((option) => ({ outputFormat: option.outputFormat, label: option.label })),
+  { outputFormat: 'shadowrocket', label: { zh: 'Shadowrocket', en: 'Shadowrocket' } },
+  { outputFormat: 'stash', label: { zh: 'Stash', en: 'Stash' } }
+] as const satisfies Array<{
+  outputFormat: SubscriptionClientOutputFormat;
+  label: Record<AppLanguage, string>;
+}>;
+
 const legacyFormatLabels: Partial<Record<SubscriptionClientFormat, Record<AppLanguage, string>>> = {};
 const neutralActionButtonClass =
   'inline-flex min-h-9 items-center justify-center gap-2 border border-[#07111F]/18 bg-[#FFFDF5]/86 px-3 text-xs font-bold text-[#35405A] transition duration-200 ease-out motion-safe:hover:-translate-y-0.5 hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/52 hover:text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/16 dark:bg-white/[0.04] dark:text-white/64 dark:hover:border-[#6B7CFF]/34 dark:hover:bg-[#1E3AFF]/12 dark:hover:text-[#DDE3FF] dark:focus-visible:ring-[#6B7CFF]/45';
@@ -4321,7 +4330,9 @@ export function SubscriptionMixerPage({
                 { label: 'Mihomo', value: 'mihomo' },
                 { label: 'Clash', value: 'clash' },
                 { label: 'Sing-box', value: 'sing-box' },
-                { label: 'Surge', value: 'surge' }
+                { label: 'Surge', value: 'surge' },
+                { label: 'Shadowrocket', value: 'shadowrocket' },
+                { label: 'Stash', value: 'stash' }
               ]}
             />
           </div>
@@ -4516,7 +4527,7 @@ export function SubscriptionMixerPage({
           <div className={subscriptionDrawerNeutralPanelClass}>
             <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/55">{profileT.outputFormats}</p>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
-              {clientFormatOptions.map((option) => (
+              {profileOutputFormatOptions.map((option) => (
                 <label key={option.outputFormat} className="flex min-h-12 items-center justify-between gap-3 border border-[#07111F]/14 px-3 py-2 dark:border-white/10">
                   <span className="min-w-0 break-words text-xs font-bold uppercase text-[#07111F] dark:text-white/70">{option.label[language]}</span>
                   <GlassToggle

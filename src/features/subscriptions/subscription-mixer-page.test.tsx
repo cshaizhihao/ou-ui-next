@@ -1550,11 +1550,13 @@ describe('SubscriptionMixerPage', () => {
     const drawer = screen.getByLabelText('Edit Export Profile');
 
     await user.clear(within(drawer).getByLabelText('Profile Name'));
-    await user.type(within(drawer).getByLabelText('Profile Name'), 'Acme Mihomo Profile');
-    await user.selectOptions(within(drawer).getByLabelText('Client Type'), 'mihomo');
+    await user.type(within(drawer).getByLabelText('Profile Name'), 'Acme Stash Profile');
+    await user.selectOptions(within(drawer).getByLabelText('Client Type'), 'stash');
     await user.clear(within(drawer).getByLabelText('Export Template'));
-    await user.type(within(drawer).getByLabelText('Export Template'), 'acme-mihomo.yaml');
+    await user.type(within(drawer).getByLabelText('Export Template'), 'acme-stash.yaml');
     await user.click(within(drawer).getByLabelText(`${'Visible Sources'}: ${source.name}`));
+    await user.click(within(drawer).getByLabelText('Output Formats: Shadowrocket'));
+    await user.click(within(drawer).getByLabelText('Output Formats: Stash'));
     await user.clear(within(drawer).getByLabelText('Include Filter'));
     await user.type(within(drawer).getByLabelText('Include Filter'), 'premium|streaming');
     await user.clear(within(drawer).getByLabelText('Exclude Filter'));
@@ -1574,14 +1576,14 @@ describe('SubscriptionMixerPage', () => {
 
     expect(onSaveExportProfile).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'Acme Mihomo Profile',
-        client: 'mihomo',
+        name: 'Acme Stash Profile',
+        client: 'stash',
         sourceIds: ['source-hk-premium'],
         includeFilter: 'premium|streaming',
         excludeFilter: 'expired|test',
         regionFilter: ['hk', 'sg'],
-        outputFormats: ['mihomo', 'clash', 'uri'],
-        templateName: 'acme-mihomo.yaml',
+        outputFormats: ['mihomo', 'clash', 'uri', 'shadowrocket', 'stash'],
+        templateName: 'acme-stash.yaml',
         proxyGroups: [
           expect.objectContaining({
             name: 'Acme Auto',

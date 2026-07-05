@@ -34,6 +34,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray inbound delete artifacts now emit `remove_inbound` with no active runtime clients while preserving disabled policy evidence, so delete tasks cannot look like an upsert in Agent evidence.
 - Public subscription output now emits conversion diagnostic headers for selected, URI-converted, and unconverted node counts so format/rendering issues are visible without parsing the generated body.
 - Subscription output API and OpenAPI contracts now accept Shadowrocket and Stash formats for generated output and export profiles, matching the producer registry instead of rejecting formats the renderer can already serve.
+- Subscription export profile UI now exposes Shadowrocket and Stash as selectable client/output targets, so operators can submit the formats already supported by the Domain, API contract, OpenAPI spec, and renderer.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 
