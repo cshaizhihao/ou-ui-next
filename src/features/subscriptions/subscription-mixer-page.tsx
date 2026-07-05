@@ -213,6 +213,7 @@ type ClientDraft = {
   customerName: string;
   displayName: string;
   subId: string;
+  accessTokenPreview: string;
   securePathPreview: string;
   email: string;
   protocol: XrayProtocol;
@@ -347,8 +348,8 @@ const copy = {
     copySubscriptionUsageHeader: '复制订阅用量头',
     subscriptionAccessStats: '访问统计',
     copySubscriptionDiagnostics: '复制订阅诊断',
-    regenerateSecurePath: '重新生成安全路径',
-    confirmRegenerateSecurePath: (name: string) => `确认重新生成 ${name} 的安全路径？旧订阅地址将失效。`,
+    rotateAccessCredential: '轮换访问凭据',
+    confirmRotateAccessCredential: (name: string) => `确认轮换 ${name} 的访问凭据？旧订阅地址将失效。`,
     lastOnline: '上次在线',
     lastGenerated: '上次生成',
     generatedNodes: '生成节点',
@@ -593,9 +594,9 @@ const copy = {
     copySubscriptionUsageHeader: 'Copy Usage Header',
     subscriptionAccessStats: 'Access Statistics',
     copySubscriptionDiagnostics: 'Copy Subscription Diagnostics',
-    regenerateSecurePath: 'Regenerate Secure Path',
-    confirmRegenerateSecurePath: (name: string) =>
-      `Regenerate secure path for ${name}? Existing subscription URLs will stop working.`,
+    rotateAccessCredential: 'Rotate Access Credential',
+    confirmRotateAccessCredential: (name: string) =>
+      `Rotate access credential for ${name}? Existing subscription URLs will stop working.`,
     lastOnline: 'Last Online',
     lastGenerated: 'Last Generated',
     generatedNodes: 'Generated Nodes',
@@ -845,6 +846,7 @@ function createDefaultClientDraft(): ClientDraft {
     customerName: '香港 Premium 客户',
     displayName: '香港 Premium 订阅规则',
     subId: 'sub_hkg_premium_01',
+    accessTokenPreview: createAccessTokenPreview('sub_hkg_premium_01'),
     securePathPreview: createSecurePathPreview(),
     email: 'client@example.com',
     protocol: 'vless',
@@ -1041,6 +1043,11 @@ function createAccessTokenPreview(subId: string) {
   return `ou_${token.slice(0, 6)}...${token.slice(-4)}`;
 }
 
+function createRotatedAccessTokenPreview() {
+  const token = createRandomSecret(18);
+  return `ou_${token.slice(0, 6)}...${token.slice(-4)}`;
+}
+
 function createSecurePathPreview() {
   return `/${createRandomSecret(24)}`;
 }
@@ -1172,7 +1179,7 @@ function createClientMetadataFromDraft(
   const maxLatencyMs = Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0);
   const requestLimitPerHour = Math.max(Number.parseInt(draft.requestLimitPerHour, 10) || 0, 0);
   const outputFormats = createOutputFormats(draft.formats);
-  const accessTokenPreview = createAccessTokenPreview(subId);
+  const accessTokenPreview = draft.accessTokenPreview || createAccessTokenPreview(subId);
   const securePathPreview = draft.securePathPreview || createSecurePathPreview();
   const routingRule = createEffectiveRoutingRule(draft.routingRule, draft.trafficFilter);
   const subscriptionUrls = buildSubscriptionUrls({ ...draft, routingRule, securePathPreview });
@@ -1253,6 +1260,7 @@ function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft 
     customerName: client.customerName ?? client.displayName,
     displayName: client.displayName,
     subId: client.subId,
+    accessTokenPreview: client.accessTokenPreview,
     securePathPreview: client.securePathPreview || createSecurePathPreview(),
     email: client.email,
     protocol: client.protocol as XrayProtocol,
@@ -2116,7 +2124,7 @@ export function SubscriptionMixerPage({
     [exportFiles, nodeDrawerClient]
   );
   const subscriptionUrls = buildSubscriptionUrls(clientDraft);
-  const accessTokenPreview = createAccessTokenPreview(clientDraft.subId.trim() || 'manual');
+  const accessTokenPreview = clientDraft.accessTokenPreview || createAccessTokenPreview(clientDraft.subId.trim() || 'manual');
   const securePathPreview = clientDraft.securePathPreview;
   const matchedInventoryNodes = useMemo(() => findMatchingInventoryNodes(inventoryNodes, clientDraft), [clientDraft, inventoryNodes]);
 
@@ -2524,9 +2532,9 @@ export function SubscriptionMixerPage({
     void copyToClipboard(createClientAllFormatSubscriptionText(client, language));
   }
 
-  function regenerateClientSecurePath(client: SubscriptionClientIdentity) {
+  function rotateClientAccessCredential(client: SubscriptionClientIdentity) {
     const confirmed =
-      typeof window === 'undefined' || window.confirm(t.confirmRegenerateSecurePath(client.displayName));
+      typeof window === 'undefined' || window.confirm(t.confirmRotateAccessCredential(client.displayName));
 
     if (!confirmed) {
       return;
@@ -2534,24 +2542,12 @@ export function SubscriptionMixerPage({
 
     const draft = {
       ...createDraftFromClient(client),
+      accessTokenPreview: createRotatedAccessTokenPreview(),
       securePathPreview: createSecurePathPreview()
     };
     const metadata = createClientMetadataFromDraft(draft, client.generatedNodeCount, client.id);
 
-    onSaveClient(
-      {
-        ...metadata,
-        accessTokenPreview: client.accessTokenPreview,
-        clientRule: {
-          ...metadata.clientRule,
-          access: {
-            ...metadata.clientRule.access,
-            tokenPreview: client.accessTokenPreview
-          }
-        }
-      },
-      'update'
-    );
+    onSaveClient(metadata, 'update');
   }
 
   function copyNodeRawUrl(node: SubscriptionInventoryNode) {
@@ -4033,11 +4029,11 @@ export function SubscriptionMixerPage({
                   <button
                     className={compactNeutralActionButtonClass}
                     disabled={taskMutationBusy}
-                    onClick={() => regenerateClientSecurePath(linkDrawerClient)}
+                    onClick={() => rotateClientAccessCredential(linkDrawerClient)}
                     type="button"
                   >
                     <RefreshCcw className="h-3.5 w-3.5" />
-                    {t.regenerateSecurePath}
+                    {t.rotateAccessCredential}
                   </button>
                   <button
                     className={compactNeutralActionButtonClass}

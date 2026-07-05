@@ -62,6 +62,25 @@ describe('subscription read models', () => {
     expect(client?.securePathPreview).toBe('/A1b2C3d4E5f6G7h8J9k2Lm3n');
   });
 
+  it('keeps explicitly rotated subscription access material stable in the client read model', () => {
+    const client = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-rotated',
+        displayName: 'Rotated Client Subscription',
+        subId: 'sub_rotated_client',
+        protocol: 'vless',
+        accessTokenPreview: 'ou_rotat...9Lm3',
+        securePathPreview: '/R1b2C3d4E5f6G7h8J9k2Lm3n'
+      })
+    );
+
+    expect(client).toMatchObject({
+      id: 'sub-client-rotated',
+      accessTokenPreview: 'ou_rotat...9Lm3',
+      securePathPreview: '/R1b2C3d4E5f6G7h8J9k2Lm3n'
+    });
+  });
+
   it('maps subscription request limits into the public client read model', () => {
     const client = createSubscriptionClientFromTask(
       createSubscriptionTask({

@@ -2518,13 +2518,13 @@ describe('SubscriptionMixerPage', () => {
       expect.stringContaining('Subscription-Userinfo: upload=0; download=137438953472; total=1099511627776; expire=1798761599')
     );
 
-    await user.click(within(drawer).getByRole('button', { name: '重新生成安全路径' }));
+    await user.click(within(drawer).getByRole('button', { name: '轮换访问凭据' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Acme 香港 Premium 订阅'));
     expect(onSaveClient).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
-    await user.click(within(drawer).getByRole('button', { name: '重新生成安全路径' }));
+    await user.click(within(drawer).getByRole('button', { name: '轮换访问凭据' }));
 
     expect(onSaveClient).toHaveBeenCalledTimes(1);
     const rotatedMetadata = onSaveClient.mock.calls[0]?.[0] as {
@@ -2534,8 +2534,9 @@ describe('SubscriptionMixerPage', () => {
       clientRule: { access: { tokenPreview: string; securePathPreview: string } };
     };
 
-    expect(rotatedMetadata.accessTokenPreview).toBe(guardedClient.accessTokenPreview);
-    expect(rotatedMetadata.clientRule.access.tokenPreview).toBe(guardedClient.accessTokenPreview);
+    expect(rotatedMetadata.accessTokenPreview).toMatch(/^ou_[A-Za-z0-9]{6}\.\.\.[A-Za-z0-9]{4}$/);
+    expect(rotatedMetadata.accessTokenPreview).not.toBe(guardedClient.accessTokenPreview);
+    expect(rotatedMetadata.clientRule.access.tokenPreview).toBe(rotatedMetadata.accessTokenPreview);
     expect(rotatedMetadata.securePathPreview).toMatch(/^\/[A-Za-z0-9]{24}$/);
     expect(rotatedMetadata.securePathPreview).not.toBe('/secure-acme-hkg');
     expect(rotatedMetadata.clientRule.access.securePathPreview).toBe(rotatedMetadata.securePathPreview);
@@ -3308,6 +3309,38 @@ describe('SubscriptionMixerPage', () => {
       })
     );
     expect(onDeleteClient).not.toHaveBeenCalledWith(expect.objectContaining({ subscriptionClientId: 'sub-client-acme-hkg' }));
+  });
+
+  it('preserves the existing access credential preview when editing a subscription identity', async () => {
+    const user = userEvent.setup({ delay: null });
+    const onSaveClient = vi.fn();
+    renderPage({ subscriptionClients: [subscriptionClient], onSaveClient });
+
+    const acmeRow = screen.getByText('Acme 香港 Premium 订阅').closest('tr');
+    expect(acmeRow).not.toBeNull();
+
+    await user.click(within(acmeRow as HTMLElement).getByRole('button', { name: '编辑' }));
+    const drawer = screen.getByRole('dialog', { name: '编辑' });
+
+    await user.clear(within(drawer).getByLabelText('规则名称'));
+    await user.type(within(drawer).getByLabelText('规则名称'), 'Acme 香港 Premium 订阅 Edited');
+    await user.click(within(drawer).getByRole('button', { name: '保存' }));
+
+    expect(onSaveClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriptionClientId: subscriptionClient.id,
+        displayName: 'Acme 香港 Premium 订阅 Edited',
+        accessTokenPreview: subscriptionClient.accessTokenPreview,
+        securePathPreview: subscriptionClient.securePathPreview,
+        clientRule: expect.objectContaining({
+          access: expect.objectContaining({
+            tokenPreview: subscriptionClient.accessTokenPreview,
+            securePathPreview: subscriptionClient.securePathPreview
+          })
+        })
+      }),
+      'update'
+    );
   });
 
   it('submits client subscription rule metadata with protocol, filters, traffic condition, quota, formats, token and secure path preview', async () => {
