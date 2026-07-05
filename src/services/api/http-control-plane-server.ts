@@ -1479,6 +1479,15 @@ function sendRaw(response: ServerResponse, status: number, output: PublicSubscri
   response.end(output.body);
 }
 
+function sendHtml(response: ServerResponse, status: number, body: string) {
+  response.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-store'
+  });
+  response.end(body);
+}
+
 function sendText(response: ServerResponse, status: number, contentType: string, body: string) {
   response.writeHead(status, {
     'Content-Type': contentType,
@@ -1562,6 +1571,20 @@ function getPublicSubscriptionPath(pathname: string) {
   };
 }
 
+function getPublicSubscriptionPortalPath(pathname: string) {
+  const match = /^\/portal\/([^/]+)\/([^/]+)$/.exec(pathname);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const [, securePath, subId] = match;
+  return {
+    securePath: `/${decodeURIComponent(securePath)}`,
+    subId: decodeURIComponent(subId)
+  };
+}
+
 const subscriptionClientFormatToOutputFormat: Record<SubscriptionClientFormat, SubscriptionClientOutputFormat> = {
   plain: 'uri',
   json: 'v2ray',
@@ -1603,6 +1626,32 @@ function isSubscriptionQuotaExceeded(client: SubscriptionClientIdentity) {
   return client.quotaExceeded === true || (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes);
 }
 
+async function resolvePublicSubscriptionClient(
+  api: ControlPlaneApi,
+  path: { securePath: string; subId: string }
+) {
+  const clients = await api.listSubscriptionClients();
+  const client = clients.find((item) => item.subId === path.subId && item.securePathPreview === path.securePath);
+
+  if (!client) {
+    throw createHttpError(404, 'not_found', 'Subscription client not found.');
+  }
+
+  if (!client.enabled) {
+    throw createHttpError(403, 'permission.denied', 'Subscription client is disabled.');
+  }
+
+  if (Date.parse(client.expiresAt) <= Date.now()) {
+    throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
+  }
+
+  if (isSubscriptionQuotaExceeded(client) || client.runtimeDisabledByPolicy) {
+    throw createSubscriptionQuotaExceededError(client);
+  }
+
+  return client;
+}
+
 function consumePublicSubscriptionRequest(client: SubscriptionClientIdentity, format: PublicSubscriptionFormat, now = Date.now()) {
   const requestLimitPerHour = Math.max(Math.round(client.requestLimitPerHour ?? 360), 0);
 
@@ -1633,6 +1682,97 @@ function consumePublicSubscriptionRequest(client: SubscriptionClientIdentity, fo
 
   bucket.count += 1;
   publicSubscriptionRequestBuckets.set(bucketKey, bucket);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatPortalBytes(value: number) {
+  const bytes = Math.max(Number.isFinite(value) ? value : 0, 0);
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let unitIndex = 0;
+  let nextValue = bytes;
+
+  while (nextValue >= 1024 && unitIndex < units.length - 1) {
+    nextValue /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${nextValue.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+}
+
+function formatPublicSubscriptionLabel(format: SubscriptionClientOutputFormat) {
+  if (format === 'uri') return 'URI';
+  if (format === 'v2ray') return 'v2ray';
+  if (format === 'sing-box') return 'sing-box';
+  if (format === 'shadowrocket') return 'Shadowrocket';
+  if (format === 'stash') return 'Stash';
+  return format[0].toUpperCase() + format.slice(1);
+}
+
+function createPublicSubscriptionUrl(client: SubscriptionClientIdentity, format: SubscriptionClientOutputFormat) {
+  const securePath = (client.securePathPreview ?? '').replace(/^\/+/, '');
+  return `/sub/${encodeURIComponent(securePath)}/${encodeURIComponent(format)}/${encodeURIComponent(client.subId)}`;
+}
+
+function renderPublicSubscriptionPortal(client: SubscriptionClientIdentity) {
+  const outputFormats = Array.from(resolveAllowedSubscriptionOutputFormats(client));
+  const trafficLimitBytes = Math.max(client.trafficLimitBytes, 0);
+  const usedTrafficBytes = Math.max(client.usedTrafficBytes, 0);
+  const remainingBytes = trafficLimitBytes > 0 ? Math.max(trafficLimitBytes - usedTrafficBytes, 0) : undefined;
+  const links = outputFormats
+    .map((format) => {
+      const label = formatPublicSubscriptionLabel(format);
+      const href = createPublicSubscriptionUrl(client, format);
+
+      return `<li><a data-format="${escapeHtml(format)}" href="${escapeHtml(href)}">${escapeHtml(label)}</a><code>${escapeHtml(href)}</code></li>`;
+    })
+    .join('');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(client.displayName)} - OU-UI Next Subscription</title>
+  <style>
+    body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#fffdf5;color:#07111f}
+    main{max-width:840px;margin:0 auto;padding:32px 20px}
+    h1{font-size:24px;margin:0 0 6px}
+    .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:24px 0}
+    .cell{border:1px solid rgba(7,17,31,.14);background:#fff;padding:14px}
+    .label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:#35405a;margin-bottom:6px}
+    ul{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+    li{border:1px solid rgba(30,58,255,.25);background:#dce1ff66;padding:12px;display:grid;gap:8px}
+    a{font-weight:800;color:#1e3aff;text-decoration:none}
+    code{overflow-wrap:anywhere;font-size:12px;color:#35405a}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(client.displayName)}</h1>
+    <p>OU-UI Next subscription portal</p>
+    <section class="meta" aria-label="Subscription status">
+      <div class="cell"><span class="label">Sub ID</span>${escapeHtml(client.subId)}</div>
+      <div class="cell"><span class="label">Expires At</span>${escapeHtml(client.expiresAt)}</div>
+      <div class="cell"><span class="label">Used Traffic</span>${escapeHtml(formatPortalBytes(usedTrafficBytes))}</div>
+      <div class="cell"><span class="label">Traffic Limit</span>${trafficLimitBytes > 0 ? escapeHtml(formatPortalBytes(trafficLimitBytes)) : 'Unlimited'}</div>
+      <div class="cell"><span class="label">Remaining</span>${remainingBytes === undefined ? 'Unlimited' : escapeHtml(formatPortalBytes(remainingBytes))}</div>
+      <div class="cell"><span class="label">Generated Nodes</span>${Math.max(client.generatedNodeCount, 0)}</div>
+    </section>
+    <section aria-label="Subscription links">
+      <h2>Subscription links</h2>
+      <ul>${links || '<li>No output formats are enabled.</li>'}</ul>
+    </section>
+  </main>
+</body>
+</html>`;
 }
 
 function getSubscriptionSourceSyncIdFromPath(pathname: string) {
@@ -2332,6 +2472,7 @@ async function routeRequest(
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
   const requestId = createRequestId(request.headers);
   const publicSubscriptionPath = getPublicSubscriptionPath(url.pathname);
+  const publicSubscriptionPortalPath = getPublicSubscriptionPortalPath(url.pathname);
 
   if (method === 'GET' && publicSubscriptionPath) {
     if (!isPublicSubscriptionFormat(publicSubscriptionPath.format)) {
@@ -2343,28 +2484,7 @@ async function routeRequest(
       throw createHttpError(404, 'not_found', `Subscription format not found: ${publicSubscriptionPath.format}`);
     }
 
-    const clients = await api.listSubscriptionClients();
-    const client = clients.find(
-      (item) =>
-        item.subId === publicSubscriptionPath.subId &&
-        item.securePathPreview === publicSubscriptionPath.securePath
-    );
-
-    if (!client) {
-      throw createHttpError(404, 'not_found', 'Subscription client not found.');
-    }
-
-    if (!client.enabled) {
-      throw createHttpError(403, 'permission.denied', 'Subscription client is disabled.');
-    }
-
-    if (Date.parse(client.expiresAt) <= Date.now()) {
-      throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
-    }
-
-    if (isSubscriptionQuotaExceeded(client) || client.runtimeDisabledByPolicy) {
-      throw createSubscriptionQuotaExceededError(client);
-    }
+    const client = await resolvePublicSubscriptionClient(api, publicSubscriptionPath);
 
     if (!isSubscriptionFormatAllowed(client, publicSubscriptionFormat)) {
       throw createHttpError(403, 'permission.denied', `Subscription format is not enabled: ${publicSubscriptionPath.format}`);
@@ -2385,6 +2505,13 @@ async function routeRequest(
         externalNodes: await api.listSubscriptionInventoryNodes()
       })
     );
+    return;
+  }
+
+  if (method === 'GET' && publicSubscriptionPortalPath) {
+    const client = await resolvePublicSubscriptionClient(api, publicSubscriptionPortalPath);
+
+    sendHtml(response, 200, renderPublicSubscriptionPortal(client));
     return;
   }
 

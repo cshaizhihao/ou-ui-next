@@ -1271,6 +1271,36 @@ paths:
                           $ref: '#/components/schemas/SubscriptionExportFile'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /portal/{securePath}/{subId}:
+    get:
+      tags:
+        - Subscriptions
+      operationId: getPublicSubscriptionPortal
+      summary: Open a minimal customer-facing subscription portal by secure path and subId
+      description: Public customer portal page for enabled subscription identities. It lists enabled output links and subscription status without operator bearer authentication.
+      parameters:
+        - name: securePath
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+        - name: subId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Minimal subscription portal HTML.
+          content:
+            text/html:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /sub/{securePath}/{format}/{subId}:
     get:
       tags:

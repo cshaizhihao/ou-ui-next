@@ -36,6 +36,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Subscription output API and OpenAPI contracts now accept Shadowrocket and Stash formats for generated output and export profiles, matching the producer registry instead of rejecting formats the renderer can already serve.
 - Subscription export profile UI now exposes Shadowrocket and Stash as selectable client/output targets, so operators can submit the formats already supported by the Domain, API contract, OpenAPI spec, and renderer.
 - Subscription client rule UI now treats public output formats as first-class selections, including Shadowrocket and Stash, and the link drawer/copy/QR flows render from `outputFormats` instead of legacy export-file `formats`.
+- A minimal public subscription portal route now exists at `/portal/{securePath}/{subId}`, sharing the public subscription enabled/expiry/quota checks and showing enabled output links, expiry, usage, and generated-node status.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

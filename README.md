@@ -60,7 +60,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
 | Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、访问凭据轮换、二维码和 Shadowrocket/Stash 输出 |
-| 用户订阅门户 | Roadmap | 独立客户门户、raw token/hash 校验、泄露撤销和设备级绑定仍需继续补齐 |
+| 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、到期、用量和生成节点；独立客户门户、raw token/hash 校验、泄露撤销和设备级绑定仍需继续补齐 |
 | SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储，适合单 Master 部署和安装器闭环 |
 | 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的强 schema、迁移和 HA 仍是后续重点 |
 
@@ -199,10 +199,11 @@ Preview / blocked 能力：
 - 与 Xray client / customer node 的用量、到期、规则关联。
 - 订阅身份和导出配置都可选择 public output formats，含 Shadowrocket / Stash。
 - 订阅链接抽屉支持二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和访问凭据轮换；轮换会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL。
+- `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、到期、用量和生成节点。
 
 后续重点：
 
-- 独立用户订阅门户。
+- 完整独立用户订阅门户。
 - 独立 raw token/hash 校验、泄露撤销和设备级绑定。
 - 更完整的导入诊断报告：原始文件片段定位、格式转换 diff、节点不兼容修复建议。
 - proxy group / rule provider 模板化能力。

@@ -1904,6 +1904,21 @@ describe('HTTP control-plane server', () => {
 
       expect(createClientResponse.status).toBe(201);
 
+      const portalResponse = await fetch(`${baseUrl}/portal/x7K2mP9vL4qR1wDz/sub_public_acme`);
+      const portal = await portalResponse.text();
+
+      expect(portalResponse.status).toBe(200);
+      expect(portalResponse.headers.get('content-type')).toContain('text/html');
+      expect(portalResponse.headers.get('cache-control')).toBe('no-store');
+      expect(portal).toContain('Public Client Subscription');
+      expect(portal).toContain('OU-UI Next subscription portal');
+      expect(portal).toContain('500.00 GB');
+      expect(portal).toContain('Generated Nodes');
+      expect(portal).toContain('href="/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme"');
+      expect(portal).toContain('data-format="clash"');
+      expect(portal).toContain('data-format="sing-box"');
+      expect(portal).not.toContain('/mihomo/sub_public_acme');
+
       const uriResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme`);
       const uri = await uriResponse.text();
 
@@ -1923,6 +1938,9 @@ describe('HTTP control-plane server', () => {
 
       const wrongPathResponse = await fetch(`${baseUrl}/sub/wrongSecurePath000/clash/sub_public_acme`);
       expect(wrongPathResponse.status).toBe(404);
+
+      const wrongPortalResponse = await fetch(`${baseUrl}/portal/wrongSecurePath000/sub_public_acme`);
+      expect(wrongPortalResponse.status).toBe(404);
 
       const disabledMihomoResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/mihomo/sub_public_acme`);
       const disabledMihomoEnvelope = await disabledMihomoResponse.json();

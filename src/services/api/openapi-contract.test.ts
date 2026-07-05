@@ -159,6 +159,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/subscription-export-profiles',
         '/api/v1/proxy-providers',
         '/api/v1/subscription-export-files',
+        '/portal/{securePath}/{subId}',
         '/sub/{securePath}/{format}/{subId}',
         '/api/v1/forward-rules',
         '/api/v1/quota-policies',
@@ -1290,6 +1291,7 @@ describe('OpenAPI v1 contract', () => {
     expect(publicSubscriptionFormat?.schema).toMatchObject({
       enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
     });
+    expect(document.paths['/portal/{securePath}/{subId}'].get.responses?.['200']?.content).toHaveProperty('text/html');
     expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
       expect.arrayContaining([
         'id',
