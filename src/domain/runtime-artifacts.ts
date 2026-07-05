@@ -7,11 +7,13 @@ import type { DeployTask } from './task';
 import type { RuntimeModuleKind } from './module';
 import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
 import {
+  diagnoseForwardingRuntime,
   FORWARDING_RUNTIME_BLOCKED_CONTROLS,
   FORWARDING_RUNTIME_SUPPORTED_CONTROLS,
   type ForwardProtocol,
   type ForwardStrategy,
   type ForwardingRuntimeBlockedControl,
+  type PortAllocationStatus,
   type TunnelMode,
   type TunnelType
 } from './forwarding';
@@ -470,6 +472,58 @@ function buildForwardingRuntimeCapabilities(metadata: Record<string, unknown> | 
   };
 }
 
+function readForwardingPlannedPortStatus(operation: DeployTask['operation']): PortAllocationStatus {
+  if (operation === 'forward.delete' || operation === 'forward.pause') {
+    return 'releasing';
+  }
+
+  return 'deploying';
+}
+
+function buildForwardingRuntimeDiagnosis(input: {
+  task: DeployTask;
+  metadata: Record<string, unknown> | undefined;
+  agentId: string;
+  listenAddress: string;
+  listenPort: number;
+  targetAddress: string;
+  targetPort: number;
+  protocol: ForwardProtocol;
+  serviceName: string;
+  enabled: boolean;
+}) {
+  const portStatus = readForwardingPlannedPortStatus(input.task.operation);
+
+  return {
+    ...diagnoseForwardingRuntime({
+      enabled: input.enabled,
+      portStatus,
+      ports: [
+        {
+          agentId: input.agentId,
+          listenAddress: input.listenAddress,
+          listenPort: input.listenPort,
+          targetAddress: input.targetAddress,
+          targetPort: input.targetPort,
+          protocol: input.protocol,
+          status: portStatus,
+          runtimeServiceNames: []
+        }
+      ],
+      ipRateLimitMbps: readNumber(input.metadata, 'ipRateLimitMbps', 0),
+      maxConnections: readNumber(input.metadata, 'maxConnections', 0),
+      maxConnectionsPerIp: readNumber(input.metadata, 'maxConnectionsPerIp', 0),
+      proxyProtocol: readBoolean(input.metadata, 'proxyProtocol', false),
+      quotaExceeded: readBoolean(input.metadata, 'quotaExceeded', false),
+      runtimeDisabledByPolicy: readBoolean(input.metadata, 'runtimeDisabledByPolicy', false),
+      guardrailReason: readString(input.metadata, 'guardrailReason', '')
+    }),
+    evidenceStage: 'control-plane-compiled',
+    plannedBindingStatus: portStatus,
+    plannedRuntimeServices: [input.serviceName]
+  };
+}
+
 function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
   const displayName = readString(metadata, 'displayName', readString(metadata, 'hostName', task.targetLabel || agentId));
@@ -755,6 +809,18 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
       transport: protocol,
       reload: 'graceful_restart'
     },
+    runtimeDiagnosis: buildForwardingRuntimeDiagnosis({
+      task,
+      metadata,
+      agentId,
+      listenAddress,
+      listenPort,
+      targetAddress,
+      targetPort,
+      protocol,
+      serviceName,
+      enabled
+    }),
     runtimeCapabilities: buildForwardingRuntimeCapabilities(metadata)
   };
 }
@@ -776,6 +842,7 @@ function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) 
   const serviceName = `ou-tunnel-${task.targetId}-${agentId}`.replace(/[^a-zA-Z0-9_.@-]/g, '-');
   const billingDirection = readBillingDirection(metadata);
   const rateLimitMode = readRateLimitMode(metadata);
+  const enabled = readBoolean(metadata, 'enabled', true);
 
   return {
     artifactVersion: 'ou-ui.runtime.port-forwarding.v1',
@@ -791,7 +858,7 @@ function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) 
       name: readString(metadata, 'name', task.targetLabel),
       ownerName: readString(metadata, 'ownerName', readString(metadata, 'accountId', 'default-owner')),
       tunnelId,
-      enabled: readBoolean(metadata, 'enabled', true),
+      enabled,
       strategy: readForwardStrategy(metadata),
       tunnelMode: readTunnelMode(),
       protocol,
@@ -844,6 +911,18 @@ function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) 
       transport: protocol,
       reload: 'graceful_restart'
     },
+    runtimeDiagnosis: buildForwardingRuntimeDiagnosis({
+      task,
+      metadata,
+      agentId,
+      listenAddress,
+      listenPort,
+      targetAddress,
+      targetPort,
+      protocol,
+      serviceName,
+      enabled
+    }),
     runtimeCapabilities: buildForwardingRuntimeCapabilities(metadata)
   };
 }

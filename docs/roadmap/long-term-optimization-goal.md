@@ -22,6 +22,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Forwarding entry selection disables Agents without `port-forwarding` capability instead of silently accepting unsupported hosts.
 - Forwarding rules now expose rule-level runtime diagnosis states: `ready`, `waiting`, `degraded`, `blocked`, and `failed`.
 - Forwarding diagnosis includes rule and binding status, runtime service evidence, nftables/GOST counter evidence, quota/guardrail suspension, blocked Agent controls, impacted binding count, and next-action hints.
+- Forwarding and tunnel runtime artifacts now carry a `control-plane-compiled` runtime diagnosis with planned service names, planned binding status, blocked controls, and next-action hints so task previews and later Agent evidence can align with UI diagnosis.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

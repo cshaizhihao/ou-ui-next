@@ -286,9 +286,15 @@ export function diagnoseForwardingRuntime(rule: ForwardingRuntimeDiagnosticRule)
           rule.quotaExceeded ||
           Boolean(rule.guardrailReason)
         ? 'blocked'
-        : blockedControls.length > 0 || reasons.includes('missing-traffic-counters') || impactedBindingCount > 0
+        : blockedControls.length > 0 || reasons.includes('missing-traffic-counters')
           ? 'degraded'
-          : !rule.enabled || rule.ports.length === 0 || !hasRuntimeEvidence || ['deploying', 'paused', 'releasing'].includes(rule.portStatus)
+          : !rule.enabled ||
+              rule.ports.length === 0 ||
+              !hasRuntimeEvidence ||
+              ['deploying', 'paused', 'releasing'].includes(rule.portStatus) ||
+              hasBindingDeploying ||
+              hasBindingPaused ||
+              hasBindingReleasing
             ? 'waiting'
             : 'ready';
 

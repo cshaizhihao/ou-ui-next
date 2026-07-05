@@ -583,6 +583,15 @@ describe('runtime artifacts', () => {
         bind: '0.0.0.0:2443',
         upstream: '172.20.8.10:9443',
         transport: 'tcp+udp'
+      },
+      runtimeDiagnosis: {
+        state: 'waiting',
+        reasons: ['no-runtime-service', 'deploying'],
+        nextActions: ['apply', 'inspect-agent'],
+        hasRuntimeEvidence: false,
+        evidenceStage: 'control-plane-compiled',
+        plannedBindingStatus: 'deploying',
+        plannedRuntimeServices: ['ou-tunnel-tunnel-customer-a-agent-hkg-01']
       }
     });
   });
@@ -640,7 +649,20 @@ describe('runtime artifacts', () => {
       }),
       agentId: 'agent-hkg-01',
       moduleKind: 'port-forwarding'
-    }) as { runtimeCapabilities: { status: string; unsupportedControls: string[] } };
+    }) as {
+      runtimeCapabilities: { status: string; unsupportedControls: string[] };
+      runtimeDiagnosis: {
+        state: string;
+        reasons: string[];
+        blockedControls: string[];
+        nextActions: string[];
+        hasRuntimeEvidence: boolean;
+        impactedBindingCount: number;
+        evidenceStage: string;
+        plannedBindingStatus: string;
+        plannedRuntimeServices: string[];
+      };
+    };
 
     expect(artifact.runtimeCapabilities).toEqual(
       expect.objectContaining({
@@ -648,6 +670,17 @@ describe('runtime artifacts', () => {
         unsupportedControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol']
       })
     );
+    expect(artifact.runtimeDiagnosis).toEqual({
+      state: 'degraded',
+      reasons: ['no-runtime-service', 'blocked-runtime-controls', 'deploying'],
+      blockedControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+      nextActions: ['apply', 'inspect-agent'],
+      hasRuntimeEvidence: false,
+      impactedBindingCount: 1,
+      evidenceStage: 'control-plane-compiled',
+      plannedBindingStatus: 'deploying',
+      plannedRuntimeServices: ['ou-forward-forward-hkg-443-agent-hkg-01']
+    });
   });
 
   it('auto-allocates a high listen port for forwarding runtime artifacts when metadata omits listenPort', () => {
