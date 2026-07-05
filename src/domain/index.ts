@@ -52,12 +52,18 @@ export type {
   ForwardPortBinding,
   ForwardProtocol,
   ForwardRule,
+  ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeSupportedControl,
   ForwardStrategy,
   PortAllocationStatus,
   Tunnel,
   TunnelChainHop,
   TunnelMode,
   TunnelType
+} from './forwarding';
+export {
+  FORWARDING_RUNTIME_BLOCKED_CONTROLS,
+  FORWARDING_RUNTIME_SUPPORTED_CONTROLS
 } from './forwarding';
 export { createCustomersFromReadModels } from './customer';
 export type { CustomerReadModel } from './customer';

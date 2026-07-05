@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   CheckCircle2,
   Copy,
+  Lock,
   Pause,
   Pencil,
   Play,
@@ -21,11 +22,14 @@ import {
 } from '../../components/layout/responsive-page';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
+import { FORWARDING_RUNTIME_BLOCKED_CONTROLS, FORWARDING_RUNTIME_SUPPORTED_CONTROLS } from '../../domain';
 import type {
   Agent,
   BillingDirection,
   ForwardPortBinding,
   ForwardProtocol,
+  ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeSupportedControl,
   ForwardStrategy,
   PortAllocationStatus,
   RateLimitDirection,
@@ -164,6 +168,14 @@ type ForwardingRuntimeReadinessMetric = {
 const RANDOM_LISTEN_PORT_MIN = 20_000;
 const RANDOM_LISTEN_PORT_MAX = 60_999;
 
+function isForwardingCapableAgent(agent: Agent) {
+  return agent.capabilities.includes('port-forwarding');
+}
+
+function selectDefaultForwardingAgentIds(agents: Agent[]) {
+  return agents.filter(isForwardingCapableAgent).slice(0, 2).map((agent) => agent.id);
+}
+
 const copy = {
   zh: {
     title: '端口转发',
@@ -234,6 +246,11 @@ const copy = {
     runtimeReadinessReady: '就绪',
     runtimeReadinessIssues: '异常',
     runtimeReadinessWaiting: '等待',
+    runtimeCapabilityMatrix: 'Agent 运行时矩阵',
+    runtimeSupportedControls: '可下发',
+    runtimeBlockedControls: '阻断',
+    runtimeBlockedStatus: 'Agent runtime blocked',
+    portForwardingUnavailable: '缺少 port-forwarding',
     runtimeEvidence: '运行时证据',
     runtimeEvidenceForRule: (name: string) => `${name} 的运行时证据`,
     runtimeEvidenceBindings: (count: string) => `绑定 ${count}`,
@@ -298,6 +315,23 @@ const copy = {
       both: '双向',
       ingress: '入站',
       egress: '出站'
+    },
+    runtimeControlLabels: {
+      listenAddress: '监听地址',
+      listenPort: '监听端口',
+      targetAddress: '目标地址',
+      targetPort: '目标端口',
+      protocol: '协议',
+      rateLimitMbps: '规则限速',
+      rateLimitMode: '限速模式',
+      rateLimitDirection: '限速方向',
+      quotaGb: '配额',
+      monthlyResetDay: '重置日',
+      nftablesTrafficCounters: 'nftables 计数',
+      ipRateLimitMbps: 'IP 限速',
+      maxConnections: '最大连接',
+      maxConnectionsPerIp: '单 IP 连接',
+      proxyProtocol: 'Proxy Protocol'
     },
     strategyOptions: {
       fifo: '顺序',
@@ -390,6 +424,11 @@ const copy = {
     runtimeReadinessReady: 'Ready',
     runtimeReadinessIssues: 'Issues',
     runtimeReadinessWaiting: 'Waiting',
+    runtimeCapabilityMatrix: 'Agent Runtime Matrix',
+    runtimeSupportedControls: 'Ready Controls',
+    runtimeBlockedControls: 'Blocked Controls',
+    runtimeBlockedStatus: 'Agent runtime blocked',
+    portForwardingUnavailable: 'port-forwarding missing',
     runtimeEvidence: 'Runtime Evidence',
     runtimeEvidenceForRule: (name: string) => `Runtime evidence for ${name}`,
     runtimeEvidenceBindings: (count: string) => `Bindings ${count}`,
@@ -457,6 +496,23 @@ const copy = {
       ingress: 'Ingress',
       egress: 'Egress'
     },
+    runtimeControlLabels: {
+      listenAddress: 'Listen address',
+      listenPort: 'Listen port',
+      targetAddress: 'Target address',
+      targetPort: 'Target port',
+      protocol: 'Protocol',
+      rateLimitMbps: 'Rule rate limit',
+      rateLimitMode: 'Rate mode',
+      rateLimitDirection: 'Rate direction',
+      quotaGb: 'Quota',
+      monthlyResetDay: 'Reset day',
+      nftablesTrafficCounters: 'nftables counters',
+      ipRateLimitMbps: 'IP rate limit',
+      maxConnections: 'Max connections',
+      maxConnectionsPerIp: 'Max per IP',
+      proxyProtocol: 'Proxy Protocol'
+    },
     strategyOptions: {
       fifo: 'FIFO',
       'round-robin': 'Round Robin',
@@ -490,7 +546,7 @@ function createDraft(agents: Agent[]): ForwardDraft {
     targetAddress: '',
     targetPort: '',
     protocol: 'tcp+udp',
-    entryNodeIds: agents.slice(0, 2).map((agent) => agent.id),
+    entryNodeIds: selectDefaultForwardingAgentIds(agents),
     strategy: 'round-robin',
     quotaGb: '',
     monthlyResetDay: '1',
@@ -855,6 +911,28 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView, entryNodeIds
   };
 }
 
+function getBlockedRuntimeControlsFromRule(rule: ForwardingRuleView): ForwardingRuntimeBlockedControl[] {
+  const blockedControls: ForwardingRuntimeBlockedControl[] = [];
+
+  if (rule.ipRateLimitMbps > 0) {
+    blockedControls.push('ipRateLimitMbps');
+  }
+
+  if (rule.maxConnections > 0) {
+    blockedControls.push('maxConnections');
+  }
+
+  if (rule.maxConnectionsPerIp > 0) {
+    blockedControls.push('maxConnectionsPerIp');
+  }
+
+  if (rule.proxyProtocol) {
+    blockedControls.push('proxyProtocol');
+  }
+
+  return blockedControls;
+}
+
 export function ForwardingPage({
   agents,
   focusIntent,
@@ -1002,21 +1080,21 @@ export function ForwardingPage({
 
   useEffect(() => {
     setDraft((current) => {
-      const availableIds = new Set(agents.map((agent) => agent.id));
+      const availableIds = new Set(agents.filter(isForwardingCapableAgent).map((agent) => agent.id));
       const retained = current.entryNodeIds.filter((agentId) => availableIds.has(agentId));
 
       return {
         ...current,
-        entryNodeIds: retained.length > 0 ? retained : agents.slice(0, 2).map((agent) => agent.id)
+        entryNodeIds: retained.length > 0 ? retained : selectDefaultForwardingAgentIds(agents)
       };
     });
 
     setBulkMigrateEntryNodeId((current) => {
-      if (agents.some((agent) => agent.id === current)) {
+      if (agents.some((agent) => agent.id === current && isForwardingCapableAgent(agent))) {
         return current;
       }
 
-      return agents[0]?.id ?? '';
+      return agents.find(isForwardingCapableAgent)?.id ?? '';
     });
   }, [agents]);
 
@@ -1194,6 +1272,12 @@ export function ForwardingPage({
   }
 
   function toggleEntryNode(agentId: string) {
+    const agent = agents.find((item) => item.id === agentId);
+
+    if (!agent || !isForwardingCapableAgent(agent)) {
+      return;
+    }
+
     setDraft((current) => ({
       ...current,
       entryNodeIds: current.entryNodeIds.includes(agentId)
@@ -1370,7 +1454,7 @@ export function ForwardingPage({
                       onChange={(event) => setBulkMigrateEntryNodeId(event.target.value)}
                       value={bulkMigrateEntryNodeId}
                     >
-                      {agents.map((agent) => (
+                      {agents.filter(isForwardingCapableAgent).map((agent) => (
                         <option key={agent.id} value={agent.id}>
                           {agent.name}
                         </option>
@@ -1667,24 +1751,39 @@ export function ForwardingPage({
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                {agents.map((agent) => (
-                  <label
-                    key={agent.id}
-                    className="flex cursor-pointer items-center justify-between gap-3 border border-[#07111F]/20 px-3 py-2 transition hover:bg-[#EAF3D1]/45 dark:border-white/10 dark:hover:bg-white/[0.04]"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-bold text-[#07111F] dark:text-white/80">{agent.name}</span>
-                      <span className="mt-0.5 block truncate text-[10px] text-[#35405A] dark:text-white/40">
-                        {agent.region} / {agent.publicAddress}
+                {agents.map((agent) => {
+                  const forwardingCapable = isForwardingCapableAgent(agent);
+
+                  return (
+                    <label
+                      aria-disabled={!forwardingCapable}
+                      className={
+                        forwardingCapable
+                          ? 'flex cursor-pointer items-center justify-between gap-3 border border-[#07111F]/20 px-3 py-2 transition hover:bg-[#EAF3D1]/45 dark:border-white/10 dark:hover:bg-white/[0.04]'
+                          : 'flex cursor-not-allowed items-center justify-between gap-3 border border-[#07111F]/20 bg-[#07111F]/[0.04] px-3 py-2 opacity-65 dark:border-white/10 dark:bg-white/[0.025]'
+                      }
+                      key={agent.id}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-bold text-[#07111F] dark:text-white/80">{agent.name}</span>
+                        <span className="mt-0.5 block truncate text-[10px] text-[#35405A] dark:text-white/40">
+                          {agent.region} / {agent.publicAddress}
+                        </span>
+                        {!forwardingCapable ? (
+                          <span className="mt-1 inline-flex border border-[#DC2626] bg-[#DC2626]/[0.10] px-2 py-0.5 text-[9px] font-black uppercase text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]">
+                            {t.portForwardingUnavailable}
+                          </span>
+                        ) : null}
                       </span>
-                    </span>
-                    <GlassToggle
-                      aria-label={`select ${agent.name}`}
-                      checked={draft.entryNodeIds.includes(agent.id)}
-                      onChange={() => toggleEntryNode(agent.id)}
-                    />
-                  </label>
-                ))}
+                      <GlassToggle
+                        aria-label={`select ${agent.name}`}
+                        checked={draft.entryNodeIds.includes(agent.id)}
+                        disabled={!forwardingCapable}
+                        onChange={() => toggleEntryNode(agent.id)}
+                      />
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </FormSection>
@@ -1776,6 +1875,7 @@ export function ForwardingPage({
                   onChange={(value) => updateDraft({ currentUsedTrafficGb: value })}
                 />
               </div>
+              <ForwardingRuntimeCapabilityMatrix t={t} />
             </div>
             ) : null}
           </details>
@@ -1876,6 +1976,103 @@ function ForwardingBulkImpactPreflight({
         />
       </div>
     </section>
+  );
+}
+
+function ForwardingRuntimeCapabilityMatrix({ t }: { t: (typeof copy)['zh' | 'en'] }) {
+  const supportedControls = FORWARDING_RUNTIME_SUPPORTED_CONTROLS.map((control) => ({
+    id: control,
+    label: t.runtimeControlLabels[control]
+  }));
+  const blockedControls = FORWARDING_RUNTIME_BLOCKED_CONTROLS.map((control) => ({
+    id: control,
+    label: t.runtimeControlLabels[control]
+  }));
+
+  return (
+    <section
+      aria-label={t.runtimeCapabilityMatrix}
+      className="forwarding-runtime-capability-matrix border border-[#07111F] bg-[#EAF3D1]/65 p-3 shadow-[0_14px_34px_-30px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/30 dark:bg-white/[0.035]"
+      role="region"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-[#07111F]/20 pb-2 dark:border-[#6B7CFF]/20">
+        <div className="flex min-w-0 items-center gap-2">
+          <Lock className="h-3.5 w-3.5 shrink-0 text-[#1E3AFF] dark:text-primary" />
+          <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#07111F] dark:text-white">
+            {t.runtimeCapabilityMatrix}
+          </p>
+        </div>
+        <span className="shrink-0 border border-[#FF3D18] bg-[#FFD8C6]/72 px-2 py-0.5 text-[9px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/30 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]">
+          {t.runtimeBlockedStatus}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <ForwardingRuntimeControlGroup
+          controls={supportedControls}
+          label={t.runtimeSupportedControls}
+          state="supported"
+        />
+        <ForwardingRuntimeControlGroup
+          controls={blockedControls}
+          label={t.runtimeBlockedControls}
+          state="blocked"
+        />
+      </div>
+    </section>
+  );
+}
+
+function ForwardingRuntimeControlGroup({
+  controls,
+  label,
+  state
+}: {
+  controls: Array<{
+    id: ForwardingRuntimeSupportedControl | ForwardingRuntimeBlockedControl;
+    label: string;
+  }>;
+  label: string;
+  state: 'supported' | 'blocked';
+}) {
+  const supported = state === 'supported';
+
+  return (
+    <div
+      aria-label={label}
+      className={
+        supported
+          ? 'min-w-0 border border-[#00A878] bg-[#00A878]/[0.09] p-2.5 dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.10]'
+          : 'min-w-0 border border-[#FF3D18] bg-[#FF3D18]/[0.09] p-2.5 dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/[0.10]'
+      }
+      role="group"
+    >
+      <p
+        className={
+          supported
+            ? 'text-[10px] font-black uppercase tracking-widest text-[#006B50] dark:text-[#7FF3C9]'
+            : 'text-[10px] font-black uppercase tracking-widest text-[#C9220C] dark:text-[#FFB197]'
+        }
+      >
+        {label}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {controls.map((control) => (
+          <span
+            aria-disabled={!supported}
+            className={
+              supported
+                ? 'forwarding-runtime-capability-chip border border-[#00A878] bg-[#FFFDF5] px-2 py-1 text-[10px] font-bold text-[#006B50] transition hover:-translate-y-0.5 hover:bg-[#D9FF00]/35 motion-reduce:transition-none dark:border-[#00D49A]/25 dark:bg-white/[0.04] dark:text-[#7FF3C9]'
+                : 'forwarding-runtime-capability-chip border border-[#FF3D18] bg-[#FFFDF5] px-2 py-1 text-[10px] font-bold text-[#B93C17] opacity-90 dark:border-[#FF6A3A]/25 dark:bg-white/[0.04] dark:text-[#FFB197]'
+            }
+            data-runtime-control={control.id}
+            data-runtime-state={state}
+            key={control.id}
+          >
+            {control.label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1994,6 +2191,7 @@ function ForwardingRuntimeEvidenceCard({
         ? t.runtimeEvidenceGuardrail(t.quotaSuspended)
         : t.runtimeEvidenceNoGuardrail;
   const hasRisk = Boolean(rule.guardrailReason || rule.quotaExceeded || rule.runtimeDisabledByPolicy);
+  const blockedControls = getBlockedRuntimeControlsFromRule(rule);
 
   return (
     <div
@@ -2022,7 +2220,31 @@ function ForwardingRuntimeEvidenceCard({
         >
           {guardrailText}
         </span>
+        {blockedControls.length > 0 ? (
+          <span className="rounded-full bg-[#FF3D18]/[0.14] px-2 py-1 text-[#C9220C] dark:bg-[#FF6A3A]/10 dark:text-[#FFB197]">
+            {t.runtimeBlockedControls} {formatNumber(blockedControls.length, language)}
+          </span>
+        ) : null}
       </div>
+      {blockedControls.length > 0 ? (
+        <div
+          aria-label={`${t.runtimeBlockedControls} ${rule.name}`}
+          className="mt-1.5 flex flex-wrap gap-1.5"
+          role="group"
+        >
+          {blockedControls.map((control) => (
+            <span
+              aria-disabled="true"
+              className="border border-[#FF3D18] bg-[#FFFDF5] px-2 py-0.5 text-[9px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/25 dark:bg-white/[0.04] dark:text-[#FFB197]"
+              data-runtime-control={control}
+              data-runtime-state="blocked"
+              key={control}
+            >
+              {t.runtimeControlLabels[control]}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div className="mt-1.5 space-y-1">
         {(runtimeServices.length > 0 ? runtimeServices : [t.runtimeEvidenceNoService]).slice(0, 3).map((service) => (
           <p

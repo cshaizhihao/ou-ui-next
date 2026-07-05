@@ -6,7 +6,15 @@ import {
 import type { DeployTask } from './task';
 import type { RuntimeModuleKind } from './module';
 import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
-import type { ForwardProtocol, ForwardStrategy, TunnelMode, TunnelType } from './forwarding';
+import {
+  FORWARDING_RUNTIME_BLOCKED_CONTROLS,
+  FORWARDING_RUNTIME_SUPPORTED_CONTROLS,
+  type ForwardProtocol,
+  type ForwardStrategy,
+  type ForwardingRuntimeBlockedControl,
+  type TunnelMode,
+  type TunnelType
+} from './forwarding';
 import type { XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
 import { buildXrayShareLink, normalizeGrpcServiceName } from './xray-share-link';
@@ -50,13 +58,6 @@ const XAY_RUNTIME_PROTOCOLS = new Set<XrayProtocol>([
   'trojan',
   'shadowsocks'
 ]);
-
-const FORWARDING_RUNTIME_UNSUPPORTED_CONTROLS = [
-  'ipRateLimitMbps',
-  'maxConnections',
-  'maxConnectionsPerIp',
-  'proxyProtocol'
-] as const;
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -437,7 +438,7 @@ function buildXrayClientPolicies(input: {
 }
 
 function collectUnsupportedForwardingRuntimeControls(metadata: Record<string, unknown> | undefined) {
-  const unsupported: Array<(typeof FORWARDING_RUNTIME_UNSUPPORTED_CONTROLS)[number]> = [];
+  const unsupported: ForwardingRuntimeBlockedControl[] = [];
 
   if (readNumber(metadata, 'ipRateLimitMbps', 0) > 0) {
     unsupported.push('ipRateLimitMbps');
@@ -462,20 +463,8 @@ function buildForwardingRuntimeCapabilities(metadata: Record<string, unknown> | 
   const unsupportedControls = collectUnsupportedForwardingRuntimeControls(metadata);
 
   return {
-    supportedControls: [
-      'listenAddress',
-      'listenPort',
-      'targetAddress',
-      'targetPort',
-      'protocol',
-      'rateLimitMbps',
-      'rateLimitMode',
-      'rateLimitDirection',
-      'quotaGb',
-      'monthlyResetDay',
-      'nftablesTrafficCounters'
-    ],
-    previewControls: [...FORWARDING_RUNTIME_UNSUPPORTED_CONTROLS],
+    supportedControls: [...FORWARDING_RUNTIME_SUPPORTED_CONTROLS],
+    previewControls: [...FORWARDING_RUNTIME_BLOCKED_CONTROLS],
     unsupportedControls,
     status: unsupportedControls.length > 0 ? 'blocked-by-agent-runtime' : 'agent-runtime-ready'
   };

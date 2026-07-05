@@ -10,6 +10,30 @@ export type TunnelMode = 'direct';
 
 export type TunnelType = 'port-forward' | 'relay-chain';
 
+export const FORWARDING_RUNTIME_SUPPORTED_CONTROLS = [
+  'listenAddress',
+  'listenPort',
+  'targetAddress',
+  'targetPort',
+  'protocol',
+  'rateLimitMbps',
+  'rateLimitMode',
+  'rateLimitDirection',
+  'quotaGb',
+  'monthlyResetDay',
+  'nftablesTrafficCounters'
+] as const;
+
+export const FORWARDING_RUNTIME_BLOCKED_CONTROLS = [
+  'ipRateLimitMbps',
+  'maxConnections',
+  'maxConnectionsPerIp',
+  'proxyProtocol'
+] as const;
+
+export type ForwardingRuntimeSupportedControl = (typeof FORWARDING_RUNTIME_SUPPORTED_CONTROLS)[number];
+export type ForwardingRuntimeBlockedControl = (typeof FORWARDING_RUNTIME_BLOCKED_CONTROLS)[number];
+
 export type TunnelChainHop = {
   agentId: string;
   region: string;

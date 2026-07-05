@@ -771,6 +771,111 @@ describe('ForwardingPage', () => {
     expect(advancedBody).not.toHaveClass('mt-4', 'space-y-4');
   });
 
+  it('surfaces Agent runtime capability state inside the forwarding drawer instead of exposing blocked controls as editable fields', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Create Forward Rule' }));
+    await user.click(screen.getByText('Advanced Config'));
+
+    const matrix = screen.getByRole('region', { name: 'Agent Runtime Matrix' });
+    const readyControls = within(matrix).getByRole('group', { name: 'Ready Controls' });
+    const blockedControls = within(matrix).getByRole('group', { name: 'Blocked Controls' });
+
+    expect(matrix).toHaveClass('forwarding-runtime-capability-matrix', 'p-3');
+    expect(within(readyControls).getByText('Rule rate limit')).toHaveAttribute('data-runtime-state', 'supported');
+    expect(within(readyControls).getByText('nftables counters')).toHaveAttribute('data-runtime-state', 'supported');
+    expect(within(blockedControls).getByText('IP rate limit')).toHaveAttribute('data-runtime-state', 'blocked');
+    expect(within(blockedControls).getByText('Max connections')).toHaveAttribute('aria-disabled', 'true');
+    expect(within(blockedControls).getByText('Max per IP')).toHaveAttribute('data-runtime-state', 'blocked');
+    expect(within(blockedControls).getByText('Proxy Protocol')).toHaveAttribute('data-runtime-state', 'blocked');
+    expect(within(matrix).getByText('Agent runtime blocked')).toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: 'IP rate limit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: 'Max connections' })).not.toBeInTheDocument();
+  });
+
+  it('prevents non-forwarding Agents from being selected as forwarding entry hosts', async () => {
+    const user = userEvent.setup();
+    const hostOnlyAgent: Agent = {
+      ...createAgent('agent-host-only', 'Host Only'),
+      capabilities: ['host-agent']
+    };
+
+    render(
+      <ForwardingPage
+        agents={[hostOnlyAgent, createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Create Forward Rule' }));
+
+    const hostOnlyToggle = screen.getByRole('checkbox', { name: 'select Host Only' });
+    const hkgToggle = screen.getByRole('checkbox', { name: 'select HKG Entry' });
+
+    expect(hostOnlyToggle).toBeDisabled();
+    expect(hkgToggle).toBeChecked();
+    expect(screen.getByText('port-forwarding missing')).toHaveClass('border-[#DC2626]');
+  });
+
+  it('shows blocked runtime controls on existing forwarding rules and strips them from edit submissions', async () => {
+    const user = userEvent.setup();
+    const onCreateForwarding = vi.fn();
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[
+          createRule({
+            ipRateLimitMbps: 80,
+            maxConnections: 2048,
+            maxConnectionsPerIp: 32,
+            proxyProtocol: true
+          })
+        ]}
+        onCreateForwarding={onCreateForwarding}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const blockedEvidence = screen.getAllByRole('group', { name: 'Blocked Controls HKG HTTPS Forward' })[0];
+
+    expect(within(blockedEvidence).getByText('IP rate limit')).toHaveAttribute('data-runtime-state', 'blocked');
+    expect(within(blockedEvidence).getByText('Max connections')).toBeInTheDocument();
+    expect(within(blockedEvidence).getByText('Max per IP')).toBeInTheDocument();
+    expect(within(blockedEvidence).getByText('Proxy Protocol')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: 'Edit Forward Rule' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onCreateForwarding).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ipRateLimitMbps: 0,
+        maxConnections: 0,
+        maxConnectionsPerIp: 0,
+        proxyProtocol: false
+      }),
+      'update',
+      'forward-hkg-443'
+    );
+  });
+
   it('keeps forwarding rule rows and create drawer forms on square design-system controls', async () => {
     const user = userEvent.setup();
 
