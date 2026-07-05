@@ -1277,7 +1277,7 @@ paths:
         - Subscriptions
       operationId: getPublicSubscriptionOutput
       summary: Download a generated client subscription by secure path and subId
-      description: Public subscription clients such as Clash, Mihomo, sing-box, and v2rayN call this endpoint without operator bearer authentication. Access is scoped by the generated secure path and the client subId.
+      description: Public subscription clients such as Clash, Mihomo, sing-box, Shadowrocket, Stash, and v2rayN call this endpoint without operator bearer authentication. Access is scoped by the generated secure path and the client subId.
       parameters:
         - name: securePath
           in: path
@@ -1297,6 +1297,8 @@ paths:
               - clash
               - mihomo
               - sing-box
+              - shadowrocket
+              - stash
         - name: subId
           in: path
           required: true
@@ -5428,6 +5430,8 @@ components:
             - mihomo
             - surge
             - sing-box
+            - shadowrocket
+            - stash
         sourceIds:
           type: array
           items:
@@ -5450,6 +5454,8 @@ components:
               - clash
               - mihomo
               - sing-box
+              - shadowrocket
+              - stash
         templateName:
           type: string
           minLength: 1
@@ -6589,6 +6595,8 @@ components:
               - clash
               - mihomo
               - sing-box
+              - shadowrocket
+              - stash
         templateName:
           type: string
           minLength: 1
@@ -6604,6 +6612,8 @@ components:
             - mihomo
             - surge
             - sing-box
+            - shadowrocket
+            - stash
         proxyGroups:
           type: array
           items:

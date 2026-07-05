@@ -33,6 +33,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray inbound create/update now validates structured `metadata.clients[]` in the API contract and OpenAPI docs, including duplicate identity/email/subscription-rule rejection for traceable multi-client tasks.
 - Xray inbound delete artifacts now emit `remove_inbound` with no active runtime clients while preserving disabled policy evidence, so delete tasks cannot look like an upsert in Agent evidence.
 - Public subscription output now emits conversion diagnostic headers for selected, URI-converted, and unconverted node counts so format/rendering issues are visible without parsing the generated body.
+- Subscription output API and OpenAPI contracts now accept Shadowrocket and Stash formats for generated output and export profiles, matching the producer registry instead of rejecting formats the renderer can already serve.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

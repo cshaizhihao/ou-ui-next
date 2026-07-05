@@ -64,8 +64,8 @@ const xrayClientResetPolicySchema = z.enum(['never', 'daily', 'weekly', 'monthly
 const subscriptionSourceKindSchema = z.enum(['clash', 'mihomo-provider', 'v2ray-uri', 'sing-box', 'manual']);
 const subscriptionDedupeKeySchema = z.enum(['server-port', 'uuid', 'name-region']);
 const subscriptionClientFormatSchema = z.enum(['plain', 'json', 'clash', 'mihomo', 'sing-box']);
-const subscriptionClientOutputFormatSchema = z.enum(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box']);
-const subscriptionExportProfileClientSchema = z.enum(['clash', 'mihomo', 'surge', 'sing-box']);
+const subscriptionClientOutputFormatSchema = z.enum(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']);
+const subscriptionExportProfileClientSchema = z.enum(['clash', 'mihomo', 'surge', 'sing-box', 'shadowrocket', 'stash']);
 const proxyGroupStrategySchema = z.enum(['select', 'url-test', 'fallback', 'load-balance']);
 
 const checksumSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/i);

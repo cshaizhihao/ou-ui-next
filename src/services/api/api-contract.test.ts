@@ -893,7 +893,7 @@ describe('v1 API runtime contract', () => {
           protocol: 'vless',
           sourceIds: ['source-custom'],
           formats: ['plain', 'mihomo'],
-          outputFormats: ['uri', 'mihomo'],
+          outputFormats: ['uri', 'mihomo', 'shadowrocket', 'stash'],
           templateName: 'mihomo-compatible.yaml'
         }
       })
@@ -901,7 +901,7 @@ describe('v1 API runtime contract', () => {
       operation: 'subscription.generate',
       metadata: {
         formats: ['plain', 'mihomo'],
-        outputFormats: ['uri', 'mihomo'],
+        outputFormats: ['uri', 'mihomo', 'shadowrocket', 'stash'],
         templateName: 'mihomo-compatible.yaml'
       }
     });
@@ -916,13 +916,13 @@ describe('v1 API runtime contract', () => {
         metadata: {
           profileId: 'profile-mihomo-premium',
           name: 'Mihomo Premium',
-          client: 'mihomo',
+          client: 'stash',
           sourceIds: ['source-custom'],
           includeFilter: 'premium|streaming',
           excludeFilter: 'expired|test',
           regionFilter: ['hk', 'sg'],
-          outputFormats: ['mihomo', 'clash', 'uri'],
-          templateName: 'mihomo-compatible.yaml',
+          outputFormats: ['stash', 'shadowrocket', 'uri'],
+          templateName: 'stash-compatible.yaml',
           includeTrafficHeaders: true,
           proxyGroups: [
             {
@@ -938,8 +938,8 @@ describe('v1 API runtime contract', () => {
       operation: 'subscription.profile.upsert',
       metadata: {
         profileId: 'profile-mihomo-premium',
-        client: 'mihomo',
-        outputFormats: ['mihomo', 'clash', 'uri'],
+        client: 'stash',
+        outputFormats: ['stash', 'shadowrocket', 'uri'],
         proxyGroups: [
           {
             id: 'proxy-group-premium-auto',

@@ -17,7 +17,7 @@ type SchemaObject = {
 };
 
 type OperationObject = {
-  parameters?: Array<{ $ref: string }>;
+  parameters?: Array<{ $ref?: string; name?: string; in?: string; schema?: SchemaObject }>;
   requestBody?: {
     content?: Record<
       string,
@@ -1278,6 +1278,18 @@ describe('OpenAPI v1 contract', () => {
         'includeTrafficHeaders'
       ])
     });
+    expect(getSchemaProperty(document.components.schemas.SubscriptionExportProfile, 'client')).toMatchObject({
+      enum: ['clash', 'mihomo', 'surge', 'sing-box', 'shadowrocket', 'stash']
+    });
+    expect(getSchemaProperty(document.components.schemas.SubscriptionExportProfile, 'outputFormats').items).toMatchObject({
+      enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
+    });
+    const publicSubscriptionFormat = document.paths['/sub/{securePath}/{format}/{subId}'].get.parameters?.find(
+      (parameter) => parameter.name === 'format'
+    );
+    expect(publicSubscriptionFormat?.schema).toMatchObject({
+      enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
+    });
     expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
       expect.arrayContaining([
         'id',
@@ -1510,7 +1522,10 @@ describe('OpenAPI v1 contract', () => {
       enum: ['plain', 'json', 'clash', 'mihomo', 'sing-box']
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'outputFormats').items).toMatchObject({
-      enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box']
+      enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
+    });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'client')).toMatchObject({
+      enum: ['clash', 'mihomo', 'surge', 'sing-box', 'shadowrocket', 'stash']
     });
     expect(getSchemaProperty(schemas.TaskMetadata, 'installProfile')).toMatchObject({
       minItems: 5,
