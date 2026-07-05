@@ -233,6 +233,7 @@ type ClientDraft = {
   maxLatencyMs: string;
   sortStrategy: SubscriptionClientSortStrategy;
   formats: SubscriptionClientFormat[];
+  outputFormats: SubscriptionClientOutputFormat[];
   templateName: string;
   enabled: boolean;
 };
@@ -866,6 +867,7 @@ function createDefaultClientDraft(): ClientDraft {
     maxLatencyMs: '200',
     sortStrategy: 'latency',
     formats: ['clash', 'mihomo', 'json', 'sing-box', 'plain'],
+    outputFormats: ['clash', 'mihomo', 'v2ray', 'sing-box', 'uri'],
     templateName: 'mihomo-compatible.yaml',
     enabled: true
   };
@@ -1074,6 +1076,14 @@ function createOutputFormats(formats: SubscriptionClientFormat[]) {
   return Array.from(new Set(outputFormats));
 }
 
+function getClientOutputFormatLabel(format: SubscriptionClientOutputFormat, language: AppLanguage) {
+  return profileOutputFormatOptions.find((option) => option.outputFormat === format)?.label[language] ?? format;
+}
+
+function readClientOutputFormats(client: SubscriptionClientIdentity) {
+  return client.outputFormats && client.outputFormats.length > 0 ? client.outputFormats : createOutputFormats(client.formats);
+}
+
 function isTrafficFilterValue(value: string): value is TrafficFilterValue {
   return ['', 'available', 'quota-exceeded', 'high', 'low', 'limited', 'unlimited'].includes(value.toLowerCase());
 }
@@ -1187,7 +1197,7 @@ function createClientMetadataFromDraft(
   const regionFilter = splitComma(draft.regionFilter);
   const maxLatencyMs = Math.max(Number.parseInt(draft.maxLatencyMs, 10) || 0, 0);
   const requestLimitPerHour = Math.max(Number.parseInt(draft.requestLimitPerHour, 10) || 0, 0);
-  const outputFormats = createOutputFormats(draft.formats);
+  const outputFormats = draft.outputFormats.length > 0 ? draft.outputFormats : createOutputFormats(draft.formats);
   const accessTokenPreview = draft.accessTokenPreview || createAccessTokenPreview(subId);
   const securePathPreview = draft.securePathPreview || createSecurePathPreview();
   const routingRule = createEffectiveRoutingRule(draft.routingRule, draft.trafficFilter);
@@ -1223,15 +1233,7 @@ function createClientMetadataFromDraft(
     generatedNodeCount,
     accessTokenPreview,
     securePathPreview,
-    subscriptionUrlPreview: {
-      clash: subscriptionUrls.clash,
-      mihomo: subscriptionUrls.mihomo,
-      v2ray: subscriptionUrls.json,
-      'sing-box': subscriptionUrls['sing-box'],
-      uri: subscriptionUrls.plain,
-      shadowrocket: subscriptionUrls.shadowrocket,
-      stash: subscriptionUrls.stash
-    },
+    subscriptionUrlPreview: subscriptionUrls,
     clientRule: {
       protocolFilter: draft.protocol,
       sourceIds: draft.sourceIds,
@@ -1289,6 +1291,7 @@ function createDraftFromClient(client: SubscriptionClientIdentity): ClientDraft 
     maxLatencyMs: String(client.maxLatencyMs),
     sortStrategy: client.sortStrategy,
     formats: client.formats,
+    outputFormats: readClientOutputFormats(client),
     templateName: client.templateName,
     enabled: client.enabled
   };
@@ -1385,14 +1388,14 @@ function buildSubscriptionUrls(draft: ClientDraft) {
   const prefix = `/sub${securePath}`;
 
   return {
-    plain: `${prefix}/uri/${subId}${suffix ? `?${suffix}` : ''}`,
-    json: `${prefix}/v2ray/${subId}${suffix ? `?${suffix}` : ''}`,
+    uri: `${prefix}/uri/${subId}${suffix ? `?${suffix}` : ''}`,
+    v2ray: `${prefix}/v2ray/${subId}${suffix ? `?${suffix}` : ''}`,
     clash: `${prefix}/clash/${subId}${suffix ? `?${suffix}` : ''}`,
     mihomo: `${prefix}/mihomo/${subId}${suffix ? `?${suffix}` : ''}`,
     'sing-box': `${prefix}/sing-box/${subId}${suffix ? `?${suffix}` : ''}`,
     shadowrocket: `${prefix}/shadowrocket/${subId}${suffix ? `?${suffix}` : ''}`,
     stash: `${prefix}/stash/${subId}${suffix ? `?${suffix}` : ''}`
-  } satisfies Record<SubscriptionClientFormat | 'shadowrocket' | 'stash', string>;
+  } satisfies Record<SubscriptionClientOutputFormat, string>;
 }
 
 function createBrowserPublicBaseUrl() {
@@ -1410,8 +1413,7 @@ function createDefaultSubscriptionUrl(client: SubscriptionClientIdentity) {
   return `${createBrowserPublicBaseUrl()}/sub${securePathPreview}/uri/${subId}`;
 }
 
-function createClientSubscriptionUrl(client: SubscriptionClientIdentity, format: SubscriptionClientFormat) {
-  const outputFormat = mapClientFormatToOutputFormat(format);
+function createClientSubscriptionUrl(client: SubscriptionClientIdentity, outputFormat: SubscriptionClientOutputFormat) {
   const securePathPreview =
     client.securePathPreview || `/${client.accessTokenPreview.replace(/[^A-Za-z0-9]+/g, '').slice(0, 24)}`;
   const subId = encodeURIComponent(client.subId);
@@ -1420,7 +1422,7 @@ function createClientSubscriptionUrl(client: SubscriptionClientIdentity, format:
 }
 
 function createClientAllFormatSubscriptionLinks(client: SubscriptionClientIdentity, language: AppLanguage) {
-  return client.formats.map((format) => `${getClientFormatLabel(format, language)}: ${createClientSubscriptionUrl(client, format)}`);
+  return readClientOutputFormats(client).map((format) => `${getClientOutputFormatLabel(format, language)}: ${createClientSubscriptionUrl(client, format)}`);
 }
 
 function createClientAllFormatSubscriptionText(client: SubscriptionClientIdentity, language: AppLanguage) {
@@ -1479,9 +1481,9 @@ function createDownloadSlug(value: string, fallback: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
 }
 
-function createSubscriptionQrFilename(client: SubscriptionClientIdentity, format: SubscriptionClientFormat) {
+function createSubscriptionQrFilename(client: SubscriptionClientIdentity, format: SubscriptionClientOutputFormat) {
   const subSlug = createDownloadSlug(client.subId, 'subscription');
-  const formatSlug = createDownloadSlug(mapClientFormatToOutputFormat(format), 'link');
+  const formatSlug = createDownloadSlug(format, 'link');
 
   return `${subSlug}-${formatSlug}-qr.png`;
 }
@@ -2759,11 +2761,25 @@ export function SubscriptionMixerPage({
   }
 
   function toggleFormat(format: SubscriptionClientFormat) {
+    const outputFormat = mapClientFormatToOutputFormat(format);
+
     setClientDraft((current) => ({
       ...current,
       formats: current.formats.includes(format)
         ? current.formats.filter((item) => item !== format)
-        : [...current.formats, format]
+        : [...current.formats, format],
+      outputFormats: current.formats.includes(format)
+        ? current.outputFormats.filter((item) => item !== outputFormat)
+        : Array.from(new Set([...current.outputFormats, outputFormat]))
+    }));
+  }
+
+  function toggleClientOutputFormat(format: SubscriptionClientOutputFormat) {
+    setClientDraft((current) => ({
+      ...current,
+      outputFormats: current.outputFormats.includes(format)
+        ? current.outputFormats.filter((item) => item !== format)
+        : [...current.outputFormats, format]
     }));
   }
 
@@ -3974,6 +3990,21 @@ export function SubscriptionMixerPage({
               ))}
             </div>
           </div>
+          <div className="rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">{t.outputFormat}</p>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2">
+              {profileOutputFormatOptions.map((option) => (
+                <label key={option.outputFormat} className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-white/10">
+                  <span className="min-w-0 break-words text-xs font-bold uppercase text-slate-700 dark:text-white/70">{option.label[language]}</span>
+                  <GlassToggle
+                    aria-label={`${t.outputFormat}: ${option.label[language]}`}
+                    checked={clientDraft.outputFormats.includes(option.outputFormat)}
+                    onChange={() => toggleClientOutputFormat(option.outputFormat)}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
           <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 dark:border-white/10 dark:bg-black/20">
             <span className="text-xs font-bold text-slate-700 dark:text-white/70">{t.enabled}</span>
             <GlassToggle
@@ -3987,8 +4018,8 @@ export function SubscriptionMixerPage({
             <div className="space-y-1 font-mono text-[11px] text-slate-600 dark:text-white/60">
               <p>{t.accessToken}: {accessTokenPreview}</p>
               <p>{t.securePath}: {securePathPreview}</p>
-              {clientDraft.formats.map((format) => (
-                <p key={format}>{getClientFormatLabel(format, language)}: {subscriptionUrls[format]}</p>
+              {clientDraft.outputFormats.map((format) => (
+                <p key={format}>{getClientOutputFormatLabel(format, language)}: {subscriptionUrls[format]}</p>
               ))}
             </div>
           </div>
@@ -4082,8 +4113,8 @@ export function SubscriptionMixerPage({
                 />
               </div>
             </div>
-            {linkDrawerClient.formats.map((format) => {
-              const label = getClientFormatLabel(format, language);
+            {readClientOutputFormats(linkDrawerClient).map((format) => {
+              const label = getClientOutputFormatLabel(format, language);
               const url = createClientSubscriptionUrl(linkDrawerClient, format);
               const qrLabel = t.qrCodeLabel(label);
 

@@ -3384,8 +3384,10 @@ describe('SubscriptionMixerPage', () => {
     await user.clear(within(drawer).getByLabelText('每小时请求上限'));
     await user.type(within(drawer).getByLabelText('每小时请求上限'), '120');
     await user.click(within(drawer).getByLabelText('香港 Premium 源'));
-    await user.click(within(drawer).getByLabelText('V2Ray'));
-    await user.click(within(drawer).getByLabelText('Sing-box'));
+    await user.click(within(drawer).getByRole('checkbox', { name: /^V2Ray$/ }));
+    await user.click(within(drawer).getByRole('checkbox', { name: /^Sing-box$/ }));
+    await user.click(within(drawer).getByLabelText('输出格式: Shadowrocket'));
+    await user.click(within(drawer).getByLabelText('输出格式: Stash'));
     await user.click(within(drawer).getByRole('button', { name: '保存' }));
 
     expect(onSaveClient).toHaveBeenCalledWith(
@@ -3410,13 +3412,15 @@ describe('SubscriptionMixerPage', () => {
         ipLimit: 2,
         requestLimitPerHour: 120,
         formats: ['clash', 'mihomo', 'plain'],
-        outputFormats: ['clash', 'mihomo', 'uri'],
+        outputFormats: ['clash', 'mihomo', 'uri', 'shadowrocket', 'stash'],
         accessTokenPreview: expect.stringMatching(/^ou_[A-Za-z0-9]{6}\.\.\.[A-Za-z0-9]{4}$/),
         securePathPreview: expect.stringMatching(/^\/[A-Za-z0-9]{24}$/),
         subscriptionUrlPreview: expect.objectContaining({
           clash: expect.stringContaining('/clash/acme_hk'),
           mihomo: expect.stringContaining('/mihomo/acme_hk'),
-          uri: expect.stringContaining('/uri/acme_hk')
+          uri: expect.stringContaining('/uri/acme_hk'),
+          shadowrocket: expect.stringContaining('/shadowrocket/acme_hk'),
+          stash: expect.stringContaining('/stash/acme_hk')
         }),
         clientRule: expect.objectContaining({
           protocolFilter: 'trojan',
@@ -3425,7 +3429,7 @@ describe('SubscriptionMixerPage', () => {
           regionFilter: ['hk'],
           routingRule: 'tag:hk AND tag:premium AND traffic:quota-exceeded',
           trafficFilter: 'quota-exceeded',
-          outputFormats: ['clash', 'mihomo', 'uri'],
+          outputFormats: ['clash', 'mihomo', 'uri', 'shadowrocket', 'stash'],
           trafficConstraint: {
             limitGb: 600,
             usedGb: 42,
