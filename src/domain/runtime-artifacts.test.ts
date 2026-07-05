@@ -297,6 +297,82 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('excludes runtime-disabled Xray clients from active settings while preserving policy evidence', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Guarded Inbound',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        security: 'tls',
+        sni: 'edge.example.com',
+        clients: [
+          {
+            clientIdentity: 'alice-active',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            enabled: true
+          },
+          {
+            clientIdentity: 'bob-quota-blocked',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            enabled: true,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'xray_client_monthly_quota_exceeded'
+          }
+        ]
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture & {
+      action: string;
+      clientPolicies: Array<{
+        clientId: string;
+        clientEmail: string;
+        operatorEnabled: boolean;
+        enabled: boolean;
+        quotaExceeded: boolean;
+        runtimeDisabledByPolicy: boolean;
+        guardrailReason?: string;
+      }>;
+      runtimeCapabilities: { activeClientCount: number; totalClientCount: number };
+      subscription: { shareUris: Array<{ clientEmail: string; enabled: boolean; shareUri: string }> };
+    };
+
+    expect(artifact.action).toBe('upsert_inbound');
+    expect(artifact.xray.inbound.settings.clients).toHaveLength(1);
+    expect(artifact.xray.inbound.settings.clients[0].id).toBe(artifact.clientPolicies[0].clientId);
+    expect(artifact.clientPolicies).toMatchObject([
+      {
+        clientEmail: 'alice@example.com',
+        operatorEnabled: true,
+        enabled: true,
+        quotaExceeded: false,
+        runtimeDisabledByPolicy: false
+      },
+      {
+        clientEmail: 'bob@example.com',
+        operatorEnabled: true,
+        enabled: false,
+        quotaExceeded: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_monthly_quota_exceeded'
+      }
+    ]);
+    expect(artifact.subscription.shareUris).toEqual([
+      expect.objectContaining({ clientEmail: 'alice@example.com', enabled: true }),
+      expect.objectContaining({ clientEmail: 'bob@example.com', enabled: false })
+    ]);
+    expect(artifact.runtimeCapabilities).toMatchObject({
+      activeClientCount: 1,
+      totalClientCount: 2
+    });
+  });
+
   it('prefers explicit Xray client expiresAt values over relative remaining days', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

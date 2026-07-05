@@ -27,6 +27,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray customer-node upsert tasks now preserve explicit client `expiresAt` values from the UI / read model into task metadata and runtime `clientPolicies`; renew actions update both `remainingDays` and `expiresAt`.
 - Subscription link drawers now support confirmed secure-path regeneration that rewrites all public output URLs for that identity while preserving the existing token preview; real token rotation remains Roadmap.
 - Subscription source sync now emits structured diagnostics for incompatible protocols, malformed nodes, source-rule filtering, same-source dedupe, cross-source duplicates, and remote fetch failures instead of collapsing every import problem into a generic empty-source warning.
+- Xray runtime artifacts now preserve operator intent and guardrail evidence for `runtimeDisabledByPolicy` clients while excluding those clients from active Xray `settings.clients`, so quota/expiry-disabled users are not applied to the runtime but their policy and subscription diagnostics remain visible.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

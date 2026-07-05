@@ -39,7 +39,12 @@ type RuntimeXrayClientPolicy = {
   password: string;
   auth: string;
   clientEmail: string;
+  operatorEnabled: boolean;
   enabled: boolean;
+  quotaExceeded: boolean;
+  clientExpired: boolean;
+  runtimeDisabledByPolicy: boolean;
+  guardrailReason?: string;
   ipLimit: number;
   level: number;
   flow: string;
@@ -423,6 +428,11 @@ function buildXrayClientPolicies(input: {
     const vmessSecurity = readString(clientMetadata, 'vmessSecurity', 'auto');
     const shadowsocksMethod = readString(clientMetadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm');
     const hysteriaAuth = readString(clientMetadata, 'hysteriaAuth', clientCredential);
+    const operatorEnabled = readBoolean(clientMetadata, 'enabled', true);
+    const quotaExceeded = readBoolean(clientMetadata, 'quotaExceeded', false);
+    const clientExpired = readBoolean(clientMetadata, 'clientExpired', false);
+    const runtimeDisabledByPolicy = readBoolean(clientMetadata, 'runtimeDisabledByPolicy', false);
+    const guardrailReason = readString(clientMetadata, 'guardrailReason', '');
     const normalizedCredentials = normalizeXrayClientCredentials({
       protocol: input.protocol,
       clientIdentity,
@@ -437,7 +447,12 @@ function buildXrayClientPolicies(input: {
       password: normalizedCredentials.password,
       auth: normalizedCredentials.auth,
       clientEmail: readString(clientMetadata, 'clientEmail', `${clientIdentity}@ou-ui.local`),
-      enabled: readBoolean(clientMetadata, 'enabled', true),
+      operatorEnabled,
+      enabled: operatorEnabled && !runtimeDisabledByPolicy,
+      quotaExceeded,
+      clientExpired,
+      runtimeDisabledByPolicy,
+      guardrailReason: guardrailReason || undefined,
       ipLimit,
       level: clientLevel,
       flow,
