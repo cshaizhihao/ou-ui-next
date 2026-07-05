@@ -297,6 +297,54 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('prefers explicit Xray client expiresAt values over relative remaining days', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Explicit Expiry',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        security: 'tls',
+        sni: 'edge.example.com',
+        clients: [
+          {
+            clientIdentity: 'alice-expiry',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            remainingDays: 3,
+            expiresAt: '2026-08-01T00:00:00.000Z'
+          },
+          {
+            clientIdentity: 'bob-expiry',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            remainingDays: 4,
+            expiresAt: '2026-09-15T12:30:00.000Z'
+          }
+        ]
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as {
+      clientPolicies: Array<{ clientEmail: string; remainingDays: number; expiresAt: string }>;
+    };
+
+    expect(artifact.clientPolicies).toMatchObject([
+      {
+        clientEmail: 'alice@example.com',
+        remainingDays: 3,
+        expiresAt: '2026-08-01T00:00:00.000Z'
+      },
+      {
+        clientEmail: 'bob@example.com',
+        remainingDays: 4,
+        expiresAt: '2026-09-15T12:30:00.000Z'
+      }
+    ]);
+  });
+
   it('auto-allocates a high listen port when Xray inbound metadata omits listenPort', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

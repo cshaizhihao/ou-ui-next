@@ -41,6 +41,7 @@ const baseMetadata: CustomerNodeConfigMetadata = {
   monthlyResetDay: 1,
   currentUsedTrafficGb: 0,
   remainingDays: 30,
+  expiresAt: '2026-08-01T00:00:00.000Z',
   subscriptionRule: '',
   enabled: true
 };
@@ -74,6 +75,7 @@ describe('customer node task metadata', () => {
         xrayProtocol: 'vless',
         security: 'reality',
         trafficMultiplier: 1.5,
+        expiresAt: '2026-08-01T00:00:00.000Z',
         realityPrivateKey: 'server-private-key'
       })
     );

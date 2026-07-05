@@ -385,6 +385,7 @@ function createCustomerNodeMetadataFromInbound(
     monthlyResetDay: client.monthlyResetDay ?? 1,
     currentUsedTrafficGb: gbFromBytes(client.manualUsedTrafficBytes ?? 0),
     remainingDays,
+    expiresAt: client.expiresAt,
     subscriptionRule: inbound.subscriptionRule ?? 'manual',
     enabled
   };

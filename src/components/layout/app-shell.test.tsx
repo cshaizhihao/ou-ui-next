@@ -2620,6 +2620,7 @@ describe('AppShell', () => {
             serverAddress: 'edge.customer.example.com',
             xrayProtocol: 'vless',
             listenPort: expect.any(Number),
+            expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
             subscriptionRule: 'region:hk AND tier:premium'
           })
         }),

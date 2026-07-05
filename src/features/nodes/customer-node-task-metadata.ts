@@ -73,6 +73,7 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
     monthlyResetDay: metadata.monthlyResetDay,
     currentUsedTrafficGb: metadata.currentUsedTrafficGb,
     remainingDays: metadata.remainingDays,
+    expiresAt: metadata.expiresAt,
     subscriptionRule: metadata.subscriptionRule,
     enabled: metadata.enabled
   });

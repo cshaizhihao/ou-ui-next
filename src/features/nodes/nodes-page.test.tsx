@@ -2024,7 +2024,8 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        remainingDays: 45
+        remainingDays: 45,
+        expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
       }),
       'update'
     );
@@ -2074,7 +2075,8 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        remainingDays: 60
+        remainingDays: 60,
+        expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
       }),
       'update'
     );

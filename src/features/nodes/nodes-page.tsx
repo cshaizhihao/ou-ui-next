@@ -168,6 +168,7 @@ export type CustomerNodeConfigMetadata = {
   monthlyResetDay: number;
   currentUsedTrafficGb: number;
   remainingDays: number;
+  expiresAt?: string;
   subscriptionRule: string;
   subscriptionClientId?: string;
   subId?: string;
@@ -2122,6 +2123,7 @@ function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): Custome
     monthlyResetDay: node.monthlyResetDay,
     currentUsedTrafficGb: node.currentUsedTrafficGb,
     remainingDays: node.remainingDays,
+    expiresAt: node.expiresAt,
     subscriptionRule: node.subscriptionRule,
     enabled: node.enabled
   };
@@ -3175,6 +3177,7 @@ export function NodesPage({
         monthlyResetDay: nextNode.monthlyResetDay,
         currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
         remainingDays: nextNode.remainingDays,
+        expiresAt: nextNode.expiresAt,
         subscriptionRule: nextNode.subscriptionRule,
         subscriptionClientId: subscriptionMaterial.subscriptionClientId,
         subId: subscriptionMaterial.subId,
@@ -3407,10 +3410,7 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) => ({
-      ...metadata,
-      remainingDays: metadata.remainingDays + days
-    }));
+    updateSelectedCustomerNodeMetadata((metadata) => createCustomerNodeRenewalUpdate(metadata, days));
   }
 
   function resetSelectedCustomerNodeUsedTraffic() {

@@ -227,6 +227,21 @@ function expiryFromRemainingDays(createdAt: string, remainingDays: number) {
   return new Date(safeBase + Math.max(Math.round(remainingDays), 0) * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function resolveClientExpiresAt(
+  metadata: Record<string, unknown> | undefined,
+  createdAt: string,
+  remainingDays: number
+) {
+  const explicitExpiresAt = readString(metadata, 'expiresAt', '');
+  const explicitExpiresAtMs = Date.parse(explicitExpiresAt);
+
+  if (explicitExpiresAt && Number.isFinite(explicitExpiresAtMs)) {
+    return new Date(explicitExpiresAtMs).toISOString();
+  }
+
+  return expiryFromRemainingDays(createdAt, remainingDays);
+}
+
 function stableHex(input: string) {
   let first = 0x811c9dc5;
   let second = 0x01000193;
@@ -432,7 +447,7 @@ function buildXrayClientPolicies(input: {
       manualUsedTrafficGb: currentUsedTrafficGb,
       manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
       remainingDays,
-      expiresAt: expiryFromRemainingDays(input.task.createdAt, remainingDays),
+      expiresAt: resolveClientExpiresAt(clientMetadata, input.task.createdAt, remainingDays),
       vmessSecurity,
       shadowsocksMethod
     };
