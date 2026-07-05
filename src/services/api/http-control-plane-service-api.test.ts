@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, vi } from 'vitest';
 import { seedAgents, seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import { AGENT_INSTALL_PROFILE } from '../../domain';
 import { createHttpControlPlaneServer } from './http-control-plane-server';
@@ -12,6 +13,15 @@ type TestServiceApiOptions = {
   fetcher?: typeof fetch;
   subscriptionSourceHostResolver?: (hostname: string) => Promise<Array<{ address: string; family: 4 | 6 }>>;
 };
+
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-06-02T00:05:00.000Z'));
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 async function allowPublicSubscriptionHostResolver() {
   return [{ address: '93.184.216.34', family: 4 as const }];

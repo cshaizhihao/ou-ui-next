@@ -324,6 +324,36 @@ print("ok")
     ).toBe('ok\n');
   });
 
+  it('expands multi-client Xray profiles for telemetry and guardrail evaluation', () => {
+    expect(
+      runEmbeddedAgentExecutorSnippet(`
+import tempfile
+from pathlib import Path
+
+root = Path(tempfile.mkdtemp())
+config_root = root / "config"
+profile_root = config_root / "xray" / "profiles.d"
+profile_root.mkdir(parents=True, exist_ok=True)
+os.environ["OU_AGENT_CONFIG_DIR"] = str(config_root)
+
+write_json(profile_root / "ou-shared.json", {
+    "targetId": "customer-node-shared",
+    "inboundTag": "ou-shared",
+    "clientPolicy": {"clientEmail": "legacy@example.com", "trafficLimitBytes": 1},
+    "clientPolicies": [
+        {"clientEmail": "alice@example.com", "trafficLimitBytes": 1000, "monthlyResetDay": 5},
+        {"clientEmail": "bob@example.com", "trafficLimitBytes": 2000, "monthlyResetDay": 15},
+    ],
+})
+
+profiles = read_xray_client_profiles()
+assert [profile["clientPolicy"]["clientEmail"] for profile in profiles] == ["alice@example.com", "bob@example.com"]
+assert [profile["clientPolicy"]["monthlyResetDay"] for profile in profiles] == [5, 15]
+print("ok")
+`)
+    ).toBe('ok\n');
+  });
+
   it('marks active Xray services unhealthy when the Stats API probe fails', () => {
     expect(
       runEmbeddedAgentExecutorSnippet(`

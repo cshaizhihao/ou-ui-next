@@ -12,7 +12,7 @@ import type {
   TunnelMode,
   TunnelType
 } from './forwarding';
-import type { XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
+import type { XrayClient, XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
 import { allocateStableHighListenPort } from './xray-port-allocation';
 
@@ -70,6 +70,16 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
 
   const next = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
   return next.length > 0 ? next.map((item) => item.trim()) : fallback;
+}
+
+function readRecordArray(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item));
 }
 
 function readResetPolicy(metadata: Record<string, unknown> | undefined): XrayClientResetPolicy {
@@ -313,6 +323,85 @@ function readTunnelChain(
   return input.existingChain ?? [];
 }
 
+function createXrayClientsFromTask(input: {
+  task: DeployTask;
+  protocol: XrayProtocol;
+  customerName: string;
+  enabled: boolean;
+}) {
+  const metadata = input.task.metadata;
+  const defaultClientIdentity = readString(metadata, 'clientIdentity', input.customerName);
+  const defaultClientCredential = readString(metadata, 'clientCredential', defaultClientIdentity);
+  const definitions = readRecordArray(metadata, 'clients');
+  const clientMetadataList =
+    definitions.length > 0
+      ? definitions.map((clientMetadata, index) => {
+          const fallbackIdentity = index === 0 ? defaultClientIdentity : `${defaultClientIdentity}-${index + 1}`;
+          return {
+            ...metadata,
+            ...clientMetadata,
+            clientIdentity: readString(clientMetadata, 'clientIdentity', fallbackIdentity),
+            clientCredential: readString(clientMetadata, 'clientCredential', readString(clientMetadata, 'password', fallbackIdentity))
+          };
+        })
+      : [metadata ?? {}];
+
+  return clientMetadataList.map((clientMetadata, index): XrayClient => {
+    const clientIdentity = readString(
+      clientMetadata,
+      'clientIdentity',
+      index === 0 ? defaultClientIdentity : `${defaultClientIdentity}-${index + 1}`
+    );
+    const clientCredential = readString(clientMetadata, 'clientCredential', defaultClientCredential);
+    const remainingDays = readNumber(clientMetadata, 'remainingDays', readNumber(metadata, 'remainingDays', 30));
+    const trafficLimitGb = readNumber(clientMetadata, 'trafficLimitGb', readNumber(metadata, 'trafficLimitGb', 0));
+    const currentUsedTrafficGb = readNumber(
+      clientMetadata,
+      'currentUsedTrafficGb',
+      readNumber(metadata, 'currentUsedTrafficGb', 0)
+    );
+    const monthlyResetDay = clampResetDay(readNumber(clientMetadata, 'monthlyResetDay', readNumber(metadata, 'monthlyResetDay', 1)));
+    const normalizedCredentials = normalizeXrayClientCredentials({
+      protocol: input.protocol,
+      clientIdentity,
+      clientCredential,
+      hysteriaAuth: readString(clientMetadata, 'hysteriaAuth', clientCredential),
+      fallbackSeed: `${input.task.targetId}:${readString(metadata, 'agentId', '')}:${input.customerName}:${index}`
+    });
+
+    return {
+      id: normalizedCredentials.clientId,
+      email: readString(clientMetadata, 'clientEmail', index === 0 ? input.customerName : `${clientIdentity}@ou-ui.local`),
+      enabled: input.enabled && readBoolean(clientMetadata, 'enabled', true),
+      credentialType: normalizedCredentials.credentialType,
+      password:
+        input.protocol === 'trojan' || input.protocol === 'shadowsocks'
+          ? normalizedCredentials.password
+          : undefined,
+      auth: input.protocol === 'hysteria' ? normalizedCredentials.auth : undefined,
+      method:
+        input.protocol === 'shadowsocks'
+          ? readString(clientMetadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm')
+          : undefined,
+      security: input.protocol === 'vmess' ? readString(clientMetadata, 'vmessSecurity', 'auto') : undefined,
+      flow: readString(clientMetadata, 'flow', ''),
+      subId: readString(clientMetadata, 'subscriptionRule', readString(metadata, 'subscriptionRule', 'manual')),
+      level: readNumber(clientMetadata, 'clientLevel', 0),
+      comment: readString(clientMetadata, 'clientComment', ''),
+      tgId: readString(clientMetadata, 'telegramId', ''),
+      resetPolicy: readResetPolicy(clientMetadata),
+      trafficLimitBytes: bytesFromGb(trafficLimitGb),
+      usedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+      monthlyResetDay,
+      manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+      uplinkBytes: 0,
+      downlinkBytes: 0,
+      expiresAt: expiresAtFromTask(input.task, remainingDays),
+      ipLimit: readNumber(clientMetadata, 'ipLimit', 0)
+    };
+  });
+}
+
 export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undefined {
   if (task.operation !== 'inbound.create' && task.operation !== 'inbound.update') {
     return undefined;
@@ -321,30 +410,24 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const metadata = task.metadata;
   const enabled = readBoolean(metadata, 'enabled', true);
   const customerName = readString(metadata, 'customerName', 'customer');
-  const clientIdentity = readString(metadata, 'clientIdentity', customerName);
-  const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
-  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
-  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const security = readSecurity(metadata);
   const sni = readString(metadata, 'sni', '');
   const protocol = readXrayProtocol(metadata);
+  const inboundClientIdentity = readString(metadata, 'clientIdentity', customerName);
 
   if (!protocol) {
     return undefined;
   }
 
-  const clientEmail = readString(metadata, 'clientEmail', customerName);
-  const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
   const listenPort = resolveXrayListenPort(metadata, task.targetId);
-  const normalizedCredentials = normalizeXrayClientCredentials({
+  const clients = createXrayClientsFromTask({
+    task,
     protocol,
-    clientIdentity,
-    clientCredential,
-    hysteriaAuth: readString(metadata, 'hysteriaAuth', clientCredential),
-    fallbackSeed: `${task.targetId}:${readString(metadata, 'agentId', '')}:${customerName}`
+    customerName,
+    enabled
   });
 
   return {
@@ -353,7 +436,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     agentId: readString(metadata, 'agentId', ''),
     customerName,
     serverAddress: readString(metadata, 'serverAddress', ''),
-    clientIdentity: normalizedCredentials.clientIdentity,
+    clientIdentity: inboundClientIdentity,
     remainingDays,
     subscriptionRule: readString(metadata, 'subscriptionRule', 'manual'),
     path: readString(metadata, 'path', ''),
@@ -363,37 +446,12 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
     listenPort,
     status:
-      !enabled
+      !enabled || clients.every((client) => !client.enabled)
         ? 'disabled'
         : task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task)
           ? 'enabled'
           : 'applying',
-    clients: [
-      {
-        id: normalizedCredentials.clientId,
-        email: clientEmail,
-        enabled,
-        credentialType: normalizedCredentials.credentialType,
-        password: protocol === 'trojan' || protocol === 'shadowsocks' ? normalizedCredentials.password : undefined,
-        auth: protocol === 'hysteria' ? normalizedCredentials.auth : undefined,
-        method: protocol === 'shadowsocks' ? readString(metadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm') : undefined,
-        security: protocol === 'vmess' ? readString(metadata, 'vmessSecurity', 'auto') : undefined,
-        flow: readString(metadata, 'flow', ''),
-        subId: readString(metadata, 'subscriptionRule', 'manual'),
-        level: readNumber(metadata, 'clientLevel', 0),
-        comment: readString(metadata, 'clientComment', ''),
-        tgId: readString(metadata, 'telegramId', ''),
-        resetPolicy: readResetPolicy(metadata),
-        trafficLimitBytes: bytesFromGb(trafficLimitGb),
-        usedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
-        monthlyResetDay,
-        manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
-        uplinkBytes: 0,
-        downlinkBytes: 0,
-        expiresAt: expiresAtFromTask(task, remainingDays),
-        ipLimit: readNumber(metadata, 'ipLimit', 0)
-      }
-    ],
+    clients,
     streamSettings: {
       network: readStreamNetwork(metadata),
       security,
@@ -445,30 +503,39 @@ export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) 
     return inbounds;
   }
 
-  const existingClient = existingInbound?.clients[0];
-  const nextClient = nextInbound.clients[0];
+  const existingClientsByKey = new Map<string, XrayClient>();
 
-  const mergedInbound =
-    existingInbound && existingClient && nextClient
-      ? {
-          ...nextInbound,
-          clients: [
-            {
-              ...nextClient,
-              usedTrafficBytes: nextClient.usedTrafficBytes,
-              manualUsedTrafficBytes: nextClient.manualUsedTrafficBytes,
-              uplinkBytes: existingClient.uplinkBytes ?? nextClient.uplinkBytes,
-              downlinkBytes: existingClient.downlinkBytes ?? nextClient.downlinkBytes,
-              lastTrafficSampleAt: existingClient.lastTrafficSampleAt ?? nextClient.lastTrafficSampleAt,
-              trafficBillingPeriod: existingClient.trafficBillingPeriod ?? nextClient.trafficBillingPeriod,
-              quotaExceeded: existingClient.quotaExceeded,
-              clientExpired: existingClient.clientExpired,
-              runtimeDisabledByPolicy: existingClient.runtimeDisabledByPolicy,
-              guardrailReason: existingClient.guardrailReason
-            }
-          ]
-        }
-      : nextInbound;
+  existingInbound?.clients.forEach((client) => {
+    existingClientsByKey.set(client.id, client);
+    existingClientsByKey.set(client.email, client);
+  });
+
+  const mergedInbound = existingInbound
+    ? {
+        ...nextInbound,
+        clients: nextInbound.clients.map((nextClient) => {
+          const existingClient = existingClientsByKey.get(nextClient.id) ?? existingClientsByKey.get(nextClient.email);
+
+          if (!existingClient) {
+            return nextClient;
+          }
+
+          return {
+            ...nextClient,
+            usedTrafficBytes: nextClient.usedTrafficBytes,
+            manualUsedTrafficBytes: nextClient.manualUsedTrafficBytes,
+            uplinkBytes: existingClient.uplinkBytes ?? nextClient.uplinkBytes,
+            downlinkBytes: existingClient.downlinkBytes ?? nextClient.downlinkBytes,
+            lastTrafficSampleAt: existingClient.lastTrafficSampleAt ?? nextClient.lastTrafficSampleAt,
+            trafficBillingPeriod: existingClient.trafficBillingPeriod ?? nextClient.trafficBillingPeriod,
+            quotaExceeded: existingClient.quotaExceeded,
+            clientExpired: existingClient.clientExpired,
+            runtimeDisabledByPolicy: existingClient.runtimeDisabledByPolicy,
+            guardrailReason: existingClient.guardrailReason
+          };
+        })
+      }
+    : nextInbound;
 
   return [mergedInbound, ...inbounds.filter((inbound) => inbound.id !== mergedInbound.id)];
 }

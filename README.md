@@ -5,269 +5,285 @@
 <h1 align="center">OU-UI Next</h1>
 
 <p align="center">
-  面向商业化运营的自托管分布式网关控制面板。
+  自托管 Master / Agent 网关控制面板，面向 Xray 客户节点、端口转发、订阅分发、配额、审计和运行时验收。
 </p>
 
 <p align="center">
+  <strong>V2.0.0</strong>
+  ·
   <a href="README.en.md">English</a>
+  ·
+  <a href="README.zh-CN.md">中文旧版说明</a>
   ·
   <a href="docs/openapi/ou-ui-next-v1.yaml">OpenAPI</a>
   ·
-  <a href="scripts/install-master.sh">安装脚本</a>
+  <a href="scripts/install-master.sh">Master 安装脚本</a>
   ·
   <a href="public/install/ou-agent.sh">Agent 安装器</a>
 </p>
 
-## 🌟 项目定位
+## 项目定位
 
-OU-UI Next 是一个面向生产运营的 Master 控制平面，用于集中管理 Universal Agent、客户节点、端口转发、订阅分发、配额策略、审计证据、Telegram 通知和生产验收流程。
+OU-UI Next 是一个生产导向的分布式网关控制面板。它由浏览器面板、HTTP Control Plane、SQLite/File/In-memory 仓储、Universal Agent 安装器和 Agent runtime executor 组成，用来把操作员的配置意图变成可审计、可回滚、可验证的主机运行时状态。
 
-它不是一个零散脚本集合，而是一个可以公开展示、可以交付客户、可以持续运维的商业化面板项目。你可以把它部署在自己的服务器上，用它管理多台受控主机和多类网络运行时，同时保留清晰的任务记录、权限边界和回滚证据。
+V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”和“真实运行时能力”的边界：
 
-适合这些场景：
+- Xray customer node 不再只按单 client 原型建模，runtime artifact 已支持 `metadata.clients[]` 编译为多 client inbound、逐 client policy 和逐 client share URI。
+- Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
+- Forwarding artifact 会显式声明 Agent runtime 已支持和未支持的控制项，避免把 `proxyProtocol`、IP 级限速或连接数限制误写成已完整落地。
+- README 按已实现、Preview、Roadmap 分层描述，未完成能力不会再包装成生产完成项。
 
-- 🚀 自托管网关服务运营
-- 🧑‍💼 客户节点、订阅身份和配额管理
-- 🌐 多主机 Agent 纳管和运行时下发
-- 🔁 TCP/UDP 端口转发和流量计费
-- 📦 外部订阅源聚合、去重、过滤和导出
-- 🔔 Telegram 客户自助和管理员通知
-- 🧾 审计、备份、烟测和生产发布证据归档
+## V2.0.0 亮点
 
-## ⚡ 推荐安装方式
+| 方向 | V2.0.0 变化 |
+| --- | --- |
+| Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、Xray config preflight、systemd runtime restart |
+| Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额和过期策略可以按 client 评估 |
+| Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；未实现控制项进入 runtime capability 状态 |
+| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路，README 明确区分当前支持与后续门户能力 |
+| 发布准备 | 项目版本更新为 `2.0.0`，README 重写，能力边界更准确 |
 
-先看完上面的定位，再执行推荐安装命令。安装脚本会从 GitHub 拉取 `main` 分支，在服务器上构建前端和 SSR 控制面板，并写入 systemd、Nginx、SQLite 状态目录和管理命令。
+## 功能矩阵
+
+| 模块 | 状态 | 当前说明 |
+| --- | --- | --- |
+| Master 控制面板 | 已实现 | Vite + React + TypeScript，包含 dashboard、nodes、forwarding、subscriptions、tasks、audit、admin、telegram 等工作区 |
+| HTTP Control Plane | 已实现 | `/api/v1` REST、SSE、Agent command/event 通道、权限、审计、任务、指标和 smoke 流程 |
+| Agent 注册与命令通道 | 已实现 | install token、runtime credential、command outbox、ACK/result/log_chunk、telemetry 上报 |
+| Xray runtime apply | 已实现 | Agent 写入 `inbounds.d`、合并同端口同协议 inbound、生成 `config.json`、执行 Xray preflight、重启 `ou-ui-xray.service` |
+| Xray 多 client inbound | 已实现 | Control Plane artifact 支持 `clients[]`，Agent profile 支持逐 client telemetry/guardrail |
+| Xray 协议 | 已实现 | runtime apply 支持 `vless`、`vmess`、`trojan`、`shadowsocks` |
+| Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议 |
+| Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数 |
+| Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
+| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区 |
+| 用户订阅门户 | Roadmap | 独立客户门户、token 轮换 UI、订阅自助诊断、设备级绑定仍需继续补齐 |
+| SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储，适合单 Master 部署和安装器闭环 |
+| 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的强 schema、迁移和 HA 仍是后续重点 |
+
+## 快速开始
+
+推荐在干净的 Linux 服务器上使用安装脚本部署 Master：
 
 ```bash
 sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)'
 ```
 
-如果当前已经是 `root` 用户，可以直接运行：
+如果当前已经是 `root`：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/scripts/install-master.sh)
 ```
 
-安装完成后，使用 `ou` 打开管理菜单，或直接运行常用命令：
+安装完成后使用管理命令：
 
 ```bash
-ou credentials
 ou status
+ou credentials
 ou doctor
 ou smoke
 ou browser-smoke
 ou backup-state
 ou update
-ou fix
-ou reconfigure
-ou uninstall
 ```
 
-安装脚本默认写入这些路径：
+常见安装路径：
 
 | 路径 | 用途 |
 | --- | --- |
-| `/opt/ou-ui-next` | 应用源码、构建产物和运行目录 |
-| `/etc/ou-ui-next` | 后端配置、登录凭据和 SSL 证书 |
-| `/var/lib/ou-ui-next` | SQLite 状态、备份、验收包和归档 |
-| `/var/www/ou-ui-next` | 前端静态资源 |
-| `/etc/nginx/conf.d/ou-ui-next.conf` | 面板 Nginx 站点 |
+| `/opt/ou-ui-next` | 应用源码、构建产物和当前版本 |
+| `/etc/ou-ui-next` | Master 环境变量、登录凭据、TLS 配置 |
+| `/var/lib/ou-ui-next` | SQLite 状态、备份、验收包、归档 |
+| `/var/www/ou-ui-next` | 前端静态文件 |
+| `/etc/nginx/conf.d/ou-ui-next.conf` | Nginx 站点配置 |
 
-## 🧩 核心能力
-
-OU-UI Next 把控制面板、后端服务、安装器和 Agent runtime 放在同一个产品闭环里。
-
-| 模块 | 能力 |
-| --- | --- |
-| 🖥️ 控制面板 | 仪表盘、客户、主机、节点、转发、订阅、安全、调优、任务和审计工作区 |
-| 🛰️ Universal Agent | 注册受控主机、轮询命令、应用运行时、上报 telemetry、ACK、result 和日志片段 |
-| 🧬 客户节点 | 管理 VLESS、VMess、Trojan、Shadowsocks 和 Xray Reality 客户材料 |
-| 🔁 端口转发 | 下发 TCP/UDP 转发、限速、暂停、恢复、配额和 runtime 健康探测 |
-| 📦 订阅管理 | 同步外部订阅源、聚合节点库存、配置规则、生成客户输出和 provider export |
-| 📊 配额和流量 | 按主机、客户节点、订阅用户、转发账号、链路和规则聚合使用量 |
-| 🔐 安全策略 | 管理 Agent 凭证、操作员会话、权限 grant/revoke 和高风险确认 |
-| 🧾 审计证据 | 记录任务状态、拒绝事件、运行时修订、凭证事件、烟测和验收包 |
-| 🔔 通知系统 | Telegram 客户绑定、客户命令、管理员命令、投递重试和 dead-letter |
-| 📈 可观测性 | 系统告警、SSE、Prometheus、JSON diagnostics、webhook 和生产 smoke |
-
-## 🏗️ 架构概览
-
-OU-UI Next 使用 Master-to-Agent 架构。Master 保存意图、策略和审计证据；Agent 在受控主机上应用运行时变更，并把结果回传到 Master。
-
-```mermaid
-flowchart LR
-  Operator[操作员浏览器] --> Panel[OU-UI Next 面板]
-  Panel --> API[HTTP Control Plane]
-  API --> Store[(SQLite 状态)]
-  API --> Audit[审计链]
-  API --> Outbox[Command outbox]
-  Outbox --> Agent[Universal Agent]
-  Agent --> Runtime[Xray 与端口转发 runtime]
-  Runtime --> Agent
-  Agent --> API
-  API --> Metrics[指标、告警、Webhook]
-  API --> Subscriptions[订阅输出]
-```
-
-默认部署使用 SQLite 存储控制面状态。安装器会创建 `ou`、`ou-ui`、`ouui` 和 `ou-ui-next` 管理命令，用于更新、修复、备份、恢复、烟测、验收和卸载。
-
-## 🛡️ 安全设计
-
-OU-UI Next 把操作员访问、Agent 凭证、订阅抓取、Webhook 投递和密钥输出都视为生产边界。
-
-- 🔒 **操作员会话**：浏览器使用 HttpOnly session，变更类 API 需要 CSRF token
-- 🧰 **自动化访问**：受保护 API 支持 bearer token，但不会把 token 写入前端 bundle
-- 🛰️ **Agent 凭证**：install token 一次性使用，runtime credential 可轮换和撤销
-- 🧾 **审计链**：敏感操作、拒绝事件、凭证事件和任务状态写入脱敏审计证据
-- 🌐 **出站防护**：订阅源、Telegram、Webhook、外部归档和对象存储默认拦截本机和私网目标
-- 🧼 **密钥脱敏**：doctor、smoke、日志、投递历史和审计路径不输出密码、token、proxy 密钥和完整订阅 URL
-- ⚠️ **高风险确认**：删除、回滚、reload、quota reset 和权限撤销需要匹配风险确认数据
-
-## 📦 订阅和客户运营
-
-订阅工作区负责把本地 Xray 客户节点和外部 provider 节点整合成客户可用的输出。
-
-支持能力包括：
-
-- 外部订阅源同步、超时、体积限制、并发限制和每日预算
-- 跨来源节点去重、状态标记和 provider 告警
-- 按协议、地区、来源、主机、状态、客户和流量条件筛选
-- 客户身份、订阅规则、导出配置和 provider 文件管理
-- Clash、Sing-box 和 share-link 格式输出
-- `subscription-userinfo` 流量头解析
-- 配额超限后的订阅响应保护
-
-## 🤖 Telegram 运营
-
-Telegram 模块把客户自助和管理员告警接入控制面，同时避免把 bot token 暴露给前端。
-
-支持流程：
-
-- Bot API、webhook、long polling 和 proxy 配置
-- 一次性绑定码和客户聊天绑定
-- 客户命令：状态、流量、订阅、节点、到期、通知开关
-- 管理员命令：系统状态、活动告警、配额、到期客户、搜索、测试投递、绑定列表
-- 通知策略、投递历史、失败重试和 dead-letter
-- token、proxy、webhook secret 和订阅 URL 脱敏
-
-## 📈 生产验收和可观测性
-
-OU-UI Next 内置面向现场交付的 smoke、acceptance 和 release evidence 流程。
-
-常用验收命令：
+## 开发启动
 
 ```bash
-ou doctor
-ou smoke
-ou browser-smoke
-ou acceptance
-ou final-acceptance
-```
-
-控制面还提供：
-
-- `/api/v1/observability-metrics` 保护态 JSON 诊断快照
-- `/metrics` Prometheus 指标
-- `/events/v1/tasks` 任务事件流
-- `/events/v1/system-alerts` 系统告警事件流
-- 带 SHA-256 manifest 的备份、恢复和验收证据包
-- Telegram、Webhook、外部归档和对象存储投递状态
-
-## 🧑‍💻 本地开发
-
-本地开发用于修改前端界面、HTTP Control Plane、mock adapter、安装器和 Agent installer。
-
-```bash
+git clone https://github.com/cshaizhihao/ou-ui-next.git
+cd ou-ui-next
 npm install
 npm run dev
+```
+
+启动真实 HTTP Control Plane：
+
+```bash
 npm run dev:control-plane
 ```
 
-提交前建议运行：
+常用验证：
 
 ```bash
-npm test
 npm run typecheck
-npm run lint
+npm test
 npm run build
 ```
 
-前端构建使用页面级 lazy loading 和稳定 vendor chunks。新增工作区页面时，优先保持页面组件可动态导入；新增大型第三方依赖时，检查 `vite.config.ts` 的 `manualChunks` 是否需要补充，避免重新生成超大的单一入口包。
+前端默认可以使用 mock API。需要连真实后端时，配置：
 
-移动端控制台使用手机优先的信息架构：小屏隐藏桌面侧栏，改用底部快捷导航；首页启动台采用横向任务卡，避免多模块纵向瀑布流堆叠。新增首页模块或工作区入口时，先确认 `<768px` 下仍保持单列内容、紧凑顶部栏和底部导航可达。
-
-本轮 UI 改造落地了 P0-P7 的基础规范：共享 `ResponsivePage` / `ResponsiveSection` / `MobileMetricStrip` 组件承担移动端反瀑布约束；首页改为 KPI 优先的运营仪表盘；移动端底部导航扩展为核心五入口加“更多”；服务器/客户节点、端口转发、订阅中心首屏增加任务路径胶囊。`ResponsivePage` 在桌面端固定为工作区视口高度并使用细滚动条，把滚动约束收进主工作区而不是让整页继续瀑布式下坠；后续新增复杂页面时，先复用这些响应式容器，再把高级配置放进抽屉、Tab 或横向任务路径，避免重新堆成长滚动卡片流。
-
-视觉系统从高噪音霓虹玻璃转向专业控制台风格：以 `#2563EB` / `#0EA5E9` 作为主强调色，全局背景改为克制的蓝灰渐变，`island-panel` / `island-card` / `btn-glow` 使用更稳定的 surface、边框和阴影层级；侧栏、顶栏和移动底部导航统一蓝色选中态与轻量阴影。后续视觉升级优先调整共享 token 和壳层组件，再处理单页细节，避免页面级样式继续分叉。
-
-主要目录：
-
-```text
-src/features        产品工作区页面
-src/components      布局和通用 UI 组件
-src/services/api    API 契约、HTTP adapter、指标、告警和订阅逻辑
-src/server          服务化 Control Plane、仓储和生产入口
-src/domain          Agent、任务、配额、订阅、审计和 runtime 模型
-scripts             安装脚本、smoke、SQLite 工具和验收工具
-public/install      Universal Agent 安装脚本
-docs/openapi        OpenAPI 契约
-docs/architecture   架构和生产验收说明
+```bash
+VITE_CONTROL_PLANE_MODE=http
+VITE_CONTROL_PLANE_BASE_URL=http://127.0.0.1:8787
 ```
 
-## 🧭 当前状态
+## 架构
 
-OU-UI Next 当前定位为生产导向的自托管控制平面。项目已经包含安装自动化、SQLite 状态持久化、备份恢复、运行时 guardrail、凭证轮换、审计证据、Prometheus 指标和验收包生成。
+```mermaid
+flowchart LR
+  Operator[Operator Browser] --> Panel[React Panel]
+  Panel --> API[HTTP Control Plane]
+  API --> Store[(SQLite / File / Memory)]
+  API --> Outbox[Command Outbox]
+  Agent[Universal Agent] --> API
+  Agent --> Xray[Xray Runtime]
+  Agent --> Forwarding[GOST / socat / nftables]
+  Agent --> Telemetry[Telemetry / Logs / Result]
+  Telemetry --> API
+```
 
-在承载真实付费客户前，建议完成这些检查：
+Control Plane 保存意图、任务、审计链和 read model。Agent 负责在受控主机上执行 artifact：写配置、preflight、应用、重启、采集状态，再把 result、日志和 telemetry 交回 Master。
 
-- 在干净 Linux 主机上运行安装脚本
-- 保存 `ou doctor`、`ou smoke` 和 `ou browser-smoke` 输出
-- 纳管至少一台 Agent 主机
-- 下发一个测试客户节点和一个测试端口转发规则
-- 配置并确认 Telegram 或 Webhook，只在需要时启用
-- 使用 `ou backup-state` 创建备份
-- 演练一次恢复流程
+## Xray 运行时说明
 
-## 💼 商业化合作
+当前 Agent runtime 支持这些落地能力：
 
-这个仓库按公开商业项目方式展示。README 说明产品定位、部署模型、运营能力、安全边界和交付证据，便于评估是否适合你的基础设施。
+- `vless`、`vmess`、`trojan`、`shadowsocks` inbound artifact。
+- TLS / Reality stream settings 编译。
+- 多 client inbound artifact：`metadata.clients[]` 会生成 Xray `settings.clients`、`clientPolicies[]` 和 `subscription.shareUris[]`。
+- 同端口同协议 inbound fragment 合并，保留独立 client profile。
+- Xray `StatsService` 计数采集、monthly reset、配额/过期 guardrail。
+- `xray run -test` preflight，失败时不会把配置当作成功运行。
 
-可合作方向：
+当前不应宣称生产完成的能力：
 
-- 私有化部署评审
-- 安装和上线支持
-- 现有面板迁移
-- 自定义 provider 接入
-- 自定义订阅导出策略
-- 企业安全审查
-- 生产验收和发布证据流程定制
+- Hysteria2、WireGuard、TUN 作为 Xray Agent runtime 尚未完成。
+- 多 client 的 UI 编排和客户门户仍需要继续打磨。
+- Xray 热更新目前以 systemd restart 收敛，不是 3X-UI 那种完整热 diff 管线。
 
-商业部署、集成或授权问题，请在 GitHub 仓库提交 issue。
+## Forwarding / Tunnel 说明
 
-## 📜 授权说明
+当前 Agent runtime 支持：
 
-当前仓库还没有 `LICENSE` 文件。公开可见不等于自动授权复制、再分发、二次销售或作为商业托管服务运营。
+- TCP、UDP、tcp+udp 端口转发。
+- GOST 优先，缺失时回退 socat。
+- 规则级 `rateLimitMbps`，支持 one-way / bi-directional 方向。
+- nftables 计数采集，用于 forwarding telemetry 和 quota read model。
+- 暂停、恢复、删除会停止或移除对应 systemd unit 和计数规则。
 
-在维护者发布明确许可证之前，请把本项目视为 source-available 项目。公开分发、商用托管、市场打包、商业 fork 或再销售前，需要先确认授权条款。
+Preview / blocked 能力：
 
-## 🛣️ 路线图
+- `ipRateLimitMbps`
+- `maxConnections`
+- `maxConnectionsPerIp`
+- `proxyProtocol`
 
-近期路线图会优先服务公开发布和商业交付：
+这些字段仍保留在领域模型和 UI 数据结构中，但 V2.0.0 artifact 会把它们标记为 `blocked-by-agent-runtime`。后续要么补齐 GOST/nftables 实现，要么在 UI 中按 capability 禁用。
 
-- 发布明确许可证和商业使用政策
-- 增加 release tag 和发布说明
-- 增加截图图库或在线演示
-- 补充多主机生产拓扑文档
-- 扩展常见 provider 模板
-- 增加已有面板迁移指南
-- 优化前端代码分包，降低大 chunk warning
-- 补充高可用部署说明
+## Subscription 说明
 
-## 🔗 项目链接
+当前已支持：
 
-- GitHub：[cshaizhihao/ou-ui-next](https://github.com/cshaizhihao/ou-ui-next)
-- English：[README.en.md](README.en.md)
-- 一键安装脚本：[scripts/install-master.sh](scripts/install-master.sh)
-- Agent 安装器：[public/install/ou-agent.sh](public/install/ou-agent.sh)
-- OpenAPI：[docs/openapi/ou-ui-next-v1.yaml](docs/openapi/ou-ui-next-v1.yaml)
-- 生产验收说明：[docs/architecture/v1-production-acceptance.md](docs/architecture/v1-production-acceptance.md)
+- URI、v2ray base64、Clash/Mihomo、sing-box、Shadowrocket、Stash 等输出。
+- 外部订阅源导入、解析、同步状态和导出文件。
+- 与 Xray client / customer node 的用量、到期、规则关联。
+
+后续重点：
+
+- 独立用户订阅门户。
+- token 轮换、订阅链接重签发和泄露撤销。
+- 导入诊断报告：格式错误、协议不兼容、节点重复、字段丢失。
+- proxy group / rule provider 模板化能力。
+
+## 环境变量
+
+| 变量 | 用途 |
+| --- | --- |
+| `OU_UI_CONTROL_PLANE_HOST` | Control Plane 监听地址 |
+| `OU_UI_CONTROL_PLANE_PORT` | Control Plane 监听端口 |
+| `OU_UI_CONTROL_PLANE_STORAGE` | 存储模式，常用 `sqlite`、`file`、`memory` |
+| `OU_UI_CONTROL_PLANE_SQLITE_FILE` | SQLite 状态文件路径 |
+| `OU_UI_CONTROL_PLANE_OPERATOR_USERNAME` | 操作员登录用户名 |
+| `OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD` | 操作员登录密码 |
+| `OU_UI_CONTROL_PLANE_OPERATOR_PASSWORD_HASH` | 生产推荐的登录密码 hash |
+| `OU_UI_CONTROL_PLANE_OPERATOR_TOKEN` | 后端 operator bearer token |
+| `OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET` | HttpOnly session secret |
+| `OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON` | Agent install token 配置 |
+| `OU_UI_COMMAND_ACK_TIMEOUT_MS` | Agent ACK 超时 |
+| `OU_UI_COMMAND_RESULT_TIMEOUT_MS` | Agent result 超时 |
+| `OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS` | 流量历史保留天数 |
+| `OU_UI_AGENT_LOG_RETENTION_DAYS` | Agent 日志保留天数 |
+| `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST` | 订阅源出站 allowlist |
+| `OU_UI_SYSTEM_ALERT_WEBHOOK_URLS` | 系统告警 webhook |
+| `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` | 外部归档目录 |
+| `VITE_CONTROL_PLANE_MODE` | 前端 API 模式，`mock` 或 `http` |
+| `VITE_CONTROL_PLANE_BASE_URL` | 前端连接真实 Control Plane 的 base URL |
+
+## 部署与验收
+
+生产部署建议使用安装器生成的 `ou` CLI 做运维入口：
+
+```bash
+ou doctor
+ou smoke -- --report /var/lib/ou-ui-next/acceptance/smoke.json
+ou browser-smoke
+ou backup-state
+```
+
+验收重点：
+
+- 面板可以登录，静态 bundle 不包含 operator token、session secret 或登录密码。
+- `/api/v1/boundary`、受保护 API、SSE、metrics 和 CSRF 保护工作正常。
+- 至少一台 Agent 已注册并能 ACK/result。
+- Xray 或 Forwarding 任务必须有 Agent runtime evidence，不能人工直接 transition 为成功。
+- Smoke 报告、Agent 日志、审计链和归档文件不得包含明文 token、密码、cookie 或 CSRF。
+
+## 安全与权限
+
+OU-UI Next 的安全边界包括：
+
+- Operator session 使用 HttpOnly cookie，后端 operator token 不应进入前端 bundle。
+- Agent install token 与 runtime credential 分离，审计只记录脱敏摘要。
+- Agent event 必须同时匹配 `commandId`、`taskId` 和 `agentId`。
+- 订阅源、告警 webhook、外部归档 webhook 默认拦截 localhost、私网、链路本地和组播目标。
+- 日志、导出、smoke 和归档流程默认避免输出 secret。
+
+生产使用前仍建议完成：
+
+- 替换默认账号和弱密码。
+- 使用 HTTPS 和可信证书。
+- 配置 session secret、operator token、Agent token。
+- 定期备份 `/var/lib/ou-ui-next`。
+- 对公网 webhook / 订阅源启用 allowlist。
+
+## Roadmap
+
+P0：
+
+- 为 inbound/client 提供一等 CRUD API，而不是继续依赖通用 task metadata。
+- UI 侧按 Agent capability 禁用或解释 preview 字段。
+- Xray 多 client UI 工作流、批量 client 导入、client 单独启停和重置。
+- Forwarding 的 proxy protocol、连接数限制、IP 级限速落地或彻底从可编辑表单中移除。
+
+P1：
+
+- 订阅门户、token 轮换、订阅诊断报告。
+- Tunnel entry/exit、质量探测、故障切换和运行状态面板。
+- SQLite JSON-state 迁移到更强的领域表结构。
+- 更接近 3X-UI 的 Xray hot diff / reload 管线。
+
+P2：
+
+- HA / 多 Master 策略。
+- 更完整的 provider 模板、rule provider、proxy group 编排。
+- 面向商业交付的导入迁移工具和升级兼容报告。
+
+## 参考项目
+
+OU-UI Next 的产品方向参考了这些优秀项目：
+
+- [3X-UI](https://github.com/MHSanaei/3x-ui)：Xray inbound/client、流量、订阅和运行时管理。
+- [妙妙屋X](https://github.com/iluobei/miaomiaowuX)：订阅、通知、用户、证书、脚本和多功能控制面经验。
+- [Flvx](https://github.com/Sagit-chu/flvx)：Forwarding、tunnel、nftables runtime、诊断和节点状态管理。
+
+本项目不会直接复制它们的架构，而是沿着 Master / Agent、任务审计和运行时 evidence 的方向继续演进。

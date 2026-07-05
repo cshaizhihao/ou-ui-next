@@ -1,5 +1,15 @@
+import { afterAll, beforeAll, vi } from 'vitest';
 import { createMockApi } from '../mock/mock-api';
 import { createHttpControlPlaneServer, type ControlPlaneStructuredLogEvent } from './http-control-plane-server';
+
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-06-02T00:05:00.000Z'));
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 async function withServer<T>(run: (baseUrl: string) => Promise<T>) {
   const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }));

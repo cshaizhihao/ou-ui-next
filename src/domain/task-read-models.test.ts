@@ -1,6 +1,6 @@
 import type { DeployTask } from './task';
 import { markTaskAgentRuntimeDeploymentVerified } from './task';
-import { applyForwardRuleTask, createForwardRuleFromTask, createXrayInboundFromTask } from './task-read-models';
+import { applyForwardRuleTask, applyXrayInboundTask, createForwardRuleFromTask, createXrayInboundFromTask } from './task-read-models';
 
 function createInboundTask(metadata: DeployTask['metadata']): DeployTask {
   return {
@@ -115,6 +115,117 @@ describe('task read models', () => {
       target: 'www.cloudflare.com:443',
       shortIds: ['abcd1234']
     });
+  });
+
+  it('projects multiple Xray clients from customer-node task metadata', () => {
+    const inbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Shared Inbound',
+        xrayProtocol: 'vless',
+        clientIdentity: 'acme-shared',
+        clientCredential: 'fallback-token',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            trafficLimitGb: 100,
+            monthlyResetDay: 5
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            trafficLimitGb: 200,
+            monthlyResetDay: 15,
+            ipLimit: 2
+          }
+        ]
+      })
+    );
+
+    expect(inbound?.clients).toHaveLength(2);
+    expect(inbound?.clients.map((client) => client.email)).toEqual(['alice@example.com', 'bob@example.com']);
+    expect(inbound?.clients[0]).toMatchObject({
+      trafficLimitBytes: 100 * 1024 * 1024 * 1024,
+      monthlyResetDay: 5
+    });
+    expect(inbound?.clients[1]).toMatchObject({
+      trafficLimitBytes: 200 * 1024 * 1024 * 1024,
+      monthlyResetDay: 15,
+      ipLimit: 2
+    });
+  });
+
+  it('preserves per-client telemetry when multi-client Xray inbounds are updated', () => {
+    const initialInbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Shared Inbound',
+        xrayProtocol: 'vless',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com'
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com'
+          }
+        ]
+      })
+    );
+
+    expect(initialInbound).toBeDefined();
+
+    const existingInbound = {
+      ...initialInbound!,
+      clients: initialInbound!.clients.map((client, index) => ({
+        ...client,
+        uplinkBytes: index === 0 ? 1024 : 2048,
+        downlinkBytes: index === 0 ? 4096 : 8192,
+        lastTrafficSampleAt: '2026-06-04T00:10:00.000Z',
+        trafficBillingPeriod: '2026-06'
+      }))
+    };
+    const [updatedInbound] = applyXrayInboundTask(
+      [existingInbound],
+      {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Shared Inbound Updated',
+          xrayProtocol: 'vless',
+          clients: [
+            {
+              clientIdentity: 'alice',
+              clientCredential: 'alice-token',
+              clientEmail: 'alice@example.com',
+              trafficLimitGb: 300
+            },
+            {
+              clientIdentity: 'bob',
+              clientCredential: 'bob-token',
+              clientEmail: 'bob@example.com',
+              trafficLimitGb: 400
+            }
+          ]
+        }),
+        operation: 'inbound.update'
+      }
+    );
+
+    expect(updatedInbound.clients.map((client) => client.uplinkBytes)).toEqual([1024, 2048]);
+    expect(updatedInbound.clients.map((client) => client.downlinkBytes)).toEqual([4096, 8192]);
+    expect(updatedInbound.clients.map((client) => client.trafficLimitBytes)).toEqual([
+      300 * 1024 * 1024 * 1024,
+      400 * 1024 * 1024 * 1024
+    ]);
   });
 
   it('auto-allocates a high listen port when customer-node metadata omits listenPort', () => {

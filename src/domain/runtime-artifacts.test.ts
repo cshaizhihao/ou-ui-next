@@ -231,6 +231,72 @@ describe('runtime artifacts', () => {
     expect(artifact.subscription.shareUri).toContain(`vless://${clientId}@edge.example.com:443`);
   });
 
+  it('compiles multi-client VLESS inbound artifacts with per-client policies and share URIs', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Shared Inbound',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        security: 'tls',
+        sni: 'edge.example.com',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            trafficLimitGb: 100,
+            monthlyResetDay: 5
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            trafficLimitGb: 200,
+            monthlyResetDay: 15,
+            ipLimit: 2
+          }
+        ]
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture & {
+      clientPolicy: { clientEmail: string };
+      clientPolicies: Array<{ clientEmail: string; trafficLimitBytes: number; monthlyResetDay: number; ipLimit: number }>;
+      runtimeCapabilities: { multiClientInbound: boolean; totalClientCount: number; activeClientCount: number };
+      subscription: { shareUri: string; shareUris: Array<{ clientEmail: string; shareUri: string }> };
+    };
+
+    expect(artifact.xray.inbound.settings.clients).toHaveLength(2);
+    expect(artifact.xray.inbound.settings.clients.map((client) => client.id)).toEqual([
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/)
+    ]);
+    expect(artifact.clientPolicy.clientEmail).toBe('alice@example.com');
+    expect(artifact.clientPolicies).toMatchObject([
+      {
+        clientEmail: 'alice@example.com',
+        trafficLimitBytes: 100 * 1024 * 1024 * 1024,
+        monthlyResetDay: 5
+      },
+      {
+        clientEmail: 'bob@example.com',
+        trafficLimitBytes: 200 * 1024 * 1024 * 1024,
+        monthlyResetDay: 15,
+        ipLimit: 2
+      }
+    ]);
+    expect(artifact.subscription.shareUris).toHaveLength(2);
+    expect(artifact.subscription.shareUris.map((item) => item.clientEmail)).toEqual(['alice@example.com', 'bob@example.com']);
+    expect(artifact.runtimeCapabilities).toMatchObject({
+      multiClientInbound: true,
+      totalClientCount: 2,
+      activeClientCount: 2
+    });
+  });
+
   it('auto-allocates a high listen port when Xray inbound metadata omits listenPort', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({
@@ -554,6 +620,34 @@ describe('runtime artifacts', () => {
         }
       }
     });
+  });
+
+  it('marks forwarding controls that are still blocked by the Agent runtime', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createForwardTask('forward.create', {
+        name: 'Customer HTTPS Forward',
+        ownerName: 'Customer A',
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp',
+        entryNodeIds: ['agent-hkg-01'],
+        ipRateLimitMbps: 80,
+        maxConnections: 2048,
+        maxConnectionsPerIp: 32,
+        proxyProtocol: true
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'port-forwarding'
+    }) as { runtimeCapabilities: { status: string; unsupportedControls: string[] } };
+
+    expect(artifact.runtimeCapabilities).toEqual(
+      expect.objectContaining({
+        status: 'blocked-by-agent-runtime',
+        unsupportedControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol']
+      })
+    );
   });
 
   it('auto-allocates a high listen port for forwarding runtime artifacts when metadata omits listenPort', () => {

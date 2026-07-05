@@ -1794,6 +1794,24 @@ def probe_xray_stats_api(state_dir):
     return True, None
 
 
+def expand_xray_client_profile(profile):
+    client_policies = profile.get("clientPolicies") if isinstance(profile.get("clientPolicies"), list) else []
+
+    if not client_policies:
+        return [profile]
+
+    expanded = []
+    for client_policy in client_policies:
+        if not isinstance(client_policy, dict):
+            continue
+
+        item = dict(profile)
+        item["clientPolicy"] = client_policy
+        expanded.append(item)
+
+    return expanded or [profile]
+
+
 def read_xray_client_profiles():
     profile_root = config_dir() / "xray" / "profiles.d"
     if not profile_root.exists():
@@ -1803,7 +1821,7 @@ def read_xray_client_profiles():
     for path in sorted(profile_root.glob("*.json")):
         profile = read_json(path, {})
         if isinstance(profile, dict):
-            profiles.append(profile)
+            profiles.extend(expand_xray_client_profile(profile))
     return profiles
 
 
@@ -3066,6 +3084,8 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
                 "inbound": inbound,
                 "customer": artifact.get("customer") if isinstance(artifact.get("customer"), dict) else {},
                 "clientPolicy": artifact.get("clientPolicy") if isinstance(artifact.get("clientPolicy"), dict) else {},
+                "clientPolicies": artifact.get("clientPolicies") if isinstance(artifact.get("clientPolicies"), list) else [],
+                "runtimeCapabilities": artifact.get("runtimeCapabilities") if isinstance(artifact.get("runtimeCapabilities"), dict) else {},
             },
         )
         changed.append(str(profile_path))
@@ -3107,6 +3127,8 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
             "artifactVersion": artifact.get("artifactVersion"),
             "inboundCount": len(inbounds),
             "runtime": service_state,
+            "clientPolicyCount": len(artifact.get("clientPolicies") if isinstance(artifact.get("clientPolicies"), list) else []),
+            "runtimeCapabilities": artifact.get("runtimeCapabilities") if isinstance(artifact.get("runtimeCapabilities"), dict) else {},
         },
     )
 
@@ -3475,6 +3497,7 @@ def apply_forwarding_artifact(state_dir, command, revision, artifact):
             "rateLimitMode": rate_limit_mode,
             "rateLimitDirection": rate_limit_direction,
             "trafficCounterRuntime": counter_source,
+            "runtimeCapabilities": artifact.get("runtimeCapabilities") if isinstance(artifact.get("runtimeCapabilities"), dict) else {},
         },
     )
 

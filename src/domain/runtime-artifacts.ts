@@ -23,12 +23,40 @@ type XrayRuntimeProtocol = Extract<
   'vmess' | 'vless' | 'trojan' | 'shadowsocks'
 >;
 
+type RuntimeXrayClientPolicy = {
+  clientIdentity: string;
+  clientId: string;
+  password: string;
+  auth: string;
+  clientEmail: string;
+  enabled: boolean;
+  ipLimit: number;
+  level: number;
+  flow: string;
+  trafficLimitGb: number;
+  trafficLimitBytes: number;
+  monthlyResetDay: number;
+  manualUsedTrafficGb: number;
+  manualUsedTrafficBytes: number;
+  remainingDays: number;
+  expiresAt: string;
+  vmessSecurity: string;
+  shadowsocksMethod: string;
+};
+
 const XAY_RUNTIME_PROTOCOLS = new Set<XrayProtocol>([
   'vmess',
   'vless',
   'trojan',
   'shadowsocks'
 ]);
+
+const FORWARDING_RUNTIME_UNSUPPORTED_CONTROLS = [
+  'ipRateLimitMbps',
+  'maxConnections',
+  'maxConnectionsPerIp',
+  'proxyProtocol'
+] as const;
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -84,6 +112,16 @@ function readStringArray(metadata: Record<string, unknown> | undefined, key: str
 
   const strings = value.filter((item): item is string => typeof item === 'string' && item.trim() !== '');
   return strings.length > 0 ? strings.map((item) => item.trim()) : fallback;
+}
+
+function readRecordArray(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item));
 }
 
 function readProtocol(metadata: Record<string, unknown> | undefined): XrayRuntimeProtocol {
@@ -268,27 +306,19 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
 
 function buildXraySettings(input: {
   protocol: XrayRuntimeProtocol;
-  clientId: string;
-  password: string;
-  auth: string;
-  clientEmail: string;
-  flow: string;
-  ipLimit: number;
-  level: number;
-  vmessSecurity: string;
-  shadowsocksMethod: string;
+  clients: RuntimeXrayClientPolicy[];
 }) {
+  const enabledClients = input.clients.filter((client) => client.enabled);
+
   if (input.protocol === 'vless') {
     return {
-      clients: [
-        {
-          id: input.clientId,
-          email: input.clientEmail,
-          flow: input.flow || undefined,
-          level: input.level,
-          limitIp: input.ipLimit
-        }
-      ],
+      clients: enabledClients.map((client) => ({
+        id: client.clientId,
+        email: client.clientEmail,
+        flow: client.flow || undefined,
+        level: client.level,
+        limitIp: client.ipLimit
+      })),
       decryption: 'none',
       fallbacks: []
     };
@@ -296,43 +326,159 @@ function buildXraySettings(input: {
 
   if (input.protocol === 'vmess') {
     return {
-      clients: [
-        {
-          id: input.clientId,
-          email: input.clientEmail,
-          alterId: 0,
-          security: input.vmessSecurity,
-          level: input.level,
-          limitIp: input.ipLimit
-        }
-      ]
+      clients: enabledClients.map((client) => ({
+        id: client.clientId,
+        email: client.clientEmail,
+        alterId: 0,
+        security: client.vmessSecurity,
+        level: client.level,
+        limitIp: client.ipLimit
+      }))
     };
   }
 
   if (input.protocol === 'trojan') {
     return {
-      clients: [
-        {
-          password: input.password,
-          email: input.clientEmail,
-          flow: input.flow || undefined,
-          level: input.level,
-          limitIp: input.ipLimit
-        }
-      ],
+      clients: enabledClients.map((client) => ({
+        password: client.password,
+        email: client.clientEmail,
+        flow: client.flow || undefined,
+        level: client.level,
+        limitIp: client.ipLimit
+      })),
       fallbacks: []
     };
   }
 
   if (input.protocol === 'shadowsocks') {
+    if (enabledClients.length > 1) {
+      throw new Error('Shadowsocks Xray runtime currently supports one active client per inbound');
+    }
+
+    const client = enabledClients[0] ?? input.clients[0];
+
     return {
-      method: input.shadowsocksMethod,
-      password: input.password,
+      method: client?.shadowsocksMethod ?? '2022-blake3-aes-128-gcm',
+      password: client?.password ?? '',
       network: 'tcp,udp'
     };
   }
 
   throw new Error(`Unsupported Xray inbound protocol: ${input.protocol}`);
+}
+
+function buildXrayClientPolicies(input: {
+  metadata: Record<string, unknown> | undefined;
+  protocol: XrayRuntimeProtocol;
+  task: DeployTask;
+  agentId: string;
+  customerName: string;
+}) {
+  const metadata = input.metadata;
+  const customerName = input.customerName;
+  const defaultClientIdentity = readString(metadata, 'clientIdentity', `${customerName}-${input.task.targetId}`);
+  const defaultClientCredential = readString(metadata, 'clientCredential', defaultClientIdentity);
+  const definitions = readRecordArray(metadata, 'clients');
+  const clientMetadataList =
+    definitions.length > 0
+      ? definitions.map((clientMetadata, index) => {
+          const fallbackIdentity = index === 0 ? defaultClientIdentity : `${defaultClientIdentity}-${index + 1}`;
+          return {
+            ...metadata,
+            ...clientMetadata,
+            clientIdentity: readString(clientMetadata, 'clientIdentity', fallbackIdentity),
+            clientCredential: readString(clientMetadata, 'clientCredential', readString(clientMetadata, 'password', fallbackIdentity))
+          };
+        })
+      : [metadata ?? {}];
+
+  return clientMetadataList.map((clientMetadata, index): RuntimeXrayClientPolicy => {
+    const clientIdentity = readString(clientMetadata, 'clientIdentity', index === 0 ? defaultClientIdentity : `${defaultClientIdentity}-${index + 1}`);
+    const clientCredential = readString(clientMetadata, 'clientCredential', defaultClientCredential);
+    const flow = readString(clientMetadata, 'flow', '');
+    const ipLimit = readNumber(clientMetadata, 'ipLimit', 0);
+    const clientLevel = readNumber(clientMetadata, 'clientLevel', 0);
+    const trafficLimitGb = readNumber(clientMetadata, 'trafficLimitGb', 0);
+    const monthlyResetDay = clampResetDay(readNumber(clientMetadata, 'monthlyResetDay', 1));
+    const currentUsedTrafficGb = readNumber(clientMetadata, 'currentUsedTrafficGb', 0);
+    const remainingDays = readNumber(clientMetadata, 'remainingDays', 30);
+    const vmessSecurity = readString(clientMetadata, 'vmessSecurity', 'auto');
+    const shadowsocksMethod = readString(clientMetadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm');
+    const hysteriaAuth = readString(clientMetadata, 'hysteriaAuth', clientCredential);
+    const normalizedCredentials = normalizeXrayClientCredentials({
+      protocol: input.protocol,
+      clientIdentity,
+      clientCredential,
+      hysteriaAuth,
+      fallbackSeed: `${input.task.targetId}:${input.agentId}:${customerName}:${index}`
+    });
+
+    return {
+      clientIdentity: normalizedCredentials.clientIdentity,
+      clientId: normalizedCredentials.clientId,
+      password: normalizedCredentials.password,
+      auth: normalizedCredentials.auth,
+      clientEmail: readString(clientMetadata, 'clientEmail', `${clientIdentity}@ou-ui.local`),
+      enabled: readBoolean(clientMetadata, 'enabled', true),
+      ipLimit,
+      level: clientLevel,
+      flow,
+      trafficLimitGb,
+      trafficLimitBytes: bytesFromGb(trafficLimitGb),
+      monthlyResetDay,
+      manualUsedTrafficGb: currentUsedTrafficGb,
+      manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
+      remainingDays,
+      expiresAt: expiryFromRemainingDays(input.task.createdAt, remainingDays),
+      vmessSecurity,
+      shadowsocksMethod
+    };
+  });
+}
+
+function collectUnsupportedForwardingRuntimeControls(metadata: Record<string, unknown> | undefined) {
+  const unsupported: Array<(typeof FORWARDING_RUNTIME_UNSUPPORTED_CONTROLS)[number]> = [];
+
+  if (readNumber(metadata, 'ipRateLimitMbps', 0) > 0) {
+    unsupported.push('ipRateLimitMbps');
+  }
+
+  if (readNumber(metadata, 'maxConnections', 0) > 0) {
+    unsupported.push('maxConnections');
+  }
+
+  if (readNumber(metadata, 'maxConnectionsPerIp', 0) > 0) {
+    unsupported.push('maxConnectionsPerIp');
+  }
+
+  if (readBoolean(metadata, 'proxyProtocol', false)) {
+    unsupported.push('proxyProtocol');
+  }
+
+  return unsupported;
+}
+
+function buildForwardingRuntimeCapabilities(metadata: Record<string, unknown> | undefined) {
+  const unsupportedControls = collectUnsupportedForwardingRuntimeControls(metadata);
+
+  return {
+    supportedControls: [
+      'listenAddress',
+      'listenPort',
+      'targetAddress',
+      'targetPort',
+      'protocol',
+      'rateLimitMbps',
+      'rateLimitMode',
+      'rateLimitDirection',
+      'quotaGb',
+      'monthlyResetDay',
+      'nftablesTrafficCounters'
+    ],
+    previewControls: [...FORWARDING_RUNTIME_UNSUPPORTED_CONTROLS],
+    unsupportedControls,
+    status: unsupportedControls.length > 0 ? 'blocked-by-agent-runtime' : 'agent-runtime-ready'
+  };
 }
 
 function buildHostAgentArtifact({ task, agentId }: RuntimeArtifactInput) {
@@ -438,43 +584,55 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const customerNodeName = readString(metadata, 'customerNodeName', task.targetLabel);
   const customerName = readString(metadata, 'customerName', 'default-customer');
   const serverAddress = readString(metadata, 'serverAddress', '127.0.0.1');
-  const clientIdentity = readString(metadata, 'clientIdentity', `${customerName}-${task.targetId}`);
-  const clientEmail = readString(metadata, 'clientEmail', `${clientIdentity}@ou-ui.local`);
-  const clientCredential = readString(metadata, 'clientCredential', clientIdentity);
   const flow = readString(metadata, 'flow', '');
-  const ipLimit = readNumber(metadata, 'ipLimit', 0);
-  const clientLevel = readNumber(metadata, 'clientLevel', 0);
-  const trafficLimitGb = readNumber(metadata, 'trafficLimitGb', 0);
-  const monthlyResetDay = clampResetDay(readNumber(metadata, 'monthlyResetDay', 1));
-  const currentUsedTrafficGb = readNumber(metadata, 'currentUsedTrafficGb', 0);
-  const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const subscriptionRule = readString(metadata, 'subscriptionRule', '');
-  const vmessSecurity = readString(metadata, 'vmessSecurity', 'auto');
-  const shadowsocksMethod = readString(metadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm');
-  const hysteriaAuth = readString(metadata, 'hysteriaAuth', clientCredential);
   const sniffingEnabled = readBoolean(metadata, 'sniffingEnabled', true);
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const streamSettings = buildStreamSettings(metadata);
   const realityPublicKey = readString(metadata, 'realityPublicKey', '');
   const realityShortId = readString(metadata, 'realityShortId', '');
   const fingerprint = readString(metadata, 'fingerprint', streamSettings.security === 'reality' ? 'chrome' : '');
-  const normalizedCredentials = normalizeXrayClientCredentials({
+  const clientPolicies = buildXrayClientPolicies({
+    metadata,
     protocol,
-    clientIdentity,
-    clientCredential,
-    hysteriaAuth,
-    fallbackSeed: `${task.targetId}:${agentId}:${customerName}`
+    task,
+    agentId,
+    customerName
   });
-  const clientId = normalizedCredentials.clientId;
-  const password = normalizedCredentials.password;
-  const expiresAt = expiryFromRemainingDays(task.createdAt, remainingDays);
+  const primaryClientPolicy = clientPolicies[0];
+  const activeClientPolicies = clientPolicies.filter((client) => client.enabled);
+  const shareUris = clientPolicies.map((client) => ({
+    clientIdentity: client.clientIdentity,
+    clientEmail: client.clientEmail,
+    enabled: client.enabled,
+    shareUri: buildXrayShareLink({
+      protocol,
+      clientIdentity: client.clientIdentity,
+      clientCredential: protocol === 'vless' || protocol === 'vmess' ? client.clientId : client.password,
+      hysteriaAuth: client.auth,
+      fallbackSeed: `${task.targetId}:${agentId}:${customerName}:${client.clientIdentity}`,
+      serverAddress,
+      listenPort,
+      security: streamSettings.security,
+      network: streamSettings.network,
+      sni: readString(metadata, 'sni', ''),
+      path: readString(metadata, 'path', ''),
+      flow: client.flow || flow,
+      fingerprint,
+      realityPublicKey,
+      realityShortId,
+      vmessSecurity: client.vmessSecurity,
+      shadowsocksMethod: client.shadowsocksMethod,
+      label: clientPolicies.length > 1 ? `${customerNodeName} / ${client.clientEmail}` : customerNodeName
+    })
+  }));
 
   return {
     artifactVersion: 'ou-ui.runtime.xray-inbound.v1',
     generatedBy: 'ou-ui-next-control-plane',
     operation: task.operation,
     moduleKind: 'xray',
-    action: task.operation === 'inbound.delete' || !enabled ? 'remove_inbound' : 'upsert_inbound',
+    action: task.operation === 'inbound.delete' || !enabled || activeClientPolicies.length === 0 ? 'remove_inbound' : 'upsert_inbound',
     agentId,
     targetId: task.targetId,
     targetLabel: task.targetLabel,
@@ -483,23 +641,8 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       nodeName: customerNodeName,
       subscriptionRule
     },
-    clientPolicy: {
-      clientIdentity: normalizedCredentials.clientIdentity,
-      clientId,
-      password,
-      auth: normalizedCredentials.auth,
-      clientEmail,
-      enabled,
-      ipLimit,
-      level: clientLevel,
-      trafficLimitGb,
-      trafficLimitBytes: bytesFromGb(trafficLimitGb),
-      monthlyResetDay,
-      manualUsedTrafficGb: currentUsedTrafficGb,
-      manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
-      remainingDays,
-      expiresAt
-    },
+    clientPolicy: primaryClientPolicy,
+    clientPolicies,
     xray: {
       inbound: {
         tag: `ou-${task.targetId}`,
@@ -508,15 +651,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
         protocol,
         settings: buildXraySettings({
           protocol,
-          clientId,
-          password,
-          auth: normalizedCredentials.auth,
-          clientEmail,
-          flow,
-          ipLimit,
-          level: clientLevel,
-          vmessSecurity,
-          shadowsocksMethod
+          clients: clientPolicies
         }),
         streamSettings,
         sniffing: {
@@ -536,27 +671,18 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
     },
     subscription: {
       serverAddress,
-      shareUri: buildXrayShareLink({
-        protocol,
-        clientIdentity,
-        clientCredential,
-        hysteriaAuth,
-        fallbackSeed: `${task.targetId}:${agentId}:${customerName}`,
-        serverAddress,
-        listenPort,
-        security: streamSettings.security,
-        network: streamSettings.network,
-        sni: readString(metadata, 'sni', ''),
-        path: readString(metadata, 'path', ''),
-        flow,
-        fingerprint,
-        realityPublicKey,
-        realityShortId,
-        vmessSecurity,
-        shadowsocksMethod,
-        label: customerNodeName
-      }),
+      shareUri: shareUris[0]?.shareUri ?? '',
+      shareUris,
       formats: ['plain', 'json', 'clash']
+    },
+    runtimeCapabilities: {
+      supportedProtocols: Array.from(XAY_RUNTIME_PROTOCOLS),
+      multiClientInbound: clientPolicies.length > 1,
+      activeClientCount: activeClientPolicies.length,
+      totalClientCount: clientPolicies.length,
+      xrayConfigPreflight: true,
+      runtimeGuardrails: true,
+      reloadStrategy: 'systemd-restart'
     }
   };
 }
@@ -639,7 +765,8 @@ function buildForwardingArtifact({ task, agentId }: RuntimeArtifactInput) {
       upstream: `${targetAddress}:${targetPort}`,
       transport: protocol,
       reload: 'graceful_restart'
-    }
+    },
+    runtimeCapabilities: buildForwardingRuntimeCapabilities(metadata)
   };
 }
 
@@ -727,7 +854,8 @@ function buildTunnelForwardingArtifact({ task, agentId }: RuntimeArtifactInput) 
       upstream: `${targetAddress}:${targetPort}`,
       transport: protocol,
       reload: 'graceful_restart'
-    }
+    },
+    runtimeCapabilities: buildForwardingRuntimeCapabilities(metadata)
   };
 }
 
