@@ -9,7 +9,12 @@ import {
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { GlassCard } from '../../components/ui/glass-card';
 import { GlowButton } from '../../components/ui/glow-button';
-import type { AgentLogArchive } from '../../domain';
+import type {
+  AgentLogArchive,
+  ForwardingRuntimeDiagnosisAction,
+  ForwardingRuntimeDiagnosisReason,
+  ForwardingRuntimeDiagnosisState
+} from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import type {
@@ -66,6 +71,18 @@ type ExecutionReleaseGate = {
   value: string;
 };
 
+type ForwardingRuntimeDiagnosisEvidence = {
+  state: ForwardingRuntimeDiagnosisState;
+  reasons: ForwardingRuntimeDiagnosisReason[];
+  blockedControls: string[];
+  nextActions: ForwardingRuntimeDiagnosisAction[];
+  hasRuntimeEvidence: boolean;
+  impactedBindingCount: number;
+  evidenceStage: string;
+  plannedBindingStatus: string;
+  plannedRuntimeServices: string[];
+};
+
 type TuningProbeState = {
   bbrInstalled?: boolean;
   tcpProbeReady?: boolean;
@@ -89,6 +106,38 @@ type TuningSysctlPlanMetadata = {
 
 const taskStatuses: DeployTask['status'][] = ['queued', 'running', 'succeeded', 'failed', 'retrying', 'rolled_back', 'canceled'];
 const agentLogStreams: AgentLogChunk['stream'][] = ['stdout', 'stderr', 'agent', 'runtime'];
+const forwardingRuntimeDiagnosisStates = new Set<ForwardingRuntimeDiagnosisState>([
+  'ready',
+  'waiting',
+  'degraded',
+  'blocked',
+  'failed'
+]);
+const forwardingRuntimeDiagnosisReasons = new Set<ForwardingRuntimeDiagnosisReason>([
+  'rule-disabled',
+  'no-entry-binding',
+  'no-runtime-service',
+  'deploying',
+  'paused',
+  'releasing',
+  'port-conflict',
+  'runtime-apply-failed',
+  'quota-exceeded',
+  'runtime-disabled-by-policy',
+  'guardrail',
+  'blocked-runtime-controls',
+  'missing-traffic-counters'
+]);
+const forwardingRuntimeDiagnosisActions = new Set<ForwardingRuntimeDiagnosisAction>([
+  'apply',
+  'resume',
+  'pause',
+  'repair',
+  'inspect-agent',
+  'resolve-conflict',
+  'reset-quota',
+  'enable-rule'
+]);
 
 type ExecutionMetric = {
   label: string;
@@ -224,6 +273,46 @@ const copy = {
     rollback: '发起回滚',
     confirmRollback: (taskId: string) => `确认回滚任务 ${taskId}？`,
     runtimeRelease: '运行时发布',
+    forwardingRuntimeDiagnosis: '转发运行诊断',
+    runtimeDiagnosisEvidenceStage: '证据阶段',
+    runtimeDiagnosisPlannedBinding: '计划绑定',
+    runtimeDiagnosisPlannedServices: '计划服务',
+    runtimeDiagnosisBlockedControls: '阻断控制',
+    runtimeDiagnosisNextActions: '下一步',
+    runtimeDiagnosisCounters: (bindingCount: number, hasRuntimeEvidence: boolean, language: AppLanguage) =>
+      `${formatNumber(bindingCount, language)} 受影响绑定 / ${hasRuntimeEvidence ? '已有运行证据' : '等待 Agent 证据'}`,
+    runtimeDiagnosisStateLabels: {
+      ready: '就绪',
+      waiting: '等待',
+      degraded: '降级',
+      blocked: '阻断',
+      failed: '失败'
+    },
+    runtimeDiagnosisReasonLabels: {
+      'rule-disabled': '规则未启用',
+      'no-entry-binding': '缺少入口绑定',
+      'no-runtime-service': '缺少运行时服务',
+      deploying: '正在下发',
+      paused: '已暂停',
+      releasing: '正在释放',
+      'port-conflict': '端口冲突',
+      'runtime-apply-failed': '下发失败',
+      'quota-exceeded': '配额已超限',
+      'runtime-disabled-by-policy': '策略停用运行时',
+      guardrail: '触发 guardrail',
+      'blocked-runtime-controls': '包含阻断控制',
+      'missing-traffic-counters': '缺少流量计数'
+    },
+    runtimeDiagnosisActionLabels: {
+      apply: '下发',
+      resume: '恢复',
+      pause: '暂停',
+      repair: '修复',
+      'inspect-agent': '检查 Agent',
+      'resolve-conflict': '处理冲突',
+      'reset-quota': '重置配额',
+      'enable-rule': '启用规则'
+    },
     agentLogsTitle: '主机代理运行日志',
     agentLogsEmpty: '暂无运行日志',
     searchAgentLogs: '搜索 Agent 日志',
@@ -479,6 +568,46 @@ const copy = {
     rollback: 'Start Rollback',
     confirmRollback: (taskId: string) => `Start rollback for ${taskId}?`,
     runtimeRelease: 'Runtime Release',
+    forwardingRuntimeDiagnosis: 'Forwarding Runtime Diagnosis',
+    runtimeDiagnosisEvidenceStage: 'Evidence Stage',
+    runtimeDiagnosisPlannedBinding: 'Planned Binding',
+    runtimeDiagnosisPlannedServices: 'Planned Services',
+    runtimeDiagnosisBlockedControls: 'Blocked Controls',
+    runtimeDiagnosisNextActions: 'Next Actions',
+    runtimeDiagnosisCounters: (bindingCount: number, hasRuntimeEvidence: boolean, language: AppLanguage) =>
+      `${formatNumber(bindingCount, language)} impacted bindings / ${hasRuntimeEvidence ? 'runtime evidence present' : 'waiting for Agent evidence'}`,
+    runtimeDiagnosisStateLabels: {
+      ready: 'Ready',
+      waiting: 'Waiting',
+      degraded: 'Degraded',
+      blocked: 'Blocked',
+      failed: 'Failed'
+    },
+    runtimeDiagnosisReasonLabels: {
+      'rule-disabled': 'Rule disabled',
+      'no-entry-binding': 'No entry binding',
+      'no-runtime-service': 'No runtime service',
+      deploying: 'Deploying',
+      paused: 'Paused',
+      releasing: 'Releasing',
+      'port-conflict': 'Port conflict',
+      'runtime-apply-failed': 'Apply failed',
+      'quota-exceeded': 'Quota exceeded',
+      'runtime-disabled-by-policy': 'Runtime stopped by policy',
+      guardrail: 'Guardrail active',
+      'blocked-runtime-controls': 'Blocked controls present',
+      'missing-traffic-counters': 'Missing traffic counters'
+    },
+    runtimeDiagnosisActionLabels: {
+      apply: 'Apply',
+      resume: 'Resume',
+      pause: 'Pause',
+      repair: 'Repair',
+      'inspect-agent': 'Inspect Agent',
+      'resolve-conflict': 'Resolve conflict',
+      'reset-quota': 'Reset quota',
+      'enable-rule': 'Enable rule'
+    },
     agentLogsTitle: 'Agent Runtime Logs',
     agentLogsEmpty: 'No runtime logs retained',
     searchAgentLogs: 'Search Agent Logs',
@@ -654,6 +783,52 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function readStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim());
+}
+
+function readForwardingRuntimeDiagnosis(bundle: RuntimeReleaseBundle): ForwardingRuntimeDiagnosisEvidence | undefined {
+  if (bundle.configRevision?.moduleKind !== 'port-forwarding') {
+    return undefined;
+  }
+
+  const value = bundle.configRevision.artifact.runtimeDiagnosis;
+
+  if (!isObjectRecord(value) || !forwardingRuntimeDiagnosisStates.has(value.state as ForwardingRuntimeDiagnosisState)) {
+    return undefined;
+  }
+
+  const reasons = readStringList(value.reasons).filter((reason): reason is ForwardingRuntimeDiagnosisReason =>
+    forwardingRuntimeDiagnosisReasons.has(reason as ForwardingRuntimeDiagnosisReason)
+  );
+  const nextActions = readStringList(value.nextActions).filter((action): action is ForwardingRuntimeDiagnosisAction =>
+    forwardingRuntimeDiagnosisActions.has(action as ForwardingRuntimeDiagnosisAction)
+  );
+  const impactedBindingCount =
+    typeof value.impactedBindingCount === 'number' && Number.isFinite(value.impactedBindingCount)
+      ? Math.max(0, Math.round(value.impactedBindingCount))
+      : 0;
+
+  return {
+    state: value.state as ForwardingRuntimeDiagnosisState,
+    reasons,
+    blockedControls: readStringList(value.blockedControls),
+    nextActions,
+    hasRuntimeEvidence: value.hasRuntimeEvidence === true,
+    impactedBindingCount,
+    evidenceStage: typeof value.evidenceStage === 'string' && value.evidenceStage.trim() ? value.evidenceStage.trim() : 'unknown',
+    plannedBindingStatus:
+      typeof value.plannedBindingStatus === 'string' && value.plannedBindingStatus.trim()
+        ? value.plannedBindingStatus.trim()
+        : 'unknown',
+    plannedRuntimeServices: readStringList(value.plannedRuntimeServices)
+  };
+}
+
 function readTuningProbeState(metadata: DeployTask['metadata']) {
   const probeState = metadata?.probeState;
 
@@ -722,6 +897,7 @@ function createTaskContextPayload({
   relatedChunks: AgentLogChunk[];
 }) {
   const { task, configRevision, preflightPlan, runtimeSnapshot } = bundle;
+  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
 
   return {
     taskId: task.id,
@@ -741,6 +917,7 @@ function createTaskContextPayload({
     configRevisionId: configRevision?.id,
     preflightPlanId: preflightPlan?.id,
     runtimeSnapshotId: runtimeSnapshot?.id,
+    runtimeDiagnosis,
     metadata: task.metadata ?? {},
     relatedLogEventIds: relatedChunks.map((chunk) => chunk.eventId),
     relatedArchiveIds: relatedArchives.map((archive) => archive.id)
@@ -848,6 +1025,7 @@ function createTaskFailureEvidencePackage({
   const remediationPlan = createTaskRemediationPlan(task, labels);
   const failedSteps = getFailedTaskSteps(task);
   const failedChecks = preflightPlan?.checks.filter((check) => check.status === 'failed') ?? [];
+  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
 
   return {
     taskId: task.id,
@@ -907,7 +1085,8 @@ function createTaskFailureEvidencePackage({
             capturedAt: runtimeSnapshot.capturedAt,
             verifiedAt: runtimeSnapshot.verifiedAt
           }
-        : undefined
+        : undefined,
+      runtimeDiagnosis
     },
     relatedAgentLogs: createAgentLogContextPayload(relatedChunks),
     relatedLogArchives: createAgentLogArchiveContextPayload(relatedArchives)
@@ -1382,6 +1561,104 @@ function ReleaseStep({
   );
 }
 
+function ForwardingRuntimeDiagnosisEvidenceCard({
+  diagnosis,
+  language,
+  t
+}: {
+  diagnosis: ForwardingRuntimeDiagnosisEvidence;
+  language: AppLanguage;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.10] text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.12] dark:text-[#7FF3C9]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.22] text-[#425200] dark:border-[#D9FF00]/25 dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]',
+    degraded: 'border-[#FF3D18] bg-[#D9FF00]/[0.18] text-[#B93C17] dark:border-[#FF6A3A]/25 dark:bg-[#D9FF00]/[0.08] dark:text-[#EAFF5A]',
+    blocked: 'border-[#FF3D18] bg-[#FF3D18]/[0.10] text-[#C92810] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    failed: 'border-[#DC2626] bg-[#DC2626]/[0.10] text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]'
+  } satisfies Record<ForwardingRuntimeDiagnosisState, string>;
+  const reasonPreview = diagnosis.reasons.slice(0, 3);
+  const actionPreview = diagnosis.nextActions.slice(0, 3);
+  const servicePreview = diagnosis.plannedRuntimeServices.slice(0, 2);
+
+  return (
+    <section
+      aria-label={t.forwardingRuntimeDiagnosis}
+      className="tasks-forwarding-runtime-diagnosis mt-3 border border-[#07111F]/20 bg-[#FFFDF5]/84 p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.28)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]"
+      data-runtime-diagnosis-state={diagnosis.state}
+      role="group"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">
+            {t.forwardingRuntimeDiagnosis}
+          </span>
+          <span className={`border px-2 py-0.5 text-[10px] font-black uppercase ${stateClass[diagnosis.state]}`}>
+            {t.runtimeDiagnosisStateLabels[diagnosis.state]}
+          </span>
+        </div>
+        <span className="border border-[#07111F]/18 bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+          {diagnosis.evidenceStage}
+        </span>
+      </div>
+      <p className="mt-1.5 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
+        {t.runtimeDiagnosisCounters(diagnosis.impactedBindingCount, diagnosis.hasRuntimeEvidence, language)}
+      </p>
+      <div className="mt-2 grid gap-2 lg:grid-cols-2">
+        <div className="min-w-0 border border-[#07111F]/15 bg-[#EAF3D1]/55 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+          <p className="text-[9px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">
+            {t.runtimeDiagnosisPlannedBinding}
+          </p>
+          <p className="mt-1 font-mono text-[10px] font-bold text-[#07111F] dark:text-white/75">
+            {diagnosis.plannedBindingStatus}
+          </p>
+        </div>
+        <div className="min-w-0 border border-[#07111F]/15 bg-[#EAF3D1]/55 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+          <p className="text-[9px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">
+            {t.runtimeDiagnosisPlannedServices}
+          </p>
+          <div className="mt-1 space-y-1">
+            {(servicePreview.length > 0 ? servicePreview : ['-']).map((service) => (
+              <p className="break-all font-mono text-[10px] font-bold text-[#07111F] dark:text-white/75" key={service}>
+                {service}
+              </p>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {reasonPreview.map((reason) => (
+          <span
+            className="border border-[#07111F]/18 bg-[#EAF3D1]/70 px-2 py-0.5 text-[9px] font-bold uppercase text-[#07111F] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65"
+            data-runtime-diagnosis-reason={reason}
+            key={reason}
+          >
+            {t.runtimeDiagnosisReasonLabels[reason]}
+          </span>
+        ))}
+        {diagnosis.blockedControls.slice(0, 4).map((control) => (
+          <span
+            className="border border-[#FF3D18] bg-[#FF3D18]/[0.09] px-2 py-0.5 text-[9px] font-black uppercase text-[#C92810] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/10 dark:text-[#FFB299]"
+            data-runtime-blocked-control={control}
+            key={control}
+          >
+            {control}
+          </span>
+        ))}
+        {actionPreview.map((action) => (
+          <span
+            className="border border-[#1E3AFF] bg-[#DCE1FF]/70 px-2 py-0.5 text-[9px] font-black uppercase text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/10 dark:text-primary"
+            data-runtime-diagnosis-action={action}
+            key={action}
+          >
+            {t.runtimeDiagnosisActionLabels[action]}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function RuntimeReleaseTimeline({
   bundle,
   className = '',
@@ -1394,6 +1671,7 @@ function RuntimeReleaseTimeline({
   const t = copy[language];
   const { configRevision, preflightPlan, runtimeSnapshot } = bundle;
   const moduleKind = configRevision?.moduleKind ?? preflightPlan?.moduleKind ?? runtimeSnapshot?.moduleKind;
+  const forwardingRuntimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
 
   if (!configRevision && !preflightPlan && !runtimeSnapshot) {
     return null;
@@ -1450,6 +1728,13 @@ function RuntimeReleaseTimeline({
           value={runtimeSnapshot?.id}
         />
       </div>
+      {forwardingRuntimeDiagnosis ? (
+        <ForwardingRuntimeDiagnosisEvidenceCard
+          diagnosis={forwardingRuntimeDiagnosis}
+          language={language}
+          t={t}
+        />
+      ) : null}
       {configRevision?.failureReason ?? preflightPlan?.failureReason ? (
         <p className="mt-3 rounded-xl border border-red-200 bg-red-50/70 p-3 text-xs font-semibold text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
           {configRevision?.failureReason ?? preflightPlan?.failureReason}

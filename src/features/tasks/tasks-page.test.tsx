@@ -51,6 +51,25 @@ const configRevision: RuntimeConfigRevision = {
   artifact: {}
 };
 
+const forwardingRuntimeDiagnosisArtifact = {
+  state: 'degraded',
+  reasons: ['no-runtime-service', 'blocked-runtime-controls', 'deploying'],
+  blockedControls: ['ipRateLimitMbps', 'proxyProtocol'],
+  nextActions: ['apply', 'inspect-agent'],
+  hasRuntimeEvidence: false,
+  impactedBindingCount: 1,
+  evidenceStage: 'control-plane-compiled',
+  plannedBindingStatus: 'deploying',
+  plannedRuntimeServices: ['ou-forward-forward-hkg-443-agent-hkg-01']
+};
+
+const diagnosticConfigRevision: RuntimeConfigRevision = {
+  ...configRevision,
+  artifact: {
+    runtimeDiagnosis: forwardingRuntimeDiagnosisArtifact
+  }
+};
+
 const stalePreflightPlan: RuntimePreflightPlan = {
   id: 'preflight-stale',
   taskId: task.id,
@@ -510,7 +529,7 @@ describe('TasksPage', () => {
         ]}
         agentLogArchives={[agentLogArchive]}
         agentLogChunks={[agentLogChunk]}
-        configRevisions={[configRevision]}
+        configRevisions={[diagnosticConfigRevision]}
         preflightPlans={[currentPreflightPlan]}
         runtimeSnapshots={[currentRuntimeSnapshot]}
         language="en"
@@ -519,9 +538,27 @@ describe('TasksPage', () => {
       />
     );
 
+    const pipeline = screen.getByRole('group', { name: 'Release Pipeline' });
+    const taskRow = within(pipeline).getByRole('article', { name: 'Apply port forwarding policy' });
+    const rowDiagnosis = within(taskRow).getByRole('group', { name: 'Forwarding Runtime Diagnosis' });
+
+    expect(rowDiagnosis).toHaveClass('tasks-forwarding-runtime-diagnosis');
+    expect(rowDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
+    expect(rowDiagnosis).toHaveTextContent('control-plane-compiled');
+    expect(rowDiagnosis).toHaveTextContent('1 impacted bindings / waiting for Agent evidence');
+    expect(rowDiagnosis).toHaveTextContent('deploying');
+    expect(rowDiagnosis).toHaveTextContent('ou-forward-forward-hkg-443-agent-hkg-01');
+    expect(rowDiagnosis).toHaveTextContent('No runtime service');
+    expect(rowDiagnosis).toHaveTextContent('Blocked controls present');
+    expect(rowDiagnosis).toHaveTextContent('ipRateLimitMbps');
+    expect(rowDiagnosis).toHaveTextContent('proxyProtocol');
+    expect(rowDiagnosis).toHaveTextContent('Apply');
+    expect(rowDiagnosis).toHaveTextContent('Inspect Agent');
+
     await user.click(screen.getByRole('button', { name: 'View Task Details' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Task Details' });
+    const dialogDiagnosis = within(dialog).getByRole('group', { name: 'Forwarding Runtime Diagnosis' });
 
     expect(within(dialog).getByText('task-release-001')).toBeInTheDocument();
     expect(within(dialog).getByText('req-release-001')).toBeInTheDocument();
@@ -529,6 +566,9 @@ describe('TasksPage', () => {
     expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
     expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
     expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
+    expect(dialogDiagnosis).toHaveTextContent('Forwarding Runtime Diagnosis');
+    expect(dialogDiagnosis).toHaveTextContent('Degraded');
+    expect(dialogDiagnosis).toHaveTextContent('ipRateLimitMbps');
     expect(within(dialog).getByText('failed to apply port-forwarding unit')).toBeInTheDocument();
     expect(within(dialog).getByText('agent-log-archive-test')).toBeInTheDocument();
 
@@ -537,6 +577,9 @@ describe('TasksPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"taskId": "task-release-001"'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"requestId": "req-release-001"'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"configRevisionId": "cfg-current"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"runtimeDiagnosis": {'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"state": "degraded"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"blockedControls": ['));
   });
 
   it('renders structured evidence for system tuning task details instead of raw JSON only', async () => {
@@ -1095,6 +1138,7 @@ describe('TasksPage', () => {
     const failedConfigRevision: RuntimeConfigRevision = {
       ...configRevision,
       status: 'failed',
+      artifact: diagnosticConfigRevision.artifact,
       failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
     };
     const failedPreflightPlan: RuntimePreflightPlan = {
@@ -1145,6 +1189,17 @@ describe('TasksPage', () => {
         configRevision?: { id: string; status: string; failureReason?: string };
         preflightPlan?: { id: string; status: string; failedChecks: Array<{ id: string; status: string }> };
         runtimeSnapshot?: { id: string; status: string; checksum: string };
+        runtimeDiagnosis?: {
+          state: string;
+          reasons: string[];
+          blockedControls: string[];
+          nextActions: string[];
+          hasRuntimeEvidence: boolean;
+          impactedBindingCount: number;
+          evidenceStage: string;
+          plannedBindingStatus: string;
+          plannedRuntimeServices: string[];
+        };
       };
       relatedAgentLogs: { logCount: number; logs: Array<{ eventId: string; content: string }> };
       relatedLogArchives: { archiveCount: number; archives: Array<{ id: string; contentSha256: string }> };
@@ -1188,6 +1243,19 @@ describe('TasksPage', () => {
         id: 'snapshot-current',
         status: 'verified',
         checksum: 'sha256:current-snapshot'
+      })
+    );
+    expect(copiedPayload.runtimeArtifacts.runtimeDiagnosis).toEqual(
+      expect.objectContaining({
+        state: 'degraded',
+        reasons: ['no-runtime-service', 'blocked-runtime-controls', 'deploying'],
+        blockedControls: ['ipRateLimitMbps', 'proxyProtocol'],
+        nextActions: ['apply', 'inspect-agent'],
+        hasRuntimeEvidence: false,
+        impactedBindingCount: 1,
+        evidenceStage: 'control-plane-compiled',
+        plannedBindingStatus: 'deploying',
+        plannedRuntimeServices: ['ou-forward-forward-hkg-443-agent-hkg-01']
       })
     );
     expect(copiedPayload.relatedAgentLogs).toEqual(
@@ -1236,6 +1304,7 @@ describe('TasksPage', () => {
     const failedConfigRevision: RuntimeConfigRevision = {
       ...configRevision,
       status: 'failed',
+      artifact: diagnosticConfigRevision.artifact,
       failureReason: 'port_conflict: 0.0.0.0:443 is already in use'
     };
     const failedPreflightPlan: RuntimePreflightPlan = {
@@ -1275,6 +1344,15 @@ describe('TasksPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
 
     expect(within(dialog).getByText('Runtime Release')).toBeInTheDocument();
+    const diagnosis = within(dialog).getByRole('group', { name: 'Forwarding Runtime Diagnosis' });
+
+    expect(diagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
+    expect(diagnosis).toHaveTextContent('No runtime service');
+    expect(diagnosis).toHaveTextContent('Blocked controls present');
+    expect(diagnosis).toHaveTextContent('ipRateLimitMbps');
+    expect(diagnosis).toHaveTextContent('proxyProtocol');
+    expect(diagnosis).toHaveTextContent('Apply');
+    expect(diagnosis).toHaveTextContent('Inspect Agent');
     expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
     expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
     expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
