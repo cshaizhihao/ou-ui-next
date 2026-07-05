@@ -94,6 +94,9 @@ describe('subscription-output', () => {
     expect(output.body).toContain('flow=xtls-rprx-vision');
     expect(output.body).toContain('#Acme+HK+VLESS');
     expect(output.headers['subscription-userinfo']).toContain(`total=${500 * 1024 * 1024 * 1024}`);
+    expect(output.headers['x-ou-ui-selected-node-count']).toBe('1');
+    expect(output.headers['x-ou-ui-converted-uri-count']).toBe('1');
+    expect(output.headers['x-ou-ui-unconverted-node-count']).toBe('0');
     expect(output.nodeCount).toBe(1);
   });
 
@@ -562,6 +565,40 @@ describe('subscription-output', () => {
     expect(uri.body).toContain('security=tls');
     expect(uri.body).toContain('#HK+Premium+Clash+VLESS');
     expect(decodedV2ray).toBe(uri.body);
+  });
+
+  it('reports subscription output conversion diagnostics when selected nodes cannot produce URIs', () => {
+    const externalClient: SubscriptionClientIdentity = {
+      ...client,
+      sourceIds: ['source-incomplete'],
+      selectedTags: ['premium'],
+      protocol: 'vless',
+      routingRule: ''
+    };
+    const incompleteNode: SubscriptionInventoryNode = {
+      id: 'source-incomplete-vless-01',
+      sourceId: 'source-incomplete',
+      name: 'Incomplete VLESS',
+      protocol: 'vless',
+      server: 'incomplete.example.com',
+      port: 443,
+      latencyMs: 0,
+      tags: ['premium', 'region:hk']
+    };
+
+    const output = renderPublicSubscriptionOutput({
+      client: externalClient,
+      format: 'uri',
+      inbounds: [],
+      externalNodes: [incompleteNode]
+    });
+
+    expect(output.nodeCount).toBe(1);
+    expect(output.body).toBe('');
+    expect(output.headers['x-ou-ui-selected-node-count']).toBe('1');
+    expect(output.headers['x-ou-ui-converted-uri-count']).toBe('0');
+    expect(output.headers['x-ou-ui-unconverted-node-count']).toBe('1');
+    expect(output.headers['x-ou-ui-conversion-warning']).toBe('subscription_output.unconverted_nodes:1');
   });
 
   it('renders Shadowrocket subscriptions as raw URI lists with client-specific headers', () => {

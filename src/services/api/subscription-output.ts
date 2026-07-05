@@ -949,6 +949,21 @@ function createTrafficHeaders(client: SubscriptionClientIdentity, nodeCount: num
   };
 }
 
+function createConversionHeaders(selectedNodeCount: number, convertedUriCount: number) {
+  const unconvertedNodeCount = Math.max(selectedNodeCount - convertedUriCount, 0);
+
+  return {
+    'x-ou-ui-selected-node-count': String(selectedNodeCount),
+    'x-ou-ui-converted-uri-count': String(convertedUriCount),
+    'x-ou-ui-unconverted-node-count': String(unconvertedNodeCount),
+    ...(unconvertedNodeCount > 0
+      ? {
+          'x-ou-ui-conversion-warning': `subscription_output.unconverted_nodes:${unconvertedNodeCount}`
+        }
+      : {})
+  };
+}
+
 export function isPublicSubscriptionFormat(value: string): value is PublicSubscriptionFormat {
   return Boolean(resolveSubscriptionOutputFormatAlias(value));
 }
@@ -975,10 +990,11 @@ export function renderPublicSubscriptionOutput({
   const uriList = nodes.map(createRawUrlFromExternalNode).filter((url): url is string => Boolean(url));
   const uriBody = uriList.join('\n');
   const producer = getSubscriptionProducer(format) ?? getSubscriptionProducer('uri');
+  const conversionHeaders = createConversionHeaders(nodes.length, uriList.length);
   const headers =
     exportProfile?.includeTrafficHeaders === false
-      ? { 'x-ou-ui-node-count': String(nodes.length) }
-      : createTrafficHeaders(projectedClient, nodes.length);
+      ? { 'x-ou-ui-node-count': String(nodes.length), ...conversionHeaders }
+      : { ...createTrafficHeaders(projectedClient, nodes.length), ...conversionHeaders };
   const producerHeaders = producer
     ? {
         ...headers,
