@@ -43,7 +43,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、结构化 `clients[]` 校验、delete remove artifact、Xray config preflight、systemd runtime restart |
 | Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额和过期策略可以按 client 评估 |
 | Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
-| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路，README 明确区分当前支持与后续门户能力 |
+| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路；订阅身份和导出配置都可选择 public output formats，并支持访问凭据轮换 |
 | 发布准备 | 项目版本更新为 `2.0.0`，README 重写，能力边界更准确 |
 
 ## 功能矩阵
@@ -59,8 +59,8 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议 |
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
-| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断和安全路径重新生成 |
-| 用户订阅门户 | Roadmap | 独立客户门户、真实 token 轮换 UI、设备级绑定仍需继续补齐 |
+| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、访问凭据轮换、二维码和 Shadowrocket/Stash 输出 |
+| 用户订阅门户 | Roadmap | 独立客户门户、raw token/hash 校验、泄露撤销和设备级绑定仍需继续补齐 |
 | SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储，适合单 Master 部署和安装器闭环 |
 | 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的强 schema、迁移和 HA 仍是后续重点 |
 
@@ -197,12 +197,13 @@ Preview / blocked 能力：
 - 外部订阅源同步会报告不兼容协议、字段缺失或无法解析节点、源规则过滤、同源去重、跨源重复和远程抓取失败原因。
 - 公共订阅输出响应会带出 `x-ou-ui-selected-node-count`、`x-ou-ui-converted-uri-count`、`x-ou-ui-unconverted-node-count` 和转换 warning 头，便于定位命中节点与实际可输出 URI 不一致的问题。
 - 与 Xray client / customer node 的用量、到期、规则关联。
-- 订阅链接抽屉支持二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和安全路径重新生成。
+- 订阅身份和导出配置都可选择 public output formats，含 Shadowrocket / Stash。
+- 订阅链接抽屉支持二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和访问凭据轮换；轮换会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL。
 
 后续重点：
 
 - 独立用户订阅门户。
-- 真实 token 轮换、泄露撤销和设备级绑定。
+- 独立 raw token/hash 校验、泄露撤销和设备级绑定。
 - 更完整的导入诊断报告：原始文件片段定位、格式转换 diff、节点不兼容修复建议。
 - proxy group / rule provider 模板化能力。
 
@@ -278,7 +279,7 @@ P0：
 
 P1：
 
-- 订阅门户、真实 token 轮换、泄露撤销和设备级绑定。
+- 订阅门户、raw token/hash 校验、泄露撤销和设备级绑定。
 - Tunnel entry/exit、质量探测、故障切换和运行状态面板。
 - SQLite JSON-state 迁移到更强的领域表结构。
 - 更接近 3X-UI 的 Xray hot diff / reload 管线。
