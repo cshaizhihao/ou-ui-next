@@ -291,7 +291,7 @@ P0：
 - 为 inbound/client 提供一等 CRUD API，而不是继续依赖通用 task metadata。
 - UI 侧按 Agent capability 禁用或解释 preview 字段。
 - Xray 多 client UI 工作流、批量 client 导入、client 单独启停和重置。
-- Forwarding 的 proxy protocol、连接数限制、IP 级限速落地或彻底从可编辑表单中移除。
+- Forwarding 的 proxy protocol、连接数限制、IP 级限速如需从 blocked 变为生产可用，继续补 Agent runtime 落地和验收证据。
 
 P1：
 
