@@ -4134,6 +4134,106 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('fails Agent success when runtime release evidence is not correlated to the same task chain', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'forward.apply',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Apply runtime release with corrupted preflight evidence',
+        metadata: forwardApplyMetadata
+      },
+      {
+        ...context,
+        requestId: 'req-service-release-correlation-mismatch',
+        idempotencyKey: 'idem-service-release-correlation-mismatch'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const [preflightPlan] = await repository.listPreflightPlans();
+    const [runtimeSnapshot] = await repository.listRuntimeSnapshots();
+
+    await repository.transaction(async (transaction) => {
+      await transaction.updatePreflightPlan({
+        ...preflightPlan,
+        targetId: 'forward-unrelated-8443'
+      });
+    });
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-release-correlation-mismatch-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {}
+    });
+
+    const failedTask = await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-release-correlation-mismatch-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-hkg-01',
+      observedAt: '2026-06-02T00:00:25.000Z',
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision: configRevisionId,
+        healthSummary: {
+          runtime: 'healthy',
+          activeConfigRevision: configRevisionId
+        }
+      }
+    });
+
+    expect(failedTask).toMatchObject({
+      status: 'failed',
+      failureReason: expect.stringContaining('runtime_release.correlation_mismatch')
+    });
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        commandId: outboxItem.commandId,
+        status: 'failed',
+        lastError: expect.stringContaining('runtime preflight plan targetId is forward-unrelated-8443')
+      })
+    ]);
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: configRevisionId,
+        status: 'failed',
+        failureReason: expect.stringContaining('runtime_release.correlation_mismatch'),
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          expectedTaskId: task.id,
+          expectedTargetId: task.targetId,
+          expectedAgentId: 'agent-hkg-01',
+          expectedConfigRevision: configRevisionId
+        })
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: preflightPlan.id,
+        targetId: 'forward-unrelated-8443',
+        status: 'pending'
+      })
+    ]);
+    const [storedRuntimeSnapshot] = await repository.listRuntimeSnapshots();
+
+    expect(storedRuntimeSnapshot).toMatchObject({
+      id: runtimeSnapshot.id,
+      status: 'captured'
+    });
+    expect(storedRuntimeSnapshot).not.toHaveProperty('verifiedAt');
+  });
+
   it('marks runtime release artifacts failed when apply commands fail', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(

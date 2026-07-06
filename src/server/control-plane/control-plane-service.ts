@@ -1074,6 +1074,187 @@ function createRuntimeReleaseArtifacts(
   };
 }
 
+type RuntimeReleaseCorrelationExpectation = {
+  taskId: string;
+  operation: DeployTask['operation'];
+  targetId: string;
+  agentId: string;
+  moduleKind: RuntimeConfigRevision['moduleKind'];
+  configRevisionId: string;
+  preflightPlanId: string;
+  snapshotBeforeId: string;
+};
+
+function createRuntimeReleaseCorrelationExpectation(
+  task: DeployTask,
+  command: CommandOutboxItem['command']
+): RuntimeReleaseCorrelationExpectation | undefined {
+  if (command.type !== 'apply') {
+    return undefined;
+  }
+
+  const payload = command.payload;
+  const moduleKind = payload.moduleKind === 'system' ? 'bbr' : payload.moduleKind;
+
+  return {
+    taskId: task.id,
+    operation: task.operation,
+    targetId: task.targetId,
+    agentId: command.agentId,
+    moduleKind,
+    configRevisionId: payload.configRevision,
+    preflightPlanId: payload.preflightPlanId ?? `preflight-${task.id}`,
+    snapshotBeforeId: payload.snapshotBeforeId ?? `snapshot-before-${task.id}`
+  };
+}
+
+function pushRuntimeReleaseCorrelationMismatch(
+  errors: string[],
+  label: string,
+  actual: unknown,
+  expected: unknown
+) {
+  if (actual !== expected) {
+    errors.push(`${label} is ${actual ?? 'missing'}; expected ${expected}`);
+  }
+}
+
+function validateConfigRevisionCorrelation(
+  configRevision: RuntimeConfigRevision | undefined,
+  expected: RuntimeReleaseCorrelationExpectation
+) {
+  const errors: string[] = [];
+
+  if (!configRevision) {
+    return [`runtime config revision ${expected.configRevisionId} is missing`];
+  }
+
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime config revision taskId', configRevision.taskId, expected.taskId);
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime config revision operation',
+    configRevision.operation,
+    expected.operation
+  );
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime config revision targetId',
+    configRevision.targetId,
+    expected.targetId
+  );
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime config revision agentId', configRevision.agentId, expected.agentId);
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime config revision moduleKind',
+    configRevision.moduleKind,
+    expected.moduleKind
+  );
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime config revision preflightPlanId',
+    configRevision.preflightPlanId,
+    expected.preflightPlanId
+  );
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime config revision snapshotBeforeId',
+    configRevision.snapshotBeforeId,
+    expected.snapshotBeforeId
+  );
+
+  return errors;
+}
+
+function validatePreflightPlanCorrelation(
+  preflightPlan: RuntimePreflightPlan | undefined,
+  expected: RuntimeReleaseCorrelationExpectation
+) {
+  const errors: string[] = [];
+
+  if (!preflightPlan) {
+    return [`runtime preflight plan ${expected.preflightPlanId} is missing`];
+  }
+
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime preflight plan taskId', preflightPlan.taskId, expected.taskId);
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime preflight plan configRevisionId',
+    preflightPlan.configRevisionId,
+    expected.configRevisionId
+  );
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime preflight plan targetId',
+    preflightPlan.targetId,
+    expected.targetId
+  );
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime preflight plan agentId', preflightPlan.agentId, expected.agentId);
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime preflight plan moduleKind',
+    preflightPlan.moduleKind,
+    expected.moduleKind
+  );
+
+  return errors;
+}
+
+function validateRuntimeSnapshotCorrelation(
+  runtimeSnapshot: RuntimeSnapshot | undefined,
+  expected: RuntimeReleaseCorrelationExpectation
+) {
+  const errors: string[] = [];
+
+  if (!runtimeSnapshot) {
+    return [`runtime snapshot ${expected.snapshotBeforeId} is missing`];
+  }
+
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime snapshot taskId', runtimeSnapshot.taskId, expected.taskId);
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime snapshot targetId', runtimeSnapshot.targetId, expected.targetId);
+  pushRuntimeReleaseCorrelationMismatch(errors, 'runtime snapshot agentId', runtimeSnapshot.agentId, expected.agentId);
+  pushRuntimeReleaseCorrelationMismatch(
+    errors,
+    'runtime snapshot moduleKind',
+    runtimeSnapshot.moduleKind,
+    expected.moduleKind
+  );
+
+  return errors;
+}
+
+async function collectRuntimeReleaseCorrelationErrors(
+  transaction: ControlPlaneTransaction,
+  task: DeployTask,
+  command: CommandOutboxItem['command']
+) {
+  const expected = createRuntimeReleaseCorrelationExpectation(task, command);
+
+  if (!expected) {
+    return [];
+  }
+
+  const configRevision = (await transaction.listConfigRevisions()).find((item) => item.id === expected.configRevisionId);
+  const preflightPlan = (await transaction.listPreflightPlans()).find((item) => item.id === expected.preflightPlanId);
+  const runtimeSnapshot = (await transaction.listRuntimeSnapshots()).find((item) => item.id === expected.snapshotBeforeId);
+
+  return [
+    ...validateConfigRevisionCorrelation(configRevision, expected),
+    ...validatePreflightPlanCorrelation(preflightPlan, expected),
+    ...validateRuntimeSnapshotCorrelation(runtimeSnapshot, expected)
+  ];
+}
+
+function hasNoRuntimeReleaseCorrelationErrors(errors: string[]) {
+  return errors.length === 0;
+}
+
+function summarizeRuntimeReleaseCorrelationFailure(errors: string[]) {
+  const visibleErrors = errors.slice(0, 8).join('; ');
+  const remaining = errors.length > 8 ? `; +${errors.length - 8} more` : '';
+
+  return `runtime_release.correlation_mismatch: ${visibleErrors}${remaining}`;
+}
+
 function createRuntimePreflightChecks(): RuntimePreflightPlan['checks'] {
   return [
     {
@@ -1295,6 +1476,58 @@ function normalizeResultEventForCommand(
   };
 }
 
+async function normalizeResultEventForRuntimeReleaseCorrelation(
+  transaction: ControlPlaneTransaction,
+  task: DeployTask,
+  outboxItem: CommandOutboxItem,
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+): Promise<Extract<AgentEventEnvelope, { type: 'result' }>> {
+  const errors = await collectRuntimeReleaseCorrelationErrors(transaction, task, outboxItem.command);
+
+  if (errors.length === 0) {
+    return agentEvent;
+  }
+
+  const correlationFailureReason = summarizeRuntimeReleaseCorrelationFailure(errors);
+  const existingFailureReason =
+    typeof agentEvent.payload.failureReason === 'string' && agentEvent.payload.failureReason.trim() !== ''
+      ? agentEvent.payload.failureReason
+      : undefined;
+  const failureReason = existingFailureReason
+    ? `${existingFailureReason}; ${correlationFailureReason}`
+    : correlationFailureReason;
+  const expected = createRuntimeReleaseCorrelationExpectation(task, outboxItem.command);
+
+  return {
+    ...agentEvent,
+    payload: {
+      ...agentEvent.payload,
+      status: 'failed',
+      failureReason,
+      retryable: false,
+      healthSummary: {
+        ...(agentEvent.payload.healthSummary ?? {}),
+        runtime: 'command_failed',
+        commandType: outboxItem.command.type,
+        commandId: outboxItem.commandId,
+        agentId: outboxItem.agentId,
+        ...(expected
+          ? {
+              expectedTaskId: expected.taskId,
+              expectedTargetId: expected.targetId,
+              expectedAgentId: expected.agentId,
+              expectedModuleKind: expected.moduleKind,
+              expectedConfigRevision: expected.configRevisionId,
+              expectedPreflightPlan: expected.preflightPlanId,
+              expectedRuntimeSnapshot: expected.snapshotBeforeId
+            }
+          : {}),
+        failureReason
+      }
+    }
+  };
+}
+
 function updateRuntimeDiagnosisForAgentResult(
   artifact: RuntimeConfigRevision['artifact'],
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
@@ -1330,14 +1563,23 @@ async function updateRuntimeReleaseFromResult(
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
 ) {
   if (command.type === 'apply') {
-    const configRevisionId = command.payload.configRevision;
-    const preflightPlanId = command.payload.preflightPlanId ?? `preflight-${task.id}`;
-    const snapshotBeforeId = command.payload.snapshotBeforeId ?? `snapshot-before-${task.id}`;
+    const expected = createRuntimeReleaseCorrelationExpectation(task, command);
+
+    if (!expected) {
+      return;
+    }
+
+    const configRevisionId = expected.configRevisionId;
+    const preflightPlanId = expected.preflightPlanId;
+    const snapshotBeforeId = expected.snapshotBeforeId;
     const configRevision = (await transaction.listConfigRevisions()).find((item) => item.id === configRevisionId);
     const preflightPlan = (await transaction.listPreflightPlans()).find((item) => item.id === preflightPlanId);
     const runtimeSnapshot = (await transaction.listRuntimeSnapshots()).find((item) => item.id === snapshotBeforeId);
+    const configRevisionCorrelationErrors = validateConfigRevisionCorrelation(configRevision, expected);
+    const preflightPlanCorrelationErrors = validatePreflightPlanCorrelation(preflightPlan, expected);
+    const runtimeSnapshotCorrelationErrors = validateRuntimeSnapshotCorrelation(runtimeSnapshot, expected);
 
-    if (configRevision) {
+    if (configRevision && hasNoRuntimeReleaseCorrelationErrors(configRevisionCorrelationErrors)) {
       await transaction.updateConfigRevision({
         ...configRevision,
         status: agentEvent.payload.status === 'succeeded' ? 'applied' : 'failed',
@@ -1349,7 +1591,7 @@ async function updateRuntimeReleaseFromResult(
       });
     }
 
-    if (preflightPlan) {
+    if (preflightPlan && hasNoRuntimeReleaseCorrelationErrors(preflightPlanCorrelationErrors)) {
       await transaction.updatePreflightPlan({
         ...preflightPlan,
         status: agentEvent.payload.status === 'succeeded' ? 'passed' : 'failed',
@@ -1359,7 +1601,11 @@ async function updateRuntimeReleaseFromResult(
       });
     }
 
-    if (runtimeSnapshot && agentEvent.payload.status === 'succeeded') {
+    if (
+      runtimeSnapshot &&
+      hasNoRuntimeReleaseCorrelationErrors(runtimeSnapshotCorrelationErrors) &&
+      agentEvent.payload.status === 'succeeded'
+    ) {
       await transaction.updateRuntimeSnapshot({
         ...runtimeSnapshot,
         status: 'verified',
@@ -4300,8 +4546,17 @@ export function createControlPlaneService({
           };
         }
 
-        const effectiveAgentEvent =
+        let effectiveAgentEvent =
           agentEvent.type === 'result' ? normalizeResultEventForCommand(outboxItem.command, agentEvent) : agentEvent;
+
+        if (effectiveAgentEvent.type === 'result') {
+          effectiveAgentEvent = await normalizeResultEventForRuntimeReleaseCorrelation(
+            transaction,
+            task,
+            outboxItem,
+            effectiveAgentEvent
+          );
+        }
 
         if (
           effectiveAgentEvent.type === 'log_chunk' &&
