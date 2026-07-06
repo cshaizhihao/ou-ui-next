@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CalendarPlus, Copy, CopyPlus, Download, Gauge, Pencil, Play, QrCode, RotateCcw, Square, Trash2 } from 'lucide-react';
+import { CalendarPlus, Copy, CopyPlus, Download, Gauge, Pencil, Play, QrCode, RotateCcw, Square, Trash2, UsersRound } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 type SimpleNodeTableActionsLabels = {
@@ -11,6 +11,7 @@ type SimpleNodeTableActionsLabels = {
   disableNode: string;
   editNode: string;
   enableNode: string;
+  manageClients?: string;
   renewNode: string;
   resetTraffic?: string;
   viewLinks: string;
@@ -25,6 +26,7 @@ type SimpleNodeTableActionsProps = {
   onClone: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  onManageClients?: () => void;
   onRenew: () => void;
   onResetTraffic?: () => void;
   onSetEnabled: (enabled: boolean) => void;
@@ -69,6 +71,7 @@ export function SimpleNodeTableActions({
   onCopySubscription,
   onDelete,
   onEdit,
+  onManageClients,
   onRenew,
   onResetTraffic,
   onSetEnabled,
@@ -88,6 +91,11 @@ export function SimpleNodeTableActions({
       <ActionButton label={labels.cloneNode} onClick={onClone}>
         <CopyPlus className="h-3.5 w-3.5" />
       </ActionButton>
+      {labels.manageClients && onManageClients ? (
+        <ActionButton label={labels.manageClients} onClick={onManageClients}>
+          <UsersRound className="h-3.5 w-3.5" />
+        </ActionButton>
+      ) : null}
       <ActionButton label={labels.addTraffic} onClick={onAddTraffic}>
         <Gauge className="h-3.5 w-3.5" />
       </ActionButton>

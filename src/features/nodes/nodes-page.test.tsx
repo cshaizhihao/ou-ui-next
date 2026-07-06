@@ -2303,6 +2303,98 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode).not.toHaveBeenCalled();
   });
 
+  it('shows inbound clients in a drawer and submits per-client typed actions', async () => {
+    const user = userEvent.setup();
+    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const inbound = createInbound({
+      clients: [
+        {
+          id: 'client-alice',
+          email: 'alice@example.com',
+          enabled: true,
+          trafficLimitBytes: 100 * GB,
+          usedTrafficBytes: 12 * GB,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          ipLimit: 2
+        },
+        {
+          id: 'client-bob',
+          email: 'bob@example.com',
+          enabled: true,
+          trafficLimitBytes: 80 * GB,
+          usedTrafficBytes: 8 * GB,
+          expiresAt: '2026-10-01T00:00:00.000Z',
+          ipLimit: 1
+        }
+      ]
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[inbound]}
+        language="en"
+        workspaceMode="customerNodes"
+        onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Manage Clients' }));
+
+    const dialog = screen.getByRole('dialog', { name: /Inbound Clients/ });
+    expect(within(dialog).getByText('alice@example.com')).toBeInTheDocument();
+    expect(within(dialog).getByText('bob@example.com')).toBeInTheDocument();
+
+    await user.click(within(dialog).getAllByRole('button', { name: 'Disable Client' })[1]);
+
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(1));
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, {
+      inboundId: 'inbound-premium-vless',
+      clientId: 'client-bob',
+      clientEmail: 'bob@example.com',
+      action: {
+        kind: 'set-enabled',
+        enabled: false
+      },
+      reason: 'customer-node-client:disable'
+    });
+
+    await user.type(within(dialog).getByLabelText('Client Email'), 'carol@example.com');
+    await user.clear(within(dialog).getByLabelText('Traffic Limit'));
+    await user.type(within(dialog).getByLabelText('Traffic Limit'), '50');
+    await user.clear(within(dialog).getByLabelText('Valid Days'));
+    await user.type(within(dialog).getByLabelText('Valid Days'), '45');
+    await user.clear(within(dialog).getByLabelText('IP Limit'));
+    await user.type(within(dialog).getByLabelText('IP Limit'), '1');
+    await user.type(within(dialog).getByLabelText('Subscription Rule'), 'premium:carol');
+    await user.click(within(dialog).getByRole('button', { name: 'Add Client' }));
+
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(2));
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(2, {
+      inboundId: 'inbound-premium-vless',
+      action: expect.objectContaining({
+        kind: 'add-client',
+        clientEmail: 'carol@example.com',
+        clientIdentity: expect.any(String),
+        clientCredential: expect.any(String),
+        trafficLimitGb: 50,
+        remainingDays: 45,
+        ipLimit: 1,
+        resetPolicy: 'monthly',
+        monthlyResetDay: 1,
+        subscriptionRule: 'premium:carol',
+        enabled: true
+      }),
+      reason: 'customer-node-client:add'
+    });
+  });
+
   it('submits selected customer-node quick actions through the explicit client action mutation path', async () => {
     const user = userEvent.setup();
     const onApplyCustomerNodeClientAction = vi.fn(async () => true);

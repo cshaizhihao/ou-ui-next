@@ -48,6 +48,7 @@ import {
   type RuntimeConfigRevision,
   type RuntimePreflightPlan,
   type RuntimeSnapshot,
+  type XrayClient,
   type XrayClientResetPolicy,
   type XrayInbound,
   type XrayInboundStatus,
@@ -335,6 +336,18 @@ type CustomerDraft = {
   subscriptionRule: string;
 };
 
+type CustomerClientDraft = {
+  clientIdentity: string;
+  clientEmail: string;
+  clientCredential: string;
+  trafficLimitGb: string;
+  remainingDays: string;
+  ipLimit: string;
+  resetPolicy: XrayClientResetPolicy;
+  monthlyResetDay: string;
+  subscriptionRule: string;
+};
+
 type RuntimeXrayInbound = XrayInbound & {
   protocol: XrayRuntimeProtocol;
 };
@@ -363,6 +376,7 @@ type DrawerState =
   | { type: 'editHost'; agentId: string }
   | { type: 'deleteHost'; agentId: string }
   | { type: 'customerNode'; nodeId?: string }
+  | { type: 'customerClients'; nodeId: string }
   | { type: 'customerLinks'; nodeId: string }
   | { type: 'customerRuntimeEvidence'; nodeId: string };
 
@@ -525,6 +539,26 @@ const copy = {
     addCustomerNode: '新增客户节点',
     editCustomerNode: '编辑客户节点',
     deleteCustomerNode: '删除客户节点',
+    manageCustomerClients: '管理客户端',
+    customerClientsDrawerTitle: '入站客户端',
+    customerClientsDrawerDescription: '同一 Xray 入站下的 runtime clients。',
+    customerClientsCount: (count: string) => `${count} 个客户端`,
+    addCustomerClient: '添加客户端',
+    customerClientEmail: '客户端邮箱',
+    customerClientIdentity: '客户端身份',
+    customerClientCredential: '客户端凭证',
+    customerClientQuota: '流量上限',
+    customerClientDays: '有效天数',
+    customerClientIpLimit: 'IP 限制',
+    customerClientResetPolicy: '重置周期',
+    customerClientSubscriptionRule: '订阅规则',
+    customerClientRuntime: '运行状态',
+    noCustomerClients: '暂无客户端',
+    copyCustomerClientLink: '复制客户端链接',
+    enableCustomerClient: '启用客户端',
+    disableCustomerClient: '停用客户端',
+    deleteCustomerClient: '删除客户端',
+    confirmDeleteCustomerClient: (email: string) => `确认删除客户端 ${email}？`,
     customerRuntimeReadinessTitle: '运行时就绪预检',
     customerRuntimeReadinessReady: '可以应用',
     customerRuntimeReadinessWaiting: '等待运行时',
@@ -903,6 +937,26 @@ const copy = {
     addCustomerNode: 'Add Customer Node',
     editCustomerNode: 'Edit Customer Node',
     deleteCustomerNode: 'Delete Customer Node',
+    manageCustomerClients: 'Manage Clients',
+    customerClientsDrawerTitle: 'Inbound Clients',
+    customerClientsDrawerDescription: 'Runtime clients under the same Xray inbound.',
+    customerClientsCount: (count: string) => `${count} client${count === '1' ? '' : 's'}`,
+    addCustomerClient: 'Add Client',
+    customerClientEmail: 'Client Email',
+    customerClientIdentity: 'Client Identity',
+    customerClientCredential: 'Client Credential',
+    customerClientQuota: 'Traffic Limit',
+    customerClientDays: 'Valid Days',
+    customerClientIpLimit: 'IP Limit',
+    customerClientResetPolicy: 'Reset Policy',
+    customerClientSubscriptionRule: 'Subscription Rule',
+    customerClientRuntime: 'Runtime State',
+    noCustomerClients: 'No clients yet',
+    copyCustomerClientLink: 'Copy Client Link',
+    enableCustomerClient: 'Enable Client',
+    disableCustomerClient: 'Disable Client',
+    deleteCustomerClient: 'Delete Client',
+    confirmDeleteCustomerClient: (email: string) => `Delete client ${email}?`,
     customerRuntimeReadinessTitle: 'Runtime Readiness',
     customerRuntimeReadinessReady: 'Ready to Apply',
     customerRuntimeReadinessWaiting: 'Waiting for Runtime',
@@ -1194,6 +1248,22 @@ function createCustomerDraft(agent?: Agent): CustomerDraft {
     monthlyResetDay: '1',
     currentUsedTrafficGb: '',
     remainingDays: '30',
+    subscriptionRule: ''
+  };
+}
+
+function createCustomerClientDraft(protocol: XrayRuntimeProtocol = 'vless'): CustomerClientDraft {
+  const identity = createClientIdentity(protocol);
+
+  return {
+    clientIdentity: identity,
+    clientEmail: '',
+    clientCredential: identity,
+    trafficLimitGb: '100',
+    remainingDays: '30',
+    ipLimit: '0',
+    resetPolicy: 'monthly',
+    monthlyResetDay: '1',
     subscriptionRule: ''
   };
 }
@@ -2755,6 +2825,32 @@ function createCustomerNodeLinkMaterial(node: CustomerNodeRecord, fallbackCustom
   };
 }
 
+function createCustomerClientShareLink(inbound: RuntimeXrayInbound, client: XrayClient) {
+  const sni = inbound.streamSettings.sni ?? inbound.reality.serverNames[0] ?? '';
+  const path = inbound.streamSettings.path ?? inbound.streamSettings.serviceName ?? inbound.path ?? '';
+
+  return buildXrayShareLink({
+    protocol: inbound.protocol,
+    clientIdentity: client.id,
+    clientCredential: client.password ?? client.auth ?? client.id,
+    hysteriaAuth: client.auth,
+    fallbackSeed: `${inbound.id}:${client.id}:${client.email}`,
+    serverAddress: inbound.serverAddress ?? '',
+    listenPort: inbound.listenPort,
+    security: inbound.streamSettings.security,
+    network: inbound.streamSettings.network,
+    sni,
+    path,
+    flow: client.flow ?? inbound.flow ?? '',
+    fingerprint: inbound.streamSettings.fingerprint ?? inbound.reality.fingerprint ?? 'chrome',
+    realityPublicKey: inbound.reality.publicKey ?? '',
+    realityShortId: inbound.reality.shortIds[0] ?? '',
+    vmessSecurity: client.security ?? 'auto',
+    shadowsocksMethod: client.method ?? '2022-blake3-aes-128-gcm',
+    label: `${inbound.label} ${client.email}`.trim()
+  });
+}
+
 function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): CustomerNodeConfigMetadata {
   return {
     nodeId: node.id,
@@ -3330,6 +3426,7 @@ export function NodesPage({
   const [customerQrDataUrl, setCustomerQrDataUrl] = useState('');
   const [customerLinkQrDataUrl, setCustomerLinkQrDataUrl] = useState('');
   const [customerAdvancedOpen, setCustomerAdvancedOpen] = useState(false);
+  const [customerClientDraft, setCustomerClientDraft] = useState<CustomerClientDraft>(() => createCustomerClientDraft());
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
@@ -3441,6 +3538,14 @@ export function NodesPage({
   const selectedHostHasTelemetry = selectedHost ? hasTelemetryReport(selectedHost) : false;
   const editingCustomerNode =
     drawer.type === 'customerNode' && drawer.nodeId
+      ? customerNodes.find((node) => node.id === drawer.nodeId)
+      : undefined;
+  const customerClientsInbound =
+    drawer.type === 'customerClients'
+      ? inbounds.find((inbound): inbound is RuntimeXrayInbound => inbound.id === drawer.nodeId && isXrayRuntimeProtocol(inbound.protocol))
+      : undefined;
+  const customerClientsNode =
+    drawer.type === 'customerClients'
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
   const linkDetailsCustomerNode =
@@ -3714,6 +3819,11 @@ export function NodesPage({
     setCustomerAdvancedOpen(false);
     setDrawer({ type: 'customerNode' });
   }, [xrayCapableAgents]);
+
+  function openCustomerClientsDrawer(node: CustomerNodeRecord) {
+    setCustomerClientDraft(createCustomerClientDraft(node.protocol));
+    setDrawer({ type: 'customerClients', nodeId: node.id });
+  }
 
   function cloneCustomerNode(node: CustomerNodeRecord) {
     setCustomerDraft(createClonedCustomerDraftFromNode(node));
@@ -4106,6 +4216,129 @@ export function NodesPage({
       action,
       reason
     };
+  }
+
+  function createInboundClientActionMutation(
+    inbound: RuntimeXrayInbound,
+    client: XrayClient,
+    action: XrayClientAction,
+    reason: string
+  ): CustomerNodeClientActionMutation {
+    return {
+      inboundId: inbound.id,
+      clientId: client.id || undefined,
+      clientEmail: client.email || undefined,
+      action,
+      reason
+    };
+  }
+
+  async function applyInboundClientAction(
+    inbound: RuntimeXrayInbound,
+    client: XrayClient,
+    action: XrayClientAction,
+    reason: string
+  ) {
+    if (!onApplyCustomerNodeClientAction) {
+      return;
+    }
+
+    await onApplyCustomerNodeClientAction(createInboundClientActionMutation(inbound, client, action, reason));
+  }
+
+  function copyCustomerClientLink(inbound: RuntimeXrayInbound, client: XrayClient) {
+    void copyText(createCustomerClientShareLink(inbound, client));
+  }
+
+  function setCustomerClientEnabled(inbound: RuntimeXrayInbound, client: XrayClient, enabled: boolean) {
+    void applyInboundClientAction(
+      inbound,
+      client,
+      { kind: 'set-enabled', enabled },
+      `customer-node-client:${enabled ? 'enable' : 'disable'}`
+    );
+  }
+
+  function addTrafficToCustomerClient(inbound: RuntimeXrayInbound, client: XrayClient) {
+    void applyInboundClientAction(
+      inbound,
+      client,
+      { kind: 'add-traffic', addedTrafficGb: 100 },
+      'customer-node-client:add-traffic'
+    );
+  }
+
+  function renewCustomerClient(inbound: RuntimeXrayInbound, client: XrayClient) {
+    void applyInboundClientAction(
+      inbound,
+      client,
+      { kind: 'renew', addedDays: 30 },
+      'customer-node-client:renew'
+    );
+  }
+
+  function resetCustomerClientUsedTraffic(inbound: RuntimeXrayInbound, client: XrayClient) {
+    void applyInboundClientAction(
+      inbound,
+      client,
+      { kind: 'reset-used-traffic' },
+      'customer-node-client:reset-used-traffic'
+    );
+  }
+
+  function deleteCustomerClient(inbound: RuntimeXrayInbound, client: XrayClient) {
+    const confirmed = typeof window === 'undefined' || window.confirm(t.confirmDeleteCustomerClient(client.email || client.id));
+
+    if (!confirmed) {
+      return;
+    }
+
+    void applyInboundClientAction(
+      inbound,
+      client,
+      { kind: 'delete-client' },
+      'customer-node-client:delete'
+    );
+  }
+
+  async function handleCustomerClientSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!customerClientsInbound || !onApplyCustomerNodeClientAction) {
+      return;
+    }
+
+    const clientEmail = customerClientDraft.clientEmail.trim();
+
+    if (!clientEmail) {
+      return;
+    }
+
+    const clientIdentity = customerClientDraft.clientIdentity.trim() || createClientIdentity(customerClientsInbound.protocol);
+    const clientCredential = customerClientDraft.clientCredential.trim() || clientIdentity;
+    const applied = await onApplyCustomerNodeClientAction({
+      inboundId: customerClientsInbound.id,
+      action: {
+        kind: 'add-client',
+        clientIdentity,
+        clientEmail,
+        clientCredential,
+        trafficLimitGb: Math.round(parseNonNegativeNumber(customerClientDraft.trafficLimitGb)),
+        remainingDays: Math.round(parseNonNegativeNumber(customerClientDraft.remainingDays)),
+        ipLimit: Math.round(parseNonNegativeNumber(customerClientDraft.ipLimit)),
+        resetPolicy: customerClientDraft.resetPolicy,
+        monthlyResetDay: clampResetDay(parseNonNegativeNumber(customerClientDraft.monthlyResetDay)),
+        subscriptionRule: customerClientDraft.subscriptionRule.trim() || undefined,
+        enabled: true
+      },
+      reason: 'customer-node-client:add'
+    });
+
+    if (applied === false) {
+      return;
+    }
+
+    setCustomerClientDraft(createCustomerClientDraft(customerClientsInbound.protocol));
   }
 
   async function applyCustomerNodeClientAction(
@@ -5019,6 +5252,7 @@ export function NodesPage({
                               disableNode: t.disableCustomerNode,
                               editNode: t.editCustomerNode,
                               enableNode: t.enableCustomerNode,
+                              manageClients: t.manageCustomerClients,
                               renewNode: t.renewCustomerNode,
                               resetTraffic: quotaPolicy && onResetCustomerNodeTraffic ? t.resetCustomerNodeTraffic : undefined,
                               viewLinks: t.viewCustomerNodeLinks
@@ -5029,6 +5263,7 @@ export function NodesPage({
                             onCopySubscription={() => copyCustomerNodeSubscriptionLink(node)}
                             onDelete={() => handleDeleteCustomerNode(node)}
                             onEdit={() => openCustomerDrawer(node)}
+                            onManageClients={() => openCustomerClientsDrawer(node)}
                             onRenew={() => renewCustomerNode(node)}
                             onResetTraffic={
                               quotaPolicy && onResetCustomerNodeTraffic
@@ -5289,6 +5524,156 @@ export function NodesPage({
             </div>
           </div>
         ) : null}
+      </ConfigDrawer>
+
+      <ConfigDrawer
+        returnFocusRef={returnFocusRef}
+        description={t.customerClientsDrawerDescription}
+        open={drawer.type === 'customerClients'}
+        title={customerClientsNode ? `${t.customerClientsDrawerTitle} · ${customerClientsNode.nodeName}` : t.customerClientsDrawerTitle}
+        onClose={() => setDrawer({ type: 'closed' })}
+      >
+        {customerClientsInbound ? (
+          <div className="space-y-4">
+            <DrawerSection title={t.addCustomerClient}>
+              <form className="space-y-3" onSubmit={handleCustomerClientSubmit}>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <InputField
+                    label={t.customerClientEmail}
+                    value={customerClientDraft.clientEmail}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, clientEmail: value }))}
+                  />
+                  <InputField
+                    label={t.customerClientIdentity}
+                    value={customerClientDraft.clientIdentity}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, clientIdentity: value }))}
+                  />
+                  <InputField
+                    label={t.customerClientCredential}
+                    value={customerClientDraft.clientCredential}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, clientCredential: value }))}
+                  />
+                  <InputField
+                    label={t.customerClientQuota}
+                    suffix={t.unitGb}
+                    type="number"
+                    value={customerClientDraft.trafficLimitGb}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, trafficLimitGb: value }))}
+                  />
+                  <InputField
+                    label={t.customerClientDays}
+                    suffix={t.unitDays}
+                    type="number"
+                    value={customerClientDraft.remainingDays}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, remainingDays: value }))}
+                  />
+                  <InputField
+                    label={t.customerClientIpLimit}
+                    type="number"
+                    value={customerClientDraft.ipLimit}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, ipLimit: value }))}
+                  />
+                  <SelectField
+                    label={t.customerClientResetPolicy}
+                    value={customerClientDraft.resetPolicy}
+                    onChange={(value) =>
+                      setCustomerClientDraft((current) => ({ ...current, resetPolicy: value as XrayClientResetPolicy }))
+                    }
+                    options={(Object.keys(t.resetPolicyLabels) as XrayClientResetPolicy[]).map((policy) => ({
+                      label: t.resetPolicyLabels[policy],
+                      value: policy
+                    }))}
+                  />
+                  <InputField
+                    label={t.monthlyResetDay}
+                    type="number"
+                    value={customerClientDraft.monthlyResetDay}
+                    onChange={(value) => setCustomerClientDraft((current) => ({ ...current, monthlyResetDay: value }))}
+                  />
+                </div>
+                <InputField
+                  label={t.customerClientSubscriptionRule}
+                  value={customerClientDraft.subscriptionRule}
+                  onChange={(value) => setCustomerClientDraft((current) => ({ ...current, subscriptionRule: value }))}
+                />
+                <div className="flex justify-end">
+                  <button
+                    className="inline-flex items-center gap-2 border border-[#1E3AFF]/35 bg-[#1E3AFF] px-4 py-2 text-xs font-black text-white transition hover:bg-[#1830D2] disabled:cursor-not-allowed disabled:border-[#07111F]/15 disabled:bg-[#07111F]/10 disabled:text-[#35405A]/55 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF] dark:hover:bg-[#5B6DFF] dark:disabled:border-white/10 dark:disabled:bg-white/5 dark:disabled:text-white/35"
+                    disabled={!onApplyCustomerNodeClientAction || customerClientDraft.clientEmail.trim() === ''}
+                    type="submit"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {t.addCustomerClient}
+                  </button>
+                </div>
+              </form>
+            </DrawerSection>
+
+            <DrawerSection title={t.customerClientsCount(String(customerClientsInbound.clients.length))}>
+              {customerClientsInbound.clients.length > 0 ? (
+                <div className="space-y-3">
+                  {customerClientsInbound.clients.map((client) => {
+                    const usedTrafficBytes = Math.max(client.manualUsedTrafficBytes ?? client.usedTrafficBytes ?? 0, 0);
+                    const trafficLimitBytes = Math.max(client.trafficLimitBytes ?? 0, 0);
+                    const disabledByPolicy =
+                      client.runtimeDisabledByPolicy === true || client.quotaExceeded === true || client.clientExpired === true;
+                    const runtimeState = !client.enabled
+                      ? t.customerNodeClientDisabled
+                      : disabledByPolicy
+                        ? client.guardrailReason || t.customerRuntimeEvidenceStateLabels.failed
+                        : t.customerNodeStatusLabels.enabled;
+
+                    return (
+                      <article
+                        key={`${client.id}:${client.email}`}
+                        className="border border-[#07111F]/14 bg-[#FFFDF5]/78 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="break-all text-sm font-black text-[#07111F] dark:text-white">{client.email || client.id}</p>
+                            <p className="mt-1 break-all font-mono text-[11px] font-semibold text-[#35405A] dark:text-white/50">
+                              {client.id}
+                            </p>
+                          </div>
+                          <span className="border border-[#07111F]/16 bg-[#EAF3D1]/72 px-2 py-1 text-[10px] font-black uppercase text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.045] dark:text-white/60">
+                            {runtimeState}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                          <CompactInfoField label={t.customerClientQuota} value={`${formatBytes(usedTrafficBytes)} / ${formatBytes(trafficLimitBytes)}`} />
+                          <CompactInfoField label={t.expiry} value={client.expiresAt ? formatDateTime(client.expiresAt, language) : '-'} />
+                          <CompactInfoField label={t.customerClientIpLimit} value={String(client.ipLimit ?? 0)} />
+                        </div>
+                        <div className="mt-3 flex flex-wrap justify-end gap-2">
+                          <GhostButton label={t.copyCustomerClientLink} onClick={() => copyCustomerClientLink(customerClientsInbound, client)} />
+                          <GhostButton label={t.addCustomerNodeTraffic} onClick={() => addTrafficToCustomerClient(customerClientsInbound, client)} />
+                          <GhostButton label={t.renewCustomerNode} onClick={() => renewCustomerClient(customerClientsInbound, client)} />
+                          <GhostButton label={t.bulkResetCustomerNodeUsedTraffic} onClick={() => resetCustomerClientUsedTraffic(customerClientsInbound, client)} />
+                          <GhostButton
+                            label={client.enabled ? t.disableCustomerClient : t.enableCustomerClient}
+                            onClick={() => setCustomerClientEnabled(customerClientsInbound, client, !client.enabled)}
+                          />
+                          <button
+                            className="inline-flex items-center gap-2 border border-[#DC2626]/35 bg-[#DC2626]/10 px-4 py-2 text-xs font-black text-[#B91C1C] transition hover:border-[#DC2626]/60 hover:bg-[#DC2626]/15 dark:border-[#F87171]/30 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]"
+                            onClick={() => deleteCustomerClient(customerClientsInbound, client)}
+                            type="button"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t.deleteCustomerClient}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyState label={t.noCustomerClients} />
+              )}
+            </DrawerSection>
+          </div>
+        ) : (
+          <EmptyState label={t.noCustomerNode} />
+        )}
       </ConfigDrawer>
 
       <ConfigDrawer
