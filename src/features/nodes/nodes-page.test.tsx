@@ -2617,6 +2617,78 @@ describe('NodesPage', () => {
     expect(await screen.findByAltText('Subscription QR Code')).toBeInTheDocument();
   });
 
+  it('shows customer-node runtime readiness and expected Agent evidence before saving', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
+
+    expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'ready');
+    expect(within(readiness).getByText('Ready to Apply')).toBeInTheDocument();
+    expect(within(readiness).getByText('Agent Runtime')).toBeInTheDocument();
+    expect(within(readiness).getByText('Protocol Boundary')).toBeInTheDocument();
+    expect(within(readiness).getByText('Listener Binding')).toBeInTheDocument();
+    expect(within(readiness).getByText('Runtime Evidence')).toBeInTheDocument();
+    expect(within(readiness).getByText(/agent-result-verified/)).toBeInTheDocument();
+    expect(within(readiness).getByText('command + preflight + snapshot')).toBeInTheDocument();
+  });
+
+  it('blocks customer-node save when the selected Agent listener is owned by another Xray protocol', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            label: 'Existing Trojan TLS',
+            listenPort: 443,
+            protocol: 'trojan'
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    await user.type(within(dialog).getAllByLabelText('Inbound Port')[0], '443');
+
+    const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
+
+    expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'blocked');
+    expect(within(readiness).getByText('Blocked')).toBeInTheDocument();
+    expect(within(readiness).getByText(/443 is already owned by Existing Trojan TLS's TROJAN inbound/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(onSaveCustomerNode).not.toHaveBeenCalled();
+  });
+
   it('leaves the new customer-node listen port blank and auto-allocates a high port on save', async () => {
     const user = userEvent.setup();
     const onSaveCustomerNode = vi.fn();
@@ -2688,6 +2760,10 @@ describe('NodesPage', () => {
     await user.type(screen.getByLabelText('Customer Name'), 'Beta');
 
     const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
+    expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'ready');
+    expect(within(readiness).getByText(/24567 will reuse a same-protocol inbound as client 2/)).toBeInTheDocument();
+
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {

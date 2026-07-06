@@ -305,6 +305,24 @@ type RuntimeXrayInbound = XrayInbound & {
   protocol: XrayRuntimeProtocol;
 };
 
+type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
+type CustomerRuntimeReadinessTone = 'healthy' | 'command' | 'waiting' | 'blocked';
+type CustomerRuntimeReadinessItem = {
+  id: 'agent' | 'protocol' | 'listener' | 'evidence';
+  detail: string;
+  icon: typeof Activity;
+  label: string;
+  state: CustomerRuntimeReadinessState;
+  tone: CustomerRuntimeReadinessTone;
+  value: string;
+};
+type CustomerRuntimeReadiness = {
+  items: CustomerRuntimeReadinessItem[];
+  label: string;
+  state: CustomerRuntimeReadinessState;
+  summary: string;
+};
+
 type DrawerState =
   | { type: 'closed' }
   | { type: 'install' }
@@ -472,6 +490,32 @@ const copy = {
     addCustomerNode: '新增客户节点',
     editCustomerNode: '编辑客户节点',
     deleteCustomerNode: '删除客户节点',
+    customerRuntimeReadinessTitle: '运行时就绪预检',
+    customerRuntimeReadinessReady: '可以应用',
+    customerRuntimeReadinessWaiting: '等待运行时',
+    customerRuntimeReadinessBlocked: '已阻断',
+    customerRuntimeReadinessReadySummary: '保存后会进入 Agent apply，并期望返回命令完成、预检、快照和 Agent 验证证据。',
+    customerRuntimeReadinessWaitingSummary: '任务可以提交，但需要 Agent 恢复在线或补齐遥测后才能看到完整运行时证据。',
+    customerRuntimeReadinessBlockedSummary: '当前参数会被运行时拒绝，请先修正阻断项再保存。',
+    customerRuntimeAgentGate: 'Agent 运行时',
+    customerRuntimeProtocolGate: '协议边界',
+    customerRuntimeListenerGate: '监听端口',
+    customerRuntimeEvidenceGate: '应用证据',
+    customerRuntimeAgentReady: (name: string) => `${name} 在线且声明 xray 能力。`,
+    customerRuntimeAgentWaiting: (name: string, status: string) => `${name} 当前为 ${status}，保存后需要等待 Agent 恢复后才会产生完整证据。`,
+    customerRuntimeAgentMissing: '请选择具备 xray 能力的 Agent。',
+    customerRuntimeAgentUnsupported: (name: string) => `${name} 未声明 xray 能力，不能应用 Xray 入站任务。`,
+    customerRuntimeProtocolReady: (protocol: string, network: string, security: string) => `${protocol} / ${network} / ${security} 在当前 Xray runtime 边界内。`,
+    customerRuntimeProtocolBlocked: (protocol: string) => `${protocol} 尚未进入可应用的 Xray runtime 协议边界。`,
+    customerRuntimeListenerExclusive: (port: string) => `${port} 当前没有冲突，将作为独立监听应用。`,
+    customerRuntimeListenerShared: (port: string, count: string) => `${port} 会复用同协议入站并追加为第 ${count} 个客户端。`,
+    customerRuntimeListenerConflict: (port: string, protocol: string, node: string) => `${port} 已被 ${node} 的 ${protocol} 入站占用。`,
+    customerRuntimeEvidenceReady: '预期证据：command completed、agent-result-verified、config revision applied、preflight passed、snapshot verified。',
+    customerRuntimeEvidenceWaiting: 'Agent 未完全就绪时，任务 evidence 会保持 waiting，直到 command/result/preflight/snapshot 回传。',
+    customerRuntimeEvidenceBlocked: '阻断项存在时不会提交 runtime apply，避免 UI 显示假成功。',
+    customerRuntimeEvidenceValueReady: 'command + preflight + snapshot',
+    customerRuntimeEvidenceValueWaiting: '等待 Agent 证据',
+    customerRuntimeEvidenceValueBlocked: '不会提交',
     operatorCreateHint: '',
     protocolTemplate: '协议模板',
     protocolTemplateOptions: {
@@ -776,6 +820,32 @@ const copy = {
     addCustomerNode: 'Add Customer Node',
     editCustomerNode: 'Edit Customer Node',
     deleteCustomerNode: 'Delete Customer Node',
+    customerRuntimeReadinessTitle: 'Runtime Readiness',
+    customerRuntimeReadinessReady: 'Ready to Apply',
+    customerRuntimeReadinessWaiting: 'Waiting for Runtime',
+    customerRuntimeReadinessBlocked: 'Blocked',
+    customerRuntimeReadinessReadySummary: 'Saving will enqueue Agent apply and should return command completion, preflight, snapshot, and Agent verification evidence.',
+    customerRuntimeReadinessWaitingSummary: 'The task can be submitted, but complete runtime evidence waits for the Agent to recover online or report telemetry.',
+    customerRuntimeReadinessBlockedSummary: 'These settings would be rejected by the runtime. Fix the blocked gate before saving.',
+    customerRuntimeAgentGate: 'Agent Runtime',
+    customerRuntimeProtocolGate: 'Protocol Boundary',
+    customerRuntimeListenerGate: 'Listener Binding',
+    customerRuntimeEvidenceGate: 'Runtime Evidence',
+    customerRuntimeAgentReady: (name: string) => `${name} is online and advertises xray.`,
+    customerRuntimeAgentWaiting: (name: string, status: string) => `${name} is ${status}; full evidence waits until the Agent recovers.`,
+    customerRuntimeAgentMissing: 'Select an Agent that advertises xray before saving.',
+    customerRuntimeAgentUnsupported: (name: string) => `${name} does not advertise xray and cannot apply Xray inbound tasks.`,
+    customerRuntimeProtocolReady: (protocol: string, network: string, security: string) => `${protocol} / ${network} / ${security} is inside the current Xray runtime boundary.`,
+    customerRuntimeProtocolBlocked: (protocol: string) => `${protocol} is not inside the applyable Xray runtime protocol boundary.`,
+    customerRuntimeListenerExclusive: (port: string) => `${port} has no conflict and will be applied as a dedicated listener.`,
+    customerRuntimeListenerShared: (port: string, count: string) => `${port} will reuse a same-protocol inbound as client ${count}.`,
+    customerRuntimeListenerConflict: (port: string, protocol: string, node: string) => `${port} is already owned by ${node}'s ${protocol} inbound.`,
+    customerRuntimeEvidenceReady: 'Expected evidence: command completed, agent-result-verified, config revision applied, preflight passed, snapshot verified.',
+    customerRuntimeEvidenceWaiting: 'When the Agent is not fully ready, task evidence remains waiting until command/result/preflight/snapshot data returns.',
+    customerRuntimeEvidenceBlocked: 'Runtime apply is not submitted while a gate is blocked, preventing a fake-success UI state.',
+    customerRuntimeEvidenceValueReady: 'command + preflight + snapshot',
+    customerRuntimeEvidenceValueWaiting: 'Waiting for Agent evidence',
+    customerRuntimeEvidenceValueBlocked: 'Not submitted',
     operatorCreateHint: '',
     protocolTemplate: 'Protocol Template',
     protocolTemplateOptions: {
@@ -1068,6 +1138,186 @@ function hostMatchesRuntimeHealthFilter(agent: Agent, filter: HostRuntimeHealthF
 
 function agentSupportsXrayRuntime(agent: Agent) {
   return agent.capabilities.includes('xray');
+}
+
+function createCustomerRuntimeReadiness({
+  draft,
+  editingNodeId,
+  listenPort,
+  nodes,
+  selectedAgent,
+  selectedAgentLabel,
+  t
+}: {
+  draft: CustomerDraft;
+  editingNodeId?: string;
+  listenPort: number;
+  nodes: CustomerNodeRecord[];
+  selectedAgent?: Agent;
+  selectedAgentLabel?: string;
+  t: NodesCopy;
+}): CustomerRuntimeReadiness {
+  const agentName = selectedAgentLabel || selectedAgent?.name || draft.agentId || '-';
+  const selectedAgentSupportsXray = selectedAgent ? agentSupportsXrayRuntime(selectedAgent) : false;
+  const agentItem: CustomerRuntimeReadinessItem = !selectedAgent
+    ? {
+        id: 'agent',
+        detail: t.customerRuntimeAgentMissing,
+        icon: ServerCog,
+        label: t.customerRuntimeAgentGate,
+        state: 'blocked',
+        tone: 'blocked',
+        value: t.customerRuntimeReadinessBlocked
+      }
+    : !selectedAgentSupportsXray
+      ? {
+          id: 'agent',
+          detail: t.customerRuntimeAgentUnsupported(agentName),
+          icon: ServerCog,
+          label: t.customerRuntimeAgentGate,
+          state: 'blocked',
+          tone: 'blocked',
+          value: selectedAgent.capabilities.join(', ') || '-'
+        }
+      : selectedAgent.status !== 'online'
+        ? {
+            id: 'agent',
+            detail: t.customerRuntimeAgentWaiting(agentName, t.statusLabels[selectedAgent.status]),
+            icon: ServerCog,
+            label: t.customerRuntimeAgentGate,
+            state: 'waiting',
+            tone: 'waiting',
+            value: t.statusLabels[selectedAgent.status]
+          }
+        : {
+            id: 'agent',
+            detail: t.customerRuntimeAgentReady(agentName),
+            icon: ServerCog,
+            label: t.customerRuntimeAgentGate,
+            state: 'ready',
+            tone: 'healthy',
+            value: t.statusLabels[selectedAgent.status]
+          };
+
+  const protocolLabel = draft.protocol.toUpperCase();
+  const protocolItem: CustomerRuntimeReadinessItem = isXrayRuntimeProtocol(draft.protocol)
+    ? {
+        id: 'protocol',
+        detail: t.customerRuntimeProtocolReady(protocolLabel, draft.streamNetwork.toUpperCase(), draft.security),
+        icon: Network,
+        label: t.customerRuntimeProtocolGate,
+        state: 'ready',
+        tone: 'command',
+        value: `${protocolLabel} / ${draft.streamNetwork} / ${draft.security}`
+      }
+    : {
+        id: 'protocol',
+        detail: t.customerRuntimeProtocolBlocked(protocolLabel),
+        icon: Network,
+        label: t.customerRuntimeProtocolGate,
+        state: 'blocked',
+        tone: 'blocked',
+        value: protocolLabel
+      };
+
+  const peerListeners = nodes.filter(
+    (node) =>
+      node.agentId === draft.agentId
+      && node.id !== editingNodeId
+      && node.listenPort === listenPort
+  );
+  const conflictingListener = peerListeners.find((node) => node.protocol !== draft.protocol);
+  const sameProtocolPeerCount = peerListeners.filter((node) => node.protocol === draft.protocol).length;
+  const listenerValue = `${listenPort} / ${draft.protocol.toUpperCase()}`;
+  const listenerItem: CustomerRuntimeReadinessItem = conflictingListener
+    ? {
+        id: 'listener',
+        detail: t.customerRuntimeListenerConflict(
+          String(listenPort),
+          conflictingListener.protocol.toUpperCase(),
+          conflictingListener.nodeName
+        ),
+        icon: AlertTriangle,
+        label: t.customerRuntimeListenerGate,
+        state: 'blocked',
+        tone: 'blocked',
+        value: listenerValue
+      }
+    : sameProtocolPeerCount > 0
+      ? {
+          id: 'listener',
+          detail: t.customerRuntimeListenerShared(String(listenPort), String(sameProtocolPeerCount + 1)),
+          icon: CheckCircle2,
+          label: t.customerRuntimeListenerGate,
+          state: 'ready',
+          tone: 'healthy',
+          value: listenerValue
+        }
+      : {
+          id: 'listener',
+          detail: t.customerRuntimeListenerExclusive(String(listenPort)),
+          icon: CheckCircle2,
+          label: t.customerRuntimeListenerGate,
+          state: 'ready',
+          tone: 'healthy',
+          value: listenerValue
+        };
+
+  const baseItems = [agentItem, protocolItem, listenerItem];
+  const baseBlocked = baseItems.some((item) => item.state === 'blocked');
+  const baseWaiting = baseItems.some((item) => item.state === 'waiting');
+  const evidenceItem: CustomerRuntimeReadinessItem = baseBlocked
+    ? {
+        id: 'evidence',
+        detail: t.customerRuntimeEvidenceBlocked,
+        icon: Activity,
+        label: t.customerRuntimeEvidenceGate,
+        state: 'blocked',
+        tone: 'blocked',
+        value: t.customerRuntimeEvidenceValueBlocked
+      }
+    : baseWaiting
+      ? {
+          id: 'evidence',
+          detail: t.customerRuntimeEvidenceWaiting,
+          icon: Activity,
+          label: t.customerRuntimeEvidenceGate,
+          state: 'waiting',
+          tone: 'waiting',
+          value: t.customerRuntimeEvidenceValueWaiting
+        }
+      : {
+          id: 'evidence',
+          detail: t.customerRuntimeEvidenceReady,
+          icon: Activity,
+          label: t.customerRuntimeEvidenceGate,
+          state: 'ready',
+          tone: 'command',
+          value: t.customerRuntimeEvidenceValueReady
+        };
+  const items = [...baseItems, evidenceItem];
+  const state: CustomerRuntimeReadinessState = items.some((item) => item.state === 'blocked')
+    ? 'blocked'
+    : items.some((item) => item.state === 'waiting')
+      ? 'waiting'
+      : 'ready';
+
+  return {
+    items,
+    label:
+      state === 'blocked'
+        ? t.customerRuntimeReadinessBlocked
+        : state === 'waiting'
+          ? t.customerRuntimeReadinessWaiting
+          : t.customerRuntimeReadinessReady,
+    state,
+    summary:
+      state === 'blocked'
+        ? t.customerRuntimeReadinessBlockedSummary
+        : state === 'waiting'
+          ? t.customerRuntimeReadinessWaitingSummary
+          : t.customerRuntimeReadinessReadySummary
+  };
 }
 
 function filterManagedHosts(
@@ -2782,6 +3032,33 @@ export function NodesPage({
       }),
     [effectiveCustomerDraft, editingCustomerNode?.id, reusableCustomerNodePort?.listenPort, visibleCustomerNodes]
   );
+  const selectedCustomerAgent = useMemo(
+    () => visibleAgents.find((agent) => agent.id === effectiveCustomerDraft.agentId),
+    [effectiveCustomerDraft.agentId, visibleAgents]
+  );
+  const customerRuntimeReadiness = useMemo(
+    () =>
+      createCustomerRuntimeReadiness({
+        draft: effectiveCustomerDraft,
+        editingNodeId: editingCustomerNode?.id,
+        listenPort: customerListenPort,
+        nodes: visibleCustomerNodes,
+        selectedAgent: selectedCustomerAgent,
+        selectedAgentLabel: selectedCustomerAgent
+          ? resolveHostEdit(selectedCustomerAgent, hostEdits[selectedCustomerAgent.id]).name
+          : undefined,
+        t
+      }),
+    [
+      customerListenPort,
+      editingCustomerNode?.id,
+      effectiveCustomerDraft,
+      hostEdits,
+      selectedCustomerAgent,
+      t,
+      visibleCustomerNodes
+    ]
+  );
   const customerArtifacts = useMemo(
     () =>
       buildXrayArtifacts(effectiveCustomerDraft, {
@@ -3047,6 +3324,10 @@ export function NodesPage({
     event.preventDefault();
 
     if (!customerDraft.agentId) {
+      return;
+    }
+
+    if (customerRuntimeReadiness.state === 'blocked') {
       return;
     }
 
@@ -4533,6 +4814,7 @@ export function NodesPage({
               }
             />
           </DrawerSection>
+          <CustomerRuntimeReadinessPanel readiness={customerRuntimeReadiness} t={t} />
           <DrawerSection title={t.generatedResult}>
             <InfoField
               label={t.generatedProtocolMaterial}
@@ -4820,7 +5102,7 @@ export function NodesPage({
           </details>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || xrayCapableAgents.length === 0} type="submit">
+            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || xrayCapableAgents.length === 0 || customerRuntimeReadiness.state === 'blocked'} type="submit">
               {t.save}
             </GlowButton>
           </div>
@@ -5076,6 +5358,84 @@ function LinkMaterialCard({
       <code className="block break-all font-mono text-[10px] leading-5 text-[#35405A] dark:text-white/70">
         {value}
       </code>
+    </div>
+  );
+}
+
+function CustomerRuntimeReadinessPanel({
+  readiness,
+  t
+}: {
+  readiness: CustomerRuntimeReadiness;
+  t: NodesCopy;
+}) {
+  return (
+    <section
+      aria-label={t.customerRuntimeReadinessTitle}
+      aria-live="polite"
+      className={cn(
+        'border border-[#07111F]/80 bg-[#FFFDF5] p-3 text-[#07111F] transition duration-200 motion-safe:animate-[ou-panel-in_180ms_ease-out] dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:text-white',
+        readiness.state === 'blocked'
+          ? 'shadow-[inset_0_3px_0_#DC2626]'
+          : readiness.state === 'waiting'
+            ? 'shadow-[inset_0_3px_0_#D9FF00]'
+            : 'shadow-[inset_0_3px_0_#00A878]'
+      )}
+      data-customer-runtime-readiness-state={readiness.state}
+      role="group"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black text-[#07111F] dark:text-white">{t.customerRuntimeReadinessTitle}</p>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-[#35405A] dark:text-white/52">{readiness.summary}</p>
+        </div>
+        <span
+          className={cn(
+            'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black',
+            readiness.state === 'blocked'
+              ? 'border-[#DC2626]/45 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#FF8A8A]/35 dark:bg-[#DC2626]/12 dark:text-[#FFB4B4]'
+              : readiness.state === 'waiting'
+                ? 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]'
+                : 'border-[#00A878] bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]'
+          )}
+        >
+          {readiness.label}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-4">
+        {readiness.items.map((item) => (
+          <CustomerRuntimeReadinessGate item={item} key={item.id} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CustomerRuntimeReadinessGate({ item }: { item: CustomerRuntimeReadinessItem }) {
+  const Icon = item.icon;
+  const toneClass =
+    item.tone === 'blocked'
+      ? 'border-[#DC2626]/45 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#FF8A8A]/35 dark:bg-[#DC2626]/12 dark:text-[#FFB4B4]'
+      : item.tone === 'healthy'
+        ? 'border-[#00A878]/45 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/30 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]'
+        : item.tone === 'command'
+          ? 'border-[#1E3AFF]/55 bg-[#DCE1FF]/70 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF]'
+          : 'border-[#D9FF00] bg-[#D9FF00]/[0.22] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]';
+
+  return (
+    <div
+      className={cn('min-w-0 border p-3 transition duration-200 motion-safe:hover:-translate-y-0.5', toneClass)}
+      data-customer-runtime-readiness-item={item.id}
+      data-customer-runtime-readiness-item-state={item.state}
+    >
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+        <p className="min-w-0 text-[10px] font-black uppercase leading-4 [overflow-wrap:anywhere]">{item.label}</p>
+      </div>
+      <p className="mt-2 text-sm font-black leading-5 [overflow-wrap:anywhere]" title={item.value}>
+        {item.value}
+      </p>
+      <p className="mt-1 text-[11px] font-semibold leading-5 opacity-75 [overflow-wrap:anywhere]">{item.detail}</p>
     </div>
   );
 }
