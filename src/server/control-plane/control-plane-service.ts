@@ -1921,6 +1921,16 @@ export function createControlPlaneService({
   const agentLogChunkHotKeys = new Set<string>();
   const pollableCommandAgents = new Map<string, number>();
   const pollableCommandById = new Map<string, string>();
+  const activeCommandByKey = new Map<
+    string,
+    {
+      agentId: string;
+      commandId: string;
+      taskId: string;
+      commandTaskId: string;
+      deadlineAt: string;
+    }
+  >();
   const readNow = () => readClock();
   const nextObservedAt = () => {
     sequence += 1;
@@ -1936,6 +1946,24 @@ export function createControlPlaneService({
   const incrementPollableCommandAgent = (agentId: string) => {
     pollableCommandAgents.set(agentId, (pollableCommandAgents.get(agentId) ?? 0) + 1);
   };
+  const createActiveCommandCacheKey = (commandId: string, agentId: string) => `${agentId}\0${commandId}`;
+  const isActiveCommandOutboxItem = (item: CommandOutboxItem) => !isTerminalCommandOutboxStatus(item.status);
+  const trackActiveCommandOutboxItem = (item: CommandOutboxItem) => {
+    const key = createActiveCommandCacheKey(item.commandId, item.agentId);
+
+    if (!isActiveCommandOutboxItem(item)) {
+      activeCommandByKey.delete(key);
+      return;
+    }
+
+    activeCommandByKey.set(key, {
+      agentId: item.agentId,
+      commandId: item.commandId,
+      taskId: item.taskId,
+      commandTaskId: item.command.taskId,
+      deadlineAt: item.deadlineAt
+    });
+  };
   const decrementPollableCommandAgent = (agentId: string) => {
     const nextCount = (pollableCommandAgents.get(agentId) ?? 0) - 1;
 
@@ -1949,8 +1977,11 @@ export function createControlPlaneService({
   const refreshPollableCommandCache = (outbox: CommandOutboxItem[]) => {
     pollableCommandAgents.clear();
     pollableCommandById.clear();
+    activeCommandByKey.clear();
 
     for (const item of outbox) {
+      trackActiveCommandOutboxItem(item);
+
       if (!isPollableCommandOutboxItem(item)) {
         continue;
       }
@@ -1960,6 +1991,8 @@ export function createControlPlaneService({
     }
   };
   const trackCommandOutboxItem = (item: CommandOutboxItem) => {
+    trackActiveCommandOutboxItem(item);
+
     const previousAgentId = pollableCommandById.get(item.id);
     const nextAgentId = isPollableCommandOutboxItem(item) ? item.agentId : undefined;
 
@@ -2849,6 +2882,40 @@ export function createControlPlaneService({
     const sessionKey = `${agentEvent.agentId}\0${agentEvent.sessionId}`;
     const hotLastSeq = agentSessionHotLastSeq.get(sessionKey) ?? 0;
     agentSessionHotLastSeq.set(sessionKey, Math.max(hotLastSeq, agentEvent.seq));
+    rememberAgentLogChunkHotKey(hotKey);
+    return true;
+  }
+
+  function acceptCachedAgentLogChunk(agentEvent: AgentEventEnvelope) {
+    if (agentEvent.type !== 'log_chunk' || shouldPersistAgentLogChunk(agentEvent)) {
+      return false;
+    }
+
+    const activeCommand = activeCommandByKey.get(
+      createActiveCommandCacheKey(agentEvent.commandId, agentEvent.agentId)
+    );
+
+    if (
+      !activeCommand ||
+      activeCommand.taskId !== agentEvent.taskId ||
+      activeCommand.commandTaskId !== agentEvent.taskId ||
+      Date.parse(agentEvent.observedAt) >= Date.parse(activeCommand.deadlineAt)
+    ) {
+      return false;
+    }
+
+    const hotKey = createAgentLogChunkHotKey(agentEvent);
+    const sessionKey = `${agentEvent.agentId}\0${agentEvent.sessionId}`;
+    const hotLastSeq = agentSessionHotLastSeq.get(sessionKey);
+
+    if (hotLastSeq === undefined) {
+      return false;
+    }
+
+    if (agentEvent.seq > hotLastSeq) {
+      agentSessionHotLastSeq.set(sessionKey, agentEvent.seq);
+    }
+
     rememberAgentLogChunkHotKey(hotKey);
     return true;
   }
@@ -4153,6 +4220,10 @@ export function createControlPlaneService({
     async receiveAgentEvent(event: AgentEventEnvelope) {
       await ensureSequenceInitialized();
       const agentEvent = parseAgentEventEnvelope(event);
+
+      if (acceptCachedAgentLogChunk(agentEvent)) {
+        return undefined;
+      }
 
       if (acceptCachedRoutineAgentEvent(agentEvent)) {
         return undefined;

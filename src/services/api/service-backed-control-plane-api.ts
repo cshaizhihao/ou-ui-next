@@ -7834,7 +7834,18 @@ export function createServiceBackedControlPlaneApi({
         await hydrateReadModelsFromPersistedTasks();
       }
 
-      const useTelemetryFastPath = event.type === 'telemetry_sample' && readModelsHydrated;
+      if (event.type !== 'telemetry_sample') {
+        const result = await service.receiveAgentEvent(event);
+
+        if (result) {
+          upsertReadModelTask(result);
+          forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), result);
+        }
+
+        return result;
+      }
+
+      const useTelemetryFastPath = readModelsHydrated;
       const beforeForwardRules = useTelemetryFastPath
         ? await listLiveForwardRulesForQuotaEnforcementFromReadModel()
         : await listLiveForwardRulesForQuotaEnforcement();

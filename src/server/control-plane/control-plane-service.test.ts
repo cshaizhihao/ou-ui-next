@@ -3105,10 +3105,21 @@ describe('control-plane service', () => {
   });
 
   it('samples Agent log chunk persistence without breaking later command evidence', async () => {
-    const repository = createInMemoryControlPlaneRepository({
+    const backingRepository = createInMemoryControlPlaneRepository({
       forwardRules: seedForwardRules,
       permissionGrants: seedPermissionGrants
     });
+    let failOnTransaction = false;
+    const repository: typeof backingRepository = {
+      ...backingRepository,
+      async transaction(run) {
+        if (failOnTransaction) {
+          throw new Error('unsampled Agent log chunk should not open a repository transaction');
+        }
+
+        return backingRepository.transaction(run);
+      }
+    };
     const service = createControlPlaneService({
       repository,
       now: createControlPlaneTestClock(),
@@ -3145,25 +3156,59 @@ describe('control-plane service', () => {
       payload: {}
     });
 
-    for (const chunkSeq of [1, 2, 3]) {
-      await service.receiveAgentEvent({
+    await service.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-service-agent-log-chunk-sampled-1',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-log-chunk-sampled',
+      observedAt: '2026-06-02T00:00:02.000Z',
+      payload: {
+        chunkSeq: 1,
+        stream: 'stdout',
+        content: 'sampled command output 1'
+      }
+    });
+
+    failOnTransaction = true;
+    await expect(
+      service.receiveAgentEvent({
         type: 'log_chunk',
-        eventId: `evt-service-agent-log-chunk-sampled-${chunkSeq}`,
+        eventId: 'evt-service-agent-log-chunk-sampled-2',
         commandId: outboxItem.commandId,
         taskId: task.id,
         agentId: 'agent-hkg-01',
-        seq: outboxItem.seq + 1 + chunkSeq,
+        seq: outboxItem.seq + 3,
         sessionId: 'sess-agent-log-chunk-sampled',
-        observedAt: `2026-06-02T00:00:0${chunkSeq + 1}.000Z`,
+        observedAt: '2026-06-02T00:00:03.000Z',
         payload: {
-          chunkSeq,
+          chunkSeq: 2,
           stream: 'stdout',
-          content: `sampled command output ${chunkSeq}`
+          content: 'sampled command output 2'
         }
-      });
-    }
+      })
+    ).resolves.toBeUndefined();
+    failOnTransaction = false;
 
-    const persistedLogChunks = (await repository.listAgentEvents()).filter((event) => event.type === 'log_chunk');
+    await service.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-service-agent-log-chunk-sampled-3',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 4,
+      sessionId: 'sess-agent-log-chunk-sampled',
+      observedAt: '2026-06-02T00:00:04.000Z',
+      payload: {
+        chunkSeq: 3,
+        stream: 'stdout',
+        content: 'sampled command output 3'
+      }
+    });
+
+    const persistedLogChunks = (await backingRepository.listAgentEvents()).filter((event) => event.type === 'log_chunk');
 
     expect(persistedLogChunks).toEqual([
       expect.objectContaining({
