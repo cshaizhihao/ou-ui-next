@@ -42,6 +42,90 @@ export type CustomerNodeRuntimeEvidenceBundle = {
   steps: CustomerNodeRuntimeEvidenceStep[];
 };
 
+export type CustomerNodeRuntimeEvidencePackageNode = CustomerNodeRuntimeEvidenceNode & {
+  agentId?: string;
+  customerName?: string;
+  nodeName?: string;
+  listenPort?: number;
+  protocol?: string;
+};
+
+export type CustomerNodeRuntimeEvidencePackage = {
+  node: {
+    id: string;
+    agentId?: string;
+    customerName?: string;
+    nodeName?: string;
+    listenPort?: number;
+    protocol?: string;
+    configVersion: string;
+  };
+  evidence: {
+    state: CustomerNodeRuntimeEvidenceState;
+    stage: string;
+    steps: CustomerNodeRuntimeEvidenceStep[];
+    proof?: AgentRuntimeDeploymentProof;
+  };
+  task?: {
+    id: string;
+    requestId: string;
+    operation: DeployTask['operation'];
+    status: DeployTask['status'];
+    targetId: string;
+    targetLabel: string;
+    rollbackAvailable: boolean;
+    rollbackTaskId?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  commands: Array<{
+    commandId: string;
+    agentId: string;
+    commandType: CommandOutboxSummary['commandType'];
+    status: CommandOutboxSummary['status'];
+    attempts: number;
+    createdAt: string;
+    updatedAt: string;
+    ackedAt?: string;
+    resultAt?: string;
+    deadlineAt: string;
+    lastError?: string;
+  }>;
+  configRevision?: {
+    id: string;
+    taskId: string;
+    agentId: string;
+    moduleKind: RuntimeConfigRevision['moduleKind'];
+    status: RuntimeConfigRevision['status'];
+    preflightPlanId: string;
+    snapshotBeforeId: string;
+    diffSummary: RuntimeConfigRevision['diffSummary'];
+    failureReason?: string;
+    runtimeDiagnosis?: Record<string, unknown>;
+  };
+  preflightPlan?: {
+    id: string;
+    status: RuntimePreflightPlan['status'];
+    failureReason?: string;
+    checks: Array<{
+      id: string;
+      label: string;
+      status: RuntimePreflightPlan['status'];
+      severity: RuntimePreflightPlan['checks'][number]['severity'];
+    }>;
+  };
+  runtimeSnapshot?: {
+    id: string;
+    status: RuntimeSnapshot['status'];
+    reason: RuntimeSnapshot['reason'];
+    checksum: string;
+    capturedAt: string;
+    verifiedAt?: string;
+    restoredAt?: string;
+    restoredByTaskId?: string;
+  };
+};
+
 type ResolveCustomerNodeRuntimeEvidenceInput = {
   node: CustomerNodeRuntimeEvidenceNode;
   tasks: DeployTask[];
@@ -79,6 +163,34 @@ function readRuntimeEvidenceStage(configRevision: RuntimeConfigRevision | undefi
   const stage = diagnosis?.evidenceStage;
 
   return typeof stage === 'string' && stage.trim() ? stage.trim() : '';
+}
+
+function readRuntimeDiagnosisSummary(configRevision: RuntimeConfigRevision | undefined) {
+  const diagnosis = isObjectRecord(configRevision?.artifact.runtimeDiagnosis)
+    ? configRevision.artifact.runtimeDiagnosis
+    : undefined;
+
+  if (!diagnosis) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(diagnosis).filter(([, value]) => {
+      if (value === undefined || value === null) {
+        return false;
+      }
+
+      if (['string', 'number', 'boolean'].includes(typeof value)) {
+        return true;
+      }
+
+      if (Array.isArray(value)) {
+        return value.every((item) => ['string', 'number', 'boolean'].includes(typeof item));
+      }
+
+      return false;
+    })
+  );
 }
 
 function resolveConfigRevision({
@@ -246,5 +358,107 @@ export function resolveCustomerNodeRuntimeEvidence({
     runtimeSnapshot,
     evidenceStage: proof ? 'agent-result-verified' : evidenceStage || 'waiting',
     steps
+  };
+}
+
+export function createCustomerNodeRuntimeEvidencePackage({
+  node,
+  evidence
+}: {
+  node: CustomerNodeRuntimeEvidencePackageNode;
+  evidence: CustomerNodeRuntimeEvidenceBundle;
+}): CustomerNodeRuntimeEvidencePackage {
+  const { task, configRevision, preflightPlan, runtimeSnapshot } = evidence;
+
+  return {
+    node: {
+      id: node.id,
+      agentId: node.agentId,
+      customerName: node.customerName,
+      nodeName: node.nodeName,
+      listenPort: node.listenPort,
+      protocol: node.protocol,
+      configVersion: node.configVersion
+    },
+    evidence: {
+      state: evidence.state,
+      stage: evidence.evidenceStage,
+      steps: evidence.steps,
+      ...(evidence.proof ? { proof: evidence.proof } : {})
+    },
+    ...(task
+      ? {
+          task: {
+            id: task.id,
+            requestId: task.requestId,
+            operation: task.operation,
+            status: task.status,
+            targetId: task.targetId,
+            targetLabel: task.targetLabel,
+            rollbackAvailable: task.rollbackAvailable,
+            rollbackTaskId: task.rollbackTaskId,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt
+          }
+        }
+      : {}),
+    commands: evidence.commandOutboxItems.map((item) => ({
+      commandId: item.commandId,
+      agentId: item.agentId,
+      commandType: item.commandType,
+      status: item.status,
+      attempts: item.attempts,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      ackedAt: item.ackedAt,
+      resultAt: item.resultAt,
+      deadlineAt: item.deadlineAt,
+      lastError: item.lastError
+    })),
+    ...(configRevision
+      ? {
+          configRevision: {
+            id: configRevision.id,
+            taskId: configRevision.taskId,
+            agentId: configRevision.agentId,
+            moduleKind: configRevision.moduleKind,
+            status: configRevision.status,
+            preflightPlanId: configRevision.preflightPlanId,
+            snapshotBeforeId: configRevision.snapshotBeforeId,
+            diffSummary: configRevision.diffSummary,
+            failureReason: configRevision.failureReason,
+            runtimeDiagnosis: readRuntimeDiagnosisSummary(configRevision)
+          }
+        }
+      : {}),
+    ...(preflightPlan
+      ? {
+          preflightPlan: {
+            id: preflightPlan.id,
+            status: preflightPlan.status,
+            failureReason: preflightPlan.failureReason,
+            checks: preflightPlan.checks.map((check) => ({
+              id: check.id,
+              label: check.label,
+              status: check.status,
+              severity: check.severity
+            }))
+          }
+        }
+      : {}),
+    ...(runtimeSnapshot
+      ? {
+          runtimeSnapshot: {
+            id: runtimeSnapshot.id,
+            status: runtimeSnapshot.status,
+            reason: runtimeSnapshot.reason,
+            checksum: runtimeSnapshot.checksum,
+            capturedAt: runtimeSnapshot.capturedAt,
+            verifiedAt: runtimeSnapshot.verifiedAt,
+            restoredAt: runtimeSnapshot.restoredAt,
+            restoredByTaskId: runtimeSnapshot.restoredByTaskId
+          }
+        }
+      : {})
   };
 }

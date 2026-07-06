@@ -1,6 +1,9 @@
 import type { DeployTask, RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain';
 import type { CommandOutboxSummary } from '../../services/api/control-plane-api';
-import { resolveCustomerNodeRuntimeEvidence } from './customer-node-runtime-evidence';
+import {
+  createCustomerNodeRuntimeEvidencePackage,
+  resolveCustomerNodeRuntimeEvidence
+} from './customer-node-runtime-evidence';
 
 function createTask(overrides: Partial<DeployTask> = {}): DeployTask {
   return {
@@ -73,7 +76,12 @@ function createConfigRevision(overrides: Partial<RuntimeConfigRevision> = {}): R
     artifact: {
       runtimeDiagnosis: {
         state: 'ready',
-        evidenceStage: 'agent-result-verified'
+        evidenceStage: 'agent-result-verified',
+        plannedRuntimeServices: ['ou-ui-xray.service'],
+        plannedInbound: {
+          agentId: 'agent-hkg-01',
+          listenPort: 443
+        }
       }
     },
     ...overrides
@@ -89,7 +97,14 @@ function createPreflightPlan(overrides: Partial<RuntimePreflightPlan> = {}): Run
     agentId: 'agent-hkg-01',
     moduleKind: 'xray',
     status: 'passed',
-    checks: [],
+    checks: [
+      {
+        id: 'check-xray-test',
+        label: 'xray run -test',
+        status: 'passed',
+        severity: 'critical'
+      }
+    ],
     createdAt: '2026-06-04T04:00:01.000Z',
     completedAt: '2026-06-04T04:00:03.000Z',
     ...overrides
@@ -234,5 +249,94 @@ describe('customer node runtime evidence', () => {
         expect.objectContaining({ id: 'snapshot', state: 'failed' })
       ])
     );
+  });
+
+  it('creates a copyable safe diagnostic package without raw runtime bodies', () => {
+    const evidence = resolveCustomerNodeRuntimeEvidence({
+      node: {
+        id: 'inbound-acme',
+        configVersion: 'cfg-task-0100',
+        runtimeDeployment: {
+          source: 'agent-result',
+          verifiedAt: '2026-06-04T04:00:30.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-0100'],
+          appliedConfigRevisions: ['cfg-task-0100']
+        }
+      },
+      tasks: [createTask()],
+      commandOutbox: [createCommand()],
+      configRevisions: [createConfigRevision()],
+      preflightPlans: [createPreflightPlan()],
+      runtimeSnapshots: [createRuntimeSnapshot({ state: { secretRuntimeBody: 'do-not-copy' } })]
+    });
+
+    const diagnosticPackage = createCustomerNodeRuntimeEvidencePackage({
+      node: {
+        id: 'inbound-acme',
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        nodeName: 'Acme VLESS',
+        listenPort: 443,
+        protocol: 'vless',
+        configVersion: 'cfg-task-0100',
+        runtimeDeployment: {
+          source: 'agent-result',
+          verifiedAt: '2026-06-04T04:00:30.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-0100'],
+          appliedConfigRevisions: ['cfg-task-0100']
+        }
+      },
+      evidence
+    });
+
+    expect(diagnosticPackage).toMatchObject({
+      node: {
+        id: 'inbound-acme',
+        customerName: 'Acme',
+        nodeName: 'Acme VLESS',
+        listenPort: 443,
+        protocol: 'vless'
+      },
+      task: {
+        id: 'task-0100',
+        requestId: 'req-task-0100',
+        rollbackTaskId: 'task-0099'
+      },
+      commands: [
+        {
+          commandId: 'cmd-task-0100',
+          agentId: 'agent-hkg-01',
+          commandType: 'apply',
+          status: 'completed'
+        }
+      ],
+      configRevision: {
+        id: 'cfg-task-0100',
+        runtimeDiagnosis: {
+          state: 'ready',
+          evidenceStage: 'agent-result-verified',
+          plannedRuntimeServices: ['ou-ui-xray.service']
+        }
+      },
+      preflightPlan: {
+        id: 'preflight-task-0100',
+        checks: [
+          {
+            id: 'check-xray-test',
+            label: 'xray run -test',
+            status: 'passed',
+            severity: 'critical'
+          }
+        ]
+      },
+      runtimeSnapshot: {
+        id: 'snapshot-task-0100',
+        status: 'verified'
+      }
+    });
+    expect(JSON.stringify(diagnosticPackage)).not.toContain('secretRuntimeBody');
+    expect(JSON.stringify(diagnosticPackage)).not.toContain('plannedInbound');
   });
 });

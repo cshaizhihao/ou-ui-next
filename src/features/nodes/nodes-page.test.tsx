@@ -2624,6 +2624,12 @@ describe('NodesPage', () => {
   it('opens a customer-node runtime evidence drawer with task release artifacts', async () => {
     const user = userEvent.setup();
     const onOpenRuntimeEvidenceWorkspace = vi.fn();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
 
     render(
       <NodesPage
@@ -2669,6 +2675,37 @@ describe('NodesPage', () => {
     expect(within(drawer).getByText('preflight-task-xray-apply-01 · passed')).toBeInTheDocument();
     expect(within(drawer).getByText('snapshot-task-xray-apply-01 · verified')).toBeInTheDocument();
     expect(within(drawer).getByText('task-xray-rollback-01')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Copy Evidence Package' }));
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(writeText.mock.calls[0][0])).toMatchObject({
+      node: {
+        id: 'inbound-premium-vless',
+        customerName: 'Acme Premium',
+        nodeName: 'Acme Premium VLESS',
+        listenPort: 443,
+        protocol: 'vless'
+      },
+      task: {
+        id: 'task-xray-apply-01',
+        rollbackTaskId: 'task-xray-rollback-01'
+      },
+      commands: [
+        {
+          commandId: 'cmd-task-xray-apply-01',
+          status: 'completed'
+        }
+      ],
+      configRevision: {
+        id: 'cfg-task-xray-apply-01'
+      },
+      preflightPlan: {
+        id: 'preflight-task-xray-apply-01'
+      },
+      runtimeSnapshot: {
+        id: 'snapshot-task-xray-apply-01'
+      }
+    });
 
     await user.click(within(drawer).getByRole('button', { name: 'Open Task Evidence' }));
     expect(onOpenRuntimeEvidenceWorkspace).toHaveBeenCalledTimes(1);

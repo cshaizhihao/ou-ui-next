@@ -70,6 +70,7 @@ import {
   createCustomerNodeTrafficUpdate
 } from './customer-node-task-actions';
 import {
+  createCustomerNodeRuntimeEvidencePackage,
   resolveCustomerNodeRuntimeEvidence,
   type CustomerNodeRuntimeEvidenceBundle,
   type CustomerNodeRuntimeEvidenceState,
@@ -549,6 +550,7 @@ const copy = {
     customerRuntimeEvidenceDrawerTitle: '客户节点运行时证据',
     customerRuntimeEvidenceDrawerDescription: '来自任务、Agent command、配置版本、预检和快照的真实发布证据。',
     customerRuntimeEvidenceWorkspace: '打开任务证据',
+    customerRuntimeEvidenceCopyPackage: '复制诊断包',
     customerRuntimeEvidenceTask: '任务',
     customerRuntimeEvidenceAgentResult: 'Agent 结果',
     customerRuntimeEvidenceCommand: '命令',
@@ -917,6 +919,7 @@ const copy = {
     customerRuntimeEvidenceDrawerTitle: 'Customer Node Runtime Evidence',
     customerRuntimeEvidenceDrawerDescription: 'Real release evidence from task, Agent command, config revision, preflight, and snapshot state.',
     customerRuntimeEvidenceWorkspace: 'Open Task Evidence',
+    customerRuntimeEvidenceCopyPackage: 'Copy Evidence Package',
     customerRuntimeEvidenceTask: 'Task',
     customerRuntimeEvidenceAgentResult: 'Agent Result',
     customerRuntimeEvidenceCommand: 'Command',
@@ -2397,12 +2400,14 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
   language,
   node,
   t,
+  onCopyPackage,
   onOpenWorkspace
 }: {
   evidence: CustomerNodeRuntimeEvidenceBundle;
   language: AppLanguage;
   node: CustomerNodeRecord;
   t: NodesCopy;
+  onCopyPackage: () => void;
   onOpenWorkspace?: () => void;
 }) {
   const stateClass = {
@@ -2480,14 +2485,15 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
         ) : null}
       </div>
 
-      {onOpenWorkspace ? (
-        <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <GhostButton label={t.customerRuntimeEvidenceCopyPackage} onClick={onCopyPackage} />
+        {onOpenWorkspace ? (
           <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={onOpenWorkspace}>
             <Terminal className="h-3.5 w-3.5" />
             {t.customerRuntimeEvidenceWorkspace}
           </GlowButton>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -5141,6 +5147,18 @@ export function NodesPage({
             language={language}
             node={runtimeEvidenceCustomerNode}
             t={t}
+            onCopyPackage={() =>
+              void copyText(
+                JSON.stringify(
+                  createCustomerNodeRuntimeEvidencePackage({
+                    node: runtimeEvidenceCustomerNode,
+                    evidence: selectedRuntimeEvidence
+                  }),
+                  null,
+                  2
+                )
+              )
+            }
             onOpenWorkspace={
               onOpenRuntimeEvidenceWorkspace
                 ? () => {
