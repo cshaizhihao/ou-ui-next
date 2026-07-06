@@ -20,6 +20,9 @@ import {
 import {
   XRAY_RUNTIME_PROTOCOLS,
   isXrayRuntimeProtocol,
+  type XrayRuntimeDiagnosisAction,
+  type XrayRuntimeDiagnosisReason,
+  type XrayRuntimeDiagnosisState,
   type XrayRuntimeProtocol,
   type XrayProtocol,
   type XrayStreamSettings
@@ -512,6 +515,130 @@ function buildXrayClientPolicies(input: {
   });
 }
 
+function pushUnique<T>(items: T[], item: T) {
+  if (!items.includes(item)) {
+    items.push(item);
+  }
+}
+
+function buildXrayRuntimeDiagnosis(input: {
+  task: DeployTask;
+  metadata: Record<string, unknown> | undefined;
+  agentId: string;
+  action: 'upsert_inbound' | 'remove_inbound';
+  enabled: boolean;
+  protocol: XrayRuntimeProtocol;
+  listenAddress: string;
+  listenPort: number;
+  streamSettings: ReturnType<typeof buildStreamSettings>;
+  clientPolicies: RuntimeXrayClientPolicy[];
+  activeClientPolicies: RuntimeXrayClientPolicy[];
+}) {
+  const reasons: XrayRuntimeDiagnosisReason[] = [];
+  const nextActions: XrayRuntimeDiagnosisAction[] = [];
+  const disabledClientPolicies = input.clientPolicies.filter((client) => !client.enabled);
+  const hasQuotaExceededClient = input.clientPolicies.some((client) => client.quotaExceeded);
+  const hasExpiredClient = input.clientPolicies.some((client) => client.clientExpired);
+  const hasRuntimeDisabledClient = input.clientPolicies.some((client) => client.runtimeDisabledByPolicy);
+  const hasOperatorDisabledClient = input.clientPolicies.some((client) => !client.operatorEnabled);
+  const hasGuardrailReason = input.clientPolicies.some((client) => Boolean(client.guardrailReason));
+  const fallbackDestination = readString(input.metadata, 'fallbackDestination', '');
+
+  if (input.action === 'remove_inbound' && input.task.operation === 'inbound.delete') {
+    pushUnique(reasons, 'releasing');
+    pushUnique(nextActions, 'remove-runtime');
+  } else {
+    pushUnique(reasons, 'deploying');
+    pushUnique(nextActions, 'apply');
+  }
+
+  if (!input.enabled || input.activeClientPolicies.length === 0) {
+    pushUnique(reasons, 'no-active-client');
+  }
+
+  if (hasOperatorDisabledClient) {
+    pushUnique(reasons, 'operator-disabled');
+    pushUnique(nextActions, 'enable-client');
+  }
+
+  if (hasQuotaExceededClient) {
+    pushUnique(reasons, 'quota-exceeded');
+    pushUnique(nextActions, 'reset-quota');
+  }
+
+  if (hasExpiredClient) {
+    pushUnique(reasons, 'client-expired');
+    pushUnique(nextActions, 'renew-client');
+  }
+
+  if (hasRuntimeDisabledClient) {
+    pushUnique(reasons, 'runtime-disabled-by-policy');
+  }
+
+  if (hasGuardrailReason) {
+    pushUnique(reasons, 'guardrail');
+  }
+
+  if (input.clientPolicies.length > 1) {
+    pushUnique(reasons, 'multi-client');
+  }
+
+  if (input.streamSettings.security === 'tls') {
+    pushUnique(reasons, 'tls');
+    pushUnique(nextActions, 'review-security');
+  }
+
+  if (input.streamSettings.security === 'reality') {
+    pushUnique(reasons, 'reality');
+    pushUnique(nextActions, 'review-security');
+  }
+
+  if (fallbackDestination) {
+    pushUnique(reasons, 'fallback');
+  }
+
+  pushUnique(reasons, 'xray-config-preflight');
+  pushUnique(nextActions, 'inspect-agent');
+
+  const state: XrayRuntimeDiagnosisState =
+    input.task.status === 'failed'
+      ? 'failed'
+      : input.action === 'remove_inbound' && input.task.operation === 'inbound.delete'
+        ? 'waiting'
+        : input.activeClientPolicies.length === 0 || !input.enabled
+          ? 'blocked'
+          : disabledClientPolicies.length > 0
+            ? 'degraded'
+            : 'ready';
+
+  return {
+    state,
+    reasons,
+    nextActions,
+    hasRuntimeEvidence: false,
+    evidenceStage: 'control-plane-compiled',
+    plannedBindingStatus: input.action === 'remove_inbound' ? 'releasing' : 'deploying',
+    plannedRuntimeServices: ['ou-ui-xray.service'],
+    plannedInbound: {
+      agentId: input.agentId,
+      listenAddress: input.listenAddress,
+      listenPort: input.listenPort,
+      protocol: input.protocol,
+      network: input.streamSettings.network,
+      security: input.streamSettings.security,
+      action: input.action
+    },
+    clientCounters: {
+      total: input.clientPolicies.length,
+      active: input.activeClientPolicies.length,
+      disabled: disabledClientPolicies.length,
+      quotaExceeded: input.clientPolicies.filter((client) => client.quotaExceeded).length,
+      expired: input.clientPolicies.filter((client) => client.clientExpired).length,
+      runtimeDisabledByPolicy: input.clientPolicies.filter((client) => client.runtimeDisabledByPolicy).length
+    }
+  };
+}
+
 function collectUnsupportedForwardingRuntimeControls(metadata: Record<string, unknown> | undefined) {
   const unsupported: ForwardingRuntimeBlockedControl[] = [];
   const metadataBlockedControls = Array.isArray(metadata?.blockedRuntimeControls)
@@ -737,6 +864,8 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       : compiledClientPolicies;
   const primaryClientPolicy = clientPolicies[0];
   const activeClientPolicies = clientPolicies.filter((client) => client.enabled);
+  const action =
+    task.operation === 'inbound.delete' || !enabled || activeClientPolicies.length === 0 ? 'remove_inbound' : 'upsert_inbound';
   const shareUris = clientPolicies.map((client) => ({
     clientIdentity: client.clientIdentity,
     clientEmail: client.clientEmail,
@@ -768,7 +897,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
     generatedBy: 'ou-ui-next-control-plane',
     operation: task.operation,
     moduleKind: 'xray',
-    action: task.operation === 'inbound.delete' || !enabled || activeClientPolicies.length === 0 ? 'remove_inbound' : 'upsert_inbound',
+    action,
     agentId,
     targetId: task.targetId,
     targetLabel: task.targetLabel,
@@ -805,6 +934,19 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
           : []
       }
     },
+    runtimeDiagnosis: buildXrayRuntimeDiagnosis({
+      task,
+      metadata,
+      agentId,
+      action,
+      enabled,
+      protocol,
+      listenAddress,
+      listenPort,
+      streamSettings,
+      clientPolicies,
+      activeClientPolicies
+    }),
     subscription: {
       serverAddress,
       shareUri: shareUris[0]?.shareUri ?? '',

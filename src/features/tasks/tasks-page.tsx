@@ -13,7 +13,10 @@ import type {
   AgentLogArchive,
   ForwardingRuntimeDiagnosisAction,
   ForwardingRuntimeDiagnosisReason,
-  ForwardingRuntimeDiagnosisState
+  ForwardingRuntimeDiagnosisState,
+  XrayRuntimeDiagnosisAction,
+  XrayRuntimeDiagnosisReason,
+  XrayRuntimeDiagnosisState
 } from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
@@ -86,6 +89,33 @@ type ForwardingRuntimeDiagnosisEvidence = {
   plannedRuntimeServices: string[];
 };
 
+type XrayRuntimeDiagnosisEvidence = {
+  state: XrayRuntimeDiagnosisState;
+  reasons: XrayRuntimeDiagnosisReason[];
+  nextActions: XrayRuntimeDiagnosisAction[];
+  hasRuntimeEvidence: boolean;
+  evidenceStage: string;
+  plannedBindingStatus: string;
+  plannedRuntimeServices: string[];
+  plannedInbound: {
+    agentId: string;
+    listenAddress: string;
+    listenPort: number;
+    protocol: string;
+    network: string;
+    security: string;
+    action: string;
+  };
+  clientCounters: {
+    total: number;
+    active: number;
+    disabled: number;
+    quotaExceeded: number;
+    expired: number;
+    runtimeDisabledByPolicy: number;
+  };
+};
+
 type TuningProbeState = {
   bbrInstalled?: boolean;
   tcpProbeReady?: boolean;
@@ -140,6 +170,38 @@ const forwardingRuntimeDiagnosisActions = new Set<ForwardingRuntimeDiagnosisActi
   'resolve-conflict',
   'reset-quota',
   'enable-rule'
+]);
+const xrayRuntimeDiagnosisStates = new Set<XrayRuntimeDiagnosisState>([
+  'ready',
+  'waiting',
+  'degraded',
+  'blocked',
+  'failed'
+]);
+const xrayRuntimeDiagnosisReasons = new Set<XrayRuntimeDiagnosisReason>([
+  'deploying',
+  'releasing',
+  'no-active-client',
+  'operator-disabled',
+  'quota-exceeded',
+  'client-expired',
+  'runtime-disabled-by-policy',
+  'guardrail',
+  'multi-client',
+  'tls',
+  'reality',
+  'fallback',
+  'xray-config-preflight'
+]);
+const xrayRuntimeDiagnosisActions = new Set<XrayRuntimeDiagnosisAction>([
+  'apply',
+  'inspect-agent',
+  'renew-client',
+  'reset-quota',
+  'enable-client',
+  'review-security',
+  'rollback',
+  'remove-runtime'
 ]);
 
 type ExecutionMetric = {
@@ -284,13 +346,26 @@ const copy = {
         resultAt ? formatDateTime(resultAt) : '等待'
       } · Deadline ${deadlineAt ? formatDateTime(deadlineAt) : '未记录'}`,
     forwardingRuntimeDiagnosis: '转发运行诊断',
+    xrayRuntimeDiagnosis: 'Xray 运行诊断',
     runtimeDiagnosisEvidenceStage: '证据阶段',
     runtimeDiagnosisPlannedBinding: '计划绑定',
+    xrayRuntimeDiagnosisPlannedInbound: '计划入站',
     runtimeDiagnosisPlannedServices: '计划服务',
     runtimeDiagnosisBlockedControls: '阻断控制',
     runtimeDiagnosisNextActions: '下一步',
     runtimeDiagnosisCounters: (bindingCount: number, hasRuntimeEvidence: boolean, language: AppLanguage) =>
       `${formatNumber(bindingCount, language)} 受影响绑定 / ${hasRuntimeEvidence ? '已有运行证据' : '等待 Agent 证据'}`,
+    xrayRuntimeDiagnosisCounters: (
+      activeCount: number,
+      totalCount: number,
+      disabledCount: number,
+      hasRuntimeEvidence: boolean,
+      language: AppLanguage
+    ) =>
+      `${formatNumber(activeCount, language)} 活跃 / ${formatNumber(totalCount, language)} 客户端 / ${formatNumber(
+        disabledCount,
+        language
+      )} 已停用 / ${hasRuntimeEvidence ? '已有运行证据' : '等待 Agent 证据'}`,
     runtimeDiagnosisStateLabels: {
       ready: '就绪',
       waiting: '等待',
@@ -322,6 +397,31 @@ const copy = {
       'resolve-conflict': '处理冲突',
       'reset-quota': '重置配额',
       'enable-rule': '启用规则'
+    },
+    xrayRuntimeDiagnosisReasonLabels: {
+      deploying: '正在下发',
+      releasing: '正在释放',
+      'no-active-client': '无活跃客户端',
+      'operator-disabled': '操作员停用',
+      'quota-exceeded': '配额已超限',
+      'client-expired': '客户端已过期',
+      'runtime-disabled-by-policy': '策略停用运行时',
+      guardrail: '触发 guardrail',
+      'multi-client': '共享入站',
+      tls: 'TLS',
+      reality: 'Reality',
+      fallback: 'Fallback',
+      'xray-config-preflight': 'Xray 配置预检'
+    },
+    xrayRuntimeDiagnosisActionLabels: {
+      apply: '下发',
+      'inspect-agent': '检查 Agent',
+      'renew-client': '续期客户端',
+      'reset-quota': '重置配额',
+      'enable-client': '启用客户端',
+      'review-security': '检查 TLS/Reality',
+      rollback: '回滚',
+      'remove-runtime': '移除运行时'
     },
     agentLogsTitle: '主机代理运行日志',
     agentLogsEmpty: '暂无运行日志',
@@ -590,13 +690,26 @@ const copy = {
         resultAt ? formatDateTime(resultAt) : 'Waiting'
       } · Deadline ${deadlineAt ? formatDateTime(deadlineAt) : 'Not recorded'}`,
     forwardingRuntimeDiagnosis: 'Forwarding Runtime Diagnosis',
+    xrayRuntimeDiagnosis: 'Xray Runtime Diagnosis',
     runtimeDiagnosisEvidenceStage: 'Evidence Stage',
     runtimeDiagnosisPlannedBinding: 'Planned Binding',
+    xrayRuntimeDiagnosisPlannedInbound: 'Planned Inbound',
     runtimeDiagnosisPlannedServices: 'Planned Services',
     runtimeDiagnosisBlockedControls: 'Blocked Controls',
     runtimeDiagnosisNextActions: 'Next Actions',
     runtimeDiagnosisCounters: (bindingCount: number, hasRuntimeEvidence: boolean, language: AppLanguage) =>
       `${formatNumber(bindingCount, language)} impacted bindings / ${hasRuntimeEvidence ? 'runtime evidence present' : 'waiting for Agent evidence'}`,
+    xrayRuntimeDiagnosisCounters: (
+      activeCount: number,
+      totalCount: number,
+      disabledCount: number,
+      hasRuntimeEvidence: boolean,
+      language: AppLanguage
+    ) =>
+      `${formatNumber(activeCount, language)} active / ${formatNumber(totalCount, language)} clients / ${formatNumber(
+        disabledCount,
+        language
+      )} disabled / ${hasRuntimeEvidence ? 'runtime evidence present' : 'waiting for Agent evidence'}`,
     runtimeDiagnosisStateLabels: {
       ready: 'Ready',
       waiting: 'Waiting',
@@ -628,6 +741,31 @@ const copy = {
       'resolve-conflict': 'Resolve conflict',
       'reset-quota': 'Reset quota',
       'enable-rule': 'Enable rule'
+    },
+    xrayRuntimeDiagnosisReasonLabels: {
+      deploying: 'Deploying',
+      releasing: 'Releasing',
+      'no-active-client': 'No active client',
+      'operator-disabled': 'Operator disabled',
+      'quota-exceeded': 'Quota exceeded',
+      'client-expired': 'Client expired',
+      'runtime-disabled-by-policy': 'Runtime stopped by policy',
+      guardrail: 'Guardrail active',
+      'multi-client': 'Shared inbound',
+      tls: 'TLS',
+      reality: 'Reality',
+      fallback: 'Fallback',
+      'xray-config-preflight': 'Xray config preflight'
+    },
+    xrayRuntimeDiagnosisActionLabels: {
+      apply: 'Apply',
+      'inspect-agent': 'Inspect Agent',
+      'renew-client': 'Renew client',
+      'reset-quota': 'Reset quota',
+      'enable-client': 'Enable client',
+      'review-security': 'Review TLS/Reality',
+      rollback: 'Rollback',
+      'remove-runtime': 'Remove runtime'
     },
     agentLogsTitle: 'Agent Runtime Logs',
     agentLogsEmpty: 'No runtime logs retained',
@@ -816,6 +954,10 @@ function readStringList(value: unknown) {
   return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '').map((item) => item.trim());
 }
 
+function readFiniteNumber(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 function readForwardingRuntimeDiagnosis(bundle: RuntimeReleaseBundle): ForwardingRuntimeDiagnosisEvidence | undefined {
   if (bundle.configRevision?.moduleKind !== 'port-forwarding') {
     return undefined;
@@ -851,6 +993,57 @@ function readForwardingRuntimeDiagnosis(bundle: RuntimeReleaseBundle): Forwardin
         ? value.plannedBindingStatus.trim()
         : 'unknown',
     plannedRuntimeServices: readStringList(value.plannedRuntimeServices)
+  };
+}
+
+function readXrayRuntimeDiagnosis(bundle: RuntimeReleaseBundle): XrayRuntimeDiagnosisEvidence | undefined {
+  if (bundle.configRevision?.moduleKind !== 'xray') {
+    return undefined;
+  }
+
+  const value = bundle.configRevision.artifact.runtimeDiagnosis;
+
+  if (!isObjectRecord(value) || !xrayRuntimeDiagnosisStates.has(value.state as XrayRuntimeDiagnosisState)) {
+    return undefined;
+  }
+
+  const plannedInbound = isObjectRecord(value.plannedInbound) ? value.plannedInbound : {};
+  const clientCounters = isObjectRecord(value.clientCounters) ? value.clientCounters : {};
+  const reasons = readStringList(value.reasons).filter((reason): reason is XrayRuntimeDiagnosisReason =>
+    xrayRuntimeDiagnosisReasons.has(reason as XrayRuntimeDiagnosisReason)
+  );
+  const nextActions = readStringList(value.nextActions).filter((action): action is XrayRuntimeDiagnosisAction =>
+    xrayRuntimeDiagnosisActions.has(action as XrayRuntimeDiagnosisAction)
+  );
+
+  return {
+    state: value.state as XrayRuntimeDiagnosisState,
+    reasons,
+    nextActions,
+    hasRuntimeEvidence: value.hasRuntimeEvidence === true,
+    evidenceStage: typeof value.evidenceStage === 'string' && value.evidenceStage.trim() ? value.evidenceStage.trim() : 'unknown',
+    plannedBindingStatus:
+      typeof value.plannedBindingStatus === 'string' && value.plannedBindingStatus.trim()
+        ? value.plannedBindingStatus.trim()
+        : 'unknown',
+    plannedRuntimeServices: readStringList(value.plannedRuntimeServices),
+    plannedInbound: {
+      agentId: typeof plannedInbound.agentId === 'string' ? plannedInbound.agentId : '',
+      listenAddress: typeof plannedInbound.listenAddress === 'string' ? plannedInbound.listenAddress : '',
+      listenPort: readFiniteNumber(plannedInbound.listenPort),
+      protocol: typeof plannedInbound.protocol === 'string' ? plannedInbound.protocol : '',
+      network: typeof plannedInbound.network === 'string' ? plannedInbound.network : '',
+      security: typeof plannedInbound.security === 'string' ? plannedInbound.security : '',
+      action: typeof plannedInbound.action === 'string' ? plannedInbound.action : ''
+    },
+    clientCounters: {
+      total: readFiniteNumber(clientCounters.total),
+      active: readFiniteNumber(clientCounters.active),
+      disabled: readFiniteNumber(clientCounters.disabled),
+      quotaExceeded: readFiniteNumber(clientCounters.quotaExceeded),
+      expired: readFiniteNumber(clientCounters.expired),
+      runtimeDisabledByPolicy: readFiniteNumber(clientCounters.runtimeDisabledByPolicy)
+    }
   };
 }
 
@@ -922,7 +1115,7 @@ function createTaskContextPayload({
   relatedChunks: AgentLogChunk[];
 }) {
   const { task, configRevision, preflightPlan, runtimeSnapshot } = bundle;
-  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
+  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle) ?? readXrayRuntimeDiagnosis(bundle);
 
   return {
     taskId: task.id,
@@ -1050,7 +1243,7 @@ function createTaskFailureEvidencePackage({
   const remediationPlan = createTaskRemediationPlan(task, labels);
   const failedSteps = getFailedTaskSteps(task);
   const failedChecks = preflightPlan?.checks.filter((check) => check.status === 'failed') ?? [];
-  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
+  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle) ?? readXrayRuntimeDiagnosis(bundle);
 
   return {
     taskId: task.id,
@@ -1686,6 +1879,103 @@ function ForwardingRuntimeDiagnosisEvidenceCard({
   );
 }
 
+function XrayRuntimeDiagnosisEvidenceCard({
+  diagnosis,
+  language,
+  t
+}: {
+  diagnosis: XrayRuntimeDiagnosisEvidence;
+  language: AppLanguage;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const stateClass = {
+    ready: 'border-[#00A878] bg-[#00A878]/[0.10] text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.12] dark:text-[#7FF3C9]',
+    waiting: 'border-[#D9FF00] bg-[#D9FF00]/[0.22] text-[#425200] dark:border-[#D9FF00]/25 dark:bg-[#D9FF00]/[0.12] dark:text-[#EAFF5A]',
+    degraded: 'border-[#FF3D18] bg-[#D9FF00]/[0.18] text-[#B93C17] dark:border-[#FF6A3A]/25 dark:bg-[#D9FF00]/[0.08] dark:text-[#EAFF5A]',
+    blocked: 'border-[#FF3D18] bg-[#FF3D18]/[0.10] text-[#C92810] dark:border-[#FF6A3A]/25 dark:bg-[#FF6A3A]/[0.12] dark:text-[#FFB299]',
+    failed: 'border-[#DC2626] bg-[#DC2626]/[0.10] text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]'
+  } satisfies Record<XrayRuntimeDiagnosisState, string>;
+  const reasonPreview = diagnosis.reasons.slice(0, 8);
+  const actionPreview = diagnosis.nextActions.slice(0, 4);
+  const servicePreview = diagnosis.plannedRuntimeServices.slice(0, 2);
+  const plannedInbound = diagnosis.plannedInbound;
+
+  return (
+    <section
+      aria-label={t.xrayRuntimeDiagnosis}
+      className="tasks-xray-runtime-diagnosis mt-3 border border-[#07111F]/20 bg-[#FFFDF5]/84 p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.28)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]"
+      data-runtime-diagnosis-state={diagnosis.state}
+      role="group"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">
+            {t.xrayRuntimeDiagnosis}
+          </span>
+          <span className={`border px-2 py-0.5 text-[10px] font-black uppercase ${stateClass[diagnosis.state]}`}>
+            {t.runtimeDiagnosisStateLabels[diagnosis.state]}
+          </span>
+        </div>
+        <span className="border border-[#07111F]/18 bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+          {diagnosis.evidenceStage}
+        </span>
+      </div>
+      <p className="mt-1.5 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
+        {t.xrayRuntimeDiagnosisCounters(
+          diagnosis.clientCounters.active,
+          diagnosis.clientCounters.total,
+          diagnosis.clientCounters.disabled,
+          diagnosis.hasRuntimeEvidence,
+          language
+        )}
+      </p>
+      <div className="mt-2 grid gap-2 lg:grid-cols-2">
+        <div className="min-w-0 border border-[#07111F]/15 bg-[#EAF3D1]/55 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+          <p className="text-[9px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">
+            {t.xrayRuntimeDiagnosisPlannedInbound}
+          </p>
+          <p className="mt-1 break-all font-mono text-[10px] font-bold text-[#07111F] dark:text-white/75">
+            {plannedInbound.agentId} · {plannedInbound.listenAddress}:{formatNumber(plannedInbound.listenPort, language)} ·{' '}
+            {plannedInbound.protocol}/{plannedInbound.network}/{plannedInbound.security} · {plannedInbound.action}
+          </p>
+        </div>
+        <div className="min-w-0 border border-[#07111F]/15 bg-[#EAF3D1]/55 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+          <p className="text-[9px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/40">
+            {t.runtimeDiagnosisPlannedServices}
+          </p>
+          <div className="mt-1 space-y-1">
+            {(servicePreview.length > 0 ? servicePreview : ['-']).map((service) => (
+              <p className="break-all font-mono text-[10px] font-bold text-[#07111F] dark:text-white/75" key={service}>
+                {service}
+              </p>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {reasonPreview.map((reason) => (
+          <span
+            className="border border-[#07111F]/18 bg-[#EAF3D1]/70 px-2 py-0.5 text-[9px] font-bold uppercase text-[#07111F] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65"
+            data-runtime-diagnosis-reason={reason}
+            key={reason}
+          >
+            {t.xrayRuntimeDiagnosisReasonLabels[reason]}
+          </span>
+        ))}
+        {actionPreview.map((action) => (
+          <span
+            className="border border-[#1E3AFF] bg-[#DCE1FF]/70 px-2 py-0.5 text-[9px] font-black uppercase text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/10 dark:text-primary"
+            data-runtime-diagnosis-action={action}
+            key={action}
+          >
+            {t.xrayRuntimeDiagnosisActionLabels[action]}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AgentCommandEvidenceCard({
   commands,
   language,
@@ -1757,6 +2047,7 @@ function RuntimeReleaseTimeline({
   const { commandOutboxItems, configRevision, preflightPlan, runtimeSnapshot } = bundle;
   const moduleKind = configRevision?.moduleKind ?? preflightPlan?.moduleKind ?? runtimeSnapshot?.moduleKind;
   const forwardingRuntimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
+  const xrayRuntimeDiagnosis = readXrayRuntimeDiagnosis(bundle);
 
   if (!configRevision && !preflightPlan && !runtimeSnapshot && commandOutboxItems.length === 0) {
     return null;
@@ -1820,6 +2111,9 @@ function RuntimeReleaseTimeline({
           language={language}
           t={t}
         />
+      ) : null}
+      {xrayRuntimeDiagnosis ? (
+        <XrayRuntimeDiagnosisEvidenceCard diagnosis={xrayRuntimeDiagnosis} language={language} t={t} />
       ) : null}
       {configRevision?.failureReason ?? preflightPlan?.failureReason ? (
         <p className="mt-3 rounded-xl border border-red-200 bg-red-50/70 p-3 text-xs font-semibold text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">

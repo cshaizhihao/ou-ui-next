@@ -76,6 +76,7 @@ Post-V2.0.0 progress already landed on `main`:
 - SQLite storage now has a schema v2 migration with a rebuildable `control_plane_entity_index` projection for core domain entities while preserving the compatible `json-state-v1` payload as the source of truth.
 - The SQLite entity index now also projects subscription inventory nodes, runtime config revisions, preflight plans, and runtime snapshots using safe summary payloads, so runtime release state can be queried without unpacking the full JSON-state blob or duplicating sensitive artifact/state bodies.
 - Task release evidence now includes safe Agent command outbox summaries from the control-plane snapshot, showing dispatch status, ACK/result timing, Agent ID, command ID, and command type without exposing the full runtime command payload in dashboard snapshot data.
+- Xray runtime artifacts now carry a `control-plane-compiled` runtime diagnosis with planned inbound binding, `ou-ui-xray.service`, active/disabled client counters, quota/expiry/policy-disabled reasons, and next-action hints, and task release/failure evidence surfaces that diagnosis alongside Agent command/preflight/snapshot evidence.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

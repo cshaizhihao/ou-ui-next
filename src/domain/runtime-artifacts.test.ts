@@ -348,6 +348,93 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('adds Xray runtime diagnosis to compiled inbound artifacts without claiming Agent evidence', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Shared Inbound',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenAddress: '0.0.0.0',
+        listenPort: 443,
+        security: 'tls',
+        sni: 'edge.example.com',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com'
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            quotaExceeded: true
+          }
+        ]
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as {
+      runtimeDiagnosis: {
+        state: string;
+        reasons: string[];
+        nextActions: string[];
+        hasRuntimeEvidence: boolean;
+        evidenceStage: string;
+        plannedBindingStatus: string;
+        plannedRuntimeServices: string[];
+        plannedInbound: {
+          agentId: string;
+          listenAddress: string;
+          listenPort: number;
+          protocol: string;
+          network: string;
+          security: string;
+          action: string;
+        };
+        clientCounters: {
+          total: number;
+          active: number;
+          disabled: number;
+          quotaExceeded: number;
+          runtimeDisabledByPolicy: number;
+        };
+      };
+    };
+
+    expect(artifact.runtimeDiagnosis).toMatchObject({
+      state: 'degraded',
+      hasRuntimeEvidence: false,
+      evidenceStage: 'control-plane-compiled',
+      plannedBindingStatus: 'deploying',
+      plannedRuntimeServices: ['ou-ui-xray.service'],
+      plannedInbound: {
+        agentId: 'agent-hkg-01',
+        listenAddress: '0.0.0.0',
+        listenPort: 443,
+        protocol: 'vless',
+        network: 'tcp',
+        security: 'tls',
+        action: 'upsert_inbound'
+      },
+      clientCounters: {
+        total: 2,
+        active: 1,
+        disabled: 1,
+        quotaExceeded: 1,
+        runtimeDisabledByPolicy: 1
+      }
+    });
+    expect(artifact.runtimeDiagnosis.reasons).toEqual(
+      expect.arrayContaining(['deploying', 'quota-exceeded', 'runtime-disabled-by-policy', 'guardrail', 'multi-client', 'tls', 'xray-config-preflight'])
+    );
+    expect(artifact.runtimeDiagnosis.nextActions).toEqual(
+      expect.arrayContaining(['apply', 'reset-quota', 'review-security', 'inspect-agent'])
+    );
+  });
+
   it('keeps shared Xray inbounds upsertable when only one client is operator-disabled', () => {
     const artifact = buildRuntimeArtifact({
       task: {

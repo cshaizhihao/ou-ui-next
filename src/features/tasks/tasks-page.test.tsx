@@ -70,6 +70,68 @@ const diagnosticConfigRevision: RuntimeConfigRevision = {
   }
 };
 
+const xrayTask: DeployTask = {
+  ...task,
+  id: 'task-xray-001',
+  operation: 'inbound.update',
+  resourceType: 'inbound',
+  resourceId: 'inbound-shared-443',
+  targetId: 'inbound-shared-443',
+  targetLabel: 'Shared Xray Inbound',
+  summary: 'Update shared Xray inbound',
+  requestId: 'req-xray-001',
+  status: 'running',
+  metadata: {
+    listenPort: 443,
+    xrayProtocol: 'vless',
+    security: 'tls',
+    clientIdentity: 'alice'
+  }
+};
+
+const xrayRuntimeDiagnosisArtifact = {
+  state: 'degraded',
+  reasons: ['deploying', 'quota-exceeded', 'runtime-disabled-by-policy', 'multi-client', 'tls', 'xray-config-preflight'],
+  nextActions: ['apply', 'reset-quota', 'review-security', 'inspect-agent'],
+  hasRuntimeEvidence: false,
+  evidenceStage: 'control-plane-compiled',
+  plannedBindingStatus: 'deploying',
+  plannedRuntimeServices: ['ou-ui-xray.service'],
+  plannedInbound: {
+    agentId: 'agent-hkg-01',
+    listenAddress: '0.0.0.0',
+    listenPort: 443,
+    protocol: 'vless',
+    network: 'tcp',
+    security: 'tls',
+    action: 'upsert_inbound'
+  },
+  clientCounters: {
+    total: 2,
+    active: 1,
+    disabled: 1,
+    quotaExceeded: 1,
+    expired: 0,
+    runtimeDisabledByPolicy: 1
+  }
+};
+
+const xrayConfigRevision: RuntimeConfigRevision = {
+  ...configRevision,
+  id: 'cfg-xray-current',
+  taskId: xrayTask.id,
+  operation: xrayTask.operation,
+  targetId: xrayTask.targetId,
+  targetLabel: xrayTask.targetLabel,
+  moduleKind: 'xray',
+  artifactUri: 'ou-ui://artifacts/config-revisions/cfg-xray-current.json',
+  preflightPlanId: 'preflight-xray-current',
+  snapshotBeforeId: 'snapshot-xray-current',
+  artifact: {
+    runtimeDiagnosis: xrayRuntimeDiagnosisArtifact
+  }
+};
+
 const stalePreflightPlan: RuntimePreflightPlan = {
   id: 'preflight-stale',
   taskId: task.id,
@@ -132,6 +194,39 @@ const currentRuntimeSnapshot: RuntimeSnapshot = {
   state: {
     listenPort: 443,
     unit: 'ou-forward-hkg-443.service'
+  }
+};
+
+const xrayPreflightPlan: RuntimePreflightPlan = {
+  ...currentPreflightPlan,
+  id: 'preflight-xray-current',
+  taskId: xrayTask.id,
+  configRevisionId: xrayConfigRevision.id,
+  targetId: xrayTask.targetId,
+  agentId: 'agent-hkg-01',
+  moduleKind: 'xray',
+  checks: [
+    {
+      id: 'xray-config-test',
+      label: 'xray run -test passed',
+      status: 'pending',
+      severity: 'critical'
+    }
+  ]
+};
+
+const xrayRuntimeSnapshot: RuntimeSnapshot = {
+  ...currentRuntimeSnapshot,
+  id: 'snapshot-xray-current',
+  taskId: xrayTask.id,
+  targetId: xrayTask.targetId,
+  targetLabel: xrayTask.targetLabel,
+  agentId: 'agent-hkg-01',
+  moduleKind: 'xray',
+  checksum: 'sha256:xray-snapshot',
+  state: {
+    service: 'ou-ui-xray.service',
+    listenPort: 443
   }
 };
 
@@ -604,6 +699,142 @@ describe('TasksPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"runtimeDiagnosis": {'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"state": "degraded"'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"blockedControls": ['));
+  });
+
+  it('surfaces Xray runtime diagnosis in release rows, task details, and copied context', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(
+      <TasksPage
+        tasks={[xrayTask]}
+        configRevisions={[xrayConfigRevision]}
+        preflightPlans={[xrayPreflightPlan]}
+        runtimeSnapshots={[xrayRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const pipeline = screen.getByRole('group', { name: 'Release Pipeline' });
+    const taskRow = within(pipeline).getByRole('article', { name: 'Update shared Xray inbound' });
+    const rowDiagnosis = within(taskRow).getByRole('group', { name: 'Xray Runtime Diagnosis' });
+
+    expect(rowDiagnosis).toHaveClass('tasks-xray-runtime-diagnosis');
+    expect(rowDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
+    expect(rowDiagnosis).toHaveTextContent('control-plane-compiled');
+    expect(rowDiagnosis).toHaveTextContent('1 active / 2 clients / 1 disabled / waiting for Agent evidence');
+    expect(rowDiagnosis).toHaveTextContent('agent-hkg-01 · 0.0.0.0:443 · vless/tcp/tls · upsert_inbound');
+    expect(rowDiagnosis).toHaveTextContent('ou-ui-xray.service');
+    expect(rowDiagnosis).toHaveTextContent('Quota exceeded');
+    expect(rowDiagnosis).toHaveTextContent('Runtime stopped by policy');
+    expect(rowDiagnosis).toHaveTextContent('Xray config preflight');
+    expect(rowDiagnosis).toHaveTextContent('Reset quota');
+    expect(rowDiagnosis).toHaveTextContent('Inspect Agent');
+
+    await user.click(screen.getByRole('button', { name: 'View Task Details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Details' });
+    const dialogDiagnosis = within(dialog).getByRole('group', { name: 'Xray Runtime Diagnosis' });
+
+    expect(within(dialog).getByText('cfg-xray-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('preflight-xray-current')).toBeInTheDocument();
+    expect(within(dialog).getByText('snapshot-xray-current')).toBeInTheDocument();
+    expect(dialogDiagnosis).toHaveTextContent('Shared inbound');
+    expect(dialogDiagnosis).toHaveTextContent('Review TLS/Reality');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy Task Context' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"taskId": "task-xray-001"'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"runtimeDiagnosis": {'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"plannedInbound": {'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"clientCounters": {'));
+  });
+
+  it('includes Xray runtime diagnosis in the failure evidence drawer and package', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    const failedXrayTask: DeployTask = {
+      ...xrayTask,
+      status: 'failed',
+      failureReason: 'xray config preflight failed: invalid reality short id',
+      steps: [
+        { id: 'compile', label: 'Compile Xray config', status: 'succeeded' },
+        { id: 'preflight', label: 'Run xray config preflight', status: 'failed' }
+      ]
+    };
+    const failedXrayConfigRevision: RuntimeConfigRevision = {
+      ...xrayConfigRevision,
+      status: 'failed',
+      failureReason: failedXrayTask.failureReason
+    };
+    const failedXrayPreflightPlan: RuntimePreflightPlan = {
+      ...xrayPreflightPlan,
+      status: 'failed',
+      failureReason: failedXrayTask.failureReason,
+      checks: [
+        {
+          id: 'schema',
+          label: 'Validate generated runtime configuration schema',
+          status: 'failed',
+          severity: 'critical'
+        }
+      ]
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedXrayTask]}
+        configRevisions={[failedXrayConfigRevision]}
+        preflightPlans={[failedXrayPreflightPlan]}
+        runtimeSnapshots={[xrayRuntimeSnapshot]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Failure Evidence' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
+    const diagnosis = within(dialog).getByRole('group', { name: 'Xray Runtime Diagnosis' });
+
+    expect(diagnosis).toHaveTextContent('Xray config preflight');
+    expect(diagnosis).toHaveTextContent('ou-ui-xray.service');
+    expect(within(dialog).getAllByText('xray config preflight failed: invalid reality short id')).toHaveLength(2);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Copy Failure Evidence Package' }));
+
+    const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      runtimeArtifacts: {
+        runtimeDiagnosis?: {
+          plannedInbound?: { protocol: string; action: string };
+          clientCounters?: { active: number; disabled: number };
+        };
+      };
+    };
+
+    expect(copiedPayload.runtimeArtifacts.runtimeDiagnosis).toMatchObject({
+      plannedInbound: {
+        protocol: 'vless',
+        action: 'upsert_inbound'
+      },
+      clientCounters: {
+        active: 1,
+        disabled: 1
+      }
+    });
   });
 
   it('renders structured evidence for system tuning task details instead of raw JSON only', async () => {

@@ -94,6 +94,9 @@ export type {
   XrayInbound,
   XrayInboundStatus,
   XrayProtocol,
+  XrayRuntimeDiagnosisAction,
+  XrayRuntimeDiagnosisReason,
+  XrayRuntimeDiagnosisState,
   XrayRuntimeProtocol,
   XrayStreamSettings
 } from './protocol';

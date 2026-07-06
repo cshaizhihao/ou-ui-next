@@ -34,6 +34,33 @@ export type XrayStreamSettings = {
   fingerprint?: string;
 };
 
+export type XrayRuntimeDiagnosisState = 'ready' | 'waiting' | 'degraded' | 'blocked' | 'failed';
+
+export type XrayRuntimeDiagnosisReason =
+  | 'deploying'
+  | 'releasing'
+  | 'no-active-client'
+  | 'operator-disabled'
+  | 'quota-exceeded'
+  | 'client-expired'
+  | 'runtime-disabled-by-policy'
+  | 'guardrail'
+  | 'multi-client'
+  | 'tls'
+  | 'reality'
+  | 'fallback'
+  | 'xray-config-preflight';
+
+export type XrayRuntimeDiagnosisAction =
+  | 'apply'
+  | 'inspect-agent'
+  | 'renew-client'
+  | 'reset-quota'
+  | 'enable-client'
+  | 'review-security'
+  | 'rollback'
+  | 'remove-runtime';
+
 export type TlsSettings = {
   enabled: boolean;
   certificateId?: string;
