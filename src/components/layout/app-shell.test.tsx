@@ -1850,7 +1850,7 @@ describe('AppShell', () => {
 
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(
-        /URI: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/uri\/manual\nV2Ray JSON: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/v2ray\/manual\nClash: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/clash\/manual\nMihomo: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/mihomo\/manual\nSing-box: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/sing-box\/manual/
+        /URI: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/uri\/manual\nV2Ray JSON: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/v2ray\/manual\nClash: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/clash\/manual\nMihomo: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/mihomo\/manual\nSing-box: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/sing-box\/manual\nShadowrocket: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/shadowrocket\/manual\nStash: http:\/\/localhost(?::\d+)?\/sub\/[A-Za-z0-9]+\/stash\/manual/
       )
     );
     expect((await screen.findAllByRole('heading', { name: '客户节点', hidden: true })).length).toBeGreaterThan(0);
@@ -2722,9 +2722,11 @@ describe('AppShell', () => {
             routingRule: 'region:hk AND tier:premium',
             securePathPreview: expect.stringMatching(/^\/[a-z0-9]{24}$/),
             subscriptionUrlPreview: expect.objectContaining({
-              clash: expect.stringContaining('/sub/')
+              clash: expect.stringContaining('/sub/'),
+              shadowrocket: expect.stringContaining('/shadowrocket/'),
+              stash: expect.stringContaining('/stash/')
             }),
-            outputFormats: expect.arrayContaining(['clash', 'mihomo', 'uri'])
+            outputFormats: expect.arrayContaining(['clash', 'mihomo', 'uri', 'shadowrocket', 'stash'])
           })
         }),
         expect.any(Object)

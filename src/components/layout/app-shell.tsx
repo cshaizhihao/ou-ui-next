@@ -835,6 +835,23 @@ function mapSubscriptionFormatToOutputFormat(
   return 'uri';
 }
 
+function createSubscriptionOutputFormatLabel(
+  format: SubscriptionClientRuleMetadata['outputFormats'][number],
+  language: AppLanguage
+) {
+  const labels: Record<SubscriptionClientRuleMetadata['outputFormats'][number], string> = {
+    uri: 'URI',
+    v2ray: language === 'zh' ? 'V2Ray JSON' : 'V2Ray JSON',
+    clash: 'Clash',
+    mihomo: 'Mihomo',
+    'sing-box': 'Sing-box',
+    shadowrocket: 'Shadowrocket',
+    stash: 'Stash'
+  };
+
+  return labels[format];
+}
+
 function resolveSubscriptionTrafficFilter(routingRule: string): SubscriptionClientRuleMetadata['trafficFilter'] {
   const match = /\btraffic:(available|quota-exceeded|high|low|limited|unlimited)\b/i.exec(routingRule);
   const value = match?.[1]?.toLowerCase();
@@ -854,26 +871,17 @@ function createSubscriptionClientUrl(
   return `${createBrowserPublicBaseUrl()}/sub${securePathPreview}/${format}/${client.subId}`;
 }
 
-function createSubscriptionClientFormatLabel(format: SubscriptionClientFormat, language: AppLanguage) {
-  const labels: Record<SubscriptionClientFormat, string> = {
-    plain: 'URI',
-    json: language === 'zh' ? 'V2Ray JSON' : 'V2Ray JSON',
-    clash: 'Clash',
-    mihomo: 'Mihomo',
-    'sing-box': 'Sing-box'
-  };
-
-  return labels[format];
-}
-
 function createSubscriptionClientAllFormatText(
   client: ControlPlaneSnapshot['subscriptionClients'][number],
   language: AppLanguage
 ) {
-  return client.formats
+  const outputFormats = client.outputFormats?.length
+    ? client.outputFormats
+    : Array.from(new Set(client.formats.map(mapSubscriptionFormatToOutputFormat)));
+
+  return outputFormats
     .map((format) => {
-      const outputFormat = mapSubscriptionFormatToOutputFormat(format);
-      return `${createSubscriptionClientFormatLabel(format, language)}: ${createSubscriptionClientUrl(client, outputFormat)}`;
+      return `${createSubscriptionOutputFormatLabel(format, language)}: ${createSubscriptionClientUrl(client, format)}`;
     })
     .join('\n');
 }
@@ -958,7 +966,15 @@ function createSubscriptionClientExportMetadata(
 }
 
 function createCustomerNodeSubscriptionMetadata(metadata: CustomerNodeConfigMetadata): SubscriptionClientRuleMetadata {
-  const outputFormats: SubscriptionClientRuleMetadata['outputFormats'] = ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box'];
+  const outputFormats: SubscriptionClientRuleMetadata['outputFormats'] = [
+    'uri',
+    'v2ray',
+    'clash',
+    'mihomo',
+    'sing-box',
+    'shadowrocket',
+    'stash'
+  ];
   const formats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
   const subId = metadata.subId || metadata.subscriptionRule || metadata.clientIdentity;
   const subscriptionClientId =
@@ -1044,7 +1060,9 @@ function createCustomerNodeAllSubscriptionText(metadata: SubscriptionClientRuleM
     ['V2Ray JSON', 'v2ray'],
     ['Clash', 'clash'],
     ['Mihomo', 'mihomo'],
-    ['Sing-box', 'sing-box']
+    ['Sing-box', 'sing-box'],
+    ['Shadowrocket', 'shadowrocket'],
+    ['Stash', 'stash']
   ];
 
   return entries.map(([label, format]) => `${label}: ${metadata.subscriptionUrlPreview[format]}`).join('\n');
