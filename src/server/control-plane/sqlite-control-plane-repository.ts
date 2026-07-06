@@ -1037,6 +1037,10 @@ export async function createSqliteControlPlaneRepository(
       });
     },
 
+    async readStateSnapshot() {
+      return listState();
+    },
+
     async listTasks() {
       return clone((await listState()).tasks);
     },

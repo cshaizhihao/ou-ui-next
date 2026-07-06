@@ -471,6 +471,10 @@ export function createInMemoryControlPlaneRepository(
       return clone(result);
     },
 
+    async readStateSnapshot() {
+      return clone(state);
+    },
+
     async listTasks() {
       return clone(state.tasks);
     },

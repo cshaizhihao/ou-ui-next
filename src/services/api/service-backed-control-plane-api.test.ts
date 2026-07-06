@@ -1045,9 +1045,44 @@ describe('service-backed control plane read model hydration', () => {
           ackedAt: '2026-06-05T10:00:05.000Z',
           resultAt: '2026-06-05T10:00:08.000Z'
         })
+      ],
+      agentCredentials: [
+        {
+          id: 'agent-credential-snapshot-fast-01',
+          agentId: 'agent-snapshot-fast-01',
+          tokenHash: 'sha256:secret-runtime-token-hash',
+          tokenPrefix: 'oar_secret',
+          status: 'active',
+          purpose: 'runtime',
+          issuedAt: '2026-06-05T09:00:00.000Z',
+          expiresAt: '2026-12-31T00:00:00.000Z',
+          issuedBy: 'admin',
+          sourceIp: '127.0.0.1',
+          requestId: 'req-agent-credential-snapshot-fast-01',
+          sessionId: 'sess-agent-snapshot-fast-01',
+          metadata: {
+            installProfile: ['host-agent', 'xray', 'telemetry', 'command-channel']
+          }
+        }
+      ],
+      agentSessions: [
+        {
+          agentId: 'agent-snapshot-fast-01',
+          sessionId: 'sess-agent-snapshot-fast-01',
+          status: 'online',
+          lastSeq: 10,
+          updatedAt: '2026-06-05T10:00:00.000Z'
+        }
       ]
     });
+    const readStateSnapshot = vi.spyOn(repository, 'readStateSnapshot');
     const listTasks = vi.spyOn(repository, 'listTasks');
+    const listCommandOutbox = vi.spyOn(repository, 'listCommandOutbox');
+    const listConfigRevisions = vi.spyOn(repository, 'listConfigRevisions');
+    const listPreflightPlans = vi.spyOn(repository, 'listPreflightPlans');
+    const listRuntimeSnapshots = vi.spyOn(repository, 'listRuntimeSnapshots');
+    const listTrafficRollups = vi.spyOn(repository, 'listTrafficRollups');
+    const listAuditLogs = vi.spyOn(repository, 'listAuditLogs');
     const api = createServiceBackedControlPlaneApi({
       repository,
       service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
@@ -1128,8 +1163,31 @@ describe('service-backed control plane read model hydration', () => {
       })
     ]);
     expect(snapshot.commandOutbox[0]).not.toHaveProperty('command');
+    expect(snapshot.agentCredentials).toEqual([
+      expect.objectContaining({
+        id: 'agent-credential-snapshot-fast-01',
+        agentId: 'agent-snapshot-fast-01',
+        tokenPrefix: 'oar_secret',
+        purpose: 'runtime'
+      })
+    ]);
+    expect(snapshot.agentCredentials[0]).not.toHaveProperty('tokenHash');
+    expect(snapshot.agentSessions).toEqual([
+      expect.objectContaining({
+        agentId: 'agent-snapshot-fast-01',
+        sessionId: 'sess-agent-snapshot-fast-01',
+        capabilities: expect.arrayContaining(['host-agent', 'xray', 'telemetry'])
+      })
+    ]);
     expect(snapshot.telegramBotSettings).toEqual(expect.objectContaining({ id: 'telegram-bot' }));
-    expect(listTasks).toHaveBeenCalledTimes(1);
+    expect(readStateSnapshot).toHaveBeenCalledTimes(1);
+    expect(listTasks).not.toHaveBeenCalled();
+    expect(listCommandOutbox).not.toHaveBeenCalled();
+    expect(listConfigRevisions).not.toHaveBeenCalled();
+    expect(listPreflightPlans).not.toHaveBeenCalled();
+    expect(listRuntimeSnapshots).not.toHaveBeenCalled();
+    expect(listTrafficRollups).not.toHaveBeenCalled();
+    expect(listAuditLogs).not.toHaveBeenCalled();
   });
 
   it('processes high-frequency Agent heartbeat events without replaying persisted tasks after hydration', async () => {

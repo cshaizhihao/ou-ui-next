@@ -82,6 +82,10 @@ export async function createFileControlPlaneRepository(
       return pending;
     },
 
+    async readStateSnapshot() {
+      return clone(state);
+    },
+
     async listTasks() {
       return clone(state.tasks);
     },

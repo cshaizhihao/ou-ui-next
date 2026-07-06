@@ -68,8 +68,10 @@ import {
 } from '../../domain';
 import { calculateForwardingBilledBytes } from '../../domain/forwarding';
 import type {
+  AgentCredentialRecord,
   AgentSessionState,
   ControlPlaneRepository,
+  ControlPlaneRepositoryState,
   ControlPlaneTransaction,
   PersistedSystemAlertRecord,
   TelegramBotSecretState
@@ -981,6 +983,34 @@ function createAgentSessionSummary(
     capabilities: session.capabilities ?? readCredentialSessionCapabilities(credential),
     lastHeartbeatAt: session.lastHeartbeatAt,
     updatedAt: session.updatedAt
+  };
+}
+
+function createAgentCredentialSummaryFromRecord(record: AgentCredentialRecord): AgentCredentialSummary {
+  return {
+    id: record.id,
+    agentId: record.agentId,
+    tokenPrefix: record.tokenPrefix,
+    status: record.status,
+    purpose: record.purpose,
+    issuedAt: record.issuedAt,
+    expiresAt: record.expiresAt,
+    issuedBy: record.issuedBy,
+    sourceIp: record.sourceIp,
+    requestId: record.requestId,
+    lastUsedAt: record.lastUsedAt,
+    sessionId: record.sessionId,
+    revokedAt: record.revokedAt,
+    revokedBy: record.revokedBy,
+    revokedReason: record.revokedReason,
+    replacedByCredentialId: record.replacedByCredentialId,
+    metadata: {
+      ...record.metadata,
+      installProfile: [...record.metadata.installProfile],
+      ...(record.metadata.registrationCapabilities
+        ? { registrationCapabilities: [...record.metadata.registrationCapabilities] }
+        : {})
+    }
   };
 }
 
@@ -5295,9 +5325,10 @@ export function createServiceBackedControlPlaneApi({
   async function projectRuntimeCredentialAgents(
     baseAgents: Agent[],
     deletedAgentIdsForProjection: Set<string>,
-    knownSessions?: AgentSessionState[]
+    knownSessions?: AgentSessionState[],
+    knownCredentials?: AgentCredentialSummary[]
   ) {
-    const credentials = await service.listAgentCredentials();
+    const credentials = knownCredentials ?? (await service.listAgentCredentials());
     const sessions = knownSessions ?? (await repository.listAgentSessions());
     let nextAgents = clone(baseAgents);
 
@@ -5330,20 +5361,30 @@ export function createServiceBackedControlPlaneApi({
   }
 
   async function hydrateReadModelsFromPersistedTasks() {
-    const tasks = sortTasksForReadModelReplay(await repository.listTasks());
+    return hydrateReadModelsFromRepositoryState(await repository.readStateSnapshot());
+  }
+
+  async function hydrateReadModelsFromRepositoryState(state: ControlPlaneRepositoryState) {
+    const tasks = sortTasksForReadModelReplay(state.tasks);
     updateReadModelTasks(tasks);
-    const persistedSubscriptionSources = await repository.listSubscriptionSources();
-    const persistedSubscriptionInventoryNodes = await repository.listSubscriptionInventoryNodes();
-    const persistedSubscriptionClients = await repository.listSubscriptionClients();
-    const persistedSubscriptionExportProfiles = await repository.listSubscriptionExportProfiles();
+    const persistedSubscriptionSources = clone(state.subscriptionSources);
+    const persistedSubscriptionInventoryNodes = clone(state.subscriptionInventoryNodes);
+    const persistedSubscriptionClients = clone(state.subscriptionClients);
+    const persistedSubscriptionExportProfiles = clone(state.subscriptionExportProfiles);
     const hasPersistedSubscriptionSources = persistedSubscriptionSources.length > 0;
     const hasPersistedSubscriptionInventoryNodes = persistedSubscriptionInventoryNodes.length > 0;
     const hasPersistedSubscriptionClients = persistedSubscriptionClients.length > 0;
     const hasPersistedSubscriptionExportProfiles = persistedSubscriptionExportProfiles.length > 0;
     const nextDeletedAgentIds = new Set<string>();
-    const persistedAgentSessions = await repository.listAgentSessions();
+    const persistedAgentSessions = clone(state.agentSessions);
+    const credentialSummaries = state.agentCredentials.map(createAgentCredentialSummaryFromRecord);
     syncHighFrequencyAgentEventSeqsFromSessions(persistedAgentSessions);
-    let nextAgents = await projectRuntimeCredentialAgents(seedAgents, nextDeletedAgentIds, persistedAgentSessions);
+    let nextAgents = await projectRuntimeCredentialAgents(
+      seedAgents,
+      nextDeletedAgentIds,
+      persistedAgentSessions,
+      credentialSummaries
+    );
     let nextInbounds = clone(seedInbounds);
     let nextSubscriptionSources = hasPersistedSubscriptionSources ? persistedSubscriptionSources : clone(seedSubscriptionSources);
     let nextSubscriptionInventoryNodes = hasPersistedSubscriptionInventoryNodes
@@ -5353,7 +5394,7 @@ export function createServiceBackedControlPlaneApi({
     let nextSubscriptionExportProfiles = hasPersistedSubscriptionExportProfiles
       ? persistedSubscriptionExportProfiles
       : clone(seedSubscriptionExportProfiles);
-    let nextForwardRules = clone(await repository.listForwardRules());
+    let nextForwardRules = clone(state.forwardRules);
 
     for (const task of tasks) {
       if (task.operation === 'agent.delete') {
@@ -5385,7 +5426,7 @@ export function createServiceBackedControlPlaneApi({
 
     const quotaResetReplayState = createQuotaResetReplayState(tasks);
 
-    for (const rawEvent of mergePersistedAndRecentAgentEvents(await repository.listAgentEvents())) {
+    for (const rawEvent of mergePersistedAndRecentAgentEvents(state.agentEvents)) {
       const event = applyQuotaResetStateToForwardingEvent(
         applyQuotaResetStateToXrayEvent(applyQuotaResetStateToAgentEvent(rawEvent, quotaResetReplayState), quotaResetReplayState),
         quotaResetReplayState
@@ -5400,7 +5441,12 @@ export function createServiceBackedControlPlaneApi({
       nextForwardRules = applyForwardingTelemetryToReadModel(nextForwardRules, event);
     }
 
-    nextAgents = await projectRuntimeCredentialAgents(nextAgents, nextDeletedAgentIds, persistedAgentSessions);
+    nextAgents = await projectRuntimeCredentialAgents(
+      nextAgents,
+      nextDeletedAgentIds,
+      persistedAgentSessions,
+      credentialSummaries
+    );
 
     agents = nextAgents;
     inbounds = nextInbounds;
@@ -5923,7 +5969,8 @@ export function createServiceBackedControlPlaneApi({
 
   const api: ControlPlaneApi = {
     async getSnapshot() {
-      const tasks = await hydrateReadModelsFromPersistedTasks();
+      const repositoryState = await repository.readStateSnapshot();
+      const tasks = await hydrateReadModelsFromRepositoryState(repositoryState);
       const now = readModelNow();
       const quotaResetReplayState = createQuotaResetReplayState(tasks);
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
@@ -5944,57 +5991,51 @@ export function createServiceBackedControlPlaneApi({
         quotaPolicies: applyQuotaResetTasksToExplicitPolicies(inventory.quotaPolicies ?? [], tasks)
       });
       const proxyProviders = createProxyProvidersFromSources(subscriptionSources);
-      const [
-        commandOutbox,
-        nodes,
-        rateLimitPolicies,
-        permissionGrants,
-        routingPolicies,
-        tuningProfiles,
-        configRevisions,
-        preflightPlans,
-        runtimeSnapshots,
-        trafficRollups,
-        trafficRollupCompactions,
-        systemAlertNotificationDeliveries,
-        agentLogRetentionPolicy,
-        trafficRollupRetentionPolicy,
-        agentCredentials,
-        rawAgentSessions,
-        rawAgentEvents,
-        agentLogArchives,
-        telegramBotSettings,
-        telegramBindings,
-        telegramNotificationPolicies,
-        telegramNotificationDeliveries,
-        auditLogs
-      ] = await Promise.all([
-        repository.listCommandOutbox(),
-        Promise.resolve(clone(inventory.nodes ?? [])),
-        Promise.resolve(clone(inventory.rateLimitPolicies ?? [])),
-        repository.listPermissionGrants(),
-        Promise.resolve(clone(inventory.routingPolicies ?? [])),
-        Promise.resolve(clone(inventory.tuningProfiles ?? [])),
-        api.listConfigRevisions(),
-        api.listPreflightPlans(),
-        api.listRuntimeSnapshots(),
-        repository
-          .listTrafficRollups()
-          .then((rollups) => selectTrafficRollups(rollups, { limit: SNAPSHOT_TRAFFIC_ROLLUP_LIMIT })),
-        api.listTrafficRollupCompactions(),
-        repository.listSystemAlertNotificationDeliveries(),
-        api.getAgentLogRetentionPolicy(),
-        api.getTrafficRollupRetentionPolicy(),
-        api.listAgentCredentials(),
-        repository.listAgentSessions(),
-        repository.listAgentEvents(),
-        api.listAgentLogArchives({ limit: 200 }),
-        api.getTelegramBotSettings(),
-        api.listTelegramBindings(),
-        api.listTelegramNotificationPolicies(),
-        api.listTelegramNotificationDeliveries(),
-        api.listAuditLogs()
-      ]);
+      const commandOutbox = clone(repositoryState.commandOutbox);
+      const nodes = clone(inventory.nodes ?? []);
+      const rateLimitPolicies = clone(inventory.rateLimitPolicies ?? []);
+      const permissionGrants = clone(repositoryState.permissionGrants);
+      const routingPolicies = clone(inventory.routingPolicies ?? []);
+      const tuningProfiles = clone(inventory.tuningProfiles ?? []);
+      const configRevisions = clone(repositoryState.configRevisions);
+      const preflightPlans = clone(repositoryState.preflightPlans);
+      const runtimeSnapshots = clone(repositoryState.runtimeSnapshots);
+      const trafficRollups = selectTrafficRollups(repositoryState.trafficRollups, {
+        limit: SNAPSHOT_TRAFFIC_ROLLUP_LIMIT
+      });
+      const trafficRollupCompactions = selectTrafficRollupCompactions(repositoryState.trafficRollupCompactions);
+      const systemAlertNotificationDeliveries = clone(repositoryState.systemAlertNotificationDeliveries);
+      const agentLogRetentionPolicy = repositoryState.agentLogRetentionPolicy
+        ? createAgentLogRetentionPolicyReadModel(repositoryState.agentLogRetentionPolicy, 'control-plane')
+        : clone(runtimeAgentLogRetentionPolicy);
+      const trafficRollupRetentionPolicy = repositoryState.trafficRollupRetentionPolicy
+        ? createTrafficRollupRetentionPolicyReadModel({
+            effective: repositoryState.trafficRollupRetentionPolicy,
+            source: 'control-plane',
+            runtimeDefault: runtimeTrafficRollupRetentionPolicyValues,
+            controlPlaneOverride: repositoryState.trafficRollupRetentionPolicy
+          })
+        : clone(runtimeTrafficRollupRetentionPolicy);
+      const agentCredentials = repositoryState.agentCredentials.map(createAgentCredentialSummaryFromRecord);
+      const rawAgentSessions = clone(repositoryState.agentSessions);
+      const rawAgentEvents = clone(repositoryState.agentEvents);
+      const agentLogArchives = selectAgentLogArchives(repositoryState.agentLogArchives, { limit: 200 });
+      const telegramBotSettings = clone(
+        repositoryState.telegramBotSettings ?? createDefaultTelegramBotSettings(readModelNow())
+      );
+      const telegramNotificationPolicies = clone(
+        repositoryState.telegramNotificationPolicies.length > 0
+          ? repositoryState.telegramNotificationPolicies
+          : createDefaultTelegramPolicies()
+      );
+      const telegramNotificationDeliveries = clone(repositoryState.telegramNotificationDeliveries);
+      const telegramBindings = createTelegramBindingReadModels({
+        customerBindings: repositoryState.telegramCustomerBindings,
+        chatBindings: repositoryState.telegramChatBindings,
+        policies: telegramNotificationPolicies,
+        deliveries: telegramNotificationDeliveries
+      });
+      const auditLogs = clone(repositoryState.auditLogs);
       const systemAlerts = await reconcileAndPersistSystemAlerts(
         liveAgents,
         commandOutbox,

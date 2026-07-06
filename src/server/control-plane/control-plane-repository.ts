@@ -236,6 +236,7 @@ export type ControlPlaneTransaction = {
 
 export type ControlPlaneRepository = {
   transaction<T>(run: (transaction: ControlPlaneTransaction) => Promise<T>): Promise<T>;
+  readStateSnapshot(): Promise<ControlPlaneRepositoryState>;
   listTasks(): Promise<DeployTask[]>;
   listAuditLogs(): Promise<AuditLog[]>;
   listCommandOutbox(): Promise<CommandOutboxItem[]>;
