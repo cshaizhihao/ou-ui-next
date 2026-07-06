@@ -179,6 +179,77 @@ describe('subscription-output', () => {
     expect(mihomo.body).not.toContain(inbound.clients[0].id);
   });
 
+  it('excludes quota-disabled and expired Xray clients from public output while projecting guardrail state', () => {
+    const quotaDisabledInbound: XrayInbound = {
+      ...inbound,
+      clients: [
+        {
+          ...inbound.clients[0],
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: ''
+        }
+      ]
+    };
+    const expiredInbound: XrayInbound = {
+      ...inbound,
+      id: 'inbound-expired-vless-2443',
+      clients: [
+        {
+          ...inbound.clients[0],
+          id: 'expired-client-id',
+          email: 'expired@example.com',
+          subId: 'sub_expired',
+          clientExpired: true,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: ''
+        }
+      ]
+    };
+    const expiredClient: SubscriptionClientIdentity = {
+      ...client,
+      id: 'sub-client-expired',
+      subId: 'sub_expired',
+      email: 'expired@example.com',
+      usedTrafficBytes: 0
+    };
+
+    const quotaProjection = projectSubscriptionClientRuntimeState({
+      client,
+      inbounds: [quotaDisabledInbound]
+    });
+    const quotaOutput = renderPublicSubscriptionOutput({
+      client,
+      format: 'uri',
+      inbounds: [quotaDisabledInbound]
+    });
+    const expiredProjection = projectSubscriptionClientRuntimeState({
+      client: expiredClient,
+      inbounds: [expiredInbound]
+    });
+    const expiredOutput = renderPublicSubscriptionOutput({
+      client: expiredClient,
+      format: 'uri',
+      inbounds: [expiredInbound]
+    });
+
+    expect(quotaOutput.nodeCount).toBe(0);
+    expect(quotaOutput.body).toBe('');
+    expect(quotaOutput.headers['x-ou-ui-selected-node-count']).toBe('0');
+    expect(quotaProjection.client).toMatchObject({
+      quotaExceeded: true,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'xray_client_monthly_quota_exceeded'
+    });
+    expect(expiredOutput.nodeCount).toBe(0);
+    expect(expiredOutput.body).toBe('');
+    expect(expiredProjection.client).toMatchObject({
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'xray_client_expired'
+    });
+  });
+
   it('subtracts subscription-client quota reset baseline from public traffic headers', () => {
     const resetAt = '2026-06-05T10:00:00.000Z';
     const postResetInbound: XrayInbound = {

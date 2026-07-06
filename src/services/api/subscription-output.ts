@@ -3,6 +3,7 @@ import type {
   SubscriptionExportProfile,
   SubscriptionInventoryNode,
   SubscriptionProducerFormat,
+  XrayClient,
   XrayInbound
 } from '../../domain';
 import { getSubscriptionProducer, resolveSubscriptionOutputFormatAlias } from '../../domain';
@@ -227,6 +228,16 @@ function resolveSubscriptionNodeStatus(
   return 'online';
 }
 
+function isDeliverableXrayClient(client: XrayClient | undefined) {
+  return Boolean(
+    client &&
+      client.enabled !== false &&
+      client.quotaExceeded !== true &&
+      client.clientExpired !== true &&
+      client.runtimeDisabledByPolicy !== true
+  );
+}
+
 function normalizeIdentity(value: string | undefined) {
   return (value ?? '').trim().toLowerCase();
 }
@@ -436,7 +447,7 @@ function toSubscriptionNode(
   const label = createLocalClientNodeLabel(inbound, client, index);
   const rawUrl = createRawUrl(inbound, client, label);
 
-  if (!rawUrl || inbound.status === 'disabled') {
+  if (!rawUrl || inbound.status === 'disabled' || !isDeliverableXrayClient(client)) {
     return undefined;
   }
 
@@ -908,14 +919,39 @@ export function projectSubscriptionClientRuntimeState({
           : subtractBaseline(matchedUsedTrafficBytes, activeQuotaResetBaseline.baselineUsedTrafficBytes)
         : matchedUsedTrafficBytes
       : client.usedTrafficBytes;
-  const quotaExceeded = client.trafficLimitBytes > 0 && clampBytes(usedTrafficBytes) >= clampBytes(client.trafficLimitBytes);
-  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) && quotaExceeded;
+  const matchedQuotaExceeded = matchedXrayClients.some((inboundClient) => inboundClient.quotaExceeded === true);
+  const matchedClientExpired = matchedXrayClients.some((inboundClient) => inboundClient.clientExpired === true);
+  const matchedRuntimeDisabledByPolicy = matchedXrayClients.some(
+    (inboundClient) =>
+      inboundClient.runtimeDisabledByPolicy === true ||
+      inboundClient.quotaExceeded === true ||
+      inboundClient.clientExpired === true
+  );
+  const quotaExceeded =
+    client.quotaExceeded === true ||
+    matchedQuotaExceeded ||
+    (client.trafficLimitBytes > 0 && clampBytes(usedTrafficBytes) >= clampBytes(client.trafficLimitBytes));
+  const runtimeDisabledByPolicy =
+    client.runtimeDisabledByPolicy === true || matchedRuntimeDisabledByPolicy || quotaExceeded || matchedClientExpired;
+  const matchedGuardrailReason = matchedXrayClients.find(
+    (inboundClient) =>
+      inboundClient.guardrailReason &&
+      inboundClient.guardrailReason !== 'ok' &&
+      (inboundClient.runtimeDisabledByPolicy === true ||
+        inboundClient.quotaExceeded === true ||
+        inboundClient.clientExpired === true)
+  )?.guardrailReason;
   const guardrailReason =
-    quotaExceeded && client.guardrailReason && client.guardrailReason !== 'ok'
+    matchedGuardrailReason ??
+    (quotaExceeded && client.guardrailReason && client.guardrailReason !== 'ok'
       ? client.guardrailReason
       : quotaExceeded
-        ? 'subscription_client_quota_exceeded'
-        : 'ok';
+        ? matchedQuotaExceeded
+          ? 'xray_client_monthly_quota_exceeded'
+          : 'subscription_client_quota_exceeded'
+        : matchedClientExpired
+          ? 'xray_client_expired'
+          : 'ok');
 
   return {
     client: {
