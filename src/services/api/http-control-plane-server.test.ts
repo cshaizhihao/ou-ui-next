@@ -1915,6 +1915,7 @@ describe('HTTP control-plane server', () => {
             realityPrivateKey: 'public-sub-reality-private-key',
             realityShortId: 'abcd1234',
             trafficLimitGb: 500,
+            currentUsedTrafficGb: 12,
             remainingDays: 365,
             subscriptionRule: 'premium'
           }
@@ -1970,7 +1971,10 @@ describe('HTTP control-plane server', () => {
       expect(portal).toContain('Public Client Subscription');
       expect(portal).toContain('OU-UI Next subscription portal');
       expect(portal).toContain('500.00 GB');
+      expect(portal).toContain('12.00 GB');
       expect(portal).toContain('Generated Nodes');
+      expect(portal).toContain('Access Status');
+      expect(portal).toContain('Active');
       expect(portal).toContain('href="/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme"');
       expect(portal).toContain('data-format="clash"');
       expect(portal).toContain('data-format="sing-box"');
@@ -1987,6 +1991,7 @@ describe('HTTP control-plane server', () => {
       expect(uriResponse.status).toBe(200);
       expect(uriResponse.headers.get('content-type')).toContain('text/plain');
       expect(uriResponse.headers.get('subscription-userinfo')).toContain(`total=${500 * 1024 * 1024 * 1024}`);
+      expect(uriResponse.headers.get('subscription-userinfo')).toContain(`download=${12 * 1024 * 1024 * 1024}`);
       expect(uri).toContain('vless://22222222-2222-4222-8222-222222222222@edge-sub.example.com:2443');
       expect(uri).toContain('security=reality');
 

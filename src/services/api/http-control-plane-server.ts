@@ -45,6 +45,7 @@ import {
 import {
   isPublicSubscriptionFormat,
   normalizePublicSubscriptionFormat,
+  projectSubscriptionClientRuntimeState,
   renderPublicSubscriptionOutput,
   type PublicSubscriptionFormat,
   type PublicSubscriptionOutput
@@ -1856,6 +1857,18 @@ function formatPortalBytes(value: number) {
   return `${nextValue.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
 }
 
+function formatPublicSubscriptionStatus(client: SubscriptionClientIdentity) {
+  if (client.quotaExceeded) {
+    return 'Quota exceeded';
+  }
+
+  if (client.runtimeDisabledByPolicy) {
+    return 'Runtime disabled';
+  }
+
+  return 'Active';
+}
+
 function formatPublicSubscriptionLabel(format: SubscriptionClientOutputFormat) {
   if (format === 'uri') return 'URI';
   if (format === 'v2ray') return 'v2ray';
@@ -1970,6 +1983,12 @@ async function renderPublicSubscriptionPortal(
       <div class="cell"><span class="label">Traffic Limit</span>${trafficLimitBytes > 0 ? escapeHtml(formatPortalBytes(trafficLimitBytes)) : 'Unlimited'}</div>
       <div class="cell"><span class="label">Remaining</span>${remainingBytes === undefined ? 'Unlimited' : escapeHtml(formatPortalBytes(remainingBytes))}</div>
       <div class="cell"><span class="label">Generated Nodes</span>${Math.max(client.generatedNodeCount, 0)}</div>
+      <div class="cell"><span class="label">Access Status</span>${escapeHtml(formatPublicSubscriptionStatus(client))}</div>
+      ${
+        client.guardrailReason && client.guardrailReason !== 'ok'
+          ? `<div class="cell"><span class="label">Guardrail Reason</span>${escapeHtml(client.guardrailReason)}</div>`
+          : ''
+      }
     </section>
     <section aria-label="Subscription links">
       <h2>Subscription links</h2>
@@ -2721,10 +2740,16 @@ async function routeRequest(
     verifyPublicSubscriptionAccessToken(client, accessToken);
 
     consumePublicSubscriptionRequest(client, 'portal');
+    const [inbounds, externalNodes] = await Promise.all([api.listInbounds(), api.listSubscriptionInventoryNodes()]);
+    const projectedClient = projectSubscriptionClientRuntimeState({
+      client,
+      inbounds,
+      externalNodes
+    }).client;
     sendHtml(
       response,
       200,
-      await renderPublicSubscriptionPortal(client, {
+      await renderPublicSubscriptionPortal(projectedClient, {
         accessToken,
         publicBaseUrl: createPublicRequestBaseUrl(request)
       })
