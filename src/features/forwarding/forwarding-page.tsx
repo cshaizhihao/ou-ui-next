@@ -34,6 +34,7 @@ import type {
   ForwardPortBinding,
   ForwardProtocol,
   ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeControlMetadata,
   ForwardingRuntimeDiagnosis,
   ForwardingRuntimeDiagnosisAction,
   ForwardingRuntimeDiagnosisReason,
@@ -81,6 +82,8 @@ export type ForwardingRuleView = {
   maxConnections: number;
   maxConnectionsPerIp: number;
   proxyProtocol: boolean;
+  blockedRuntimeControls?: ForwardingRuntimeBlockedControl[];
+  blockedRuntimeControlValues?: ForwardingRuntimeControlMetadata['blockedRuntimeControlValues'];
   quotaExceeded?: boolean;
   runtimeDisabledByPolicy?: boolean;
   guardrailReason?: string;
@@ -886,6 +889,8 @@ function createForwardingRuntimeDiagnosis(rule: ForwardingRuleView): ForwardingR
     maxConnections: rule.maxConnections,
     maxConnectionsPerIp: rule.maxConnectionsPerIp,
     proxyProtocol: rule.proxyProtocol,
+    blockedRuntimeControls: rule.blockedRuntimeControls,
+    blockedRuntimeControlValues: rule.blockedRuntimeControlValues,
     quotaExceeded: rule.quotaExceeded,
     runtimeDisabledByPolicy: rule.runtimeDisabledByPolicy,
     guardrailReason: rule.guardrailReason

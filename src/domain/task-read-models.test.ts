@@ -424,6 +424,80 @@ describe('task read models', () => {
     });
   });
 
+  it('preserves blocked forwarding diagnostics without treating them as executable rule fields', () => {
+    const rule = createForwardRuleFromTask(
+      createForwardTask({
+        metadata: {
+          ipRateLimitMbps: 0,
+          maxConnections: 0,
+          maxConnectionsPerIp: 0,
+          proxyProtocol: false,
+          blockedRuntimeControls: ['ipRateLimitMbps', 'proxyProtocol'],
+          blockedRuntimeControlValues: {
+            ipRateLimitMbps: 50,
+            proxyProtocol: true
+          }
+        }
+      })
+    );
+
+    expect(rule).toMatchObject({
+      ipRateLimitMbps: 0,
+      maxConnections: 0,
+      maxConnectionsPerIp: 0,
+      proxyProtocol: false,
+      blockedRuntimeControls: ['ipRateLimitMbps', 'proxyProtocol'],
+      blockedRuntimeControlValues: {
+        ipRateLimitMbps: 50,
+        proxyProtocol: true
+      }
+    });
+
+    const [updatedRule] = applyForwardRuleTask(
+      [
+        {
+          ...rule!,
+          ipRateLimitMbps: 50,
+          maxConnections: 1024,
+          maxConnectionsPerIp: 16,
+          proxyProtocol: true
+        }
+      ],
+      createForwardTask({
+        operation: 'forward.apply',
+        status: 'running',
+        id: 'task-forward-apply-blocked-diagnostics',
+        metadata: {
+          ipRateLimitMbps: 0,
+          maxConnections: 0,
+          maxConnectionsPerIp: 0,
+          proxyProtocol: false,
+          blockedRuntimeControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+          blockedRuntimeControlValues: {
+            ipRateLimitMbps: 50,
+            maxConnections: 1024,
+            maxConnectionsPerIp: 16,
+            proxyProtocol: true
+          }
+        }
+      })
+    );
+
+    expect(updatedRule).toMatchObject({
+      ipRateLimitMbps: 0,
+      maxConnections: 0,
+      maxConnectionsPerIp: 0,
+      proxyProtocol: false,
+      blockedRuntimeControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+      blockedRuntimeControlValues: {
+        ipRateLimitMbps: 50,
+        maxConnections: 1024,
+        maxConnectionsPerIp: 16,
+        proxyProtocol: true
+      }
+    });
+  });
+
   it('auto-allocates a high listen port when forwarding metadata omits listenPort', () => {
     const rule = createForwardRuleFromTask(
       createForwardTask({

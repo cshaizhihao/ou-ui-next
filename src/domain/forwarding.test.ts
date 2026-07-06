@@ -110,6 +110,29 @@ describe('forwarding runtime diagnosis', () => {
     });
   });
 
+  it('diagnoses blocked controls preserved as metadata even when executable fields are normalized', () => {
+    const diagnosis = diagnoseForwardingRuntime(
+      createForwardRule({
+        ipRateLimitMbps: 0,
+        maxConnections: 0,
+        maxConnectionsPerIp: 0,
+        proxyProtocol: false,
+        blockedRuntimeControls: ['ipRateLimitMbps', 'proxyProtocol'],
+        blockedRuntimeControlValues: {
+          ipRateLimitMbps: 50,
+          proxyProtocol: true
+        }
+      })
+    );
+
+    expect(diagnosis).toMatchObject({
+      state: 'degraded',
+      reasons: ['blocked-runtime-controls'],
+      blockedControls: ['ipRateLimitMbps', 'proxyProtocol'],
+      nextActions: ['inspect-agent']
+    });
+  });
+
   it('marks allocated rules without counter samples as degraded telemetry evidence', () => {
     const diagnosis = diagnoseForwardingRuntime(
       createForwardRule({

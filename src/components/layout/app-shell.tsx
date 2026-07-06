@@ -235,6 +235,8 @@ function mapForwardRules(
         maxConnections: rule.maxConnections,
         maxConnectionsPerIp: rule.maxConnectionsPerIp,
         proxyProtocol: rule.proxyProtocol,
+        blockedRuntimeControls: rule.blockedRuntimeControls,
+        blockedRuntimeControlValues: rule.blockedRuntimeControlValues,
         quotaExceeded: rule.quotaExceeded,
         runtimeDisabledByPolicy: rule.runtimeDisabledByPolicy,
         guardrailReason: rule.guardrailReason

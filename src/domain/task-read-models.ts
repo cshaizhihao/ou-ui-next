@@ -2,6 +2,7 @@ import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccounting
 import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
 import { hasAgentRuntimeDeploymentProof, type DeployTask } from './task';
 import type {
+  ForwardingRuntimeBlockedControl,
   ForwardProtocol,
   ForwardPortBinding,
   ForwardRule,
@@ -12,6 +13,7 @@ import type {
   TunnelMode,
   TunnelType
 } from './forwarding';
+import { FORWARDING_RUNTIME_BLOCKED_CONTROLS } from './forwarding';
 import {
   isXrayRuntimeProtocol,
   type XrayClient,
@@ -273,13 +275,42 @@ function resolveForwardRuleEnabledAfterTask(rule: ForwardRule, task: DeployTask)
   return readBoolean(task.metadata, 'enabled', rule.enabled);
 }
 
+function readBlockedForwardingRuntimeControls(metadata: Record<string, unknown> | undefined) {
+  const value = metadata?.blockedRuntimeControls;
+
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const controls = value.filter((control): control is ForwardingRuntimeBlockedControl =>
+    FORWARDING_RUNTIME_BLOCKED_CONTROLS.includes(control as ForwardingRuntimeBlockedControl)
+  );
+
+  return controls.length > 0 ? Array.from(new Set(controls)) : undefined;
+}
+
+function readBlockedForwardingRuntimeControlValues(metadata: Record<string, unknown> | undefined) {
+  const value = metadata?.blockedRuntimeControlValues;
+
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as ForwardRule['blockedRuntimeControlValues'])
+    : undefined;
+}
+
 function updateForwardRuleState(rule: ForwardRule, task: DeployTask, portStatus: PortAllocationStatus): ForwardRule {
   const enabled = resolveForwardRuleEnabledAfterTask(rule, task);
+  const metadata = task.metadata;
 
   return {
     ...rule,
     enabled,
     portStatus,
+    ipRateLimitMbps: readNumber(metadata, 'ipRateLimitMbps', rule.ipRateLimitMbps ?? 0),
+    maxConnections: readNumber(metadata, 'maxConnections', rule.maxConnections),
+    maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', rule.maxConnectionsPerIp),
+    proxyProtocol: readBoolean(metadata, 'proxyProtocol', rule.proxyProtocol),
+    blockedRuntimeControls: readBlockedForwardingRuntimeControls(metadata) ?? rule.blockedRuntimeControls,
+    blockedRuntimeControlValues: readBlockedForwardingRuntimeControlValues(metadata) ?? rule.blockedRuntimeControlValues,
     ports: rule.ports.map(
       (port): ForwardPortBinding => ({
         ...port,
@@ -633,6 +664,8 @@ export function createForwardRuleFromTask(task: DeployTask): ForwardRule | undef
     maxConnections: readNumber(metadata, 'maxConnections', 0),
     maxConnectionsPerIp: readNumber(metadata, 'maxConnectionsPerIp', 0),
     proxyProtocol: readBoolean(metadata, 'proxyProtocol', false),
+    blockedRuntimeControls: readBlockedForwardingRuntimeControls(metadata),
+    blockedRuntimeControlValues: readBlockedForwardingRuntimeControlValues(metadata),
     tunnelMode: readTunnelMode(),
     pricePerGb: readNumber(metadata, 'pricePerGb', 0),
     inboundBytes: 0,

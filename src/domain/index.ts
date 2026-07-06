@@ -53,6 +53,7 @@ export type {
   ForwardProtocol,
   ForwardRule,
   ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeControlMetadata,
   ForwardingRuntimeDiagnosis,
   ForwardingRuntimeDiagnosisAction,
   ForwardingRuntimeDiagnosisReason,

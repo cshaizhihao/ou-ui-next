@@ -92,6 +92,8 @@ type ForwardingRuntimeDiagnosticRule = Pick<
   | 'maxConnections'
   | 'maxConnectionsPerIp'
   | 'proxyProtocol'
+  | 'blockedRuntimeControls'
+  | 'blockedRuntimeControlValues'
   | 'quotaExceeded'
   | 'runtimeDisabledByPolicy'
   | 'guardrailReason'
@@ -170,6 +172,8 @@ export type ForwardRule = {
   pricePerGb: number;
   inboundBytes: number;
   outboundBytes: number;
+  blockedRuntimeControls?: ForwardingRuntimeBlockedControl[];
+  blockedRuntimeControlValues?: ForwardingRuntimeControlMetadata['blockedRuntimeControlValues'];
   billedTrafficBytes?: number;
   trafficBillingPeriod?: string;
   quotaExceeded?: boolean;
@@ -181,6 +185,11 @@ export function collectBlockedForwardingRuntimeControls(
   rule: ForwardingRuntimeControlMetadata
 ): ForwardingRuntimeBlockedControl[] {
   const blockedControls: ForwardingRuntimeBlockedControl[] = [];
+  const metadataBlockedControls = Array.isArray(rule.blockedRuntimeControls)
+    ? rule.blockedRuntimeControls.filter((control): control is ForwardingRuntimeBlockedControl =>
+        FORWARDING_RUNTIME_BLOCKED_CONTROLS.includes(control as ForwardingRuntimeBlockedControl)
+      )
+    : [];
 
   if ((rule.ipRateLimitMbps ?? 0) > 0) {
     blockedControls.push('ipRateLimitMbps');
@@ -198,7 +207,7 @@ export function collectBlockedForwardingRuntimeControls(
     blockedControls.push('proxyProtocol');
   }
 
-  return blockedControls;
+  return Array.from(new Set([...blockedControls, ...metadataBlockedControls]));
 }
 
 export function normalizeBlockedForwardingRuntimeControls<T extends ForwardingRuntimeControlMetadata>(

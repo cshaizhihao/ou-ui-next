@@ -733,6 +733,15 @@ describe('ForwardingPage', () => {
             guardrailReason: 'forward_rule_quota_exceeded'
           }),
           createRule({
+            id: 'forward-normalized-blocked-controls',
+            name: 'Normalized Blocked Controls Forward',
+            blockedRuntimeControls: ['ipRateLimitMbps', 'proxyProtocol'],
+            blockedRuntimeControlValues: {
+              ipRateLimitMbps: 50,
+              proxyProtocol: true
+            }
+          }),
+          createRule({
             id: 'forward-apply-failed',
             name: 'Apply Failed Forward',
             portStatus: 'failed',
@@ -760,9 +769,9 @@ describe('ForwardingPage', () => {
     const readiness = within(cockpit).getByRole('region', { name: 'Runtime Readiness' });
     const tableRegion = getForwardingRuleTableRegion();
 
-    expect(within(cockpit).getByRole('group', { name: 'Risk flags' })).toHaveTextContent('3');
+    expect(within(cockpit).getByRole('group', { name: 'Risk flags' })).toHaveTextContent('4');
     expect(within(readiness).getByRole('group', { name: 'Ready' })).toHaveTextContent('1');
-    expect(within(readiness).getByRole('group', { name: 'Issues' })).toHaveTextContent('3');
+    expect(within(readiness).getByRole('group', { name: 'Issues' })).toHaveTextContent('4');
     expect(within(readiness).getByRole('group', { name: 'Waiting' })).toHaveTextContent('0');
 
     const readyDiagnosis = within(tableRegion).getByRole('group', { name: 'Runtime diagnosis for Ready Forward' });
@@ -789,6 +798,19 @@ describe('ForwardingPage', () => {
     );
     expect(within(blockedDiagnosis).getByText('Reset quota')).toHaveAttribute('data-runtime-diagnosis-action', 'reset-quota');
     expect(within(blockedDiagnosis).getByText('Resume')).toHaveAttribute('data-runtime-diagnosis-action', 'resume');
+
+    const normalizedBlockedDiagnosis = within(tableRegion).getByRole('group', {
+      name: 'Runtime diagnosis for Normalized Blocked Controls Forward'
+    });
+    expect(normalizedBlockedDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
+    expect(within(normalizedBlockedDiagnosis).getByText('Blocked controls present')).toHaveAttribute(
+      'data-runtime-diagnosis-reason',
+      'blocked-runtime-controls'
+    );
+    expect(within(normalizedBlockedDiagnosis).getByText('Inspect Agent')).toHaveAttribute(
+      'data-runtime-diagnosis-action',
+      'inspect-agent'
+    );
 
     const failedDiagnosis = within(tableRegion).getByRole('group', { name: 'Runtime diagnosis for Apply Failed Forward' });
     expect(failedDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'failed');
