@@ -1828,6 +1828,46 @@ export function createControlPlaneService({
     sequence += 1;
     return readNow();
   };
+  let sequenceInitialized = false;
+  let sequenceInitialization: Promise<void> | undefined;
+
+  const readSequenceNumber = (value: string | undefined, prefix: string) => {
+    if (!value?.startsWith(prefix)) {
+      return 0;
+    }
+
+    const match = value.slice(prefix.length).match(/^(\d+)/);
+    const parsed = match ? Number.parseInt(match[1] ?? '', 10) : NaN;
+
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const ensureSequenceInitialized = async () => {
+    if (sequenceInitialized) {
+      return;
+    }
+
+    sequenceInitialization ??= (async () => {
+      const [tasks, commandOutbox, auditLogs, permissionGrants] = await Promise.all([
+        repository.listTasks(),
+        repository.listCommandOutbox(),
+        repository.listAuditLogs(),
+        repository.listPermissionGrants()
+      ]);
+      const maxPersistedSequence = Math.max(
+        0,
+        ...tasks.map((task) => readSequenceNumber(task.id, 'task-')),
+        ...commandOutbox.map((item) => readSequenceNumber(item.id, 'outbox-')),
+        ...auditLogs.map((auditLog) => readSequenceNumber(auditLog.id, 'audit-')),
+        ...permissionGrants.map((grant) => readSequenceNumber(grant.resourceVersion, 'permv-'))
+      );
+
+      sequence = Math.max(sequence, maxPersistedSequence + 1);
+      sequenceInitialized = true;
+    })();
+
+    await sequenceInitialization;
+  };
 
   async function flushArchiveSinkBatches(batches: ArchiveSinkBatch[]) {
     if (!archiveSink) {
@@ -2603,6 +2643,7 @@ export function createControlPlaneService({
     },
 
     async createAgentInstallCommand(input: AgentInstallCommandRequest, context: MutationContext) {
+      await ensureSequenceInitialized();
       const mutationContext = parseMutationContext(context);
       const requestBodyHash = createAgentInstallCommandRequestHash(input);
       const idempotencyKey = createAgentInstallCommandIdempotencyRecordKey(mutationContext);
@@ -2711,6 +2752,7 @@ export function createControlPlaneService({
     },
 
     async createAgentUpgradeCommand(input: AgentUpgradeCommandRequest, context: MutationContext) {
+      await ensureSequenceInitialized();
       const mutationContext = parseMutationContext(context);
       const normalizedInput: AgentUpgradeCommandRequest = {
         agentId: input.agentId.trim(),
@@ -2810,6 +2852,7 @@ export function createControlPlaneService({
       installToken: string,
       context?: AgentRegistrationContext
     ): Promise<AgentRuntimeCredential> {
+      await ensureSequenceInitialized();
       const issuedAt = readNow();
       const expiresAt = new Date(Date.parse(issuedAt) + DEFAULT_RUNTIME_CREDENTIAL_TTL_MS).toISOString();
       const installTokenPresented = installToken.trim().length > 0;
@@ -2944,6 +2987,7 @@ export function createControlPlaneService({
       input: AgentCredentialRevokeRequest,
       context: MutationContext
     ): Promise<AgentCredentialSummary> {
+      await ensureSequenceInitialized();
       const mutationContext = parseMutationContext(context);
       const reason = input.reason.trim();
 
@@ -3002,6 +3046,7 @@ export function createControlPlaneService({
       input: AgentCredentialRotateRequest,
       context: MutationContext
     ): Promise<AgentRuntimeCredential> {
+      await ensureSequenceInitialized();
       const mutationContext = parseMutationContext(context);
       const reason = input.reason.trim();
 
@@ -3131,6 +3176,7 @@ export function createControlPlaneService({
     },
 
     async createTask(input: CreateTaskInput, context: MutationContext) {
+      await ensureSequenceInitialized();
       const taskInput = parseCreateTaskRequest(input);
       const mutationContext = parseMutationContext(context);
       const requestBodyHash = createRequestHash(taskInput);
@@ -3482,6 +3528,7 @@ export function createControlPlaneService({
     },
 
     async transitionTask(taskId: string, status: DeployTaskStatus, context: MutationContext) {
+      await ensureSequenceInitialized();
       const mutationContext = parseMutationContext(context);
 
       return repository.transaction(async (transaction) => {
@@ -3517,6 +3564,7 @@ export function createControlPlaneService({
     },
 
     async issueAgentCommand(agentId: string, command: AgentCommandEnvelope, context: MutationContext) {
+      await ensureSequenceInitialized();
       const mutationContext = parseMutationContext(context);
       const agentCommand = agentCommandEnvelopeSchema.parse(command);
 
@@ -3573,6 +3621,7 @@ export function createControlPlaneService({
     },
 
     async leaseAgentCommands(agentId: string, options: AgentCommandLeaseOptions) {
+      await ensureSequenceInitialized();
       const now = options.now ?? nextObservedAt();
       const nowMs = Date.parse(now);
       const leaseDurationMs = options.leaseDurationMs ?? 30_000;
@@ -3652,6 +3701,7 @@ export function createControlPlaneService({
     },
 
     async sweepCommandTimeouts(options: CommandTimeoutSweepOptions) {
+      await ensureSequenceInitialized();
       const now = options.now ?? nextObservedAt();
       const nowMs = Date.parse(now);
       const ackTimeoutMs = options.ackTimeoutMs ?? 15_000;
@@ -3711,6 +3761,7 @@ export function createControlPlaneService({
     },
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
+      await ensureSequenceInitialized();
       const agentEvent = parseAgentEventEnvelope(event);
       const archiveSinkBatches: ArchiveSinkBatch[] = [];
 

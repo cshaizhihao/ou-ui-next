@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { AGENT_INSTALL_PROFILE, type CreateTaskInput } from '../../domain';
+import { AGENT_INSTALL_PROFILE, type AuditLog, type CreateTaskInput, type DeployTask } from '../../domain';
 import { seedForwardRules, seedPermissionGrants } from '../../services/mock/mock-data';
+import type { CommandOutboxItem } from '../../services/api/control-plane-api';
 import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
 import { createControlPlaneService } from './control-plane-service';
@@ -1138,6 +1139,125 @@ describe('control-plane service', () => {
       `snapshot-before-${updateTask.id}`,
       `snapshot-before-${createTask.id}`
     ]);
+  });
+
+  it('hydrates runtime sequence from persisted state before queuing new tasks after restart', async () => {
+    const persistedAt = '2026-06-01T00:00:00.000Z';
+    const existingTask: DeployTask = {
+      id: 'task-0491',
+      operation: 'runtime.reload',
+      resourceType: 'module',
+      resourceId: 'xray-runtime-existing',
+      status: 'succeeded',
+      targetId: 'xray-runtime-existing',
+      targetLabel: 'Existing runtime task',
+      summary: 'Existing persisted task before restart',
+      createdAt: persistedAt,
+      updatedAt: persistedAt,
+      actor: 'admin',
+      requestedBy: 'admin',
+      requestId: 'req-existing-task-0491',
+      sourceIp: '203.0.113.10',
+      rollbackAvailable: false,
+      attempts: 1,
+      progressPercent: 100,
+      steps: []
+    };
+    const existingOutboxItem: CommandOutboxItem = {
+      id: 'outbox-0491',
+      taskId: existingTask.id,
+      commandId: 'cmd-task-0491',
+      agentId: 'agent-sin-02',
+      seq: 491,
+      status: 'completed',
+      transport: 'http-pull',
+      command: {
+        type: 'reload',
+        commandId: 'cmd-task-0491',
+        requestId: 'req-existing-task-0491',
+        taskId: existingTask.id,
+        agentId: 'agent-sin-02',
+        seq: 491,
+        issuedAt: persistedAt,
+        deadlineAt: '2026-06-01T00:05:00.000Z',
+        payload: {
+          moduleKind: 'system',
+          moduleId: 'xray-runtime-existing',
+          configRevision: 'cfg-task-0491',
+          reloadMode: 'graceful_restart'
+        }
+      },
+      attempts: 1,
+      createdAt: persistedAt,
+      updatedAt: persistedAt,
+      deadlineAt: '2026-06-01T00:05:00.000Z'
+    };
+    const existingAuditLog: AuditLog = {
+      id: 'audit-0491-existing',
+      action: 'task.succeeded',
+      actor: 'admin',
+      scope: 'control-plane:task',
+      resourceType: 'module',
+      operation: 'runtime.reload',
+      result: 'succeeded',
+      targetId: existingTask.targetId,
+      targetLabel: existingTask.targetLabel,
+      taskId: existingTask.id,
+      severity: 'info',
+      message: 'Existing persisted audit before restart',
+      createdAt: persistedAt,
+      sourceIp: '203.0.113.10',
+      requestId: 'req-existing-task-0491'
+    };
+    const repository = createInMemoryControlPlaneRepository({
+      tasks: [existingTask],
+      commandOutbox: [existingOutboxItem],
+      auditLogs: [existingAuditLog],
+      permissionGrants: seedPermissionGrants
+    });
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+
+    const task = await service.createTask(
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-after-restart-01',
+        targetLabel: 'Customer node after restart',
+        summary: 'Create Xray inbound after service restart',
+        metadata: {
+          nodeId: 'customer-node-after-restart-01',
+          agentId: 'agent-sin-02',
+          customerNodeName: 'Customer node after restart',
+          customerName: 'Customer A',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 25443,
+          clientIdentity: 'customer-a-after-restart',
+          streamNetwork: 'tcp',
+          security: 'none',
+          trafficLimitGb: 100,
+          remainingDays: 30,
+          enabled: true
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-inbound-create-after-restart',
+        idempotencyKey: 'idem-service-inbound-create-after-restart',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const [auditLog] = await repository.listAuditLogs();
+
+    expect(task.id).toBe('task-0493');
+    expect(outboxItem).toEqual(
+      expect.objectContaining({
+        id: 'outbox-0493',
+        taskId: 'task-0493'
+      })
+    );
+    expect(auditLog.id).toMatch(/^audit-0494-/);
   });
 
   it('fans out multi-host forwarding creation into one command per target Agent', async () => {
