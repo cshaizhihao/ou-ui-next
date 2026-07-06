@@ -3981,6 +3981,172 @@ describe('service-backed control plane read model hydration', () => {
     ]);
   });
 
+  it('links failed Xray Agent result evidence to an automatic rollback task', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    let nowIso = '2026-06-02T00:04:00.000Z';
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => nowIso,
+      inventory: {
+        agents: [seedAgents[0]]
+      }
+    });
+
+    const sourceTask = await api.createTask(
+      {
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'customer-node-xray-health-failed',
+        targetLabel: 'Xray Health Failed',
+        summary: 'Apply Xray runtime and rollback unhealthy health check',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          customerNodeName: 'Xray Health Failed',
+          customerName: 'Acme',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 30443,
+          clientIdentity: 'acme-xray-health',
+          clientCredential: '22222222-2222-4222-8222-222222222222',
+          streamNetwork: 'tcp',
+          security: 'none'
+        }
+      },
+      mutationContext('xray-runtime-health-failed')
+    );
+    const [sourceOutboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === sourceTask.id);
+
+    if (!sourceOutboxItem) {
+      throw new Error('Expected source apply command outbox item.');
+    }
+
+    const failedAckAt = new Date(Date.parse(sourceOutboxItem.deadlineAt) - 60_000).toISOString();
+    const failedResultAt = new Date(Date.parse(sourceOutboxItem.deadlineAt) - 30_000).toISOString();
+
+    await api.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-xray-runtime-health-failed-ack',
+      commandId: sourceOutboxItem.commandId,
+      taskId: sourceTask.id,
+      agentId: sourceOutboxItem.agentId,
+      seq: sourceOutboxItem.seq + 1,
+      sessionId: 'sess-xray-runtime-health',
+      observedAt: failedAckAt,
+      payload: {
+        duplicate: false
+      }
+    });
+    const failedSourceTask = await api.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-xray-runtime-health-failed-result',
+      commandId: sourceOutboxItem.commandId,
+      taskId: sourceTask.id,
+      agentId: sourceOutboxItem.agentId,
+      seq: sourceOutboxItem.seq + 2,
+      sessionId: 'sess-xray-runtime-health',
+      observedAt: failedResultAt,
+      payload: {
+        status: 'failed',
+        failureReason: 'post-apply health check failed: xray api probe failed',
+        retryable: false,
+        healthSummary: {
+          runtime: 'unhealthy',
+          failedChecks: ['xray-api'],
+          rollbackRecommended: true
+        }
+      }
+    });
+    const rollbackTaskId = failedSourceTask?.rollbackTaskId;
+
+    if (!rollbackTaskId) {
+      throw new Error('Expected automatic rollback task id.');
+    }
+
+    const [failedConfigRevision] = (await api.listConfigRevisions()).filter((item) => item.taskId === sourceTask.id);
+    const [failedPreflightPlan] = (await api.listPreflightPlans()).filter((item) => item.taskId === sourceTask.id);
+    const [rollbackTask] = (await api.listTasks()).filter((item) => item.id === rollbackTaskId);
+    const [rollbackOutboxItem] = (await api.listCommandOutbox()).filter((item) => item.taskId === rollbackTaskId);
+
+    expect(failedSourceTask).toMatchObject({
+      status: 'failed',
+      failureReason: 'post-apply health check failed: xray api probe failed',
+      rollbackTaskId
+    });
+    expect(failedConfigRevision).toMatchObject({
+      status: 'failed',
+      failureReason: 'post-apply health check failed: xray api probe failed',
+      artifact: expect.objectContaining({
+        runtimeDiagnosis: expect.objectContaining({
+          state: 'failed',
+          hasRuntimeEvidence: true,
+          evidenceStage: 'agent-result-failed',
+          plannedBindingStatus: 'failed',
+          failureReason: 'post-apply health check failed: xray api probe failed',
+          plannedRuntimeServices: ['ou-ui-xray.service'],
+          plannedInbound: expect.objectContaining({
+            protocol: 'vless',
+            action: 'upsert_inbound',
+            listenPort: 30443
+          })
+        })
+      })
+    });
+    expect(failedPreflightPlan).toMatchObject({
+      status: 'failed',
+      failureReason: 'post-apply health check failed: xray api probe failed',
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'result-verification',
+          status: 'failed'
+        })
+      ])
+    });
+    expect(rollbackTask).toMatchObject({
+      id: rollbackTaskId,
+      operation: 'agent.rollback',
+      resourceType: 'inbound',
+      targetId: sourceTask.targetId,
+      status: 'queued',
+      metadata: expect.objectContaining({
+        runtimeRollbackAutomatic: true,
+        runtimeRollbackSourceTaskId: sourceTask.id,
+        runtimeRollbackSourceCommandId: sourceOutboxItem.commandId,
+        runtimeRollbackSourceConfigRevision:
+          sourceOutboxItem.command.type === 'apply' ? sourceOutboxItem.command.payload.configRevision : '',
+        snapshotId: sourceOutboxItem.command.type === 'apply' ? sourceOutboxItem.command.payload.snapshotBeforeId : '',
+        rollbackReason: 'post-apply health check failed: xray api probe failed'
+      })
+    });
+    expect(rollbackOutboxItem).toMatchObject({
+      taskId: rollbackTaskId,
+      status: 'pending',
+      command: expect.objectContaining({
+        type: 'rollback'
+      })
+    });
+
+    nowIso = new Date(Date.parse(failedResultAt) + 10_000).toISOString();
+
+    const runtimeHealthAlerts = (await api.listSystemAlerts()).filter(
+      (alert) => alert.kind === 'runtime.apply_health_failed'
+    );
+
+    expect(runtimeHealthAlerts).toEqual([
+      expect.objectContaining({
+        kind: 'runtime.apply_health_failed',
+        status: 'active',
+        resourceType: 'runtime_release',
+        resourceId: sourceTask.targetId,
+        metadata: expect.objectContaining({
+          taskId: sourceTask.id,
+          rollbackTaskId,
+          rollbackTaskStatus: 'queued'
+        })
+      })
+    ]);
+  });
+
   it('persists external audit write failed alert lifecycle records through metrics as the runtime signal clears', async () => {
     const repository = createInMemoryControlPlaneRepository();
     let nowIso = '2026-06-04T05:10:05.000Z';
