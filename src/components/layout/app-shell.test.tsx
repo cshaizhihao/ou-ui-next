@@ -7,7 +7,6 @@ import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
 import { normalizeXrayClientCredentials } from '../../domain/protocol-credentials';
 import { ApiProvider } from '../../services/api/api-provider';
-import { createTaskRequestSchema } from '../../services/api/api-contract';
 import type { AgentLogChunk, ControlPlaneApi } from '../../services/api/control-plane-api';
 import { createMockApi } from '../../services/mock/mock-api';
 import {
@@ -1506,11 +1505,12 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
-  it('submits minimal VLESS delete metadata without empty Hysteria fields', async () => {
+  it('deletes a customer node through the typed Xray client action API and removes its subscription binding', async () => {
     const user = userEvent.setup();
     const confirm = vi.fn(() => true);
     const api = {
       ...createMockApi({ seedInventory: true }),
+      applyXrayClientAction: vi.fn().mockResolvedValue(rollbackReadyTask),
       createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
     };
     vi.stubGlobal('confirm', confirm);
@@ -1521,34 +1521,28 @@ describe('AppShell', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.applyXrayClientAction).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'inbound.delete',
-          targetId: 'inbound-vless-hkg-443'
+          inboundId: 'inbound-vless-hkg-443',
+          clientId: 'client-ops-hkg',
+          clientEmail: 'ops-hkg',
+          action: {
+            kind: 'delete-client'
+          },
+          reason: 'operator-delete-customer-node'
         }),
         expect.objectContaining({
-          idempotencyKey: 'ui:inbound.delete:agent-hkg-01:inbound-vless-hkg-443'
+          requestId: 'ui:xray.client.action:inbound-vless-hkg-443',
+          idempotencyKey: undefined
         })
       );
     });
-
-    const deleteRequest = api.createTask.mock.calls.find(
-      ([request]) => request.operation === 'inbound.delete'
-    )?.[0];
-    expect(deleteRequest).toBeDefined();
-    expect(createTaskRequestSchema.safeParse(deleteRequest).success).toBe(true);
-    expect(deleteRequest?.metadata).toEqual(
+    expect(api.createTask).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        agentId: 'agent-hkg-01',
-        nodeId: 'inbound-vless-hkg-443',
-        customerNodeName: 'Primary VLESS Gateway',
-        xrayProtocol: 'vless',
-        listenPort: 443
-      })
+        operation: 'inbound.delete'
+      }),
+      expect.anything()
     );
-    expect(deleteRequest?.metadata).not.toHaveProperty('hysteriaAuth');
-    expect(deleteRequest?.metadata).not.toHaveProperty('realityPrivateKey');
-    expect(deleteRequest?.metadata).not.toHaveProperty('clientComment', '');
 
     await waitFor(() => {
       expect(api.createTask).toHaveBeenCalledWith(

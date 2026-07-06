@@ -732,6 +732,55 @@ describe('service-backed control plane read model hydration', () => {
         })
       ]
     });
+
+    const deleteTask = await api.applyXrayClientAction(
+      {
+        inboundId: 'customer-node-client-action-01',
+        clientEmail: 'bob@example.com',
+        action: {
+          kind: 'delete-client'
+        },
+        observedAt: '2026-06-05T11:05:00.000Z'
+      },
+      mutationContext('xray-client-action-delete')
+    );
+
+    expect(deleteTask).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-client-action-01',
+      summary: 'Xray client delete: bob@example.com',
+      metadata: expect.objectContaining({
+        xrayReplaceClients: true,
+        xrayClientAction: 'delete-client',
+        xrayClientActionTargetEmail: 'bob@example.com'
+      })
+    });
+    expect(deleteTask.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientEmail: 'alice@example.com',
+        enabled: true
+      })
+    ]);
+    expect(JSON.stringify(deleteTask.metadata?.clients)).not.toContain('bob@example.com');
+    expect((await api.listCommandOutbox()).find((item) => item.taskId === deleteTask.id)).toMatchObject({
+      taskId: deleteTask.id,
+      agentId: 'agent-hkg-01',
+      command: {
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'xray'
+        })
+      }
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-client-action-01')).toMatchObject({
+      status: 'applying',
+      clients: [
+        expect.objectContaining({
+          email: 'alice@example.com',
+          enabled: true
+        })
+      ]
+    });
   });
 
   it('rejects Xray inbound tasks that reuse an Agent listener with a different protocol', async () => {

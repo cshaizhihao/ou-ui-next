@@ -1748,6 +1748,22 @@ describe('v1 API runtime contract', () => {
       observedAt: '2026-06-05T11:00:00.000Z'
     });
 
+    expect(
+      parseXrayClientActionRequest({
+        inboundId: 'customer-node-hkg-01',
+        clientId: 'client-a',
+        action: {
+          kind: 'delete-client'
+        }
+      })
+    ).toEqual({
+      inboundId: 'customer-node-hkg-01',
+      clientId: 'client-a',
+      action: {
+        kind: 'delete-client'
+      }
+    });
+
     expect(() =>
       parseXrayClientActionRequest({
         inboundId: 'customer-node-hkg-01',

@@ -8,7 +8,8 @@ export type XrayClientAction =
   | { kind: 'reset-used-traffic' }
   | { kind: 'renew'; addedDays: number }
   | { kind: 'set-reset-policy'; resetPolicy: XrayClientResetPolicy }
-  | { kind: 'set-ip-limit'; ipLimit: number };
+  | { kind: 'set-ip-limit'; ipLimit: number }
+  | { kind: 'delete-client' };
 
 export type XrayClientActionRequest = {
   inboundId: string;
@@ -188,6 +189,8 @@ function actionLabel(action: XrayClientAction) {
       return `reset policy ${action.resetPolicy}`;
     case 'set-ip-limit':
       return `IP limit ${roundNonNegative(action.ipLimit)}`;
+    case 'delete-client':
+      return 'delete';
     default:
       return 'client action';
   }
@@ -332,6 +335,12 @@ function createClientActionPatch(
       return {
         ipLimit: roundNonNegative(action.ipLimit)
       };
+    case 'delete-client':
+      return {
+        enabled: false,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_deleted'
+      };
     default:
       return {};
   }
@@ -392,21 +401,43 @@ function createXrayClientActionMetadata(input: {
   observedAt: string;
   reason?: string;
 }) {
-  const clients = input.inbound.clients.map((client) =>
-    createPatchedClientMetadata({
-      inbound: input.inbound,
-      client,
-      targetClient: input.targetClient,
-      action: input.action,
-      observedAt: input.observedAt
-    })
-  );
+  const patchedTargetClientMetadata = createPatchedClientMetadata({
+    inbound: input.inbound,
+    client: input.targetClient,
+    targetClient: input.targetClient,
+    action: input.action,
+    observedAt: input.observedAt
+  });
+  const clients =
+    input.action.kind === 'delete-client' && input.inbound.clients.length > 1
+      ? input.inbound.clients
+          .filter(
+            (client) =>
+              !isSameActionTarget(client, {
+                inboundId: input.inbound.id,
+                clientId: input.targetClient.id,
+                clientEmail: input.targetClient.email,
+                action: input.action
+              })
+          )
+          .map((client) => createClientTaskMetadata(input.inbound, client, input.observedAt))
+      : input.inbound.clients.map((client) =>
+          createPatchedClientMetadata({
+            inbound: input.inbound,
+            client,
+            targetClient: input.targetClient,
+            action: input.action,
+            observedAt: input.observedAt
+          })
+        );
   const targetClientMetadata =
     clients.find(
       (client) =>
         client.clientIdentity === readClientTaskIdentity(input.inbound, input.targetClient) ||
         normalizeClientLookup(client.clientEmail) === normalizeClientLookup(input.targetClient.email)
-    ) ?? clients[0];
+    ) ?? patchedTargetClientMetadata;
+  const primaryClientMetadata =
+    input.action.kind === 'delete-client' && clients.length > 0 ? clients[0] : targetClientMetadata;
   const activeClientCount = clients.filter(
     (client) =>
       client.enabled !== false &&
@@ -440,9 +471,10 @@ function createXrayClientActionMetadata(input: {
     fallbackDestination: fallback?.destination,
     fallbackXver: fallback?.xver,
     sniffingEnabled: input.inbound.sniffingEnabled,
-    ...targetClientMetadata,
+    ...primaryClientMetadata,
     enabled: activeClientCount > 0,
     clients,
+    xrayReplaceClients: input.action.kind === 'delete-client' && input.inbound.clients.length > 1 ? true : undefined,
     xrayClientAction: input.action.kind,
     xrayClientActionLabel: actionLabel(input.action),
     xrayClientActionTargetIdentity: targetClientMetadata.clientIdentity,
@@ -492,6 +524,8 @@ export function createXrayClientActionTaskPlan(input: {
   observedAt: string;
 }): XrayClientActionTaskPlan {
   const targetClient = findXrayClientForAction(input.inbound, input.request);
+  const operation =
+    input.request.action.kind === 'delete-client' && input.inbound.clients.length <= 1 ? 'inbound.delete' : 'inbound.update';
   const metadata = createXrayClientActionMetadata({
     inbound: input.inbound,
     targetClient,
@@ -507,12 +541,20 @@ export function createXrayClientActionTaskPlan(input: {
       action: input.request.action
     }),
     input: {
-      operation: 'inbound.update',
+      operation,
       resourceType: 'inbound',
       targetId: input.inbound.id,
       targetLabel: input.inbound.label,
       summary: `Xray client ${actionLabel(input.request.action)}: ${targetClient.email || targetClient.id}`,
-      metadata
+      metadata,
+      ...(operation === 'inbound.delete'
+        ? {
+            riskConfirmation: {
+              operation,
+              targetId: input.inbound.id
+            }
+          }
+        : {})
     }
   };
 }

@@ -45,7 +45,6 @@ import type {
   NodesFocusIntent
 } from '../../features/nodes/nodes-page';
 import {
-  createCustomerNodeDeleteTaskInput,
   createCustomerNodeInboundIdempotencyKey,
   createCustomerNodeInboundTaskInput
 } from '../../features/nodes/customer-node-task-inputs';
@@ -1920,12 +1919,15 @@ export function AppShell({ ready }: AppShellProps) {
       const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
 
       void (async () => {
-        const inboundTask = await runTask(
-          createCustomerNodeDeleteTaskInput(metadata, t.deleteCustomerNodeSummary),
-          {
-            idempotencyKey: createCustomerNodeInboundIdempotencyKey(metadata, 'inbound.delete')
-          }
-        );
+        const inboundTask = await handleApplyCustomerNodeClientAction({
+          inboundId: metadata.nodeId,
+          clientId: metadata.clientIdentity,
+          clientEmail: metadata.clientEmail,
+          action: {
+            kind: 'delete-client'
+          },
+          reason: 'operator-delete-customer-node'
+        });
 
         if (!inboundTask) {
           return;
@@ -1944,7 +1946,7 @@ export function AppShell({ ready }: AppShellProps) {
         );
       })();
     },
-    [runTask, t.deleteCustomerNodeSummary, t.deleteSubscriptionClientSummary]
+    [handleApplyCustomerNodeClientAction, runTask, t.deleteSubscriptionClientSummary]
   );
 
   const handleCreateForwarding = useCallback(

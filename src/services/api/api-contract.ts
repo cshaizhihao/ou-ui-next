@@ -613,6 +613,11 @@ const xrayClientActionSchema = z.discriminatedUnion('kind', [
       kind: z.literal('set-ip-limit'),
       ipLimit: z.number().int().nonnegative()
     })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('delete-client')
+    })
     .strict()
 ]);
 

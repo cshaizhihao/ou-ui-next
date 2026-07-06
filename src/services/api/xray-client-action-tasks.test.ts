@@ -1,4 +1,6 @@
 import type { XrayClient, XrayInbound } from '../../domain/protocol';
+import type { DeployTask } from '../../domain/task';
+import { applyXrayInboundTask } from '../../domain/task-read-models';
 import { createXrayClientActionTaskPlan } from './xray-client-action-tasks';
 
 const GB = 1024 ** 3;
@@ -55,6 +57,30 @@ function createInbound(patch: Partial<XrayInbound> = {}): XrayInbound {
     sniffingEnabled: true,
     configVersion: 'cfg-current',
     ...patch
+  };
+}
+
+function createTaskFromPlan(plan: ReturnType<typeof createXrayClientActionTaskPlan>): DeployTask {
+  return {
+    id: 'task-xray-client-action',
+    operation: plan.input.operation,
+    resourceType: plan.input.resourceType ?? 'inbound',
+    resourceId: plan.input.targetId,
+    targetId: plan.input.targetId,
+    targetLabel: plan.input.targetLabel,
+    summary: plan.input.summary,
+    status: 'succeeded',
+    createdAt: observedAt,
+    updatedAt: observedAt,
+    actor: 'admin',
+    requestedBy: 'admin',
+    requestId: 'req-xray-client-action',
+    sourceIp: 'ui-preview',
+    rollbackAvailable: false,
+    attempts: 1,
+    progressPercent: 100,
+    steps: [],
+    metadata: plan.input.metadata
   };
 }
 
@@ -195,5 +221,96 @@ describe('xray client action tasks', () => {
         guardrailReason: 'ok'
       })
     );
+  });
+
+  it('deletes one client from a shared inbound with a peer-preserving replacement update', () => {
+    const plan = createXrayClientActionTaskPlan({
+      inbound: createInbound(),
+      request: {
+        inboundId: 'inbound-shared',
+        clientEmail: 'bob@example.com',
+        action: {
+          kind: 'delete-client'
+        },
+        reason: 'operator cleanup'
+      },
+      observedAt
+    });
+
+    expect(plan.input).toMatchObject({
+      operation: 'inbound.update',
+      resourceType: 'inbound',
+      targetId: 'inbound-shared',
+      summary: 'Xray client delete: bob@example.com',
+      metadata: expect.objectContaining({
+        enabled: true,
+        clientIdentity: 'client-alice',
+        clientEmail: 'alice@example.com',
+        xrayReplaceClients: true,
+        xrayClientAction: 'delete-client',
+        xrayClientActionLabel: 'delete',
+        xrayClientActionTargetIdentity: 'client-bob',
+        xrayClientActionTargetEmail: 'bob@example.com',
+        xrayClientActionReason: 'operator cleanup'
+      })
+    });
+    expect(plan.input).not.toHaveProperty('riskConfirmation');
+    expect(plan.input.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientIdentity: 'client-alice',
+        clientEmail: 'alice@example.com',
+        enabled: true
+      })
+    ]);
+
+    const [updatedInbound] = applyXrayInboundTask([createInbound()], createTaskFromPlan(plan));
+    expect(updatedInbound.clients).toHaveLength(1);
+    expect(updatedInbound.clients[0].email).toBe('alice@example.com');
+  });
+
+  it('deletes the final client as an inbound delete with explicit runtime removal evidence', () => {
+    const inbound = createInbound({
+      clients: [createClient({ id: 'client-bob', email: 'bob@example.com' })],
+      clientIdentity: 'client-bob'
+    });
+
+    const plan = createXrayClientActionTaskPlan({
+      inbound,
+      request: {
+        inboundId: 'inbound-shared',
+        clientId: 'client-bob',
+        action: {
+          kind: 'delete-client'
+        }
+      },
+      observedAt
+    });
+
+    expect(plan.input).toMatchObject({
+      operation: 'inbound.delete',
+      resourceType: 'inbound',
+      targetId: 'inbound-shared',
+      summary: 'Xray client delete: bob@example.com',
+      riskConfirmation: {
+        operation: 'inbound.delete',
+        targetId: 'inbound-shared'
+      },
+      metadata: expect.objectContaining({
+        enabled: false,
+        clientIdentity: 'client-bob',
+        clientEmail: 'bob@example.com',
+        xrayClientAction: 'delete-client',
+        xrayClientActionTargetEmail: 'bob@example.com'
+      })
+    });
+    expect(plan.input.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientIdentity: 'client-bob',
+        clientEmail: 'bob@example.com',
+        enabled: false,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_deleted'
+      })
+    ]);
   });
 });
