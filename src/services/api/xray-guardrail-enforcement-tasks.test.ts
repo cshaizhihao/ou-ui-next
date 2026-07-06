@@ -141,6 +141,58 @@ describe('xray guardrail enforcement tasks', () => {
     ]);
   });
 
+  it('derives disable intents from expired or over-quota evidence even when runtimeDisabledByPolicy is omitted', () => {
+    const inbound = createInbound({
+      clients: [
+        createClient({ id: 'client-alice', email: 'alice@example.com' }),
+        createClient({
+          id: 'client-bob',
+          email: 'bob@example.com',
+          clientExpired: true,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: ''
+        })
+      ]
+    });
+
+    const [intent] = deriveXrayGuardrailTaskIntents([], [inbound], {
+      kind: 'agent-event',
+      id: 'evt-xray-guardrail-bob-expired',
+      observedAt
+    });
+
+    expect(intent).toMatchObject({
+      requestId: 'req:xray-guardrail:disable:inbound-shared:client-bob:agent-event:evt-xray-guardrail-bob-expired',
+      input: {
+        operation: 'inbound.update',
+        targetId: 'inbound-shared',
+        metadata: expect.objectContaining({
+          xrayGuardrailAction: 'disable',
+          xrayGuardrailReason: 'xray_client_expired',
+          enabled: true,
+          clientIdentity: 'client-bob',
+          clientExpired: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'xray_client_expired'
+        })
+      }
+    });
+    expect(intent?.input.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientIdentity: 'client-alice',
+        enabled: true,
+        runtimeDisabledByPolicy: false
+      }),
+      expect.objectContaining({
+        clientIdentity: 'client-bob',
+        enabled: false,
+        clientExpired: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_expired'
+      })
+    ]);
+  });
+
   it('derives per-client resume intents after a multi-client guardrail disable succeeds', () => {
     const inbound = createInbound({
       clients: [

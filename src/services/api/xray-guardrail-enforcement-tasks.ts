@@ -89,12 +89,40 @@ function readClientTaskIdentity(inbound: XrayInbound, client: XrayInbound['clien
   return inbound.clients.length > 1 ? client.id : inbound.clientIdentity ?? client.id;
 }
 
+function isClientPolicyDisabled(client: XrayInbound['clients'][number]) {
+  return client.runtimeDisabledByPolicy === true || client.quotaExceeded === true || client.clientExpired === true;
+}
+
+function readClientGuardrailReason(client: XrayInbound['clients'][number]) {
+  if (client.guardrailReason && client.guardrailReason !== 'ok') {
+    return client.guardrailReason;
+  }
+
+  if (client.clientExpired) {
+    return 'xray_client_expired';
+  }
+
+  if (client.quotaExceeded) {
+    return 'xray_client_monthly_quota_exceeded';
+  }
+
+  if (client.runtimeDisabledByPolicy) {
+    return 'xray_client_runtime_disabled_by_policy';
+  }
+
+  return 'ok';
+}
+
 function createClientTaskMetadata(
   inbound: XrayInbound,
   client: XrayInbound['clients'][number],
   observedAt: string,
   enabled: boolean
 ) {
+  const quotaExceeded = client.quotaExceeded ?? false;
+  const clientExpired = client.clientExpired ?? false;
+  const runtimeDisabledByPolicy = isClientPolicyDisabled(client);
+
   return {
     clientIdentity: readClientTaskIdentity(inbound, client),
     clientEmail: client.email,
@@ -112,10 +140,10 @@ function createClientTaskMetadata(
     currentUsedTrafficGb: bytesToGb(readClientUsedTrafficBytes(client)),
     remainingDays: computeRemainingDays(client.expiresAt, observedAt, inbound.remainingDays),
     enabled,
-    quotaExceeded: client.quotaExceeded ?? false,
-    clientExpired: client.clientExpired ?? false,
-    runtimeDisabledByPolicy: client.runtimeDisabledByPolicy ?? false,
-    guardrailReason: client.guardrailReason ?? 'ok',
+    quotaExceeded,
+    clientExpired,
+    runtimeDisabledByPolicy,
+    guardrailReason: readClientGuardrailReason(client),
     ...(client.security?.trim() ? { vmessSecurity: client.security.trim() } : {})
   };
 }
@@ -128,7 +156,7 @@ function createCustomerNodeTaskMetadata(
 ) {
   const clients = inbound.clients.map((client) => {
     const isAffectedClient = client.id === affectedClient.id || client.email === affectedClient.email;
-    const enabled = isAffectedClient ? action === 'resume' : client.enabled && !client.runtimeDisabledByPolicy;
+    const enabled = isAffectedClient ? action === 'resume' : client.enabled && !isClientPolicyDisabled(client);
 
     return createClientTaskMetadata(inbound, client, observedAt, enabled);
   });
@@ -208,7 +236,7 @@ function createIntent(
         xrayGuardrailObservedAt: trigger.observedAt,
         xrayGuardrailTriggerKind: trigger.kind,
         xrayGuardrailTriggerId: trigger.id,
-        xrayGuardrailReason: client.guardrailReason ?? (client.runtimeDisabledByPolicy ? 'xray_client_monthly_quota_exceeded' : 'ok')
+        xrayGuardrailReason: readClientGuardrailReason(client)
       }
     }
   };
@@ -248,7 +276,7 @@ export function deriveXrayGuardrailTaskIntents(
           || latestResumeTask.status === 'failed'
           || latestResumeTask.status === 'canceled');
 
-      if (client.runtimeDisabledByPolicy) {
+      if (isClientPolicyDisabled(client)) {
         const disableIntent = disableAlreadyEnforced ? undefined : createIntent(inbound, trigger, client, 'disable');
         return disableIntent ? [disableIntent] : [];
       }
