@@ -1033,12 +1033,48 @@ function updatePreflightChecksFromResult(
     return checks.map((check) => ({ ...check, status: 'passed' as const }));
   }
 
-  const failedCheckIds = inferFailedPreflightCheckIds(agentEvent.payload.failureReason, checks);
+  return updatePreflightChecksForFailure(checks, agentEvent.payload.failureReason);
+}
+
+function updatePreflightChecksForFailure(
+  checks: RuntimePreflightPlan['checks'],
+  failureReason: string | undefined,
+  failedCheckIds = inferFailedPreflightCheckIds(failureReason, checks)
+) {
+  const availableCheckIds = new Set(checks.map((check) => check.id));
+  const effectiveFailedCheckIds = [...failedCheckIds].some((id) => availableCheckIds.has(id))
+    ? failedCheckIds
+    : inferFailedPreflightCheckIds(failureReason, checks);
 
   return checks.map((check) => ({
     ...check,
-    status: failedCheckIds.has(check.id) ? ('failed' as const) : check.status
+    status: effectiveFailedCheckIds.has(check.id) ? ('failed' as const) : check.status
   }));
+}
+
+type RuntimeCommandFailureReason = 'command.deadline.expired' | 'command.ack.timeout' | 'command.result.timeout';
+
+function inferCommandFailurePreflightCheckIds(
+  outboxItem: CommandOutboxItem,
+  failureReason: RuntimeCommandFailureReason,
+  checks: RuntimePreflightPlan['checks']
+) {
+  const failedCheckIds = new Set<string>();
+
+  if (
+    failureReason === 'command.result.timeout' ||
+    (failureReason === 'command.deadline.expired' && Boolean(outboxItem.ackedAt))
+  ) {
+    failedCheckIds.add('result-verification');
+  } else if (failureReason === 'command.ack.timeout' || failureReason === 'command.deadline.expired') {
+    failedCheckIds.add('runtime-availability');
+  }
+
+  if (failedCheckIds.size === 0) {
+    return inferFailedPreflightCheckIds(failureReason, checks);
+  }
+
+  return failedCheckIds;
 }
 
 function getExpectedAppliedConfigRevision(command: CommandOutboxItem['command']) {
@@ -1210,6 +1246,56 @@ async function updateRuntimeReleaseFromResult(
         restoredByTaskId: task.id
       });
     }
+  }
+}
+
+async function updateRuntimeReleaseFromCommandFailure(
+  transaction: ControlPlaneTransaction,
+  task: DeployTask,
+  outboxItem: CommandOutboxItem,
+  observedAt: string,
+  failureReason: RuntimeCommandFailureReason
+) {
+  const command = outboxItem.command;
+
+  if (command.type !== 'apply') {
+    return;
+  }
+
+  const configRevisionId = command.payload.configRevision;
+  const preflightPlanId = command.payload.preflightPlanId ?? `preflight-${task.id}`;
+  const configRevision = (await transaction.listConfigRevisions()).find((item) => item.id === configRevisionId);
+  const preflightPlan = (await transaction.listPreflightPlans()).find((item) => item.id === preflightPlanId);
+
+  if (configRevision) {
+    await transaction.updateConfigRevision({
+      ...configRevision,
+      status: 'failed',
+      failedAt: observedAt,
+      failureReason,
+      healthSummary: {
+        ...(configRevision.healthSummary ?? {}),
+        runtime: 'command_failed',
+        commandType: command.type,
+        commandId: outboxItem.commandId,
+        agentId: outboxItem.agentId,
+        failureReason
+      }
+    });
+  }
+
+  if (preflightPlan) {
+    await transaction.updatePreflightPlan({
+      ...preflightPlan,
+      status: 'failed',
+      completedAt: observedAt,
+      failureReason,
+      checks: updatePreflightChecksForFailure(
+        preflightPlan.checks,
+        failureReason,
+        inferCommandFailurePreflightCheckIds(outboxItem, failureReason, preflightPlan.checks)
+      )
+    });
   }
 }
 
@@ -2378,14 +2464,26 @@ export function createControlPlaneService({
     outboxItem: CommandOutboxItem,
     observedAt: string
   ) {
-    await transaction.updateCommandOutboxItem({
+    const expiredOutboxItem: CommandOutboxItem = {
       ...outboxItem,
       status: 'expired',
       updatedAt: observedAt,
       lastError: 'command.deadline.expired'
-    });
+    };
 
-    const task = await transaction.findTask(outboxItem.taskId);
+    await transaction.updateCommandOutboxItem(expiredOutboxItem);
+
+    const task = await transaction.findTask(expiredOutboxItem.taskId);
+
+    if (task) {
+      await updateRuntimeReleaseFromCommandFailure(
+        transaction,
+        task,
+        expiredOutboxItem,
+        observedAt,
+        'command.deadline.expired'
+      );
+    }
 
     if (!task || !['queued', 'running', 'retrying'].includes(task.status)) {
       return {
@@ -2409,14 +2507,20 @@ export function createControlPlaneService({
     observedAt: string,
     reason: 'command.ack.timeout' | 'command.result.timeout'
   ) {
-    await transaction.updateCommandOutboxItem({
+    const deadLetterOutboxItem: CommandOutboxItem = {
       ...outboxItem,
       status: 'dead_letter',
       updatedAt: observedAt,
       lastError: reason
-    });
+    };
 
-    const task = await transaction.findTask(outboxItem.taskId);
+    await transaction.updateCommandOutboxItem(deadLetterOutboxItem);
+
+    const task = await transaction.findTask(deadLetterOutboxItem.taskId);
+
+    if (task) {
+      await updateRuntimeReleaseFromCommandFailure(transaction, task, deadLetterOutboxItem, observedAt, reason);
+    }
 
     if (!task || !['queued', 'running', 'retrying'].includes(task.status)) {
       return {

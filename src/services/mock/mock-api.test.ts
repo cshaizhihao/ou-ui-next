@@ -2470,6 +2470,78 @@ describe('mock API contract', () => {
     ).resolves.toEqual([]);
   });
 
+  it('fails mock runtime release evidence when polling expires an overdue command', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    const task = await api.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A 香港入口',
+        summary: '让过期 Agent 命令关闭 runtime release 证据'
+      },
+      {
+        actor: 'sre:alice',
+        sourceIp: '203.0.113.10',
+        requestId: 'req-mock-agent-deadline-release',
+        idempotencyKey: 'idem-mock-agent-deadline-release'
+      }
+    );
+    const [outboxItem] = await api.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
+    const expiredAt = new Date(Date.parse(outboxItem.deadlineAt) + 1000).toISOString();
+
+    await expect(
+      api.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-mock-agent-deadline-release-poll',
+        sessionId: 'sess-mock-agent-deadline-release',
+        now: expiredAt,
+        leaseDurationMs: 30_000
+      })
+    ).resolves.toEqual([]);
+
+    await expect(api.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'expired',
+        lastError: 'command.deadline.expired',
+        updatedAt: expiredAt
+      })
+    ]);
+    expect((await api.listTasks()).find((item) => item.id === task.id)).toMatchObject({
+      status: 'failed',
+      failureReason: 'command.deadline.expired'
+    });
+    await expect(api.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: configRevisionId,
+        status: 'failed',
+        failedAt: expiredAt,
+        failureReason: 'command.deadline.expired',
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          commandId: outboxItem.commandId,
+          agentId: 'agent-hkg-01',
+          failureReason: 'command.deadline.expired'
+        })
+      })
+    ]);
+    await expect(api.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: preflightPlanId,
+        status: 'failed',
+        completedAt: expiredAt,
+        failureReason: 'command.deadline.expired',
+        checks: expect.arrayContaining([
+          expect.objectContaining({ id: 'runtime-availability', status: 'failed' }),
+          expect.objectContaining({ id: 'result-verification', status: 'pending' })
+        ])
+      })
+    ]);
+  });
+
   it('deduplicates retained Agent log chunks by command and chunk sequence in mock mode', async () => {
     const api = createMockApi({ seedInventory: true });
 

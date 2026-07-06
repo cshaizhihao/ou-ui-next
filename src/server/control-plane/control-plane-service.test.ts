@@ -3622,6 +3622,9 @@ describe('control-plane service', () => {
         ifMatch: undefined
       }
     );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
 
     await expect(
       service.leaseAgentCommands('agent-hkg-01', {
@@ -3657,6 +3660,32 @@ describe('control-plane service', () => {
         })
       }),
       expect.objectContaining({ action: 'task.created' })
+    ]);
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: configRevisionId,
+        status: 'failed',
+        failedAt: '2026-06-02T00:06:00.000Z',
+        failureReason: 'command.deadline.expired',
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          commandId: outboxItem.commandId,
+          agentId: 'agent-hkg-01',
+          failureReason: 'command.deadline.expired'
+        })
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: preflightPlanId,
+        status: 'failed',
+        completedAt: '2026-06-02T00:06:00.000Z',
+        failureReason: 'command.deadline.expired',
+        checks: expect.arrayContaining([
+          expect.objectContaining({ id: 'runtime-availability', status: 'failed' }),
+          expect.objectContaining({ id: 'result-verification', status: 'pending' })
+        ])
+      })
     ]);
   });
 
@@ -3804,6 +3833,9 @@ describe('control-plane service', () => {
         ifMatch: undefined
       }
     );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const configRevisionId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '';
+    const preflightPlanId = outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '';
 
     await service.leaseAgentCommands('agent-hkg-01', {
       requestId: 'req-agent-ack-timeout-lease',
@@ -3849,6 +3881,32 @@ describe('control-plane service', () => {
         })
       }),
       expect.objectContaining({ action: 'task.created' })
+    ]);
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: configRevisionId,
+        status: 'failed',
+        failedAt: '2026-06-02T00:00:16.000Z',
+        failureReason: 'command.ack.timeout',
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          commandId: outboxItem.commandId,
+          agentId: 'agent-hkg-01',
+          failureReason: 'command.ack.timeout'
+        })
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: preflightPlanId,
+        status: 'failed',
+        completedAt: '2026-06-02T00:00:16.000Z',
+        failureReason: 'command.ack.timeout',
+        checks: expect.arrayContaining([
+          expect.objectContaining({ id: 'runtime-availability', status: 'failed' }),
+          expect.objectContaining({ id: 'result-verification', status: 'pending' })
+        ])
+      })
     ]);
   });
 
@@ -3911,6 +3969,32 @@ describe('control-plane service', () => {
         id: task.id,
         status: 'failed',
         failureReason: 'command.result.timeout'
+      })
+    ]);
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '',
+        status: 'failed',
+        failedAt: '2026-06-02T00:00:36.000Z',
+        failureReason: 'command.result.timeout',
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          commandId: outboxItem.commandId,
+          agentId: 'agent-hkg-01',
+          failureReason: 'command.result.timeout'
+        })
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '',
+        status: 'failed',
+        completedAt: '2026-06-02T00:00:36.000Z',
+        failureReason: 'command.result.timeout',
+        checks: expect.arrayContaining([
+          expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'result-verification', status: 'failed' })
+        ])
       })
     ]);
   });

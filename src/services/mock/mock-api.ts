@@ -1309,6 +1309,12 @@ function leaseMockCommandOutbox(
       item.status = 'expired';
       item.updatedAt = now;
       item.lastError = 'command.deadline.expired';
+      const task = state.tasks.find((candidate) => candidate.id === item.taskId);
+
+      if (task) {
+        updateMockRuntimeReleaseFromCommandFailure(state, task, item, now, 'command.deadline.expired');
+        failMockCommandTask(state, item, now, 'command.deadline.expired');
+      }
       continue;
     }
 
@@ -1340,7 +1346,7 @@ function failMockCommandTask(
   state: MockApiState,
   item: CommandOutboxItem,
   observedAt: string,
-  reason: 'command.deadline.expired' | 'command.ack.timeout' | 'command.result.timeout'
+  reason: RuntimeCommandFailureReason
 ) {
   const task = state.tasks.find((candidate) => candidate.id === item.taskId);
 
@@ -1390,6 +1396,11 @@ function sweepMockCommandTimeouts(state: MockApiState, options: CommandTimeoutSw
       item.status = 'expired';
       item.updatedAt = now;
       item.lastError = 'command.deadline.expired';
+      const task = state.tasks.find((candidate) => candidate.id === item.taskId);
+
+      if (task) {
+        updateMockRuntimeReleaseFromCommandFailure(state, task, item, now, 'command.deadline.expired');
+      }
       result.expired += 1;
       result.taskFailures += failMockCommandTask(state, item, now, 'command.deadline.expired') ? 1 : 0;
       continue;
@@ -1399,6 +1410,11 @@ function sweepMockCommandTimeouts(state: MockApiState, options: CommandTimeoutSw
       item.status = 'dead_letter';
       item.updatedAt = now;
       item.lastError = 'command.ack.timeout';
+      const task = state.tasks.find((candidate) => candidate.id === item.taskId);
+
+      if (task) {
+        updateMockRuntimeReleaseFromCommandFailure(state, task, item, now, 'command.ack.timeout');
+      }
       result.deadLettered += 1;
       result.taskFailures += failMockCommandTask(state, item, now, 'command.ack.timeout') ? 1 : 0;
       continue;
@@ -1408,6 +1424,11 @@ function sweepMockCommandTimeouts(state: MockApiState, options: CommandTimeoutSw
       item.status = 'dead_letter';
       item.updatedAt = now;
       item.lastError = 'command.result.timeout';
+      const task = state.tasks.find((candidate) => candidate.id === item.taskId);
+
+      if (task) {
+        updateMockRuntimeReleaseFromCommandFailure(state, task, item, now, 'command.result.timeout');
+      }
       result.deadLettered += 1;
       result.taskFailures += failMockCommandTask(state, item, now, 'command.result.timeout') ? 1 : 0;
     }
@@ -1918,12 +1939,48 @@ function updatePreflightChecksFromResult(
     return checks.map((check) => ({ ...check, status: 'passed' as const }));
   }
 
-  const failedCheckIds = inferFailedPreflightCheckIds(agentEvent.payload.failureReason, checks);
+  return updatePreflightChecksForFailure(checks, agentEvent.payload.failureReason);
+}
+
+function updatePreflightChecksForFailure(
+  checks: RuntimePreflightPlan['checks'],
+  failureReason: string | undefined,
+  failedCheckIds = inferFailedPreflightCheckIds(failureReason, checks)
+) {
+  const availableCheckIds = new Set(checks.map((check) => check.id));
+  const effectiveFailedCheckIds = [...failedCheckIds].some((id) => availableCheckIds.has(id))
+    ? failedCheckIds
+    : inferFailedPreflightCheckIds(failureReason, checks);
 
   return checks.map((check) => ({
     ...check,
-    status: failedCheckIds.has(check.id) ? ('failed' as const) : check.status
+    status: effectiveFailedCheckIds.has(check.id) ? ('failed' as const) : check.status
   }));
+}
+
+type RuntimeCommandFailureReason = 'command.deadline.expired' | 'command.ack.timeout' | 'command.result.timeout';
+
+function inferCommandFailurePreflightCheckIds(
+  outboxItem: CommandOutboxItem,
+  failureReason: RuntimeCommandFailureReason,
+  checks: RuntimePreflightPlan['checks']
+) {
+  const failedCheckIds = new Set<string>();
+
+  if (
+    failureReason === 'command.result.timeout' ||
+    (failureReason === 'command.deadline.expired' && Boolean(outboxItem.ackedAt))
+  ) {
+    failedCheckIds.add('result-verification');
+  } else if (failureReason === 'command.ack.timeout' || failureReason === 'command.deadline.expired') {
+    failedCheckIds.add('runtime-availability');
+  }
+
+  if (failedCheckIds.size === 0) {
+    return inferFailedPreflightCheckIds(failureReason, checks);
+  }
+
+  return failedCheckIds;
 }
 
 function getExpectedAppliedConfigRevision(command: CommandOutboxItem['command']) {
@@ -2063,6 +2120,50 @@ function updateMockRuntimeReleaseFromResult(
       runtimeSnapshot.restoredAt = agentEvent.observedAt;
       runtimeSnapshot.restoredByTaskId = task.id;
     }
+  }
+}
+
+function updateMockRuntimeReleaseFromCommandFailure(
+  state: MockApiState,
+  task: DeployTask,
+  outboxItem: CommandOutboxItem,
+  observedAt: string,
+  failureReason: RuntimeCommandFailureReason
+) {
+  const command = outboxItem.command;
+
+  if (command.type !== 'apply') {
+    return;
+  }
+
+  const configRevisionId = command.payload.configRevision;
+  const preflightPlanId = command.payload.preflightPlanId ?? `preflight-${task.id}`;
+  const configRevision = state.configRevisions.find((item) => item.id === configRevisionId);
+  const preflightPlan = state.preflightPlans.find((item) => item.id === preflightPlanId);
+
+  if (configRevision) {
+    configRevision.status = 'failed';
+    configRevision.failedAt = observedAt;
+    configRevision.failureReason = failureReason;
+    configRevision.healthSummary = {
+      ...(configRevision.healthSummary ?? {}),
+      runtime: 'command_failed',
+      commandType: command.type,
+      commandId: outboxItem.commandId,
+      agentId: outboxItem.agentId,
+      failureReason
+    };
+  }
+
+  if (preflightPlan) {
+    preflightPlan.status = 'failed';
+    preflightPlan.completedAt = observedAt;
+    preflightPlan.failureReason = failureReason;
+    preflightPlan.checks = updatePreflightChecksForFailure(
+      preflightPlan.checks,
+      failureReason,
+      inferCommandFailurePreflightCheckIds(outboxItem, failureReason, preflightPlan.checks)
+    );
   }
 }
 
