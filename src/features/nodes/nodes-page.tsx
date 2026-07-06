@@ -353,6 +353,13 @@ type RuntimeXrayInbound = XrayInbound & {
   protocol: XrayRuntimeProtocol;
 };
 
+type CustomerClientSubscriptionEvidenceState = 'generated' | 'deleted' | 'pending' | 'failed' | 'missing';
+type CustomerClientSubscriptionEvidence = {
+  state: CustomerClientSubscriptionEvidenceState;
+  task?: DeployTask;
+  subId: string;
+};
+
 type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessTone = 'healthy' | 'command' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessItem = {
@@ -554,6 +561,14 @@ const copy = {
     customerClientResetPolicy: '重置周期',
     customerClientSubscriptionRule: '订阅规则',
     customerClientRuntime: '运行状态',
+    customerClientRuntimeEvidence: '运行时证据',
+    customerClientSubscriptionEvidence: '订阅证据',
+    customerClientSubscriptionGenerated: '订阅已生成',
+    customerClientSubscriptionDeleted: '订阅已删除',
+    customerClientSubscriptionPending: '订阅任务进行中',
+    customerClientSubscriptionFailed: '订阅任务失败',
+    customerClientSubscriptionMissing: '未找到订阅任务',
+    customerClientEvidenceTask: (taskId: string) => `任务 ${taskId}`,
     noCustomerClients: '暂无客户端',
     copyCustomerClientLink: '复制客户端链接',
     enableCustomerClient: '启用客户端',
@@ -952,6 +967,14 @@ const copy = {
     customerClientResetPolicy: 'Reset Policy',
     customerClientSubscriptionRule: 'Subscription Rule',
     customerClientRuntime: 'Runtime State',
+    customerClientRuntimeEvidence: 'Runtime Evidence',
+    customerClientSubscriptionEvidence: 'Subscription Evidence',
+    customerClientSubscriptionGenerated: 'Subscription Generated',
+    customerClientSubscriptionDeleted: 'Subscription Deleted',
+    customerClientSubscriptionPending: 'Subscription Task Running',
+    customerClientSubscriptionFailed: 'Subscription Task Failed',
+    customerClientSubscriptionMissing: 'No Subscription Task',
+    customerClientEvidenceTask: (taskId: string) => `Task ${taskId}`,
     noCustomerClients: 'No clients yet',
     copyCustomerClientLink: 'Copy Client Link',
     enableCustomerClient: 'Enable Client',
@@ -2496,6 +2519,49 @@ function CustomerNodeRuntimeEvidenceStrip({
   );
 }
 
+function CustomerClientSubscriptionEvidenceRow({
+  evidence,
+  t
+}: {
+  evidence: CustomerClientSubscriptionEvidence;
+  t: NodesCopy;
+}) {
+  const stateClass = {
+    generated: 'border-[#00A878]/35 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    deleted: 'border-[#07111F]/18 bg-[#EAF3D1]/70 text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.045] dark:text-white/60',
+    pending: 'border-[#FFB020]/35 bg-[#FFF3C4]/60 text-[#8A5A00] dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    failed: 'border-[#DC2626]/40 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]',
+    missing: 'border-[#07111F]/14 bg-[#FFFDF5]/70 text-[#35405A] dark:border-[#6B7CFF]/16 dark:bg-white/[0.035] dark:text-white/55'
+  } satisfies Record<CustomerClientSubscriptionEvidenceState, string>;
+  const label = {
+    generated: t.customerClientSubscriptionGenerated,
+    deleted: t.customerClientSubscriptionDeleted,
+    pending: t.customerClientSubscriptionPending,
+    failed: t.customerClientSubscriptionFailed,
+    missing: t.customerClientSubscriptionMissing
+  } satisfies Record<CustomerClientSubscriptionEvidenceState, string>;
+  const Icon = evidence.state === 'generated' || evidence.state === 'deleted' ? CheckCircle2 : AlertTriangle;
+
+  return (
+    <div
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-2 border px-2.5 py-2 text-[11px] font-bold',
+        stateClass[evidence.state]
+      )}
+      data-customer-client-subscription-evidence-state={evidence.state}
+    >
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="font-black uppercase">{t.customerClientSubscriptionEvidence}</span>
+        <span className="break-all">{label[evidence.state]}</span>
+      </span>
+      <span className="break-all font-mono text-[10px]">
+        {evidence.task ? t.customerClientEvidenceTask(evidence.task.id) : evidence.subId}
+      </span>
+    </div>
+  );
+}
+
 function CustomerNodeRuntimeEvidenceDrawerContent({
   evidence,
   language,
@@ -2850,6 +2916,112 @@ function createCustomerClientShareLink(inbound: RuntimeXrayInbound, client: Xray
     shadowsocksMethod: client.method ?? '2022-blake3-aes-128-gcm',
     label: `${inbound.label} ${client.email}`.trim()
   });
+}
+
+function normalizeCustomerClientEvidenceKey(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function readCustomerClientSubscriptionRule(inbound: RuntimeXrayInbound, client: XrayClient) {
+  const baseRule = inbound.subscriptionRule?.trim() || 'manual';
+
+  if (client.subId?.trim()) {
+    return client.subId.trim();
+  }
+
+  return inbound.clients.length > 1 ? `${baseRule}:${client.id}` : baseRule;
+}
+
+function readTaskMetadataString(task: DeployTask, key: string) {
+  return normalizeCustomerClientEvidenceKey(task.metadata?.[key]);
+}
+
+function customerClientSubscriptionTaskMatches(inbound: RuntimeXrayInbound, client: XrayClient, task: DeployTask) {
+  if (task.operation !== 'subscription.generate' && task.operation !== 'subscription.delete') {
+    return false;
+  }
+
+  const subId = normalizeCustomerClientEvidenceKey(readCustomerClientSubscriptionRule(inbound, client));
+  const clientId = normalizeCustomerClientEvidenceKey(client.id);
+  const clientEmail = normalizeCustomerClientEvidenceKey(client.email);
+  const protocol = normalizeCustomerClientEvidenceKey(inbound.protocol);
+  const expectedGroups = new Set(
+    [
+      inbound.agentId,
+      inbound.nodeId
+    ].map(normalizeCustomerClientEvidenceKey).filter(Boolean)
+  );
+  const metadataSubId = readTaskMetadataString(task, 'subId') || readTaskMetadataString(task, 'routingRule');
+  const metadataEmail = readTaskMetadataString(task, 'email');
+  const metadataProtocol = readTaskMetadataString(task, 'protocol');
+  const metadataGroup = readTaskMetadataString(task, 'group');
+  const deletedClientId = readTaskMetadataString(task, 'deletedWithXrayClientId');
+  const deletedClientEmail = readTaskMetadataString(task, 'deletedWithXrayClientEmail');
+  const deletedInboundId = readTaskMetadataString(task, 'deletedWithXrayInboundId');
+
+  if (
+    task.operation === 'subscription.delete' &&
+    deletedInboundId === normalizeCustomerClientEvidenceKey(inbound.id) &&
+    ((clientId && deletedClientId === clientId) || (clientEmail && deletedClientEmail === clientEmail))
+  ) {
+    return true;
+  }
+
+  if (subId && metadataSubId === subId) {
+    return true;
+  }
+
+  return (
+    clientEmail !== '' &&
+    metadataEmail === clientEmail &&
+    metadataProtocol === protocol &&
+    (metadataGroup === '' || expectedGroups.has(metadataGroup))
+  );
+}
+
+function resolveCustomerClientSubscriptionEvidence(
+  inbound: RuntimeXrayInbound,
+  client: XrayClient,
+  tasks: DeployTask[]
+): CustomerClientSubscriptionEvidence {
+  const subId = readCustomerClientSubscriptionRule(inbound, client);
+  const task = [...tasks]
+    .filter((item) => customerClientSubscriptionTaskMatches(inbound, client, item))
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.updatedAt || left.createdAt);
+      const rightTime = Date.parse(right.updatedAt || right.createdAt);
+
+      return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+    })[0];
+
+  if (!task) {
+    return {
+      state: 'missing',
+      subId
+    };
+  }
+
+  if (task.status === 'failed' || task.status === 'canceled') {
+    return {
+      state: 'failed',
+      task,
+      subId
+    };
+  }
+
+  if (task.status !== 'succeeded' && task.status !== 'rolled_back') {
+    return {
+      state: 'pending',
+      task,
+      subId
+    };
+  }
+
+  return {
+    state: task.operation === 'subscription.delete' ? 'deleted' : 'generated',
+    task,
+    subId
+  };
 }
 
 function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): CustomerNodeConfigMetadata {
@@ -3574,6 +3746,17 @@ export function NodesPage({
     !selectedRuntimeEvidence.rollbackRecovery
       ? selectedRuntimeEvidence.task.id
       : undefined;
+  const customerClientsRuntimeEvidence = customerClientsNode
+    ? runtimeEvidenceByNodeId.get(customerClientsNode.id) ??
+      resolveCustomerNodeRuntimeEvidence({
+        node: customerClientsNode,
+        tasks,
+        commandOutbox,
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots
+      })
+    : undefined;
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -5536,6 +5719,18 @@ export function NodesPage({
       >
         {customerClientsInbound ? (
           <div className="space-y-4">
+            {customerClientsNode && customerClientsRuntimeEvidence ? (
+              <DrawerSection title={t.customerClientRuntimeEvidence}>
+                <CustomerNodeRuntimeEvidenceStrip
+                  evidence={customerClientsRuntimeEvidence}
+                  language={language}
+                  node={customerClientsNode}
+                  t={t}
+                  onOpenEvidence={() => setDrawer({ type: 'customerRuntimeEvidence', nodeId: customerClientsNode.id })}
+                />
+              </DrawerSection>
+            ) : null}
+
             <DrawerSection title={t.addCustomerClient}>
               <form className="space-y-3" onSubmit={handleCustomerClientSubmit}>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -5616,6 +5811,7 @@ export function NodesPage({
                   {customerClientsInbound.clients.map((client) => {
                     const usedTrafficBytes = Math.max(client.manualUsedTrafficBytes ?? client.usedTrafficBytes ?? 0, 0);
                     const trafficLimitBytes = Math.max(client.trafficLimitBytes ?? 0, 0);
+                    const subscriptionEvidence = resolveCustomerClientSubscriptionEvidence(customerClientsInbound, client, tasks);
                     const disabledByPolicy =
                       client.runtimeDisabledByPolicy === true || client.quotaExceeded === true || client.clientExpired === true;
                     const runtimeState = !client.enabled
@@ -5644,6 +5840,9 @@ export function NodesPage({
                           <CompactInfoField label={t.customerClientQuota} value={`${formatBytes(usedTrafficBytes)} / ${formatBytes(trafficLimitBytes)}`} />
                           <CompactInfoField label={t.expiry} value={client.expiresAt ? formatDateTime(client.expiresAt, language) : '-'} />
                           <CompactInfoField label={t.customerClientIpLimit} value={String(client.ipLimit ?? 0)} />
+                        </div>
+                        <div className="mt-3">
+                          <CustomerClientSubscriptionEvidenceRow evidence={subscriptionEvidence} t={t} />
                         </div>
                         <div className="mt-3 flex flex-wrap justify-end gap-2">
                           <GhostButton label={t.copyCustomerClientLink} onClick={() => copyCustomerClientLink(customerClientsInbound, client)} />

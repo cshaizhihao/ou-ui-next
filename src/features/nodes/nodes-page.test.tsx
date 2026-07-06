@@ -2307,11 +2307,20 @@ describe('NodesPage', () => {
     const user = userEvent.setup();
     const onApplyCustomerNodeClientAction = vi.fn(async () => true);
     const inbound = createInbound({
+      configVersion: 'cfg-task-xray-apply-01',
+      runtimeDeployment: {
+        source: 'agent-result',
+        verifiedAt: '2026-06-04T04:04:50.000Z',
+        agentIds: ['agent-metered-01'],
+        commandIds: ['cmd-task-xray-apply-01'],
+        appliedConfigRevisions: ['cfg-task-xray-apply-01']
+      },
       clients: [
         {
           id: 'client-alice',
           email: 'alice@example.com',
           enabled: true,
+          subId: 'premium-hk:client-alice',
           trafficLimitBytes: 100 * GB,
           usedTrafficBytes: 12 * GB,
           expiresAt: '2026-12-31T23:59:59.000Z',
@@ -2332,8 +2341,31 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
+        commandOutbox={[createRuntimeCommand()]}
+        configRevisions={[createRuntimeConfigRevision()]}
         inbounds={[inbound]}
         language="en"
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
+        tasks={[
+          createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-subscription-alice',
+            operation: 'subscription.generate',
+            resourceType: 'subscription',
+            resourceId: 'sub-client-alice',
+            targetId: 'sub-client-alice',
+            targetLabel: 'Alice subscription',
+            summary: 'Generate Alice subscription',
+            metadata: {
+              subscriptionClientId: 'sub-client-alice',
+              subId: 'premium-hk:client-alice',
+              email: 'alice@example.com',
+              protocol: 'vless',
+              group: 'agent-metered-01'
+            }
+          })
+        ]}
         workspaceMode="customerNodes"
         onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
         onDeleteCustomerNode={vi.fn()}
@@ -2348,8 +2380,12 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Manage Clients' }));
 
     const dialog = screen.getByRole('dialog', { name: /Inbound Clients/ });
+    expect(within(dialog).getByText('Agent Verified')).toBeInTheDocument();
     expect(within(dialog).getByText('alice@example.com')).toBeInTheDocument();
     expect(within(dialog).getByText('bob@example.com')).toBeInTheDocument();
+    expect(within(dialog).getByText('Subscription Generated')).toBeInTheDocument();
+    expect(within(dialog).getByText('Task task-subscription-alice')).toBeInTheDocument();
+    expect(within(dialog).getByText('No Subscription Task')).toBeInTheDocument();
 
     await user.click(within(dialog).getAllByRole('button', { name: 'Disable Client' })[1]);
 
