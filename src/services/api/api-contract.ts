@@ -892,7 +892,17 @@ export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
   const result = createTaskRequestSchema.safeParse(value);
 
   if (!result.success) {
-    throw new Error(`Invalid create task request: ${result.error.issues.map((issue) => issue.path.join('.')).join(', ')}`);
+    const issues = result.error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message
+    }));
+    const issueSummary = issues.map((issue) => `${issue.path || '<root>'}: ${issue.message}`).join('; ');
+    throw Object.assign(new Error(`Invalid create task request: ${issueSummary}`), {
+      code: 'validation_error',
+      details: {
+        issues
+      }
+    });
   }
 
   return result.data;

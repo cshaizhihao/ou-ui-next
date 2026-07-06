@@ -1261,6 +1261,10 @@ function mapThrownError(error: unknown): HttpError {
     );
   }
 
+  if (structuredError?.code === 'validation_error') {
+    return createHttpError(422, 'validation_error', message, structuredError.details);
+  }
+
   if (structuredError?.code === 'permission_grant.last_admin_path') {
     return createHttpError(
       409,

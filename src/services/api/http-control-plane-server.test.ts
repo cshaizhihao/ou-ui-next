@@ -1166,6 +1166,52 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('returns field-level validation details for blocked forwarding runtime controls', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-blocked-forward-control',
+          'Idempotency-Key': 'idem-http-blocked-forward-control'
+        }),
+        body: JSON.stringify({
+          operation: 'forward.apply',
+          resourceType: 'forward',
+          targetId: 'forward-blocked-control',
+          targetLabel: 'Blocked forwarding control',
+          summary: 'Apply blocked forwarding control',
+          metadata: {
+            name: 'Blocked forwarding control',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            targetAddress: '172.20.8.10',
+            targetPort: 9443,
+            protocol: 'tcp',
+            entryNodeIds: ['agent-hkg-01'],
+            ipRateLimitMbps: 80
+          }
+        })
+      });
+      const envelope = await response.json();
+
+      expect(response.status).toBe(422);
+      expect(envelope.error).toMatchObject({
+        code: 'validation_error',
+        message: expect.stringContaining(
+          'metadata.ipRateLimitMbps: This port forwarding control is not supported by the current Agent runtime.'
+        ),
+        details: {
+          issues: [
+            {
+              path: 'metadata.ipRateLimitMbps',
+              message: expect.stringContaining('not supported by the current Agent runtime')
+            }
+          ]
+        }
+      });
+    });
+  });
+
   it('maps mutation failures to production HTTP errors and keeps denied audit visible', async () => {
     await withServer(async (baseUrl) => {
       const firstBody = {
