@@ -1911,6 +1911,8 @@ export function createControlPlaneService({
   >();
   const agentCredentialLastUsedPersistedAt = new Map<string, number>();
   const agentSessionHotLastSeq = new Map<string, number>();
+  const pollableCommandAgents = new Map<string, number>();
+  const pollableCommandById = new Map<string, string>();
   const readNow = () => readClock();
   const nextObservedAt = () => {
     sequence += 1;
@@ -1921,6 +1923,53 @@ export function createControlPlaneService({
 
     return Number.isFinite(parsed) ? parsed : Date.parse(readNow());
   };
+  const isPollableCommandOutboxItem = (item: CommandOutboxItem) =>
+    item.status === 'pending' || item.status === 'dispatched';
+  const incrementPollableCommandAgent = (agentId: string) => {
+    pollableCommandAgents.set(agentId, (pollableCommandAgents.get(agentId) ?? 0) + 1);
+  };
+  const decrementPollableCommandAgent = (agentId: string) => {
+    const nextCount = (pollableCommandAgents.get(agentId) ?? 0) - 1;
+
+    if (nextCount > 0) {
+      pollableCommandAgents.set(agentId, nextCount);
+      return;
+    }
+
+    pollableCommandAgents.delete(agentId);
+  };
+  const refreshPollableCommandCache = (outbox: CommandOutboxItem[]) => {
+    pollableCommandAgents.clear();
+    pollableCommandById.clear();
+
+    for (const item of outbox) {
+      if (!isPollableCommandOutboxItem(item)) {
+        continue;
+      }
+
+      pollableCommandById.set(item.id, item.agentId);
+      incrementPollableCommandAgent(item.agentId);
+    }
+  };
+  const trackCommandOutboxItem = (item: CommandOutboxItem) => {
+    const previousAgentId = pollableCommandById.get(item.id);
+    const nextAgentId = isPollableCommandOutboxItem(item) ? item.agentId : undefined;
+
+    if (previousAgentId === nextAgentId) {
+      return;
+    }
+
+    if (previousAgentId) {
+      decrementPollableCommandAgent(previousAgentId);
+      pollableCommandById.delete(item.id);
+    }
+
+    if (nextAgentId) {
+      pollableCommandById.set(item.id, nextAgentId);
+      incrementPollableCommandAgent(nextAgentId);
+    }
+  };
+  const hasPollableCommandsForAgent = (agentId: string) => (pollableCommandAgents.get(agentId) ?? 0) > 0;
   const invalidateAgentTokenResolutionCache = (credentialIds?: Iterable<string>) => {
     if (!credentialIds) {
       agentTokenResolutionCache.clear();
@@ -2004,6 +2053,7 @@ export function createControlPlaneService({
         repository.listAuditLogs(),
         repository.listPermissionGrants()
       ]);
+      refreshPollableCommandCache(commandOutbox);
       const maxPersistedSequence = Math.max(
         0,
         ...tasks.map((task) => readSequenceNumber(task.id, 'task-')),
@@ -2109,6 +2159,7 @@ export function createControlPlaneService({
 
     await transaction.insertTask(rollbackTask);
     await transaction.insertCommandOutbox(rollbackOutboxItem);
+    trackCommandOutboxItem(rollbackOutboxItem);
     await appendLedgerAuditLog(transaction, createCreatedAudit(rollbackTask, context));
 
     return rollbackTask;
@@ -3752,6 +3803,7 @@ export function createControlPlaneService({
             }
 
             await transaction.insertCommandOutbox(outboxItem);
+            trackCommandOutboxItem(outboxItem);
           }
         }
 
@@ -3841,6 +3893,7 @@ export function createControlPlaneService({
         };
 
         await transaction.insertCommandOutbox(outboxItem);
+        trackCommandOutboxItem(outboxItem);
         await appendLedgerAuditLog(transaction, {
           id: createAuditId(),
           action: 'task.created',
@@ -3878,6 +3931,14 @@ export function createControlPlaneService({
       const leaseDurationMs = options.leaseDurationMs ?? 30_000;
       const maxCommands = options.maxCommands ?? 50;
       const leaseOwnerId = options.leaseOwnerId ?? agentId;
+      const sessionKey = options.sessionId ? `${agentId}\0${options.sessionId}` : undefined;
+
+      if (
+        !hasPollableCommandsForAgent(agentId) &&
+        (!sessionKey || agentSessionHotLastSeq.has(sessionKey))
+      ) {
+        return [];
+      }
 
       return repository.transaction(async (transaction) => {
         const outbox = await transaction.listCommandOutbox();
@@ -3885,6 +3946,7 @@ export function createControlPlaneService({
 
         if (options.sessionId) {
           const existingSession = await transaction.findAgentSession(agentId, options.sessionId);
+          agentSessionHotLastSeq.set(`${agentId}\0${options.sessionId}`, existingSession?.lastSeq ?? 0);
           await transaction.upsertAgentSession({
             agentId,
             sessionId: options.sessionId,
@@ -3944,6 +4006,7 @@ export function createControlPlaneService({
           };
 
           await transaction.updateCommandOutboxItem(leasedItem);
+          trackCommandOutboxItem(leasedItem);
           leased.push(leasedItem);
         }
 
@@ -3981,6 +4044,11 @@ export function createControlPlaneService({
 
           if (Date.parse(item.deadlineAt) <= nowMs) {
             const expired = await expireCommandDeadline(transaction, item, now);
+            const refreshed = await transaction.findCommandOutboxItem(item.commandId, item.agentId);
+
+            if (refreshed) {
+              trackCommandOutboxItem(refreshed);
+            }
             result.expired += 1;
             result.taskFailures += expired.taskFailed ? 1 : 0;
             continue;
@@ -3991,6 +4059,11 @@ export function createControlPlaneService({
 
             if (ackDeadlineMs <= nowMs) {
               const deadLettered = await deadLetterCommand(transaction, item, now, 'command.ack.timeout');
+              const refreshed = await transaction.findCommandOutboxItem(item.commandId, item.agentId);
+
+              if (refreshed) {
+                trackCommandOutboxItem(refreshed);
+              }
               result.deadLettered += 1;
               result.taskFailures += deadLettered.taskFailed ? 1 : 0;
             }
@@ -4001,6 +4074,11 @@ export function createControlPlaneService({
 
             if (resultDeadlineMs <= nowMs) {
               const deadLettered = await deadLetterCommand(transaction, item, now, 'command.result.timeout');
+              const refreshed = await transaction.findCommandOutboxItem(item.commandId, item.agentId);
+
+              if (refreshed) {
+                trackCommandOutboxItem(refreshed);
+              }
               result.deadLettered += 1;
               result.taskFailures += deadLettered.taskFailed ? 1 : 0;
             }
@@ -4080,6 +4158,11 @@ export function createControlPlaneService({
 
         if (Date.parse(agentEvent.observedAt) >= Date.parse(outboxItem.deadlineAt)) {
           await expireCommandDeadline(transaction, outboxItem, agentEvent.observedAt);
+          const refreshed = await transaction.findCommandOutboxItem(outboxItem.commandId, outboxItem.agentId);
+
+          if (refreshed) {
+            trackCommandOutboxItem(refreshed);
+          }
           return {
             errorCode: 'agent_event.command_deadline_expired'
           };
@@ -4096,6 +4179,7 @@ export function createControlPlaneService({
           outboxItem.updatedAt = effectiveAgentEvent.observedAt;
           outboxItem.attempts += 1;
           await transaction.updateCommandOutboxItem(outboxItem);
+          trackCommandOutboxItem(outboxItem);
 
           if (task.status === 'queued') {
             const previousStatus = applyTaskTransition(task, 'running', effectiveAgentEvent.observedAt);
@@ -4115,6 +4199,7 @@ export function createControlPlaneService({
           outboxItem.updatedAt = effectiveAgentEvent.observedAt;
           outboxItem.lastError = effectiveAgentEvent.payload.failureReason;
           await transaction.updateCommandOutboxItem(outboxItem);
+          trackCommandOutboxItem(outboxItem);
           await updateRuntimeReleaseFromResult(transaction, task, outboxItem.command, effectiveAgentEvent);
 
           const relatedOutboxItems = (await transaction.listCommandOutbox()).filter((item) => item.taskId === task.id);
@@ -4179,6 +4264,7 @@ export function createControlPlaneService({
 
         outboxItem.updatedAt = effectiveAgentEvent.observedAt;
         await transaction.updateCommandOutboxItem(outboxItem);
+        trackCommandOutboxItem(outboxItem);
         return clone(task);
       });
 

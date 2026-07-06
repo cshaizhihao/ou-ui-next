@@ -3415,6 +3415,87 @@ describe('control-plane service', () => {
     );
   });
 
+  it('keeps empty Agent command polls off repository transactions when the session is warm', async () => {
+    const backingRepository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    const counters = {
+      transactions: 0
+    };
+    const repository: typeof backingRepository = {
+      ...backingRepository,
+      async transaction(run) {
+        counters.transactions += 1;
+        return backingRepository.transaction(run);
+      }
+    };
+    const service = createControlPlaneService({
+      repository,
+      now: createControlPlaneTestClock(),
+      highFrequencyAgentEventPersistence: {
+        persistEvery: 50
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-empty-poll-heartbeat-001',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-empty-poll',
+      observedAt: '2026-06-02T00:00:01.000Z',
+      payload: {
+        version: '1.0.0',
+        capabilities: ['xray'],
+        lastSeenCommandSeq: 0
+      }
+    });
+
+    counters.transactions = 0;
+    await expect(
+      service.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-empty-poll-warm-session',
+        sessionId: 'sess-agent-hkg-empty-poll',
+        lastSeenCommandSeq: 0,
+        now: '2026-06-02T00:00:05.000Z'
+      })
+    ).resolves.toEqual([]);
+    expect(counters.transactions).toBe(0);
+
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy after empty poll fast path'
+      },
+      {
+        ...context,
+        requestId: 'req-empty-poll-command-task',
+        idempotencyKey: 'idem-empty-poll-command-task',
+        ifMatch: undefined
+      }
+    );
+
+    counters.transactions = 0;
+    await expect(
+      service.leaseAgentCommands('agent-hkg-01', {
+        requestId: 'req-empty-poll-command-lease',
+        sessionId: 'sess-agent-hkg-empty-poll',
+        lastSeenCommandSeq: 0,
+        now: '2026-06-02T00:00:06.000Z'
+      })
+    ).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'dispatched'
+      })
+    ]);
+    expect(counters.transactions).toBeGreaterThan(0);
+  });
+
   it('persists Agent telemetry traffic rollups without duplicating replayed events', async () => {
     const { repository, service } = createService();
     const telemetryEvent = {
