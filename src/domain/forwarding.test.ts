@@ -176,6 +176,25 @@ describe('forwarding runtime diagnosis', () => {
     expect(diagnosis.nextActions).toEqual(['reset-quota', 'resume', 'inspect-agent']);
   });
 
+  it('derives quota diagnosis from billed usage when quotaExceeded is omitted', () => {
+    const diagnosis = diagnoseForwardingRuntime(
+      createForwardRule({
+        quotaBytes: 6 * 1024 ** 3,
+        inboundBytes: 4 * 1024 ** 3,
+        outboundBytes: 3 * 1024 ** 3,
+        manualUsedBytes: 0,
+        trafficMultiplier: 1,
+        quotaExceeded: undefined
+      })
+    );
+
+    expect(diagnosis).toMatchObject({
+      state: 'blocked',
+      reasons: ['quota-exceeded'],
+      nextActions: ['reset-quota']
+    });
+  });
+
   it('keeps deployment failures separate from waiting states', () => {
     const diagnosis = diagnoseForwardingRuntime(
       createForwardRule({

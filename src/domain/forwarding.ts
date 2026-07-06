@@ -97,7 +97,13 @@ type ForwardingRuntimeDiagnosticRule = Pick<
   | 'quotaExceeded'
   | 'runtimeDisabledByPolicy'
   | 'guardrailReason'
->;
+> &
+  Partial<
+    Pick<
+      ForwardRule,
+      'billingDirection' | 'inboundBytes' | 'outboundBytes' | 'manualUsedBytes' | 'trafficMultiplier' | 'quotaBytes'
+    >
+  >;
 
 export type TunnelChainHop = {
   agentId: string;
@@ -253,6 +259,20 @@ function uniqueForwardingDiagnosisActions(actions: ForwardingRuntimeDiagnosisAct
   return Array.from(new Set(actions));
 }
 
+function hasForwardingQuotaUsageFields(
+  rule: ForwardingRuntimeDiagnosticRule
+): rule is ForwardingRuntimeDiagnosticRule &
+  Pick<ForwardRule, 'billingDirection' | 'inboundBytes' | 'outboundBytes' | 'manualUsedBytes' | 'trafficMultiplier' | 'quotaBytes'> {
+  return (
+    rule.billingDirection !== undefined &&
+    rule.inboundBytes !== undefined &&
+    rule.outboundBytes !== undefined &&
+    rule.manualUsedBytes !== undefined &&
+    rule.trafficMultiplier !== undefined &&
+    rule.quotaBytes !== undefined
+  );
+}
+
 export function diagnoseForwardingRuntime(rule: ForwardingRuntimeDiagnosticRule): ForwardingRuntimeDiagnosis {
   const reasons: ForwardingRuntimeDiagnosisReason[] = [];
   const actions: ForwardingRuntimeDiagnosisAction[] = [];
@@ -264,6 +284,7 @@ export function diagnoseForwardingRuntime(rule: ForwardingRuntimeDiagnosticRule)
   const hasBindingDeploying = rule.ports.some((binding) => binding.status === 'deploying');
   const hasBindingPaused = rule.ports.some((binding) => binding.status === 'paused');
   const hasBindingReleasing = rule.ports.some((binding) => binding.status === 'releasing');
+  const quotaExceeded = rule.quotaExceeded ?? (hasForwardingQuotaUsageFields(rule) ? isForwardingQuotaExceeded(rule) : false);
 
   if (!rule.enabled) {
     reasons.push('rule-disabled');
@@ -285,7 +306,7 @@ export function diagnoseForwardingRuntime(rule: ForwardingRuntimeDiagnosticRule)
     actions.push('inspect-agent');
   }
 
-  if (rule.quotaExceeded) {
+  if (quotaExceeded) {
     reasons.push('quota-exceeded');
     actions.push('reset-quota');
   }
@@ -340,7 +361,7 @@ export function diagnoseForwardingRuntime(rule: ForwardingRuntimeDiagnosticRule)
       : rule.portStatus === 'conflict' ||
           hasBindingConflict ||
           rule.runtimeDisabledByPolicy ||
-          rule.quotaExceeded ||
+          quotaExceeded ||
           Boolean(rule.guardrailReason)
         ? 'blocked'
         : blockedControls.length > 0 || reasons.includes('missing-traffic-counters')
