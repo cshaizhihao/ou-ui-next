@@ -535,6 +535,8 @@ OU_UI_CONTROL_PLANE_INITIAL_STATE=empty
 OU_UI_AGENT_LOG_RETENTION_DAYS=7
 OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000
 OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=5
+OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS=5000
+OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS=60000
 OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY=20
 OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${STATE_DIR}/external-archives
 OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true
@@ -5097,6 +5099,8 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY 5
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS 5000
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS 60000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY 20
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_EXTERNAL_ARCHIVE_DIRECTORY "${STATE_DIR}/external-archives"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true
@@ -5638,11 +5642,13 @@ show_boolean_config_health() {
 }
 
 show_agent_log_retention_health() {
-  local retention_days max_events_per_agent high_frequency_persist_every routine_log_sample_every
+  local retention_days max_events_per_agent high_frequency_persist_every auth_success_cache_ttl_ms credential_last_used_persist_interval_ms routine_log_sample_every
 
   retention_days="$(read_backend_env_value OU_UI_AGENT_LOG_RETENTION_DAYS)"
   max_events_per_agent="$(read_backend_env_value OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT)"
   high_frequency_persist_every="$(read_backend_env_value OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY)"
+  auth_success_cache_ttl_ms="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS)"
+  credential_last_used_persist_interval_ms="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS)"
   routine_log_sample_every="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY)"
 
   if [[ -n "${retention_days}" ]]; then
@@ -5661,6 +5667,18 @@ show_agent_log_retention_health() {
     show_positive_integer_config_health "Agent 高频事件 raw evidence 采样间隔" "${high_frequency_persist_every}"
   else
     echo "  Agent 高频事件 raw evidence 采样间隔: 默认 5"
+  fi
+
+  if [[ -n "${auth_success_cache_ttl_ms}" ]]; then
+    show_non_negative_integer_config_health "Agent 成功认证缓存 TTL" "${auth_success_cache_ttl_ms}" "ms"
+  else
+    echo "  Agent 成功认证缓存 TTL: 默认 5000ms"
+  fi
+
+  if [[ -n "${credential_last_used_persist_interval_ms}" ]]; then
+    show_non_negative_integer_config_health "Agent credential lastUsedAt 写入间隔" "${credential_last_used_persist_interval_ms}" "ms"
+  else
+    echo "  Agent credential lastUsedAt 写入间隔: 默认 60000ms"
   fi
 
   if [[ -n "${routine_log_sample_every}" ]]; then

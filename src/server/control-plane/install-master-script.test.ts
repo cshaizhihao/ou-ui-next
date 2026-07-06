@@ -2582,6 +2582,10 @@ describe('install-master.sh contract', () => {
     expect(script).toContain(
       'ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY 5'
     );
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS 5000');
+    expect(script).toContain(
+      'ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS 60000'
+    );
     expect(script).toContain(
       'ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY 20'
     );
@@ -2598,6 +2602,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS=7');
     expect(script).toContain('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000');
     expect(script).toContain('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=5');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS=5000');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS=60000');
     expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY=20');
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${STATE_DIR}/external-archives');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true');
@@ -8035,39 +8041,55 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS');
     expect(script).toContain('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT');
     expect(script).toContain('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS');
     expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY');
     expect(script).toContain('Agent 日志留存天数');
     expect(script).toContain('Agent 日志每台 Agent 最大事件数');
     expect(script).toContain('Agent 高频事件 raw evidence 采样间隔');
+    expect(script).toContain('Agent 成功认证缓存 TTL');
+    expect(script).toContain('Agent credential lastUsedAt 写入间隔');
     expect(script).toContain('Agent routine console 日志采样间隔');
 
     const configured = runAgentLogRetentionHealth(script, [
       'OU_UI_AGENT_LOG_RETENTION_DAYS=0.5',
       'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=0',
       'OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=8',
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS=2500',
+      'OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS=45000',
       'OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY=11'
     ]);
     expect(configured).toContain('Agent 日志留存天数: 0.5 天');
     expect(configured).toContain('Agent 日志每台 Agent 最大事件数: 0');
     expect(configured).toContain('Agent 高频事件 raw evidence 采样间隔: 8');
+    expect(configured).toContain('Agent 成功认证缓存 TTL: 2500ms');
+    expect(configured).toContain('Agent credential lastUsedAt 写入间隔: 45000ms');
     expect(configured).toContain('Agent routine console 日志采样间隔: 11');
 
     const defaults = runAgentLogRetentionHealth(script, []);
     expect(defaults).toContain('Agent 日志留存天数: 默认 7 天');
     expect(defaults).toContain('Agent 日志每台 Agent 最大事件数: 默认 5000');
     expect(defaults).toContain('Agent 高频事件 raw evidence 采样间隔: 默认 5');
+    expect(defaults).toContain('Agent 成功认证缓存 TTL: 默认 5000ms');
+    expect(defaults).toContain('Agent credential lastUsedAt 写入间隔: 默认 60000ms');
     expect(defaults).toContain('Agent routine console 日志采样间隔: 默认 20');
 
     const invalid = runAgentLogRetentionHealth(script, [
       'OU_UI_AGENT_LOG_RETENTION_DAYS=0',
       'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=-1',
       'OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=0',
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS=-1',
+      'OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS=abc',
       'OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY=0'
     ]);
     expect(invalid).toContain('Agent 日志留存天数: 0（无效，必须是正数；后端会拒绝启动）');
     expect(invalid).toContain('Agent 日志每台 Agent 最大事件数: -1（无效，必须是非负整数；后端会拒绝启动）');
     expect(invalid).toContain(
       'Agent 高频事件 raw evidence 采样间隔: 0（无效，必须是正整数；后端会拒绝启动）'
+    );
+    expect(invalid).toContain('Agent 成功认证缓存 TTL: -1（无效，必须是非负整数；后端会拒绝启动）');
+    expect(invalid).toContain(
+      'Agent credential lastUsedAt 写入间隔: abc（无效，必须是非负整数；后端会拒绝启动）'
     );
     expect(invalid).toContain(
       'Agent routine console 日志采样间隔: 0（无效，必须是正整数；后端会拒绝启动）'

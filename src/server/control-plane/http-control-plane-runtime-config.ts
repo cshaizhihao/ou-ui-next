@@ -15,7 +15,10 @@ import {
   type TrafficRollupRetentionPolicy
 } from './traffic-rollup-retention';
 import {
+  DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS,
+  DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS,
   DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY,
+  type AgentCredentialRuntimeAuthPolicy,
   type HighFrequencyAgentEventPersistencePolicy
 } from './control-plane-service';
 import type { RuntimeObjectStorageSinkConfig } from './object-storage-sink';
@@ -27,6 +30,7 @@ export type HttpControlPlaneRuntimeConfig = {
   agentLogRetention: AgentLogRetentionPolicy;
   trafficRollupRetention: TrafficRollupRetentionPolicy;
   highFrequencyAgentEventPersistence: HighFrequencyAgentEventPersistencePolicy;
+  agentCredentialRuntimeAuth: AgentCredentialRuntimeAuthPolicy;
   agentRoutineLogSampling: Required<AgentRoutineLogSamplingOptions>;
   commandTimeoutSweep: {
     enabled: boolean;
@@ -495,6 +499,18 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
     )
   };
+  const agentCredentialRuntimeAuth = {
+    successCacheTtlMs: parseNonNegativeInteger(
+      env.OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS,
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS',
+      DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS
+    ),
+    lastUsedPersistIntervalMs: parseNonNegativeInteger(
+      env.OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS,
+      'OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS',
+      DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS
+    )
+  };
   const agentRoutineLogSampling = {
     sampleEvery: parsePositiveInteger(
       env.OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY,
@@ -703,6 +719,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       agentLogRetention,
       trafficRollupRetention,
       highFrequencyAgentEventPersistence,
+      agentCredentialRuntimeAuth,
       agentRoutineLogSampling,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
@@ -737,6 +754,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       agentLogRetention,
       trafficRollupRetention,
       highFrequencyAgentEventPersistence,
+      agentCredentialRuntimeAuth,
       agentRoutineLogSampling,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
@@ -774,6 +792,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       agentLogRetention,
       trafficRollupRetention,
       highFrequencyAgentEventPersistence,
+      agentCredentialRuntimeAuth,
       agentRoutineLogSampling,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,

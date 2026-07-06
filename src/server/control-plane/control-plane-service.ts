@@ -68,9 +68,16 @@ import {
 } from './traffic-rollup-retention';
 
 export const DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY = 5;
+export const DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS = 5_000;
+export const DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS = 60_000;
 
 export type HighFrequencyAgentEventPersistencePolicy = {
   persistEvery: number;
+};
+
+export type AgentCredentialRuntimeAuthPolicy = {
+  successCacheTtlMs: number;
+  lastUsedPersistIntervalMs: number;
 };
 
 export type ArchiveSinkBatch =
@@ -92,6 +99,7 @@ type CreateControlPlaneServiceInput = {
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   highFrequencyAgentEventPersistence?: Partial<HighFrequencyAgentEventPersistencePolicy>;
+  agentCredentialRuntimeAuth?: Partial<AgentCredentialRuntimeAuthPolicy>;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   now?: () => string;
@@ -139,6 +147,11 @@ type AgentRegistrationTransactionResult =
       details?: unknown;
     };
 
+type AgentCredentialLastUsedDescriptor = Pick<
+  AgentCredentialRecord,
+  'id' | 'agentId' | 'purpose' | 'status' | 'expiresAt' | 'lastUsedAt'
+>;
+
 function isCreateTaskError(result: CreateTaskTransactionResult): result is Extract<CreateTaskTransactionResult, { type: 'error' }> {
   return 'type' in result && result.type === 'error';
 }
@@ -184,6 +197,25 @@ function normalizeHighFrequencyAgentEventPersistencePolicy(
 
   return {
     persistEvery: Number.isInteger(persistEvery) && persistEvery > 0 ? persistEvery : DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
+  };
+}
+
+function normalizeAgentCredentialRuntimeAuthPolicy(
+  policy: Partial<AgentCredentialRuntimeAuthPolicy> | undefined
+): AgentCredentialRuntimeAuthPolicy {
+  const successCacheTtlMs = policy?.successCacheTtlMs ?? DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS;
+  const lastUsedPersistIntervalMs =
+    policy?.lastUsedPersistIntervalMs ?? DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS;
+
+  return {
+    successCacheTtlMs:
+      Number.isInteger(successCacheTtlMs) && successCacheTtlMs >= 0
+        ? successCacheTtlMs
+        : DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS,
+    lastUsedPersistIntervalMs:
+      Number.isInteger(lastUsedPersistIntervalMs) && lastUsedPersistIntervalMs >= 0
+        ? lastUsedPersistIntervalMs
+        : DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS
   };
 }
 
@@ -1854,6 +1886,7 @@ export function createControlPlaneService({
   agentLogRetention: agentLogRetentionInput,
   trafficRollupRetention: trafficRollupRetentionInput,
   highFrequencyAgentEventPersistence: highFrequencyAgentEventPersistenceInput,
+  agentCredentialRuntimeAuth: agentCredentialRuntimeAuthInput,
   archiveSink,
   onArchiveSinkError,
   now: readClock = () => new Date().toISOString()
@@ -1864,10 +1897,85 @@ export function createControlPlaneService({
   const highFrequencyAgentEventPersistence = normalizeHighFrequencyAgentEventPersistencePolicy(
     highFrequencyAgentEventPersistenceInput
   );
+  const agentCredentialRuntimeAuth = normalizeAgentCredentialRuntimeAuthPolicy(agentCredentialRuntimeAuthInput);
+  const agentTokenResolutionCache = new Map<
+    string,
+    {
+      credentialId: string;
+      agentId: string;
+      sessionId?: string;
+      expiresAt: string;
+      lastUsedAt?: string;
+      cacheExpiresAtMs: number;
+    }
+  >();
+  const agentCredentialLastUsedPersistedAt = new Map<string, number>();
   const readNow = () => readClock();
   const nextObservedAt = () => {
     sequence += 1;
     return readNow();
+  };
+  const readObservedAtMs = (observedAt: string) => {
+    const parsed = Date.parse(observedAt);
+
+    return Number.isFinite(parsed) ? parsed : Date.parse(readNow());
+  };
+  const invalidateAgentTokenResolutionCache = (credentialIds?: Iterable<string>) => {
+    if (!credentialIds) {
+      agentTokenResolutionCache.clear();
+      agentCredentialLastUsedPersistedAt.clear();
+      return;
+    }
+
+    const ids = new Set(credentialIds);
+
+    for (const [tokenHash, cached] of agentTokenResolutionCache.entries()) {
+      if (ids.has(cached.credentialId)) {
+        agentTokenResolutionCache.delete(tokenHash);
+      }
+    }
+
+    for (const credentialId of ids) {
+      agentCredentialLastUsedPersistedAt.delete(credentialId);
+    }
+  };
+  const shouldPersistAgentCredentialLastUsedAt = (credential: AgentCredentialLastUsedDescriptor, observedAt: string) => {
+    const intervalMs = agentCredentialRuntimeAuth.lastUsedPersistIntervalMs;
+
+    if (intervalMs <= 0) {
+      return true;
+    }
+
+    const observedAtMs = readObservedAtMs(observedAt);
+    const persistedLastUsedAtMs = credential.lastUsedAt ? Date.parse(credential.lastUsedAt) : 0;
+    const localLastPersistedAtMs = agentCredentialLastUsedPersistedAt.get(credential.id) ?? 0;
+    const lastPersistedAtMs = Math.max(
+      Number.isFinite(persistedLastUsedAtMs) ? persistedLastUsedAtMs : 0,
+      localLastPersistedAtMs
+    );
+
+    return lastPersistedAtMs <= 0 || observedAtMs - lastPersistedAtMs >= intervalMs;
+  };
+  const persistAgentCredentialLastUsedAt = async (
+    tokenHash: string,
+    credential: AgentCredentialLastUsedDescriptor,
+    observedAt: string
+  ) => {
+    if (!shouldPersistAgentCredentialLastUsedAt(credential, observedAt)) {
+      return;
+    }
+
+    await repository.transaction(async (transaction) => {
+      const current = await transaction.findAgentCredentialByTokenHash(tokenHash);
+
+      if (current && current.purpose === 'runtime' && isAgentCredentialActive(current, observedAt)) {
+        await transaction.upsertAgentCredential({
+          ...current,
+          lastUsedAt: observedAt
+        });
+        agentCredentialLastUsedPersistedAt.set(current.id, readObservedAtMs(observedAt));
+      }
+    });
   };
   let sequenceInitialized = false;
   let sequenceInitialization: Promise<void> | undefined;
@@ -2260,6 +2368,7 @@ export function createControlPlaneService({
         credential.purpose === 'runtime' &&
         credential.status === 'active'
     );
+    const revokedCredentialIds: string[] = [];
 
     for (const credential of activeRuntimeCredentials) {
       const revokedCredential: AgentCredentialRecord = {
@@ -2271,6 +2380,7 @@ export function createControlPlaneService({
       };
 
       await transaction.upsertAgentCredential(revokedCredential);
+      revokedCredentialIds.push(revokedCredential.id);
       await appendLedgerAuditLog(
         transaction,
         createAgentCredentialRevokedAudit(
@@ -2281,6 +2391,10 @@ export function createControlPlaneService({
           reason
         )
       );
+    }
+
+    if (revokedCredentialIds.length > 0) {
+      invalidateAgentTokenResolutionCache(revokedCredentialIds);
     }
   }
 
@@ -2550,23 +2664,21 @@ export function createControlPlaneService({
       throw new Error('agent_event.sequence_replay');
     }
 
-    const runtimeCredential = findRuntimeCredentialForAgentSession(
-      await transaction.listAgentCredentials(),
-      agentEvent.agentId,
-      agentEvent.sessionId,
-      agentEvent.observedAt
-    );
-    const credentialCapabilities = readAgentCredentialRuntimeCapabilities(runtimeCredential);
     const eventCapabilities =
       agentEvent.type === 'heartbeat' && agentEvent.payload.capabilities !== undefined
         ? normalizeAgentSessionCapabilities(agentEvent.payload.capabilities)
         : undefined;
-    const nextCapabilities =
-      agentEvent.type === 'heartbeat' && agentEvent.payload.capabilities !== undefined
-        ? eventCapabilities
-        : existingSession?.capabilities !== undefined
-          ? existingSession.capabilities
-          : credentialCapabilities;
+    let nextCapabilities = eventCapabilities ?? existingSession?.capabilities;
+
+    if (nextCapabilities === undefined) {
+      const runtimeCredential = findRuntimeCredentialForAgentSession(
+        await transaction.listAgentCredentials(),
+        agentEvent.agentId,
+        agentEvent.sessionId,
+        agentEvent.observedAt
+      );
+      nextCapabilities = readAgentCredentialRuntimeCapabilities(runtimeCredential);
+    }
 
     if (shouldPersistAgentEventRawEvidence(agentEvent, existingSession, highFrequencyAgentEventPersistence)) {
       await transaction.insertAgentEvent(agentEvent);
@@ -3029,6 +3141,8 @@ export function createControlPlaneService({
         throw new ControlPlaneMutationError(result.code, result.details);
       }
 
+      invalidateAgentTokenResolutionCache();
+
       return result;
     },
 
@@ -3087,6 +3201,8 @@ export function createControlPlaneService({
       if (!revokedCredential) {
         throw new Error(`agent credential not found: ${credentialId}`);
       }
+
+      invalidateAgentTokenResolutionCache([revokedCredential.id]);
 
       return createAgentCredentialSummary(revokedCredential);
     },
@@ -3170,6 +3286,8 @@ export function createControlPlaneService({
         throw new Error(`agent credential not found: ${credentialId}`);
       }
 
+      invalidateAgentTokenResolutionCache([credentialId, issuedCredential.id]);
+
       return {
         agentId: issuedCredential.agentId,
         agentToken: runtimeToken,
@@ -3183,13 +3301,46 @@ export function createControlPlaneService({
 
     async resolveAgentToken(token: string, observedAt = readNow()) {
       const tokenHash = createAgentCredentialTokenHash(token);
+      const observedAtMs = readObservedAtMs(observedAt);
+      const cachedCredential = agentTokenResolutionCache.get(tokenHash);
+
+      if (
+        cachedCredential &&
+        agentCredentialRuntimeAuth.successCacheTtlMs > 0 &&
+        observedAtMs < cachedCredential.cacheExpiresAtMs &&
+        observedAtMs < Date.parse(cachedCredential.expiresAt)
+      ) {
+        await persistAgentCredentialLastUsedAt(
+          tokenHash,
+          {
+            id: cachedCredential.credentialId,
+            agentId: cachedCredential.agentId,
+            purpose: 'runtime',
+            status: 'active',
+            expiresAt: cachedCredential.expiresAt,
+            lastUsedAt: cachedCredential.lastUsedAt
+          },
+          observedAt
+        );
+
+        return {
+          agentId: cachedCredential.agentId,
+          credentialId: cachedCredential.credentialId,
+          sessionId: cachedCredential.sessionId
+        };
+      }
+
       const credential = await repository.findAgentCredentialByTokenHash(tokenHash);
 
       if (!credential || credential.purpose !== 'runtime') {
+        agentTokenResolutionCache.delete(tokenHash);
         return undefined;
       }
 
       if (!isAgentCredentialActive(credential, observedAt)) {
+        agentTokenResolutionCache.delete(tokenHash);
+        invalidateAgentTokenResolutionCache([credential.id]);
+
         if (credential.status === 'active') {
           await repository.transaction(async (transaction) => {
             const current = await transaction.findAgentCredentialByTokenHash(tokenHash);
@@ -3207,16 +3358,18 @@ export function createControlPlaneService({
         return undefined;
       }
 
-      await repository.transaction(async (transaction) => {
-        const current = await transaction.findAgentCredentialByTokenHash(tokenHash);
+      await persistAgentCredentialLastUsedAt(tokenHash, credential, observedAt);
 
-        if (current && isAgentCredentialActive(current, observedAt)) {
-          await transaction.upsertAgentCredential({
-            ...current,
-            lastUsedAt: observedAt
-          });
-        }
-      });
+      if (agentCredentialRuntimeAuth.successCacheTtlMs > 0) {
+        agentTokenResolutionCache.set(tokenHash, {
+          credentialId: credential.id,
+          agentId: credential.agentId,
+          sessionId: credential.sessionId,
+          expiresAt: credential.expiresAt,
+          lastUsedAt: credential.lastUsedAt,
+          cacheExpiresAtMs: observedAtMs + agentCredentialRuntimeAuth.successCacheTtlMs
+        });
+      }
 
       return {
         agentId: credential.agentId,

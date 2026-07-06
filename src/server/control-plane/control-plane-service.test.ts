@@ -55,6 +55,56 @@ function createService() {
   };
 }
 
+function createInstrumentedAgentCredentialRepository() {
+  const backingRepository = createInMemoryControlPlaneRepository({
+    forwardRules: seedForwardRules,
+    permissionGrants: seedPermissionGrants
+  });
+  const counters = {
+    rootFindByTokenHash: 0,
+    transactionFindByTokenHash: 0,
+    transactionListAgentCredentials: 0,
+    upsertAgentCredential: 0,
+    reset() {
+      counters.rootFindByTokenHash = 0;
+      counters.transactionFindByTokenHash = 0;
+      counters.transactionListAgentCredentials = 0;
+      counters.upsertAgentCredential = 0;
+    }
+  };
+  const repository: typeof backingRepository = {
+    ...backingRepository,
+    async findAgentCredentialByTokenHash(tokenHash) {
+      counters.rootFindByTokenHash += 1;
+      return backingRepository.findAgentCredentialByTokenHash(tokenHash);
+    },
+    async transaction(run) {
+      return backingRepository.transaction((transaction) =>
+        run({
+          ...transaction,
+          async findAgentCredentialByTokenHash(tokenHash) {
+            counters.transactionFindByTokenHash += 1;
+            return transaction.findAgentCredentialByTokenHash(tokenHash);
+          },
+          async listAgentCredentials() {
+            counters.transactionListAgentCredentials += 1;
+            return transaction.listAgentCredentials();
+          },
+          async upsertAgentCredential(record) {
+            counters.upsertAgentCredential += 1;
+            return transaction.upsertAgentCredential(record);
+          }
+        })
+      );
+    }
+  };
+
+  return {
+    repository,
+    counters
+  };
+}
+
 function createServiceWithOpsViewer() {
   const repository = createInMemoryControlPlaneRepository({
     forwardRules: seedForwardRules,
@@ -265,6 +315,119 @@ describe('control-plane service', () => {
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(command.installToken);
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain(registration.agentToken);
     expect(JSON.stringify(await repository.listAuditLogs())).not.toContain('tokenHash');
+  });
+
+  it('caches successful runtime Agent token resolution and throttles lastUsedAt writes', async () => {
+    const { repository, counters } = createInstrumentedAgentCredentialRepository();
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-auth-cache-install',
+        idempotencyKey: 'idem-service-agent-auth-cache-install'
+      }
+    );
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-auth-cache-register',
+        sessionId: 'sess-edge-auth-cache',
+        version: '0.1.0-test',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken
+    );
+
+    counters.reset();
+    await expect(service.resolveAgentToken(registration.agentToken, '2026-06-02T00:01:00.000Z')).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-auth-cache'
+    });
+    expect(counters.rootFindByTokenHash).toBe(1);
+    expect(counters.transactionFindByTokenHash).toBe(1);
+    expect(counters.upsertAgentCredential).toBe(1);
+
+    await expect(service.resolveAgentToken(registration.agentToken, '2026-06-02T00:01:02.000Z')).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-auth-cache'
+    });
+    expect(counters.rootFindByTokenHash).toBe(1);
+    expect(counters.transactionFindByTokenHash).toBe(1);
+    expect(counters.upsertAgentCredential).toBe(1);
+
+    await expect(service.resolveAgentToken(registration.agentToken, '2026-06-02T00:01:06.000Z')).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-auth-cache'
+    });
+    expect(counters.rootFindByTokenHash).toBe(2);
+    expect(counters.transactionFindByTokenHash).toBe(1);
+    expect(counters.upsertAgentCredential).toBe(1);
+
+    await expect(service.resolveAgentToken(registration.agentToken, '2026-06-02T00:02:05.000Z')).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-auth-cache'
+    });
+    expect(counters.rootFindByTokenHash).toBe(3);
+    expect(counters.transactionFindByTokenHash).toBe(2);
+    expect(counters.upsertAgentCredential).toBe(2);
+  });
+
+  it('invalidates cached runtime Agent token resolution after credential revoke', async () => {
+    const { repository, counters } = createInstrumentedAgentCredentialRepository();
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+    const command = await service.createAgentInstallCommand(
+      {
+        installProfile: [...AGENT_INSTALL_PROFILE],
+        publicBaseUrl: 'https://panel.example.com/x7K2mP9vL4qR1wDz'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-auth-cache-revoke-install',
+        idempotencyKey: 'idem-service-agent-auth-cache-revoke-install'
+      }
+    );
+    const registration = await service.registerAgent(
+      {
+        agentId: command.agentId,
+        requestId: 'req-service-agent-auth-cache-revoke-register',
+        sessionId: 'sess-edge-auth-cache-revoke',
+        version: '0.1.0-test',
+        platform: 'linux-x64',
+        capabilities: [...AGENT_INSTALL_PROFILE]
+      },
+      command.installToken
+    );
+
+    await expect(service.resolveAgentToken(registration.agentToken, '2026-06-02T00:01:00.000Z')).resolves.toEqual({
+      agentId: command.agentId,
+      credentialId: registration.credentialId,
+      sessionId: 'sess-edge-auth-cache-revoke'
+    });
+
+    await service.revokeAgentCredential(
+      registration.credentialId,
+      {
+        reason: 'operator requested revocation'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-auth-cache-revoke',
+        idempotencyKey: 'idem-service-agent-auth-cache-revoke'
+      }
+    );
+
+    counters.reset();
+    await expect(service.resolveAgentToken(registration.agentToken, '2026-06-02T00:01:02.000Z')).resolves.toBeUndefined();
+    expect(counters.rootFindByTokenHash).toBe(1);
   });
 
   it('audits failed Agent runtime registration without leaking token material', async () => {
@@ -3011,6 +3174,52 @@ describe('control-plane service', () => {
         lastHeartbeatAt: '2026-06-02T00:00:07.000Z',
         version: '1.0.0',
         capabilities: ['xray', 'port-forwarding']
+      })
+    ]);
+  });
+
+  it('keeps routine Agent event ingestion off credential list reads when session capabilities are known', async () => {
+    const { repository, counters } = createInstrumentedAgentCredentialRepository();
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+
+    counters.reset();
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-service-heartbeat-known-capabilities-001',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-known-capabilities',
+      observedAt: '2026-06-02T00:00:01.000Z',
+      payload: {
+        version: '1.0.0',
+        uptimeSeconds: 120,
+        capabilities: ['xray', 'telemetry'],
+        lastSeenCommandSeq: 0
+      }
+    });
+    await service.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-service-telemetry-known-capabilities-002',
+      agentId: 'agent-hkg-01',
+      seq: 2,
+      sessionId: 'sess-agent-hkg-known-capabilities',
+      observedAt: '2026-06-02T00:00:02.000Z',
+      payload: {
+        trafficAccountingMode: 'both',
+        monthlyResetDay: 15,
+        monthlyIngressBytes: 1000,
+        monthlyEgressBytes: 2000,
+        trafficBillingPeriod: '2026-06-reset-15'
+      }
+    });
+
+    expect(counters.transactionListAgentCredentials).toBe(0);
+    await expect(repository.listAgentSessions()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-known-capabilities',
+        lastSeq: 2,
+        capabilities: ['xray', 'telemetry']
       })
     ]);
   });
