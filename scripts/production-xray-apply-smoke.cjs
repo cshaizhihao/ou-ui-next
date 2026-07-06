@@ -775,11 +775,27 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
   const plannedInbound = readObject(evidence.runtimeDiagnosis.plannedInbound);
   const taskMetadata = readObject(evidence.task?.metadata);
   const clientCounters = readObject(evidence.runtimeDiagnosis.clientCounters);
+  const taskId = typeof evidence.task?.id === 'string' ? evidence.task.id : undefined;
+  const expectedTargetId = expected.targetId ?? evidence.task?.targetId;
+
+  function pushMismatch(label, actual, expectedValue) {
+    if (expectedValue === undefined || expectedValue === null || expectedValue === '') {
+      return;
+    }
+
+    if (actual !== expectedValue) {
+      errors.push(`${label} is ${actual ?? 'missing'}; expected ${expectedValue}`);
+    }
+  }
 
   if (!evidence.task) {
     errors.push('task is missing from snapshot');
   } else if (evidence.task.status !== 'succeeded') {
     errors.push(`task status is ${evidence.task.status ?? 'unknown'}`);
+  }
+
+  if (expectedTargetId) {
+    pushMismatch('task targetId', evidence.task?.targetId, expectedTargetId);
   }
 
   if (expected.operation && evidence.task?.operation !== expected.operation) {
@@ -799,11 +815,20 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
   } else if (evidence.commandOutboxItem.status !== 'completed') {
     errors.push(`Agent command status is ${evidence.commandOutboxItem.status ?? 'unknown'}`);
   }
+  if (evidence.commandOutboxItem) {
+    pushMismatch('Agent command taskId', evidence.commandOutboxItem.taskId, taskId);
+    pushMismatch('Agent command agentId', evidence.commandOutboxItem.agentId, expected.agentId);
+  }
 
   if (!evidence.configRevision) {
     errors.push('runtime config revision is missing');
   } else if (evidence.configRevision.status !== 'applied') {
     errors.push(`runtime config revision status is ${evidence.configRevision.status ?? 'unknown'}`);
+  }
+  if (evidence.configRevision) {
+    pushMismatch('runtime config revision taskId', evidence.configRevision.taskId, taskId);
+    pushMismatch('runtime config revision targetId', evidence.configRevision.targetId, expectedTargetId);
+    pushMismatch('runtime config revision agentId', evidence.configRevision.agentId, expected.agentId);
   }
 
   if (!evidence.preflightPlan) {
@@ -811,11 +836,22 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
   } else if (evidence.preflightPlan.status !== 'passed') {
     errors.push(`preflight plan status is ${evidence.preflightPlan.status ?? 'unknown'}`);
   }
+  if (evidence.preflightPlan) {
+    pushMismatch('preflight plan taskId', evidence.preflightPlan.taskId, taskId);
+    pushMismatch('preflight plan targetId', evidence.preflightPlan.targetId, expectedTargetId);
+    pushMismatch('preflight plan agentId', evidence.preflightPlan.agentId, expected.agentId);
+    pushMismatch('preflight plan configRevisionId', evidence.preflightPlan.configRevisionId, evidence.configRevision?.id);
+  }
 
   if (!evidence.runtimeSnapshot) {
     errors.push('runtime snapshot is missing');
   } else if (evidence.runtimeSnapshot.status !== 'verified') {
     errors.push(`runtime snapshot status is ${evidence.runtimeSnapshot.status ?? 'unknown'}`);
+  }
+  if (evidence.runtimeSnapshot) {
+    pushMismatch('runtime snapshot taskId', evidence.runtimeSnapshot.taskId, taskId);
+    pushMismatch('runtime snapshot targetId', evidence.runtimeSnapshot.targetId, expectedTargetId);
+    pushMismatch('runtime snapshot agentId', evidence.runtimeSnapshot.agentId, expected.agentId);
   }
 
   if (evidence.runtimeDiagnosis.evidenceStage !== 'agent-result-verified') {
@@ -887,6 +923,14 @@ function summarizeXrayApplyEvidence(evidence) {
     runtimeSnapshotStatus: evidence.runtimeSnapshot?.status,
     commandId: evidence.commandOutboxItem?.commandId,
     commandStatus: evidence.commandOutboxItem?.status,
+    commandAgentId: evidence.commandOutboxItem?.agentId,
+    commandTaskId: evidence.commandOutboxItem?.taskId,
+    configRevisionAgentId: evidence.configRevision?.agentId,
+    configRevisionTargetId: evidence.configRevision?.targetId,
+    preflightAgentId: evidence.preflightPlan?.agentId,
+    preflightTargetId: evidence.preflightPlan?.targetId,
+    runtimeSnapshotAgentId: evidence.runtimeSnapshot?.agentId,
+    runtimeSnapshotTargetId: evidence.runtimeSnapshot?.targetId,
     agentId: plannedInbound.agentId,
     listenAddress: plannedInbound.listenAddress,
     listenPort: plannedInbound.listenPort,

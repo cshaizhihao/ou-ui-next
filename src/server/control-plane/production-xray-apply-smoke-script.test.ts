@@ -212,12 +212,18 @@ function createVerifiedSnapshot() {
       {
         id: 'preflight-task-apply-01',
         taskId: 'task-apply-01',
+        configRevisionId: 'cfg-task-apply-01',
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
         status: 'passed',
         checks: []
       },
       {
         id: 'preflight-task-update-01',
         taskId: 'task-update-01',
+        configRevisionId: 'cfg-task-update-01',
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
         status: 'passed',
         checks: []
       }
@@ -226,12 +232,14 @@ function createVerifiedSnapshot() {
       {
         id: 'snapshot-before-xray-live-smoke-42003',
         taskId: 'task-apply-01',
+        targetId: 'xray-live-smoke-42003',
         status: 'verified',
         agentId: 'agent-hkg-01'
       },
       {
         id: 'snapshot-before-xray-live-smoke-42003-update',
         taskId: 'task-update-01',
+        targetId: 'xray-live-smoke-42003',
         status: 'verified',
         agentId: 'agent-hkg-01'
       }
@@ -350,12 +358,18 @@ function createVerifiedClientActionSnapshot() {
       {
         id: 'preflight-task-add-client-01',
         taskId: 'task-add-client-01',
+        configRevisionId: 'cfg-task-add-client-01',
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
         status: 'passed',
         checks: []
       },
       {
         id: 'preflight-task-delete-client-01',
         taskId: 'task-delete-client-01',
+        configRevisionId: 'cfg-task-delete-client-01',
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
         status: 'passed',
         checks: []
       }
@@ -365,12 +379,14 @@ function createVerifiedClientActionSnapshot() {
       {
         id: 'snapshot-before-xray-live-smoke-42003-add-client',
         taskId: 'task-add-client-01',
+        targetId: 'xray-live-smoke-42003',
         status: 'verified',
         agentId: 'agent-hkg-01'
       },
       {
         id: 'snapshot-before-xray-live-smoke-42003-delete-client',
         taskId: 'task-delete-client-01',
+        targetId: 'xray-live-smoke-42003',
         status: 'verified',
         agentId: 'agent-hkg-01'
       }
@@ -440,6 +456,9 @@ function createVerifiedCleanupSnapshot() {
       {
         id: 'preflight-task-cleanup-delete-01',
         taskId: 'task-cleanup-delete-01',
+        configRevisionId: 'cfg-task-cleanup-delete-01',
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
         status: 'passed',
         checks: []
       }
@@ -449,6 +468,7 @@ function createVerifiedCleanupSnapshot() {
       {
         id: 'snapshot-before-xray-live-smoke-42003-cleanup-delete',
         taskId: 'task-cleanup-delete-01',
+        targetId: 'xray-live-smoke-42003',
         status: 'verified',
         agentId: 'agent-hkg-01'
       }
@@ -737,6 +757,9 @@ describe('production Xray apply smoke script helpers', () => {
         preflightStatus: 'passed',
         runtimeSnapshotStatus: 'verified',
         commandStatus: 'completed',
+        commandAgentId: 'agent-hkg-01',
+        configRevisionAgentId: 'agent-hkg-01',
+        runtimeSnapshotAgentId: 'agent-hkg-01',
         evidenceStage: 'agent-result-verified',
         runtimeState: 'ready',
         listenPort: 42003,
@@ -745,6 +768,53 @@ describe('production Xray apply smoke script helpers', () => {
     );
     expect(JSON.stringify(xraySmokeScript.summarizeXrayApplyEvidence(evidence))).not.toContain(
       '11111111-1111-4111-8111-111111111111'
+    );
+  });
+
+  it('rejects Agent-result evidence that is not correlated to the same task, target, and Agent', () => {
+    const snapshot = createVerifiedSnapshot();
+
+    (snapshot.commandOutbox as Array<Record<string, unknown>>)[0] = {
+      ...(snapshot.commandOutbox as Array<Record<string, unknown>>)[0],
+      agentId: 'agent-other-01'
+    };
+    (snapshot.configRevisions as Array<Record<string, unknown>>)[0] = {
+      ...(snapshot.configRevisions as Array<Record<string, unknown>>)[0],
+      targetId: 'xray-live-smoke-other',
+      agentId: 'agent-other-01'
+    };
+    (snapshot.preflightPlans as Array<Record<string, unknown>>)[0] = {
+      ...(snapshot.preflightPlans as Array<Record<string, unknown>>)[0],
+      targetId: 'xray-live-smoke-other',
+      agentId: 'agent-other-01',
+      configRevisionId: 'cfg-other-01'
+    };
+    (snapshot.runtimeSnapshots as Array<Record<string, unknown>>)[0] = {
+      ...(snapshot.runtimeSnapshots as Array<Record<string, unknown>>)[0],
+      targetId: 'xray-live-smoke-other',
+      agentId: 'agent-other-01'
+    };
+
+    const evidence = xraySmokeScript.extractXrayApplyEvidence(snapshot, 'task-apply-01', 'xray-live-smoke-42003');
+
+    expect(
+      xraySmokeScript.validateXrayApplyEvidence(evidence, {
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        targetId: 'xray-live-smoke-42003',
+        operation: 'inbound.create'
+      })
+    ).toEqual(
+      expect.arrayContaining([
+        'Agent command agentId is agent-other-01; expected agent-hkg-01',
+        'runtime config revision targetId is xray-live-smoke-other; expected xray-live-smoke-42003',
+        'runtime config revision agentId is agent-other-01; expected agent-hkg-01',
+        'preflight plan targetId is xray-live-smoke-other; expected xray-live-smoke-42003',
+        'preflight plan agentId is agent-other-01; expected agent-hkg-01',
+        'preflight plan configRevisionId is cfg-other-01; expected cfg-task-apply-01',
+        'runtime snapshot targetId is xray-live-smoke-other; expected xray-live-smoke-42003',
+        'runtime snapshot agentId is agent-other-01; expected agent-hkg-01'
+      ])
     );
   });
 
