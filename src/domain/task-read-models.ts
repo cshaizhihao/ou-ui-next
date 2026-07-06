@@ -123,7 +123,18 @@ function readTrafficAccountingMode(
     : fallback;
 }
 
-function expiresAtFromTask(task: DeployTask, remainingDays: number) {
+function expiresAtFromTask(
+  task: DeployTask,
+  remainingDays: number,
+  metadata?: Record<string, unknown>
+) {
+  const explicitExpiresAt = readString(metadata, 'expiresAt', '');
+  const explicitExpiresAtMs = Date.parse(explicitExpiresAt);
+
+  if (explicitExpiresAt && Number.isFinite(explicitExpiresAtMs)) {
+    return new Date(explicitExpiresAtMs).toISOString();
+  }
+
   const baseMs = Date.parse(task.createdAt);
   return new Date((Number.isNaN(baseMs) ? Date.now() : baseMs) + Math.max(remainingDays, 0) * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -417,7 +428,7 @@ function createXrayClientsFromTask(input: {
       manualUsedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
       uplinkBytes: 0,
       downlinkBytes: 0,
-      expiresAt: expiresAtFromTask(input.task, remainingDays),
+      expiresAt: expiresAtFromTask(input.task, remainingDays, clientMetadata),
       ipLimit: readNumber(clientMetadata, 'ipLimit', 0),
       ...(quotaExceeded !== undefined ? { quotaExceeded } : {}),
       ...(clientExpired !== undefined ? { clientExpired } : {}),

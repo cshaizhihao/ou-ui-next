@@ -161,6 +161,36 @@ describe('task read models', () => {
     });
   });
 
+  it('preserves explicit Xray client expiration timestamps in the read model', () => {
+    const inbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Expiry Inbound',
+        xrayProtocol: 'vless',
+        remainingDays: 7,
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            remainingDays: 30,
+            expiresAt: '2026-09-15T12:30:00.000Z'
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            remainingDays: 10
+          }
+        ]
+      })
+    );
+
+    expect(inbound?.clients[0].expiresAt).toBe('2026-09-15T12:30:00.000Z');
+    expect(inbound?.clients[1].expiresAt).toBe('2026-06-14T00:00:00.000Z');
+  });
+
   it('preserves per-client telemetry when multi-client Xray inbounds are updated', () => {
     const initialInbound = createXrayInboundFromTask(
       createInboundTask({
