@@ -39,7 +39,9 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 - Xray inbound create/update 会在入队前检查同 Agent、同监听地址/端口的协议冲突；同端口同协议继续合并为多 client inbound，不同 runtime 协议会以 `xray.port_conflict` 拒绝。
 - Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
 - Forwarding artifact 和工作区会显式声明 Agent runtime 已支持和未支持的控制项；artifact 会携带编译期 runtime diagnosis，规则行会展示 ready / waiting / degraded / blocked / failed 诊断，避免把 `proxyProtocol`、IP 级限速或连接数限制误写成已完整落地。
+- Forwarding quota guardrail、quota policy 和 runtime diagnosis 会从实际计费流量推导超限状态，即使旧 read model 没有显式 `quotaExceeded` 字段，也不会把超限规则显示为正常。
 - Forwarding create/update 和 tunnel create/update/redeploy 在任务入队前会检查已存在规则和进行中的端口转发任务，拒绝同 Agent、同监听端口、重叠协议或通配监听地址的冲突绑定。
+- 公开订阅下载和最小客户门户共用 Xray / 外部节点 runtime projection；门户会展示实时用量、生成节点数、访问状态和 guardrail reason，并区分 quota exhausted 与 runtime policy disabled。
 - README 按已实现、Preview、Roadmap 分层描述，未完成能力不会再包装成生产完成项。
 
 ## V2.0.0 亮点
@@ -48,8 +50,8 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | --- | --- |
 | Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、UI/API 结构化 `clients[]` 校验、listener 协议冲突拒绝、delete remove artifact、Xray config preflight、systemd runtime restart |
 | Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额、过期和 runtime policy 禁用会按 client 评估并从实际 Xray runtime 排除 |
-| Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
-| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路；订阅身份和导出配置都可选择 public output formats，并支持公开路径 / token preview 轮换 |
+| Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact、quota guardrail 和规则行诊断都使用计费流量证据 |
+| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路；订阅身份和导出配置都可选择 public output formats，并支持公开路径 / token preview 轮换、QR、token hash gate 和 runtime-projected portal |
 | 发布准备 | 项目版本更新为 `2.0.0`，README 重写，能力边界更准确 |
 
 ## 功能矩阵
@@ -63,11 +65,11 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Xray 多 client inbound | 已实现 | Control Plane artifact 支持 `clients[]`，API/OpenAPI 校验多 client metadata，Agent profile 支持逐 client telemetry/guardrail；过期、超额或 runtime policy 禁用的 client 不进入实际 `settings.clients` |
 | Xray 协议 | 已实现 | runtime apply 支持 `vless`、`vmess`、`trojan`、`shadowsocks`；客户节点工作台和全局 quick actions 按同一 runtime protocol 边界过滤 |
 | Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议，不会作为可编辑客户节点 runtime 入站暴露 |
-| Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
+| Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，基于计费流量的 quota guardrail，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
 | Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、公开路径 / token preview 轮换、二维码和 Shadowrocket/Stash 输出 |
-| 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、每格式 QR、到期、用量和生成节点；带 `accessTokenHash` 的身份会要求 raw token；独立客户门户、泄露撤销和设备级绑定仍需继续补齐 |
-| SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储 + schema v2 领域实体索引表，适合单 Master 部署、安装器闭环和后续强 schema 迁移起步 |
+| 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、每格式 QR、到期、runtime-projected 用量、生成节点、访问状态和 guardrail reason；带 `accessTokenHash` 的身份会要求 raw token；独立客户门户、泄露撤销和设备级绑定仍需继续补齐 |
+| SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储 + schema v2 领域实体索引表；索引覆盖 task/audit/command、forward/subscription、traffic rollup、runtime revision/preflight/snapshot 摘要，适合单 Master 部署、安装器闭环和后续强 schema 迁移起步 |
 | 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的完整强 schema、增量查询和 HA 仍是后续重点 |
 
 ## 快速开始
@@ -192,7 +194,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - Control Plane 会在 forwarding create/update 和 tunnel create/update/redeploy 入队前检查已存在规则和进行中的端口转发任务，命中同 Agent、同监听端口、协议重叠或通配监听地址重叠时返回 `forward.port_conflict`。
 - Runtime artifact 会带出 `control-plane-compiled` 阶段的诊断、planned service 和 blocked controls，方便任务预览与后续 Agent evidence 对齐。
 - Forwarding create/update/apply/pause/resume/delete 的 UI mutation 由 feature 级 task input helper 统一生成；unsupported controls 不会作为可执行字段提交，而是通过 `blockedRuntimeControls` 诊断字段进入任务证据。
-- 面板会根据规则、绑定、runtime service、计数样本、quota/guardrail 和 Agent blocked controls 显示 `ready`、`waiting`、`degraded`、`blocked`、`failed` 诊断，以及 apply / resume / repair / inspect 等下一步动作。
+- 面板会根据规则、绑定、runtime service、计数样本、quota/guardrail 和 Agent blocked controls 显示 `ready`、`waiting`、`degraded`、`blocked`、`failed` 诊断，以及 apply / resume / repair / inspect 等下一步动作；quota/guardrail 会从 `manualUsedBytes + nftables metered bytes * trafficMultiplier` 推导，旧任务缺少 `quotaExceeded` 也不会漏报。
 
 Preview / blocked 能力：
 
@@ -212,10 +214,11 @@ Preview / blocked 能力：
 - 外部订阅源同步会报告不兼容协议、字段缺失或无法解析节点、源规则过滤、同源去重、跨源重复和远程抓取失败原因。
 - 公共订阅输出响应会带出 `x-ou-ui-selected-node-count`、`x-ou-ui-converted-uri-count`、`x-ou-ui-unconverted-node-count` 和转换 warning 头，便于定位命中节点与实际可输出 URI 不一致的问题。
 - 公共订阅输出不会下发本地 Xray 中已 operator 禁用、runtime policy 禁用、过期或超额的 client；对应配额/过期原因仍会投影到订阅诊断和流量头。
+- 公共订阅下载会区分 `subscription.quota_exceeded` 和 `subscription.runtime_disabled`，手动或策略停用的订阅身份会保留具体 guardrail reason。
 - 与 Xray client / customer node 的用量、到期、规则关联。
 - 订阅身份和导出配置都可选择 public output formats，含 Shadowrocket / Stash。
 - 订阅链接抽屉支持门户链接、二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和公开路径 / token preview 轮换；该 UI 操作会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL，但不会生成可用于 `accessTokenHash` 校验的新 raw token。
-- `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、每格式 QR、到期、用量和生成节点，并与公开订阅下载共享 `requestLimitPerHour` 限流桶。
+- `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、每格式 QR、到期、runtime-projected 用量、生成节点、访问状态和 guardrail reason，并与公开订阅下载共享 `requestLimitPerHour` 限流桶。
 - 公开订阅下载和门户支持可选 `accessTokenHash` 校验；配置该 hash 后，请求必须通过 `?token=`、`?access_token=` 或 `Authorization: Bearer` 提交匹配 raw token。HTTP task 创建/更新可接收一次性 `metadata.accessTokenRaw`，会在入队前转换为 `accessTokenHash` 并剔除 raw；HTTP JSON/SSE 响应会移除 `accessTokenHash` / `tokenHash` 字段。
 - 订阅身份、订阅源、导出 Profile 和导出文件的 UI mutation 由 feature 级 task input helper 统一生成；导入源会规范化 `sourceId`，幂等 key 覆盖启用状态、过滤规则、限额、输出格式、模板和代理组等会影响运行时的字段。
 
@@ -301,7 +304,7 @@ P1：
 
 - 订阅门户、UI 一次性 raw token 展示/交付、泄露撤销和设备级绑定。
 - Tunnel entry/exit、质量探测、故障切换和运行状态面板。
-- SQLite v2 已提供可重建的领域实体索引表；完整强 schema、增量查询和 HA 仍需继续推进。
+- SQLite v2 已提供可重建的领域实体索引表，覆盖 runtime release 摘要；完整强 schema、增量查询和 HA 仍需继续推进。
 - 更接近 3X-UI 的 Xray hot diff / reload 管线。
 
 P2：
