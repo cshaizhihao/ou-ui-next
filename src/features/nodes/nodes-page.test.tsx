@@ -11,7 +11,7 @@ import type {
   XrayInbound
 } from '../../domain';
 import type { CommandOutboxSummary } from '../../services/api/control-plane-api';
-import { NodesPage } from './nodes-page';
+import { NodesPage, type CustomerNodeClientActionMutation } from './nodes-page';
 
 const GB = 1024 ** 3;
 const UUID_IN_LINK = '[0-9a-f-]{36}';
@@ -2305,7 +2305,14 @@ describe('NodesPage', () => {
 
   it('shows inbound clients in a drawer and submits per-client typed actions', async () => {
     const user = userEvent.setup();
-    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const onApplyCustomerNodeClientAction = vi.fn(async (input: CustomerNodeClientActionMutation) => ({
+      accepted: true,
+      actionKind: input.action.kind,
+      runtimeTaskId: input.action.kind === 'add-client' ? 'task-runtime-carol' : 'task-runtime-bob',
+      subscriptionTaskId: input.action.kind === 'add-client' ? 'task-subscription-carol' : undefined,
+      targetClientId: input.action.kind === 'add-client' ? input.action.clientIdentity : input.clientId,
+      targetClientEmail: input.action.kind === 'add-client' ? input.action.clientEmail : input.clientEmail
+    }));
     const inbound = createInbound({
       configVersion: 'cfg-task-xray-apply-01',
       runtimeDeployment: {
@@ -2390,6 +2397,8 @@ describe('NodesPage', () => {
     await user.click(within(dialog).getAllByRole('button', { name: 'Disable Client' })[1]);
 
     await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(1));
+    expect(within(dialog).getByText('Disable Client queued · bob@example.com')).toBeInTheDocument();
+    expect(within(dialog).getByText('Runtime task-runtime-bob')).toBeInTheDocument();
     expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, {
       inboundId: 'inbound-premium-vless',
       clientId: 'client-bob',
@@ -2412,6 +2421,9 @@ describe('NodesPage', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add Client' }));
 
     await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(2));
+    expect(within(dialog).getByText('Add Client queued · carol@example.com')).toBeInTheDocument();
+    expect(within(dialog).getByText('Runtime task-runtime-carol')).toBeInTheDocument();
+    expect(within(dialog).getByText('Subscription task-subscription-carol')).toBeInTheDocument();
     expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(2, {
       inboundId: 'inbound-premium-vless',
       action: expect.objectContaining({

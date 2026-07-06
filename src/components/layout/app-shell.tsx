@@ -39,6 +39,7 @@ import {
   createForwardingUpsertTaskInput
 } from '../../features/forwarding/forwarding-task-inputs';
 import type {
+  CustomerNodeClientActionResult,
   CustomerNodeClientActionMutation,
   CustomerNodeConfigMetadata,
   HostConfigMetadata,
@@ -1950,6 +1951,7 @@ export function AppShell({ ready }: AppShellProps) {
 
       taskMutationInFlightRef.current = true;
       setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
+      let actionResult: CustomerNodeClientActionResult | undefined;
 
       try {
         const xrayClientActionInbound =
@@ -2005,10 +2007,23 @@ export function AppShell({ ready }: AppShellProps) {
               })()
             : undefined;
 
-        await api.applyXrayClientAction(input, {
+        const runtimeTask = await api.applyXrayClientAction(input, {
           ...createUiRequestContext('xray.client.action', input.inboundId, runtimeConfig),
           idempotencyKey: undefined
         });
+        actionResult = {
+          accepted: true,
+          actionKind: input.action.kind,
+          runtimeTaskId: runtimeTask.id,
+          targetClientId:
+            input.clientId ||
+            (input.action.kind === 'add-client' ? input.action.clientIdentity : undefined) ||
+            deletedClient?.id,
+          targetClientEmail:
+            input.clientEmail ||
+            (input.action.kind === 'add-client' ? input.action.clientEmail : undefined) ||
+            deletedClient?.email
+        };
 
         if (addedClientSubscriptionMetadata) {
           const subscriptionInput = createSubscriptionClientGenerateTaskInput(
@@ -2020,7 +2035,7 @@ export function AppShell({ ready }: AppShellProps) {
             }
           );
 
-          await api.createTask(
+          const subscriptionTask = await api.createTask(
             subscriptionInput,
             createUiMutationContext(
               subscriptionInput,
@@ -2028,6 +2043,7 @@ export function AppShell({ ready }: AppShellProps) {
               runtimeConfig
             )
           );
+          actionResult.subscriptionTaskId = subscriptionTask.id;
         }
 
         if (deletedClientSubscriptionMetadata && deletedClient) {
@@ -2049,7 +2065,7 @@ export function AppShell({ ready }: AppShellProps) {
               ? `customer-node:${input.inboundId}`
               : `xray-client:${input.inboundId}:${deletedClientSubscriptionMetadata.subId}`;
 
-          await api.createTask(
+          const subscriptionTask = await api.createTask(
             deleteInput,
             createUiMutationContext(
               deleteInput,
@@ -2057,6 +2073,7 @@ export function AppShell({ ready }: AppShellProps) {
               runtimeConfig
             )
           );
+          actionResult.subscriptionTaskId = subscriptionTask.id;
         }
       } catch (error) {
         setTaskMutationState({
@@ -2077,7 +2094,7 @@ export function AppShell({ ready }: AppShellProps) {
         taskMutationInFlightRef.current = false;
       }
 
-      return true;
+      return actionResult ?? true;
     },
     [
       api,

@@ -119,7 +119,7 @@ type NodesPageProps = {
   onOpenRuntimeEvidenceWorkspace?: () => void;
   onRollbackRuntimeTask?: (taskId: string) => void;
   onResetCustomerNodeTraffic?: (policy: QuotaPolicy) => void;
-  onApplyCustomerNodeClientAction?: (input: CustomerNodeClientActionMutation) => Promise<boolean | void> | boolean | void;
+  onApplyCustomerNodeClientAction?: (input: CustomerNodeClientActionMutation) => CustomerNodeClientActionReturn;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
 };
@@ -136,6 +136,18 @@ export type CustomerNodeClientActionMutation = {
   reason?: string;
   observedAt?: string;
 };
+
+export type CustomerNodeClientActionResult = {
+  accepted: boolean;
+  actionKind?: XrayClientAction['kind'];
+  runtimeTaskId?: string;
+  subscriptionTaskId?: string;
+  targetClientId?: string;
+  targetClientEmail?: string;
+};
+
+type CustomerNodeClientActionSettled = boolean | void | CustomerNodeClientActionResult;
+type CustomerNodeClientActionReturn = CustomerNodeClientActionSettled | Promise<CustomerNodeClientActionSettled>;
 
 export type HostConfigMetadata = {
   agentId: string;
@@ -359,6 +371,16 @@ type CustomerClientSubscriptionEvidence = {
   task?: DeployTask;
   subId: string;
 };
+type CustomerClientActionFeedbackStatus = 'queued' | 'failed';
+type CustomerClientActionFeedback = {
+  id: string;
+  inboundId: string;
+  status: CustomerClientActionFeedbackStatus;
+  actionLabel: string;
+  targetLabel: string;
+  runtimeTaskId?: string;
+  subscriptionTaskId?: string;
+};
 
 type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessTone = 'healthy' | 'command' | 'waiting' | 'blocked';
@@ -569,6 +591,12 @@ const copy = {
     customerClientSubscriptionFailed: '订阅任务失败',
     customerClientSubscriptionMissing: '未找到订阅任务',
     customerClientEvidenceTask: (taskId: string) => `任务 ${taskId}`,
+    customerClientActionQueued: (action: string, target: string) => `${action} 已提交 · ${target}`,
+    customerClientActionFailed: (action: string, target: string) => `${action} 未提交 · ${target}`,
+    customerClientActionEvidenceHint: '等待 Control Plane snapshot 与 Agent 结果回传。',
+    customerClientActionRuntimeTask: (taskId: string) => `Runtime ${taskId}`,
+    customerClientActionSubscriptionTask: (taskId: string) => `Subscription ${taskId}`,
+    customerClientActionOpenEvidence: '查看证据',
     noCustomerClients: '暂无客户端',
     copyCustomerClientLink: '复制客户端链接',
     enableCustomerClient: '启用客户端',
@@ -975,6 +1003,12 @@ const copy = {
     customerClientSubscriptionFailed: 'Subscription Task Failed',
     customerClientSubscriptionMissing: 'No Subscription Task',
     customerClientEvidenceTask: (taskId: string) => `Task ${taskId}`,
+    customerClientActionQueued: (action: string, target: string) => `${action} queued · ${target}`,
+    customerClientActionFailed: (action: string, target: string) => `${action} not accepted · ${target}`,
+    customerClientActionEvidenceHint: 'Waiting for Control Plane snapshot and Agent result evidence.',
+    customerClientActionRuntimeTask: (taskId: string) => `Runtime ${taskId}`,
+    customerClientActionSubscriptionTask: (taskId: string) => `Subscription ${taskId}`,
+    customerClientActionOpenEvidence: 'View Evidence',
     noCustomerClients: 'No clients yet',
     copyCustomerClientLink: 'Copy Client Link',
     enableCustomerClient: 'Enable Client',
@@ -2562,6 +2596,63 @@ function CustomerClientSubscriptionEvidenceRow({
   );
 }
 
+function CustomerClientActionFeedbackBar({
+  feedback,
+  onOpenEvidence,
+  t
+}: {
+  feedback: CustomerClientActionFeedback;
+  onOpenEvidence?: () => void;
+  t: NodesCopy;
+}) {
+  const failed = feedback.status === 'failed';
+  const Icon = failed ? AlertTriangle : Send;
+
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        'border px-3 py-2.5 text-xs',
+        failed
+          ? 'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]'
+          : 'border-[#1E3AFF]/28 bg-[#DCE1FF]/35 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF]'
+      )}
+      data-customer-client-action-feedback={feedback.status}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="break-words font-black">
+              {failed
+                ? t.customerClientActionFailed(feedback.actionLabel, feedback.targetLabel)
+                : t.customerClientActionQueued(feedback.actionLabel, feedback.targetLabel)}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
+            {t.customerClientActionEvidenceHint}
+          </p>
+        </div>
+        {onOpenEvidence ? (
+          <button
+            className="shrink-0 border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+            onClick={onOpenEvidence}
+            type="button"
+          >
+            {t.customerClientActionOpenEvidence}
+          </button>
+        ) : null}
+      </div>
+      {feedback.runtimeTaskId || feedback.subscriptionTaskId ? (
+        <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/60">
+          {feedback.runtimeTaskId ? <span>{t.customerClientActionRuntimeTask(feedback.runtimeTaskId)}</span> : null}
+          {feedback.subscriptionTaskId ? <span>{t.customerClientActionSubscriptionTask(feedback.subscriptionTaskId)}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CustomerNodeRuntimeEvidenceDrawerContent({
   evidence,
   language,
@@ -3534,6 +3625,70 @@ function formatTelemetryBytesPair(agent: Agent, usedBytes: number | undefined, t
   return hasTelemetryReport(agent) ? `${formatBytes(usedBytes ?? 0)} / ${formatBytes(totalBytes ?? 0)}` : '-';
 }
 
+function isCustomerNodeClientActionResult(result: CustomerNodeClientActionSettled): result is CustomerNodeClientActionResult {
+  return typeof result === 'object' && result !== null && 'accepted' in result;
+}
+
+function getCustomerClientActionLabel(action: XrayClientAction, t: NodesCopy) {
+  switch (action.kind) {
+    case 'add-client':
+      return t.addCustomerClient;
+    case 'set-enabled':
+      return action.enabled ? t.enableCustomerClient : t.disableCustomerClient;
+    case 'add-traffic':
+      return t.addCustomerNodeTraffic;
+    case 'renew':
+      return t.renewCustomerNode;
+    case 'reset-used-traffic':
+      return t.bulkResetCustomerNodeUsedTraffic;
+    case 'set-ip-limit':
+      return t.customerClientIpLimit;
+    case 'set-reset-policy':
+      return t.customerClientResetPolicy;
+    case 'set-traffic-limit':
+      return t.customerClientQuota;
+    case 'delete-client':
+      return t.deleteCustomerClient;
+  }
+}
+
+function createCustomerClientActionFeedback({
+  action,
+  client,
+  inbound,
+  result,
+  status,
+  t
+}: {
+  action: XrayClientAction;
+  client?: XrayClient;
+  inbound: RuntimeXrayInbound;
+  result: CustomerNodeClientActionSettled;
+  status: CustomerClientActionFeedbackStatus;
+  t: NodesCopy;
+}): CustomerClientActionFeedback {
+  const actionResult = isCustomerNodeClientActionResult(result) ? result : undefined;
+  const targetLabel =
+    actionResult?.targetClientEmail ||
+    actionResult?.targetClientId ||
+    (action.kind === 'add-client' ? action.clientEmail : undefined) ||
+    client?.email ||
+    client?.id ||
+    inbound.id;
+  const runtimeTaskId = actionResult?.runtimeTaskId;
+  const subscriptionTaskId = actionResult?.subscriptionTaskId;
+
+  return {
+    id: [inbound.id, action.kind, targetLabel, runtimeTaskId, subscriptionTaskId, status].filter(Boolean).join(':'),
+    inboundId: inbound.id,
+    status,
+    actionLabel: getCustomerClientActionLabel(action, t),
+    targetLabel,
+    runtimeTaskId,
+    subscriptionTaskId
+  };
+}
+
 export function NodesPage({
   agents,
   focusIntent,
@@ -3600,6 +3755,7 @@ export function NodesPage({
   const [customerLinkQrDataUrl, setCustomerLinkQrDataUrl] = useState('');
   const [customerAdvancedOpen, setCustomerAdvancedOpen] = useState(false);
   const [customerClientDraft, setCustomerClientDraft] = useState<CustomerClientDraft>(() => createCustomerClientDraft());
+  const [customerClientActionFeedback, setCustomerClientActionFeedback] = useState<CustomerClientActionFeedback>();
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
@@ -3757,6 +3913,10 @@ export function NodesPage({
         runtimeSnapshots
       })
     : undefined;
+  const activeCustomerClientActionFeedback =
+    customerClientsInbound && customerClientActionFeedback?.inboundId === customerClientsInbound.id
+      ? customerClientActionFeedback
+      : undefined;
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -4006,6 +4166,7 @@ export function NodesPage({
 
   function openCustomerClientsDrawer(node: CustomerNodeRecord) {
     setCustomerClientDraft(createCustomerClientDraft(node.protocol));
+    setCustomerClientActionFeedback((current) => (current?.inboundId === node.id ? current : undefined));
     setDrawer({ type: 'customerClients', nodeId: node.id });
   }
 
@@ -4424,10 +4585,48 @@ export function NodesPage({
     reason: string
   ) {
     if (!onApplyCustomerNodeClientAction) {
-      return;
+      setCustomerClientActionFeedback(
+        createCustomerClientActionFeedback({
+          action,
+          client,
+          inbound,
+          result: false,
+          status: 'failed',
+          t
+        })
+      );
+      return false;
     }
 
-    await onApplyCustomerNodeClientAction(createInboundClientActionMutation(inbound, client, action, reason));
+    try {
+      const result = await onApplyCustomerNodeClientAction(createInboundClientActionMutation(inbound, client, action, reason));
+      const failed = result === false || (isCustomerNodeClientActionResult(result) && !result.accepted);
+
+      setCustomerClientActionFeedback(
+        createCustomerClientActionFeedback({
+          action,
+          client,
+          inbound,
+          result,
+          status: failed ? 'failed' : 'queued',
+          t
+        })
+      );
+
+      return result;
+    } catch {
+      setCustomerClientActionFeedback(
+        createCustomerClientActionFeedback({
+          action,
+          client,
+          inbound,
+          result: false,
+          status: 'failed',
+          t
+        })
+      );
+      return false;
+    }
   }
 
   function copyCustomerClientLink(inbound: RuntimeXrayInbound, client: XrayClient) {
@@ -4500,25 +4699,53 @@ export function NodesPage({
 
     const clientIdentity = customerClientDraft.clientIdentity.trim() || createClientIdentity(customerClientsInbound.protocol);
     const clientCredential = customerClientDraft.clientCredential.trim() || clientIdentity;
-    const applied = await onApplyCustomerNodeClientAction({
-      inboundId: customerClientsInbound.id,
-      action: {
-        kind: 'add-client',
-        clientIdentity,
-        clientEmail,
-        clientCredential,
-        trafficLimitGb: Math.round(parseNonNegativeNumber(customerClientDraft.trafficLimitGb)),
-        remainingDays: Math.round(parseNonNegativeNumber(customerClientDraft.remainingDays)),
-        ipLimit: Math.round(parseNonNegativeNumber(customerClientDraft.ipLimit)),
-        resetPolicy: customerClientDraft.resetPolicy,
-        monthlyResetDay: clampResetDay(parseNonNegativeNumber(customerClientDraft.monthlyResetDay)),
-        subscriptionRule: customerClientDraft.subscriptionRule.trim() || undefined,
-        enabled: true
-      },
-      reason: 'customer-node-client:add'
-    });
+    const action: XrayClientAction = {
+      kind: 'add-client',
+      clientIdentity,
+      clientEmail,
+      clientCredential,
+      trafficLimitGb: Math.round(parseNonNegativeNumber(customerClientDraft.trafficLimitGb)),
+      remainingDays: Math.round(parseNonNegativeNumber(customerClientDraft.remainingDays)),
+      ipLimit: Math.round(parseNonNegativeNumber(customerClientDraft.ipLimit)),
+      resetPolicy: customerClientDraft.resetPolicy,
+      monthlyResetDay: clampResetDay(parseNonNegativeNumber(customerClientDraft.monthlyResetDay)),
+      subscriptionRule: customerClientDraft.subscriptionRule.trim() || undefined,
+      enabled: true
+    };
+    let applied: CustomerNodeClientActionSettled;
 
-    if (applied === false) {
+    try {
+      applied = await onApplyCustomerNodeClientAction({
+        inboundId: customerClientsInbound.id,
+        action,
+        reason: 'customer-node-client:add'
+      });
+    } catch {
+      setCustomerClientActionFeedback(
+        createCustomerClientActionFeedback({
+          action,
+          inbound: customerClientsInbound,
+          result: false,
+          status: 'failed',
+          t
+        })
+      );
+      return;
+    }
+
+    const failed = applied === false || (isCustomerNodeClientActionResult(applied) && !applied.accepted);
+
+    setCustomerClientActionFeedback(
+      createCustomerClientActionFeedback({
+        action,
+        inbound: customerClientsInbound,
+        result: applied,
+        status: failed ? 'failed' : 'queued',
+        t
+      })
+    );
+
+    if (failed) {
       return;
     }
 
@@ -5729,6 +5956,18 @@ export function NodesPage({
                   onOpenEvidence={() => setDrawer({ type: 'customerRuntimeEvidence', nodeId: customerClientsNode.id })}
                 />
               </DrawerSection>
+            ) : null}
+
+            {activeCustomerClientActionFeedback ? (
+              <CustomerClientActionFeedbackBar
+                feedback={activeCustomerClientActionFeedback}
+                t={t}
+                onOpenEvidence={
+                  customerClientsNode
+                    ? () => setDrawer({ type: 'customerRuntimeEvidence', nodeId: customerClientsNode.id })
+                    : undefined
+                }
+              />
             ) : null}
 
             <DrawerSection title={t.addCustomerClient}>
