@@ -49,7 +49,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、UI/API 结构化 `clients[]` 校验、listener 协议冲突拒绝、delete remove artifact、Xray config preflight、systemd runtime restart |
 | Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额和过期策略可以按 client 评估 |
 | Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
-| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路；订阅身份和导出配置都可选择 public output formats，并支持访问凭据轮换 |
+| 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路；订阅身份和导出配置都可选择 public output formats，并支持公开路径 / token preview 轮换 |
 | 发布准备 | 项目版本更新为 `2.0.0`，README 重写，能力边界更准确 |
 
 ## 功能矩阵
@@ -65,7 +65,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议，不会作为可编辑客户节点 runtime 入站暴露 |
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
-| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、访问凭据轮换、二维码和 Shadowrocket/Stash 输出 |
+| Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、公开路径 / token preview 轮换、二维码和 Shadowrocket/Stash 输出 |
 | 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、到期、用量和生成节点；带 `accessTokenHash` 的身份会要求 raw token；独立客户门户、泄露撤销和设备级绑定仍需继续补齐 |
 | SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储 + schema v2 领域实体索引表，适合单 Master 部署、安装器闭环和后续强 schema 迁移起步 |
 | 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的完整强 schema、增量查询和 HA 仍是后续重点 |
@@ -213,7 +213,7 @@ Preview / blocked 能力：
 - 公共订阅输出响应会带出 `x-ou-ui-selected-node-count`、`x-ou-ui-converted-uri-count`、`x-ou-ui-unconverted-node-count` 和转换 warning 头，便于定位命中节点与实际可输出 URI 不一致的问题。
 - 与 Xray client / customer node 的用量、到期、规则关联。
 - 订阅身份和导出配置都可选择 public output formats，含 Shadowrocket / Stash。
-- 订阅链接抽屉支持门户链接、二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和访问凭据轮换；轮换会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL。
+- 订阅链接抽屉支持门户链接、二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和公开路径 / token preview 轮换；该 UI 操作会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL，但不会生成可用于 `accessTokenHash` 校验的新 raw token。
 - `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、到期、用量和生成节点，并与公开订阅下载共享 `requestLimitPerHour` 限流桶。
 - 公开订阅下载和门户支持可选 `accessTokenHash` 校验；配置该 hash 后，请求必须通过 `?token=`、`?access_token=` 或 `Authorization: Bearer` 提交匹配 raw token。HTTP task 创建/更新可接收一次性 `metadata.accessTokenRaw`，会在入队前转换为 `accessTokenHash` 并剔除 raw；HTTP JSON/SSE 响应会移除 `accessTokenHash` / `tokenHash` 字段。
 - 订阅身份、订阅源、导出 Profile 和导出文件的 UI mutation 由 feature 级 task input helper 统一生成；导入源会规范化 `sourceId`，幂等 key 覆盖启用状态、过滤规则、限额、输出格式、模板和代理组等会影响运行时的字段。

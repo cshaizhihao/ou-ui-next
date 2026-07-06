@@ -2527,13 +2527,13 @@ describe('SubscriptionMixerPage', () => {
       expect.stringContaining('Subscription-Userinfo: upload=0; download=137438953472; total=1099511627776; expire=1798761599')
     );
 
-    await user.click(within(drawer).getByRole('button', { name: '轮换访问凭据' }));
+    await user.click(within(drawer).getByRole('button', { name: '轮换公开路径' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Acme 香港 Premium 订阅'));
     expect(onSaveClient).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
-    await user.click(within(drawer).getByRole('button', { name: '轮换访问凭据' }));
+    await user.click(within(drawer).getByRole('button', { name: '轮换公开路径' }));
 
     expect(onSaveClient).toHaveBeenCalledTimes(1);
     const rotatedMetadata = onSaveClient.mock.calls[0]?.[0] as {
