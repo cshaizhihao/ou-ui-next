@@ -79,6 +79,7 @@ type HttpErrorCode =
   | 'permission_grant.not_found'
   | 'subscription.quota_exceeded'
   | 'subscription.rate_limited'
+  | 'subscription.runtime_disabled'
   | 'subscription_source.rate_limited'
   | 'resource_version.conflict'
   | 'task.invalid_transition'
@@ -1677,6 +1678,16 @@ function createSubscriptionQuotaExceededError(client: SubscriptionClientIdentity
   });
 }
 
+function createSubscriptionRuntimeDisabledError(client: SubscriptionClientIdentity) {
+  return createHttpError(403, 'subscription.runtime_disabled', 'Subscription runtime access is disabled by policy.', {
+    clientId: client.id,
+    subId: client.subId,
+    usedTrafficBytes: Math.max(client.usedTrafficBytes, 0),
+    trafficLimitBytes: Math.max(client.trafficLimitBytes, 0),
+    guardrailReason: client.guardrailReason ?? 'subscription_client_runtime_disabled_by_policy'
+  });
+}
+
 function isSubscriptionQuotaExceeded(client: SubscriptionClientIdentity) {
   const trafficLimitBytes = Math.max(client.trafficLimitBytes, 0);
   const usedTrafficBytes = Math.max(client.usedTrafficBytes, 0);
@@ -1775,8 +1786,12 @@ async function resolvePublicSubscriptionClient(
     throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
   }
 
-  if (isSubscriptionQuotaExceeded(client) || client.runtimeDisabledByPolicy) {
+  if (isSubscriptionQuotaExceeded(client)) {
     throw createSubscriptionQuotaExceededError(client);
+  }
+
+  if (client.runtimeDisabledByPolicy) {
+    throw createSubscriptionRuntimeDisabledError(client);
   }
 
   return client;

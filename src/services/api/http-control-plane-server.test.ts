@@ -2162,6 +2162,70 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('blocks public subscription downloads and portal when runtime access is disabled by policy', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-runtime-disabled-client',
+          'Idempotency-Key': 'idem-public-sub-runtime-disabled-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-runtime-disabled',
+          targetLabel: 'Runtime Disabled Subscription',
+          summary: 'Create runtime disabled subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-runtime-disabled',
+            customerName: 'Policy Customer',
+            displayName: 'Runtime Disabled Subscription',
+            subId: 'sub_public_runtime_disabled',
+            email: 'policy@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            trafficLimitGb: 500,
+            usedTrafficGb: 1,
+            remainingDays: 365,
+            selectedTags: ['premium'],
+            outputFormats: ['uri'],
+            formats: ['plain'],
+            securePathPreview: '/runtimeDisabledPublicPath',
+            generatedNodeCount: 0,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'manual_subscription_suspend'
+          }
+        })
+      });
+
+      expect(createClientResponse.status).toBe(201);
+
+      const blockedResponse = await fetch(`${baseUrl}/sub/runtimeDisabledPublicPath/uri/sub_public_runtime_disabled`);
+      const blockedEnvelope = await blockedResponse.json();
+      const blockedPortalResponse = await fetch(`${baseUrl}/portal/runtimeDisabledPublicPath/sub_public_runtime_disabled`);
+      const blockedPortalEnvelope = await blockedPortalResponse.json();
+
+      expect(blockedResponse.status).toBe(403);
+      expect(blockedEnvelope.error).toMatchObject({
+        code: 'subscription.runtime_disabled',
+        details: expect.objectContaining({
+          clientId: 'sub-client-runtime-disabled',
+          usedTrafficBytes: 1024 ** 3,
+          trafficLimitBytes: 500 * 1024 ** 3,
+          guardrailReason: 'manual_subscription_suspend'
+        })
+      });
+      expect(blockedPortalResponse.status).toBe(403);
+      expect(blockedPortalEnvelope.error).toMatchObject({
+        code: 'subscription.runtime_disabled',
+        details: expect.objectContaining({
+          clientId: 'sub-client-runtime-disabled',
+          guardrailReason: 'manual_subscription_suspend'
+        })
+      });
+    });
+  });
+
   it('requires matching access token hash for protected public subscription links and portal', async () => {
     await withServerApi(createMockApi(), async (baseUrl) => {
       const rawToken = 'ou_raw_subscription_token_2026';
