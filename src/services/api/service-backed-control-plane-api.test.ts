@@ -449,6 +449,7 @@ function createCustomerDirectoryInbound(): XrayInbound {
     },
     reality: {
       enabled: true,
+      privateKey: 'reality-private-key',
       shortIds: ['alpha'],
       serverNames: ['edge.example.com']
     },
@@ -1597,6 +1598,7 @@ describe('service-backed control plane read model hydration', () => {
             reality: {
               enabled: true,
               publicKey: 'reality-public-key',
+              privateKey: 'reality-private-key',
               shortIds: ['ouui'],
               serverNames: ['edge.example.com']
             },
@@ -6438,6 +6440,7 @@ describe('service-backed control plane read model hydration', () => {
         reality: {
           enabled: true,
           publicKey: 'reality-public-key',
+          privateKey: 'reality-private-key',
           fingerprint: 'chrome',
           shortIds: ['a1b2c3d4'],
           serverNames: ['edge.example.com']
@@ -6542,6 +6545,7 @@ describe('service-backed control plane read model hydration', () => {
         reality: {
           enabled: true,
           publicKey: 'reality-public-key',
+          privateKey: 'reality-private-key',
           fingerprint: 'chrome',
           shortIds: ['a1b2c3d4'],
           serverNames: ['edge.example.com']

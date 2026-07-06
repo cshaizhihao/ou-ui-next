@@ -356,6 +356,46 @@ function addDuplicateXrayClientMetadataIssues(metadata: TaskMetadataInput, conte
   });
 }
 
+function hasRuntimeEnabledXrayClientMetadata(metadata: TaskMetadataInput) {
+  const clients = metadata.clients ?? [];
+
+  if (clients.length > 0) {
+    return clients.some((client) => client.enabled !== false && client.runtimeDisabledByPolicy !== true);
+  }
+
+  return metadata.enabled !== false && metadata.runtimeDisabledByPolicy !== true;
+}
+
+function addActiveXrayRealityMetadataIssues(metadata: TaskMetadataInput, context: z.RefinementCtx) {
+  if (metadata.security !== 'reality' || !hasRuntimeEnabledXrayClientMetadata(metadata)) {
+    return;
+  }
+
+  (
+    [
+      ['sni', metadata.sni, 'Active Xray Reality inbounds require metadata.sni so serverNames and subscription SNI match.'],
+      [
+        'realityPublicKey',
+        metadata.realityPublicKey,
+        'Active Xray Reality inbounds require metadata.realityPublicKey for generated subscription links.'
+      ],
+      [
+        'realityPrivateKey',
+        metadata.realityPrivateKey,
+        'Active Xray Reality inbounds require metadata.realityPrivateKey for the Agent runtime config.'
+      ]
+    ] as const
+  ).forEach(([field, value, message]) => {
+    if (!value || value.trim() === '') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message,
+        path: ['metadata', field]
+      });
+    }
+  });
+}
+
 export const agentInstallCommandRequestSchema = z.object({
   installProfile: agentInstallProfileSchema,
   publicBaseUrl: z.string().trim().min(1).url().optional()
@@ -426,6 +466,9 @@ export const createTaskRequestSchema = z
     const validatesXrayClientMetadata =
       (request.operation === 'inbound.create' || request.operation === 'inbound.update') &&
       metadata?.clients !== undefined;
+    const validatesXrayRuntimeMetadata =
+      (request.operation === 'inbound.create' || request.operation === 'inbound.update') &&
+      metadata !== undefined;
 
     if (hasHostOnboardingMetadata && !metadata.installProfile) {
       context.addIssue({
@@ -437,6 +480,10 @@ export const createTaskRequestSchema = z
 
     if (validatesXrayClientMetadata && metadata) {
       addDuplicateXrayClientMetadataIssues(metadata, context);
+    }
+
+    if (validatesXrayRuntimeMetadata && metadata) {
+      addActiveXrayRealityMetadataIssues(metadata, context);
     }
 
     if (validatesForwardingRuntimeMetadata) {

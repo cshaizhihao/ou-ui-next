@@ -1724,6 +1724,62 @@ describe('v1 API runtime contract', () => {
     );
   });
 
+  it('rejects active Xray Reality runtime metadata without required key material', () => {
+    const result = createTaskRequestSchema.safeParse({
+      operation: 'inbound.create',
+      resourceType: 'inbound',
+      targetId: 'customer-node-reality-missing-material',
+      targetLabel: 'Reality without key material',
+      summary: 'Create active Reality inbound without runtime-safe metadata',
+      metadata: {
+        nodeId: 'customer-node-reality-missing-material',
+        agentId: 'agent-hkg-01',
+        customerNodeName: 'Reality without key material',
+        customerName: 'Acme Team',
+        serverAddress: 'edge.customer.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 443,
+        streamNetwork: 'tcp',
+        security: 'reality',
+        clientIdentity: 'acme-reality-missing',
+        clientCredential: 'acme-token'
+      }
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['metadata', 'sni'] }),
+          expect.objectContaining({ path: ['metadata', 'realityPublicKey'] }),
+          expect.objectContaining({ path: ['metadata', 'realityPrivateKey'] })
+        ])
+      );
+    }
+
+    expect(
+      createTaskRequestSchema.safeParse({
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'customer-node-reality-disabled',
+        targetLabel: 'Disabled Reality inbound',
+        summary: 'Disable Reality inbound without requiring runtime key material',
+        metadata: {
+          nodeId: 'customer-node-reality-disabled',
+          agentId: 'agent-hkg-01',
+          customerNodeName: 'Disabled Reality inbound',
+          customerName: 'Acme Team',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          streamNetwork: 'tcp',
+          security: 'reality',
+          enabled: false,
+          clientIdentity: 'acme-disabled'
+        }
+      }).success
+    ).toBe(true);
+  });
+
   it('accepts Agent forwarding traffic counter telemetry samples', () => {
     expect(
       agentEventsRequestSchema.parse({

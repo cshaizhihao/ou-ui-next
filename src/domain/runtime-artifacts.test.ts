@@ -547,6 +547,53 @@ describe('runtime artifacts', () => {
     expect(artifact.subscription.shareUri).toContain('trojan://trojan-secret@edge.example.com:8443');
   });
 
+  it('rejects active Reality artifacts without required key material', () => {
+    expect(() =>
+      buildRuntimeArtifact({
+        task: createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Broken Reality',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'acme-broken-reality',
+          clientCredential: 'not-a-uuid',
+          security: 'reality',
+          streamNetwork: 'tcp'
+        }),
+        agentId: 'agent-hkg-01',
+        moduleKind: 'xray'
+      })
+    ).toThrow('Active Xray Reality runtime requires metadata.sni, metadata.realityPublicKey, metadata.realityPrivateKey.');
+  });
+
+  it('allows disabled Reality updates to remove runtime state without key material', () => {
+    const artifact = buildRuntimeArtifact({
+      task: {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Disabled Reality',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'acme-disabled-reality',
+          clientCredential: 'not-a-uuid',
+          security: 'reality',
+          streamNetwork: 'tcp',
+          enabled: false
+        }),
+        operation: 'inbound.update'
+      },
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture & { action: string };
+
+    expect(artifact.action).toBe('remove_inbound');
+    expect(artifact.xray.inbound.settings.clients).toEqual([]);
+  });
+
   it('splits Reality server private key config from client subscription public key parameters', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

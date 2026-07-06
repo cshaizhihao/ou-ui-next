@@ -321,6 +321,40 @@ function buildStreamSettings(metadata: Record<string, unknown> | undefined) {
   };
 }
 
+function hasRuntimeEnabledXrayClientMetadata(metadata: Record<string, unknown> | undefined) {
+  const clients = readRecordArray(metadata, 'clients');
+
+  if (clients.length > 0) {
+    return clients.some((client) => readBoolean(client, 'enabled', true) && !readBoolean(client, 'runtimeDisabledByPolicy', false));
+  }
+
+  return readBoolean(metadata, 'enabled', true) && !readBoolean(metadata, 'runtimeDisabledByPolicy', false);
+}
+
+function validateXrayRuntimeSecurityMetadata(task: DeployTask, metadata: Record<string, unknown> | undefined) {
+  if (task.operation === 'inbound.delete' || !hasRuntimeEnabledXrayClientMetadata(metadata)) {
+    return;
+  }
+
+  if (readSecurity(metadata) !== 'reality') {
+    return;
+  }
+
+  const missingFields = (
+    [
+      ['sni', readString(metadata, 'sni', '')],
+      ['realityPublicKey', readString(metadata, 'realityPublicKey', '')],
+      ['realityPrivateKey', readString(metadata, 'realityPrivateKey', '')]
+    ] as const
+  )
+    .filter(([, value]) => value.trim() === '')
+    .map(([field]) => `metadata.${field}`);
+
+  if (missingFields.length > 0) {
+    throw new Error(`Active Xray Reality runtime requires ${missingFields.join(', ')}.`);
+  }
+}
+
 function buildXraySettings(input: {
   protocol: XrayRuntimeProtocol;
   clients: RuntimeXrayClientPolicy[];
@@ -655,6 +689,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
   const metadata = task.metadata;
   const enabled = readBoolean(metadata, 'enabled', true);
   const protocol = readProtocol(metadata);
+  validateXrayRuntimeSecurityMetadata(task, metadata);
   const listenAddress = readString(metadata, 'listenAddress', '0.0.0.0');
   const listenPort = resolveXrayListenPort(metadata, task.targetId);
   const customerNodeName = readString(metadata, 'customerNodeName', task.targetLabel);

@@ -1044,7 +1044,7 @@ describe('mock API contract', () => {
         fingerprint: 'chrome',
         alpn: [],
         realityPublicKey: 'reality-public-key',
-        realityPrivateKey: '',
+        realityPrivateKey: 'reality-private-key',
         realityTarget: 'edge.example.com:443',
         realityShortId: 'ouui',
         fallbackName: '',
