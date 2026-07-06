@@ -48,6 +48,10 @@ import {
   createCustomerNodeInboundIdempotencyKey,
   createCustomerNodeInboundTaskInput
 } from '../../features/nodes/customer-node-task-inputs';
+import {
+  createCustomerNodeAllSubscriptionText,
+  createCustomerNodeSubscriptionMetadata
+} from '../../features/nodes/customer-node-subscription-binding';
 import type {
   SubscriptionClientRuleMetadata,
   SubscriptionMixerFocusIntent,
@@ -261,10 +265,6 @@ function findRollbackSnapshotId(
   return runtimeSnapshots.find((snapshot) => snapshot.taskId === taskId && snapshot.targetId === targetId)?.id;
 }
 
-function createStableSlug(value: string, fallback: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
-}
-
 function withRiskConfirmation<T extends CreateTaskInput>(
   input: T
 ): T & { riskConfirmation: NonNullable<CreateTaskInput['riskConfirmation']> } {
@@ -286,18 +286,6 @@ function createStableHash(value: string) {
   }
 
   return hash.toString(36).padStart(7, '0');
-}
-
-function createStableSecret(value: string, length: number) {
-  let output = '';
-  let index = 0;
-
-  while (output.length < length) {
-    output += createStableHash(`${value}:${index}`);
-    index += 1;
-  }
-
-  return output.slice(0, length);
 }
 
 
@@ -963,109 +951,6 @@ function createSubscriptionClientExportMetadata(
       }
     }
   };
-}
-
-function createCustomerNodeSubscriptionMetadata(metadata: CustomerNodeConfigMetadata): SubscriptionClientRuleMetadata {
-  const outputFormats: SubscriptionClientRuleMetadata['outputFormats'] = [
-    'uri',
-    'v2ray',
-    'clash',
-    'mihomo',
-    'sing-box',
-    'shadowrocket',
-    'stash'
-  ];
-  const formats: SubscriptionClientFormat[] = ['plain', 'json', 'clash', 'mihomo', 'sing-box'];
-  const subId = metadata.subId || metadata.subscriptionRule || metadata.clientIdentity;
-  const subscriptionClientId =
-    metadata.subscriptionClientId || `sub-client-${createStableSlug(`${metadata.customerName}-${subId}`, 'customer-node')}`;
-  const securePathPreview =
-    metadata.securePathPreview || `/${createStableSecret(`${subscriptionClientId}:${subId}:secure-path`, 24)}`;
-  const publicBaseUrl = createBrowserPublicBaseUrl();
-  const tokenPreview = `ou_${createStableSecret(`${subscriptionClientId}:${subId}:token`, 10)}`;
-  const createSubscriptionUrl = (format: keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']) =>
-    `${publicBaseUrl}/sub${securePathPreview}/${format}/${encodeURIComponent(subId)}`;
-  const subscriptionUrlPreview = {
-    uri: metadata.subscriptionUrlPreview?.uri || createSubscriptionUrl('uri'),
-    v2ray: metadata.subscriptionUrlPreview?.v2ray || createSubscriptionUrl('v2ray'),
-    clash: metadata.subscriptionUrlPreview?.clash || createSubscriptionUrl('clash'),
-    mihomo: metadata.subscriptionUrlPreview?.mihomo || createSubscriptionUrl('mihomo'),
-    'sing-box': metadata.subscriptionUrlPreview?.['sing-box'] || createSubscriptionUrl('sing-box'),
-    shadowrocket: metadata.subscriptionUrlPreview?.shadowrocket || createSubscriptionUrl('shadowrocket'),
-    stash: metadata.subscriptionUrlPreview?.stash || createSubscriptionUrl('stash')
-  };
-
-  return {
-    subscriptionClientId,
-    customerName: metadata.customerName,
-    ruleName: `${metadata.customerName} subscription`,
-    displayName: `${metadata.customerName} subscription`,
-    subId,
-    email: metadata.clientEmail,
-    protocol: metadata.xrayProtocol,
-    group: metadata.agentId,
-    trafficLimitGb: metadata.trafficLimitGb,
-    usedTrafficGb: metadata.currentUsedTrafficGb,
-    remainingDays: metadata.remainingDays,
-    ipLimit: metadata.ipLimit,
-    requestLimitPerHour: 360,
-    sourceIds: [],
-    selectedTags: [],
-    includeFilter: '',
-    excludeFilter: '',
-    regionFilter: [],
-    routingRule: metadata.subscriptionRule,
-    trafficFilter: '',
-    maxLatencyMs: 0,
-    sortStrategy: 'latency',
-    formats,
-    outputFormats,
-    templateName: 'mihomo-compatible.yaml',
-    enabled: metadata.enabled ?? true,
-    generatedNodeCount: 1,
-    accessTokenPreview: tokenPreview,
-    securePathPreview,
-    subscriptionUrlPreview,
-    clientRule: {
-      protocolFilter: metadata.xrayProtocol,
-      sourceIds: [],
-      tagFilter: [],
-      regionFilter: [],
-      includeFilter: '',
-      excludeFilter: '',
-      routingRule: metadata.subscriptionRule,
-      trafficFilter: '',
-      maxLatencyMs: 0,
-      sortStrategy: 'latency',
-      outputFormats,
-      trafficConstraint: {
-        limitGb: metadata.trafficLimitGb,
-        usedGb: metadata.currentUsedTrafficGb,
-        remainingDays: metadata.remainingDays,
-        ipLimit: metadata.ipLimit,
-        requestLimitPerHour: 360
-      },
-      access: {
-        subId,
-        tokenPreview,
-        securePathPreview
-      }
-    }
-  };
-}
-
-function createCustomerNodeAllSubscriptionText(metadata: SubscriptionClientRuleMetadata) {
-  const entries: Array<[string, keyof SubscriptionClientRuleMetadata['subscriptionUrlPreview']]> = [
-    ['URI', 'uri'],
-    ['V2Ray JSON', 'v2ray'],
-    ['Clash', 'clash'],
-    ['Mihomo', 'mihomo'],
-    ['Sing-box', 'sing-box'],
-    ['Shadowrocket', 'shadowrocket'],
-    ['Stash', 'stash']
-  ];
-
-  return entries.map(([label, format]) => `${label}: ${metadata.subscriptionUrlPreview[format]}`).join('\n');
 }
 
 const shellCopy = {
@@ -1901,7 +1786,7 @@ export function AppShell({ ready }: AppShellProps) {
   const handleSaveCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => {
       const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
-      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
       const inboundInput = createCustomerNodeInboundTaskInput(metadata, action, {
         create: t.createCustomerNodeSummary,
         update: t.updateCustomerNodeSummary
@@ -1941,7 +1826,7 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
-      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
 
       void (async () => {
         const inboundTask = await runTask(
@@ -2189,7 +2074,7 @@ export function AppShell({ ready }: AppShellProps) {
           }
 
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
-          const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+          const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
           void copyText(createCustomerNodeAllSubscriptionText(subscriptionMetadata));
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
@@ -2206,7 +2091,7 @@ export function AppShell({ ready }: AppShellProps) {
           }
 
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
-          const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
+          const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
           void copyText(subscriptionMetadata.subscriptionUrlPreview.clash);
           setActivePage(item.pageId);
           setQuickActionsOpen(false);
