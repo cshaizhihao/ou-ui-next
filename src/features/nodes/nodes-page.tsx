@@ -114,6 +114,7 @@ type NodesPageProps = {
   onPreviewAgentUpgradeCommand?: (agent: Agent, reason: string) => Promise<AgentUpgradeCommand>;
   onRemoteAgentUpgrade?: (agent: Agent, reason: string) => void;
   onOpenRuntimeEvidenceWorkspace?: () => void;
+  onRollbackRuntimeTask?: (taskId: string) => void;
   onResetCustomerNodeTraffic?: (policy: QuotaPolicy) => void;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
@@ -551,6 +552,7 @@ const copy = {
     customerRuntimeEvidenceDrawerDescription: '来自任务、Agent command、配置版本、预检和快照的真实发布证据。',
     customerRuntimeEvidenceWorkspace: '打开任务证据',
     customerRuntimeEvidenceCopyPackage: '复制诊断包',
+    customerRuntimeEvidenceRollbackAction: '发起回滚',
     customerRuntimeEvidenceTask: '任务',
     customerRuntimeEvidenceAgentResult: 'Agent 结果',
     customerRuntimeEvidenceCommand: '命令',
@@ -920,6 +922,7 @@ const copy = {
     customerRuntimeEvidenceDrawerDescription: 'Real release evidence from task, Agent command, config revision, preflight, and snapshot state.',
     customerRuntimeEvidenceWorkspace: 'Open Task Evidence',
     customerRuntimeEvidenceCopyPackage: 'Copy Evidence Package',
+    customerRuntimeEvidenceRollbackAction: 'Start Rollback',
     customerRuntimeEvidenceTask: 'Task',
     customerRuntimeEvidenceAgentResult: 'Agent Result',
     customerRuntimeEvidenceCommand: 'Command',
@@ -2401,7 +2404,8 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
   node,
   t,
   onCopyPackage,
-  onOpenWorkspace
+  onOpenWorkspace,
+  onRollbackTask
 }: {
   evidence: CustomerNodeRuntimeEvidenceBundle;
   language: AppLanguage;
@@ -2409,6 +2413,7 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
   t: NodesCopy;
   onCopyPackage: () => void;
   onOpenWorkspace?: () => void;
+  onRollbackTask?: () => void;
 }) {
   const stateClass = {
     verified:
@@ -2492,6 +2497,16 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
             <Terminal className="h-3.5 w-3.5" />
             {t.customerRuntimeEvidenceWorkspace}
           </GlowButton>
+        ) : null}
+        {onRollbackTask ? (
+          <button
+            className="inline-flex items-center gap-2 border border-[#DC2626]/35 bg-[#DC2626]/10 px-4 py-2 text-xs font-black text-[#B91C1C] transition hover:border-[#DC2626]/60 hover:bg-[#DC2626]/15 dark:border-[#F87171]/30 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]"
+            onClick={onRollbackTask}
+            type="button"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t.customerRuntimeEvidenceRollbackAction}
+          </button>
         ) : null}
       </div>
     </div>
@@ -3189,6 +3204,7 @@ export function NodesPage({
   onPreviewAgentUpgradeCommand,
   onRemoteAgentUpgrade,
   onOpenRuntimeEvidenceWorkspace,
+  onRollbackRuntimeTask,
   onResetCustomerNodeTraffic,
   onSaveHostConfig,
   onSaveCustomerNode
@@ -3362,6 +3378,10 @@ export function NodesPage({
         runtimeSnapshots
       })
     : undefined;
+  const selectedRuntimeEvidenceRollbackTaskId =
+    selectedRuntimeEvidence?.task?.rollbackAvailable && selectedRuntimeEvidence.task.status === 'succeeded'
+      ? selectedRuntimeEvidence.task.id
+      : undefined;
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -5164,6 +5184,14 @@ export function NodesPage({
                 ? () => {
                     setDrawer({ type: 'closed' });
                     onOpenRuntimeEvidenceWorkspace();
+                  }
+                : undefined
+            }
+            onRollbackTask={
+              onRollbackRuntimeTask && selectedRuntimeEvidenceRollbackTaskId
+                ? () => {
+                    setDrawer({ type: 'closed' });
+                    onRollbackRuntimeTask(selectedRuntimeEvidenceRollbackTaskId);
                   }
                 : undefined
             }

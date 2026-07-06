@@ -2711,6 +2711,52 @@ describe('NodesPage', () => {
     expect(onOpenRuntimeEvidenceWorkspace).toHaveBeenCalledTimes(1);
   });
 
+  it('starts rollback from the customer-node runtime evidence drawer when the source task is rollback-ready', async () => {
+    const user = userEvent.setup();
+    const onRollbackRuntimeTask = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            configVersion: 'cfg-task-xray-apply-01',
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:05:00.000Z',
+              agentIds: ['agent-metered-01'],
+              commandIds: ['cmd-task-xray-apply-01'],
+              appliedConfigRevisions: ['cfg-task-xray-apply-01']
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[createRuntimeTask()]}
+        commandOutbox={[createRuntimeCommand()]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onRollbackRuntimeTask={onRollbackRuntimeTask}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' }));
+
+    const drawer = screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' });
+
+    await user.click(within(drawer).getByRole('button', { name: 'Start Rollback' }));
+
+    expect(onRollbackRuntimeTask).toHaveBeenCalledWith('task-xray-apply-01');
+    expect(screen.queryByRole('dialog', { name: 'Customer Node Runtime Evidence' })).not.toBeInTheDocument();
+  });
+
   it('only offers executable Xray inbound protocols for customer nodes', async () => {
     const user = userEvent.setup();
     render(

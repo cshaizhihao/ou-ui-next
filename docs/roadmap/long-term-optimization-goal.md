@@ -88,6 +88,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray customer-node read models now project Agent runtime deployment proof into the inbound model, and customer-node rows show a compact verified/waiting runtime evidence strip tied to Agent result, command IDs, config revision, and verification timestamp.
 - Customer-node runtime evidence rows now open a focused diagnosis drawer backed by the current snapshot's task, command outbox, config revision, preflight plan, runtime snapshot, and rollback task evidence, with a direct path into the release-evidence workspace.
 - Customer-node runtime evidence drawers now copy a safe structured diagnostic package with task, command, config revision, preflight, snapshot, rollback, and runtime diagnosis summaries while excluding raw command payloads, runtime snapshot state, and full artifact bodies.
+- Customer-node runtime evidence drawers now expose the existing rollback flow for rollback-ready source tasks, letting operators move from verified release evidence to recovery without leaving the customer-node diagnosis context.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

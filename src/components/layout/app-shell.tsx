@@ -2923,6 +2923,7 @@ export function AppShell({ ready }: AppShellProps) {
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
             onOpenRuntimeEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
+            onRollbackRuntimeTask={handleRollbackTask}
             onResetCustomerNodeTraffic={handleResetQuota}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
@@ -2952,6 +2953,7 @@ export function AppShell({ ready }: AppShellProps) {
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
             onOpenRuntimeEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
+            onRollbackRuntimeTask={handleRollbackTask}
             onResetCustomerNodeTraffic={handleResetQuota}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
