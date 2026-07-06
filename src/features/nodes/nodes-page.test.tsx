@@ -2533,6 +2533,167 @@ describe('NodesPage', () => {
     });
   });
 
+  it('shows failed client action evidence reasons and copies a safe diagnostic package', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(async (value: string) => {
+      void value;
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    });
+    const onApplyCustomerNodeClientAction = vi.fn(async (input: CustomerNodeClientActionMutation) => ({
+      accepted: true,
+      actionKind: input.action.kind,
+      runtimeTaskId: 'task-runtime-bob-failed',
+      targetClientId: input.clientId,
+      targetClientEmail: input.clientEmail
+    }));
+    const inbound = createInbound({
+      clients: [
+        {
+          id: 'client-alice',
+          email: 'alice@example.com',
+          enabled: true,
+          trafficLimitBytes: 100 * GB,
+          usedTrafficBytes: 12 * GB,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          ipLimit: 2
+        },
+        {
+          id: 'client-bob',
+          email: 'bob@example.com',
+          enabled: true,
+          password: 'bob-client-secret',
+          trafficLimitBytes: 80 * GB,
+          usedTrafficBytes: 8 * GB,
+          expiresAt: '2026-10-01T00:00:00.000Z',
+          ipLimit: 1
+        }
+      ]
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[inbound]}
+        language="en"
+        tasks={[
+          createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-runtime-bob-failed',
+            status: 'failed',
+            failureReason: 'xray preflight rejected generated config',
+            metadata: {
+              xrayClientAction: 'set-enabled',
+              xrayClientActionTargetEmail: 'bob@example.com'
+            }
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand(),
+          createRuntimeCommand({
+            id: 'outbox-task-runtime-bob-failed',
+            taskId: 'task-runtime-bob-failed',
+            commandId: 'cmd-task-runtime-bob-failed',
+            status: 'failed',
+            lastError: 'Agent returned non-zero xray run -test'
+          })
+        ]}
+        configRevisions={[
+          createRuntimeConfigRevision(),
+          createRuntimeConfigRevision({
+            id: 'cfg-task-runtime-bob-failed',
+            taskId: 'task-runtime-bob-failed',
+            preflightPlanId: 'preflight-task-runtime-bob-failed',
+            snapshotBeforeId: 'snapshot-task-runtime-bob-failed',
+            status: 'failed',
+            failureReason: 'runtime health check failed',
+            artifact: {
+              runtimeDiagnosis: {
+                state: 'failed',
+                evidenceStage: 'agent-result-failed'
+              }
+            }
+          })
+        ]}
+        preflightPlans={[
+          createRuntimePreflightPlan(),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-runtime-bob-failed',
+            taskId: 'task-runtime-bob-failed',
+            configRevisionId: 'cfg-task-runtime-bob-failed',
+            status: 'failed',
+            failureReason: 'xray run -test failed',
+            checks: [
+              {
+                id: 'xray-test',
+                label: 'xray run -test',
+                status: 'failed',
+                severity: 'critical'
+              }
+            ]
+          })
+        ]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot(),
+          createRuntimeSnapshot({
+            id: 'snapshot-task-runtime-bob-failed',
+            taskId: 'task-runtime-bob-failed',
+            status: 'captured'
+          })
+        ]}
+        workspaceMode="customerNodes"
+        onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Manage Clients' }));
+
+    const dialog = screen.getByRole('dialog', { name: /Inbound Clients/ });
+    await user.click(within(dialog).getAllByRole('button', { name: 'Disable Client' })[1]);
+
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(1));
+    expect(within(dialog).getByText('Runtime evidence failed for this client action.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Reason: xray preflight rejected generated config')).toBeInTheDocument();
+    expect(within(dialog).getByText('Stage agent-result-failed')).toBeInTheDocument();
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="task"]')).toHaveTextContent('failed');
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="command"]')).toHaveTextContent('failed');
+
+    await user.click(within(dialog).getByRole('button', { name: /Copy Diagnostics/ }));
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copied = JSON.parse(writeText.mock.calls[0][0]);
+    expect(copied).toMatchObject({
+      schemaVersion: 'ou-ui-next.customer-client-action-diagnostics.v1',
+      runtimeTaskId: 'task-runtime-bob-failed',
+      state: 'failed',
+      evidenceStage: 'agent-result-failed',
+      failureReason: 'xray preflight rejected generated config',
+      command: {
+        commandId: 'cmd-task-runtime-bob-failed',
+        status: 'failed',
+        lastError: 'Agent returned non-zero xray run -test'
+      },
+      preflightPlan: {
+        id: 'preflight-task-runtime-bob-failed',
+        status: 'failed',
+        failureReason: 'xray run -test failed'
+      }
+    });
+    expect(JSON.stringify(copied)).not.toContain('bob-client-secret');
+    expect(JSON.stringify(copied)).not.toContain('state":{}');
+    expect(JSON.stringify(copied)).not.toContain('artifact');
+  });
+
   it('submits selected customer-node quick actions through the explicit client action mutation path', async () => {
     const user = userEvent.setup();
     const onApplyCustomerNodeClientAction = vi.fn(async () => true);

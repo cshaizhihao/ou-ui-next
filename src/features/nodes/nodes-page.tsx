@@ -388,11 +388,64 @@ type CustomerClientActionEvidenceStep = {
   state: Exclude<CustomerClientActionEvidenceState, 'verified'> | 'confirmed';
   value: string;
 };
+type CustomerClientActionDiagnosticPackage = {
+  schemaVersion: 'ou-ui-next.customer-client-action-diagnostics.v1';
+  createdAt: string;
+  runtimeTaskId: string;
+  state: CustomerClientActionEvidenceState;
+  evidenceStage: string;
+  failureReason?: string;
+  steps: CustomerClientActionEvidenceStep[];
+  task?: {
+    id: string;
+    status: DeployTask['status'];
+    operation: DeployTask['operation'];
+    targetId: string;
+    failureReason?: string;
+    rollbackAvailable: boolean;
+    rollbackTaskId?: string;
+  };
+  command?: {
+    commandId: string;
+    agentId: string;
+    commandType: CommandOutboxSummary['commandType'];
+    status: CommandOutboxSummary['status'];
+    attempts: number;
+    ackedAt?: string;
+    resultAt?: string;
+    deadlineAt: string;
+    lastError?: string;
+  };
+  configRevision?: {
+    id: string;
+    status: RuntimeConfigRevision['status'];
+    preflightPlanId: string;
+    snapshotBeforeId: string;
+    failureReason?: string;
+    diffSummary: RuntimeConfigRevision['diffSummary'];
+  };
+  preflightPlan?: {
+    id: string;
+    status: RuntimePreflightPlan['status'];
+    failureReason?: string;
+    failedChecks: Array<Pick<RuntimePreflightPlan['checks'][number], 'id' | 'label' | 'status' | 'severity'>>;
+  };
+  runtimeSnapshot?: {
+    id: string;
+    status: RuntimeSnapshot['status'];
+    reason: RuntimeSnapshot['reason'];
+    checksum: string;
+    capturedAt: string;
+    verifiedAt?: string;
+  };
+};
 type CustomerClientActionRuntimeEvidence = {
   state: CustomerClientActionEvidenceState;
   runtimeTaskId: string;
   evidenceStage: string;
+  failureReason?: string;
   steps: CustomerClientActionEvidenceStep[];
+  diagnosticPackage: CustomerClientActionDiagnosticPackage;
 };
 
 type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
@@ -615,6 +668,8 @@ const copy = {
     customerClientActionEvidenceMissing: 'Snapshot 暂未集齐此 runtime task 的证据。',
     customerClientActionEvidenceFailed: '此客户端动作的运行时证据失败。',
     customerClientActionEvidenceStage: (stage: string) => `阶段 ${stage || '-'}`,
+    customerClientActionFailureReason: (reason: string) => `原因：${reason}`,
+    customerClientActionCopyDiagnostics: '复制诊断',
     customerClientActionEvidenceLabels: {
       task: '任务',
       command: '命令',
@@ -1039,6 +1094,8 @@ const copy = {
     customerClientActionEvidenceMissing: 'The snapshot has not collected all evidence for this runtime task yet.',
     customerClientActionEvidenceFailed: 'Runtime evidence failed for this client action.',
     customerClientActionEvidenceStage: (stage: string) => `Stage ${stage || '-'}`,
+    customerClientActionFailureReason: (reason: string) => `Reason: ${reason}`,
+    customerClientActionCopyDiagnostics: 'Copy Diagnostics',
     customerClientActionEvidenceLabels: {
       task: 'Task',
       command: 'Command',
@@ -2636,11 +2693,13 @@ function CustomerClientSubscriptionEvidenceRow({
 function CustomerClientActionFeedbackBar({
   feedback,
   runtimeEvidence,
+  onCopyDiagnostics,
   onOpenEvidence,
   t
 }: {
   feedback: CustomerClientActionFeedback;
   runtimeEvidence?: CustomerClientActionRuntimeEvidence;
+  onCopyDiagnostics?: () => void;
   onOpenEvidence?: () => void;
   t: NodesCopy;
 }) {
@@ -2691,15 +2750,34 @@ function CustomerClientActionFeedbackBar({
           <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
             {runtimeSummary}
           </p>
+          {runtimeEvidence?.failureReason ? (
+            <p className="mt-1 break-words text-[11px] font-bold text-[#B91C1C] dark:text-[#FCA5A5]">
+              {t.customerClientActionFailureReason(runtimeEvidence.failureReason)}
+            </p>
+          ) : null}
         </div>
-        {onOpenEvidence ? (
-          <button
-            className="shrink-0 border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
-            onClick={onOpenEvidence}
-            type="button"
-          >
-            {t.customerClientActionOpenEvidence}
-          </button>
+        {onOpenEvidence || onCopyDiagnostics ? (
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            {onCopyDiagnostics ? (
+              <button
+                className="inline-flex items-center gap-1 border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+                onClick={onCopyDiagnostics}
+                type="button"
+              >
+                <Copy className="h-3 w-3" />
+                {t.customerClientActionCopyDiagnostics}
+              </button>
+            ) : null}
+            {onOpenEvidence ? (
+              <button
+                className="border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+                onClick={onOpenEvidence}
+                type="button"
+              >
+                {t.customerClientActionOpenEvidence}
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
       {feedback.runtimeTaskId || feedback.subscriptionTaskId ? (
@@ -3783,6 +3861,137 @@ function isFailedEvidenceStatus(status: string | undefined) {
   return Boolean(status && ['failed', 'expired', 'dead_letter', 'cancelled', 'canceled'].includes(status));
 }
 
+function readCustomerClientActionFailureReason({
+  command,
+  configRevision,
+  evidenceStage,
+  preflightPlan,
+  runtimeSnapshot,
+  task
+}: {
+  command?: CommandOutboxSummary;
+  configRevision?: RuntimeConfigRevision;
+  evidenceStage: string;
+  preflightPlan?: RuntimePreflightPlan;
+  runtimeSnapshot?: RuntimeSnapshot;
+  task?: DeployTask;
+}) {
+  const failedCheck = preflightPlan?.checks.find((check) => check.status === 'failed');
+
+  return (
+    task?.failureReason ||
+    command?.lastError ||
+    configRevision?.failureReason ||
+    preflightPlan?.failureReason ||
+    (failedCheck ? `${failedCheck.label}: ${failedCheck.status}` : undefined) ||
+    (runtimeSnapshot && runtimeSnapshot.status !== 'verified' ? `runtime snapshot ${runtimeSnapshot.status}` : undefined) ||
+    (evidenceStage === 'agent-result-failed' ? 'Agent result reported failure.' : undefined)
+  );
+}
+
+function createCustomerClientActionDiagnosticPackage({
+  command,
+  configRevision,
+  evidenceStage,
+  failureReason,
+  preflightPlan,
+  runtimeSnapshot,
+  runtimeTaskId,
+  state,
+  steps,
+  task
+}: {
+  command?: CommandOutboxSummary;
+  configRevision?: RuntimeConfigRevision;
+  evidenceStage: string;
+  failureReason?: string;
+  preflightPlan?: RuntimePreflightPlan;
+  runtimeSnapshot?: RuntimeSnapshot;
+  runtimeTaskId: string;
+  state: CustomerClientActionEvidenceState;
+  steps: CustomerClientActionEvidenceStep[];
+  task?: DeployTask;
+}): CustomerClientActionDiagnosticPackage {
+  return {
+    schemaVersion: 'ou-ui-next.customer-client-action-diagnostics.v1',
+    createdAt: new Date().toISOString(),
+    runtimeTaskId,
+    state,
+    evidenceStage,
+    failureReason,
+    steps,
+    ...(task
+      ? {
+          task: {
+            id: task.id,
+            status: task.status,
+            operation: task.operation,
+            targetId: task.targetId,
+            failureReason: task.failureReason,
+            rollbackAvailable: task.rollbackAvailable,
+            rollbackTaskId: task.rollbackTaskId
+          }
+        }
+      : {}),
+    ...(command
+      ? {
+          command: {
+            commandId: command.commandId,
+            agentId: command.agentId,
+            commandType: command.commandType,
+            status: command.status,
+            attempts: command.attempts,
+            ackedAt: command.ackedAt,
+            resultAt: command.resultAt,
+            deadlineAt: command.deadlineAt,
+            lastError: command.lastError
+          }
+        }
+      : {}),
+    ...(configRevision
+      ? {
+          configRevision: {
+            id: configRevision.id,
+            status: configRevision.status,
+            preflightPlanId: configRevision.preflightPlanId,
+            snapshotBeforeId: configRevision.snapshotBeforeId,
+            failureReason: configRevision.failureReason,
+            diffSummary: configRevision.diffSummary
+          }
+        }
+      : {}),
+    ...(preflightPlan
+      ? {
+          preflightPlan: {
+            id: preflightPlan.id,
+            status: preflightPlan.status,
+            failureReason: preflightPlan.failureReason,
+            failedChecks: preflightPlan.checks
+              .filter((check) => check.status === 'failed')
+              .map((check) => ({
+                id: check.id,
+                label: check.label,
+                status: check.status,
+                severity: check.severity
+              }))
+          }
+        }
+      : {}),
+    ...(runtimeSnapshot
+      ? {
+          runtimeSnapshot: {
+            id: runtimeSnapshot.id,
+            status: runtimeSnapshot.status,
+            reason: runtimeSnapshot.reason,
+            checksum: runtimeSnapshot.checksum,
+            capturedAt: runtimeSnapshot.capturedAt,
+            verifiedAt: runtimeSnapshot.verifiedAt
+          }
+        }
+      : {})
+  };
+}
+
 function createCustomerClientActionEvidenceStep(
   id: CustomerClientActionEvidenceStepId,
   value: string | undefined,
@@ -3856,12 +4065,34 @@ function resolveCustomerClientActionRuntimeEvidence({
         : taskMissing
           ? 'missing'
           : 'waiting';
+  const failureReason = readCustomerClientActionFailureReason({
+    command,
+    configRevision,
+    evidenceStage,
+    preflightPlan,
+    runtimeSnapshot,
+    task
+  });
+  const diagnosticPackage = createCustomerClientActionDiagnosticPackage({
+    command,
+    configRevision,
+    evidenceStage,
+    failureReason,
+    preflightPlan,
+    runtimeSnapshot,
+    runtimeTaskId,
+    state,
+    steps,
+    task
+  });
 
   return {
     state,
     runtimeTaskId,
     evidenceStage,
-    steps
+    failureReason,
+    steps,
+    diagnosticPackage
   };
 }
 
@@ -6160,6 +6391,14 @@ export function NodesPage({
                 feedback={activeCustomerClientActionFeedback}
                 runtimeEvidence={activeCustomerClientActionRuntimeEvidence}
                 t={t}
+                onCopyDiagnostics={
+                  activeCustomerClientActionRuntimeEvidence
+                    ? () =>
+                        void copyText(
+                          JSON.stringify(activeCustomerClientActionRuntimeEvidence.diagnosticPackage, null, 2)
+                        )
+                    : undefined
+                }
                 onOpenEvidence={
                   customerClientsNode
                     ? () => setDrawer({ type: 'customerRuntimeEvidence', nodeId: customerClientsNode.id })
