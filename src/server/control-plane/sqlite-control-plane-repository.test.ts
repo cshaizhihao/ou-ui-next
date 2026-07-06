@@ -222,6 +222,28 @@ describe('sqlite control-plane repository', () => {
     });
   });
 
+  it('increments a lightweight state version only when sqlite state changes', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+      const initialVersion = await repository.readStateVersion();
+
+      await repository.transaction(async (transaction) => {
+        await transaction.listTasks();
+      });
+      await expect(repository.readStateVersion()).resolves.toEqual(initialVersion);
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTask(createIndexedTask('task-sqlite-state-version'));
+      });
+
+      const nextVersion = await repository.readStateVersion();
+
+      expect(nextVersion.revision).not.toBe(initialVersion.revision);
+      expect(Number(nextVersion.revision)).toBe(Number(initialVersion.revision) + 1);
+      expect(nextVersion.payloadBytes).toBeGreaterThan(initialVersion.payloadBytes ?? 0);
+    });
+  });
+
   it('compacts high-frequency Agent heartbeat and telemetry events before sqlite persistence', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
       const repository = await createSqliteControlPlaneRepository({ databaseFilePath });

@@ -51,6 +51,7 @@ async function writeStateFile(filePath: string, state: ControlPlaneRepositorySta
 export async function createFileControlPlaneRepository(
   input: CreateFileControlPlaneRepositoryInput
 ): Promise<ControlPlaneRepository> {
+  let stateRevision = 1;
   let state = (await pathExists(input.filePath))
     ? await readStateFile(input.filePath)
     : createEmptyControlPlaneRepositoryState(input.seed);
@@ -64,10 +65,15 @@ export async function createFileControlPlaneRepository(
   return {
     async transaction<T>(run: (transaction: ControlPlaneTransaction) => Promise<T>) {
       const execute = async () => {
+        const previousStateJson = JSON.stringify(state);
         const draft = clone(state);
         const result = await run(createControlPlaneTransaction(draft));
+        const nextStateJson = JSON.stringify(draft);
 
-        await writeStateFile(input.filePath, draft);
+        if (nextStateJson !== previousStateJson) {
+          stateRevision += 1;
+          await writeStateFile(input.filePath, draft);
+        }
         state = draft;
 
         return clone(result);
@@ -80,6 +86,12 @@ export async function createFileControlPlaneRepository(
       );
 
       return pending;
+    },
+
+    async readStateVersion() {
+      return {
+        revision: String(stateRevision)
+      };
     },
 
     async readStateSnapshot() {

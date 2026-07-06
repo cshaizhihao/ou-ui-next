@@ -72,6 +72,7 @@ import type {
   AgentSessionState,
   ControlPlaneRepository,
   ControlPlaneRepositoryState,
+  ControlPlaneStateVersion,
   ControlPlaneTransaction,
   PersistedSystemAlertRecord,
   TelegramBotSecretState
@@ -100,6 +101,7 @@ import type {
   AuditChainVerification,
   CommandOutboxItem,
   ControlPlaneApi,
+  ControlPlaneSnapshotReadModel,
   ControlPlaneRuntimeObservabilityMetricsArgument,
   MutationContext,
   OperatorRequestDeniedAuditInput,
@@ -248,6 +250,7 @@ const SYSTEM_ALERT_NOTIFICATION_MAX_DELIVERIES_PER_SWEEP = 25;
 const DEFAULT_SYSTEM_ALERT_NOTIFICATION_CHANNEL_ID = 'default-webhook';
 const RECENT_HIGH_FREQUENCY_AGENT_EVENT_REPLAY_LIMIT = 500;
 const SNAPSHOT_TRAFFIC_ROLLUP_LIMIT = 500;
+const SNAPSHOT_CACHE_TIME_BUCKET_MS = 5_000;
 
 type SubscriptionSourceFetchPolicy = {
   timeoutMs: number;
@@ -2483,6 +2486,24 @@ export function createServiceBackedControlPlaneApi({
   const lastHighFrequencyAgentEventSeqBySession = new Map<string, number>();
   let readModelsHydrated = false;
   let readModelTasks: DeployTask[] = [];
+  let snapshotReadModelRevision = 0;
+  let snapshotReadModelCache:
+    | {
+        key: string;
+        snapshot: ControlPlaneSnapshotReadModel;
+      }
+    | undefined;
+
+  function bumpSnapshotReadModelRevision() {
+    snapshotReadModelRevision += 1;
+    snapshotReadModelCache = undefined;
+  }
+
+  function createSnapshotCacheKey(stateVersion: ControlPlaneStateVersion, now: string) {
+    const nowMs = Date.parse(now);
+    const timeBucket = Number.isFinite(nowMs) ? Math.floor(nowMs / SNAPSHOT_CACHE_TIME_BUCKET_MS) : now;
+    return `${stateVersion.revision}:${snapshotReadModelRevision}:${timeBucket}`;
+  }
 
   function updateReadModelTasks(tasks: DeployTask[]) {
     readModelTasks = sortTasksForReadModelReplay(clone(tasks));
@@ -2490,6 +2511,7 @@ export function createServiceBackedControlPlaneApi({
 
   function upsertReadModelTask(task: DeployTask) {
     updateReadModelTasks([task, ...readModelTasks.filter((item) => item.id !== task.id)]);
+    bumpSnapshotReadModelRevision();
   }
 
   function createHighFrequencyAgentSessionKey(event: AgentEventEnvelope) {
@@ -5969,9 +5991,16 @@ export function createServiceBackedControlPlaneApi({
 
   const api: ControlPlaneApi = {
     async getSnapshot() {
+      const now = readModelNow();
+      const stateVersion = await repository.readStateVersion();
+      const cacheKey = createSnapshotCacheKey(stateVersion, now);
+
+      if (snapshotReadModelCache?.key === cacheKey && readModelsHydrated) {
+        return clone(snapshotReadModelCache.snapshot);
+      }
+
       const repositoryState = await repository.readStateSnapshot();
       const tasks = await hydrateReadModelsFromRepositoryState(repositoryState);
-      const now = readModelNow();
       const quotaResetReplayState = createQuotaResetReplayState(tasks);
       const liveAgents = applyAgentLivenessToReadModel(agents, now);
       const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
@@ -6067,7 +6096,7 @@ export function createServiceBackedControlPlaneApi({
       );
       const agentLogChunks = selectAgentLogChunks(rawAgentEvents, { limit: 200 });
 
-      return {
+      const snapshot: ControlPlaneSnapshotReadModel = {
         apiBoundary: clone(v1ApiBoundary),
         agents: clone(liveAgents),
         customers,
@@ -6106,6 +6135,18 @@ export function createServiceBackedControlPlaneApi({
         telegramNotificationDeliveries,
         auditLogs
       };
+
+      const finalStateVersion = await repository.readStateVersion();
+      const finalCacheKey = createSnapshotCacheKey(finalStateVersion, now);
+
+      if (finalCacheKey === cacheKey) {
+        snapshotReadModelCache = {
+          key: cacheKey,
+          snapshot: clone(snapshot)
+        };
+      }
+
+      return snapshot;
     },
 
     async getApiBoundary() {
@@ -7825,6 +7866,7 @@ export function createServiceBackedControlPlaneApi({
 
         if (!deletedAgentIds.has(event.agentId)) {
           agents = applyAgentEventToReadModel(agents, event);
+          bumpSnapshotReadModelRevision();
         }
 
         return result;
@@ -7864,6 +7906,7 @@ export function createServiceBackedControlPlaneApi({
         agents = applyAgentEventToReadModel(agents, resetAwareEvent);
         inbounds = applyXrayTelemetryToReadModel(inbounds, resetAwareEvent);
         forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), resetAwareEvent);
+        bumpSnapshotReadModelRevision();
       }
       if (result) {
         upsertReadModelTask(result);

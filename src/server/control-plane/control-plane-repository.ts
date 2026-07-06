@@ -139,6 +139,12 @@ export type ControlPlaneRepositoryState = {
   trafficRollupRetentionPolicy?: TrafficRollupRetentionPolicy;
 };
 
+export type ControlPlaneStateVersion = {
+  revision: string;
+  updatedAt?: string;
+  payloadBytes?: number;
+};
+
 export type AgentSessionState = {
   agentId: string;
   sessionId: string;
@@ -242,6 +248,7 @@ export type ControlPlaneTransaction = {
 
 export type ControlPlaneRepository = {
   transaction<T>(run: (transaction: ControlPlaneTransaction) => Promise<T>): Promise<T>;
+  readStateVersion(): Promise<ControlPlaneStateVersion>;
   readStateSnapshot(): Promise<ControlPlaneRepositoryState>;
   listTasks(): Promise<DeployTask[]>;
   listAuditLogs(): Promise<AuditLog[]>;

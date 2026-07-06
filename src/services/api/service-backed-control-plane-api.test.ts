@@ -1076,6 +1076,7 @@ describe('service-backed control plane read model hydration', () => {
       ]
     });
     const readStateSnapshot = vi.spyOn(repository, 'readStateSnapshot');
+    const readStateVersion = vi.spyOn(repository, 'readStateVersion');
     const listTasks = vi.spyOn(repository, 'listTasks');
     const listCommandOutbox = vi.spyOn(repository, 'listCommandOutbox');
     const listConfigRevisions = vi.spyOn(repository, 'listConfigRevisions');
@@ -1143,12 +1144,15 @@ describe('service-backed control plane read model hydration', () => {
     });
 
     const snapshot = await api.getSnapshot();
+    const reconciledSnapshot = await api.getSnapshot();
+    const cachedSnapshot = await api.getSnapshot();
 
     expect(snapshot.agents).toEqual([
       expect.objectContaining({
         id: 'agent-snapshot-fast-01'
       })
     ]);
+    expect(cachedSnapshot).toEqual(reconciledSnapshot);
     expect(snapshot.agentLogChunks).toEqual([]);
     expect(snapshot.commandOutbox).toEqual([
       expect.objectContaining({
@@ -1180,7 +1184,8 @@ describe('service-backed control plane read model hydration', () => {
       })
     ]);
     expect(snapshot.telegramBotSettings).toEqual(expect.objectContaining({ id: 'telegram-bot' }));
-    expect(readStateSnapshot).toHaveBeenCalledTimes(1);
+    expect(readStateSnapshot).toHaveBeenCalledTimes(2);
+    expect(readStateVersion).toHaveBeenCalledTimes(5);
     expect(listTasks).not.toHaveBeenCalled();
     expect(listCommandOutbox).not.toHaveBeenCalled();
     expect(listConfigRevisions).not.toHaveBeenCalled();

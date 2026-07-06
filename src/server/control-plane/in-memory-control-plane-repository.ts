@@ -441,6 +441,7 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
 export function createInMemoryControlPlaneRepository(
   input: CreateInMemoryControlPlaneRepositoryInput = {}
 ): ControlPlaneRepository {
+  let stateRevision = 1;
   let state: ControlPlaneRepositoryState = {
     tasks: clone(input.tasks ?? []),
     auditLogs: clone(input.auditLogs ?? []),
@@ -478,10 +479,23 @@ export function createInMemoryControlPlaneRepository(
 
   return {
     async transaction<T>(run: (transaction: ControlPlaneTransaction) => Promise<T>) {
+      const previousStateJson = JSON.stringify(state);
       const draft = clone(state);
       const result = await run(createTransaction(draft));
+      const nextStateJson = JSON.stringify(draft);
+
+      if (nextStateJson !== previousStateJson) {
+        stateRevision += 1;
+      }
+
       state = draft;
       return clone(result);
+    },
+
+    async readStateVersion() {
+      return {
+        revision: String(stateRevision)
+      };
     },
 
     async readStateSnapshot() {

@@ -6,6 +6,7 @@ import Database from 'better-sqlite3';
 import type {
   ControlPlaneRepository,
   ControlPlaneRepositoryState,
+  ControlPlaneStateVersion,
   ControlPlaneTransaction
 } from './control-plane-repository';
 import {
@@ -82,6 +83,12 @@ function readExistingStateRow(database: SqliteDatabase) {
   return database
     .prepare('SELECT payload FROM control_plane_state WHERE id = ?')
     .get(SQLITE_STATE_ROW_ID) as { payload: string } | undefined;
+}
+
+function readStateVersionRow(database: SqliteDatabase) {
+  return database
+    .prepare('SELECT updated_at AS updatedAt, length(payload) AS payloadBytes FROM control_plane_state WHERE id = ?')
+    .get(SQLITE_STATE_ROW_ID) as { updatedAt: string; payloadBytes: number } | undefined;
 }
 
 function stateRowExists(database: SqliteDatabase) {
@@ -228,6 +235,23 @@ function upsertDatabaseMetadata(database: SqliteDatabase) {
 
   upsertMeta.run({ key: 'schema_version', value: String(SQLITE_SCHEMA_VERSION) });
   upsertMeta.run({ key: 'state_format', value: SQLITE_STATE_FORMAT });
+}
+
+function upsertMetaValue(database: SqliteDatabase, key: string, value: string) {
+  database
+    .prepare(
+      `INSERT INTO control_plane_meta (key, value)
+       VALUES (@key, @value)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    )
+    .run({ key, value });
+}
+
+function readNextStateRevision(database: SqliteDatabase) {
+  const rawRevision = readMetaValue(database, 'state_revision');
+  const currentRevision = rawRevision && /^\d+$/.test(rawRevision) ? Number(rawRevision) : 0;
+
+  return String(currentRevision + 1);
 }
 
 function applySupportedMigrations(database: SqliteDatabase, originLabel: string, now = new Date().toISOString()) {
@@ -970,6 +994,25 @@ function readStateFromDatabase(database: SqliteDatabase, originLabel: string): C
   return parseStatePayload(row.payload, originLabel);
 }
 
+function readStateVersionFromDatabase(database: SqliteDatabase, originLabel: string): ControlPlaneStateVersion {
+  assertSupportedDatabaseMetadata(database, originLabel);
+  assertSupportedMigrationLedger(database, originLabel);
+
+  const row = readStateVersionRow(database);
+
+  if (!row) {
+    throw new Error(`Missing control-plane database state row: ${originLabel}`);
+  }
+
+  const revision = readMetaValue(database, 'state_revision') ?? `legacy:${row.updatedAt}:${row.payloadBytes}`;
+
+  return {
+    revision,
+    updatedAt: row.updatedAt,
+    payloadBytes: row.payloadBytes
+  };
+}
+
 function compactHighFrequencyAgentEventsForPersistence(
   state: ControlPlaneRepositoryState
 ): ControlPlaneRepositoryState {
@@ -1012,6 +1055,7 @@ function writeStateToDatabase(
       payload: JSON.stringify(persistedState),
       updatedAt
     });
+  upsertMetaValue(database, 'state_revision', readNextStateRevision(database));
   if (entityIndexMutations) {
     applyEntityIndexMutations(database, persistedState, entityIndexMutations, updatedAt);
   } else {
@@ -1054,6 +1098,7 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
           payload: JSON.stringify(persistedState),
           updatedAt
         });
+      upsertMetaValue(database, 'state_revision', '1');
       rebuildEntityIndex(database, persistedState, updatedAt);
     } else if (initialization.appliedMigrations.includes(2)) {
       const state = readStateFromDatabase(database, input.databaseFilePath);
@@ -1087,6 +1132,7 @@ export async function createSqliteControlPlaneRepository(
   };
 
   const listState = () => enqueue(async () => readStateFromDatabase(database, input.databaseFilePath));
+  const readVersion = () => enqueue(async () => readStateVersionFromDatabase(database, input.databaseFilePath));
 
   return {
     async transaction<T>(run: (transaction: ControlPlaneTransaction) => Promise<T>) {
@@ -1116,6 +1162,10 @@ export async function createSqliteControlPlaneRepository(
           throw error;
         }
       });
+    },
+
+    async readStateVersion() {
+      return readVersion();
     },
 
     async readStateSnapshot() {
