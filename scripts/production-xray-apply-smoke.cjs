@@ -404,6 +404,31 @@ function buildXrayInboundTaskInput(options) {
   };
 }
 
+function buildXrayInboundUpdateTaskInput(createTaskInput, options = {}) {
+  const metadata = readObject(createTaskInput.metadata);
+  const clients = readArray(metadata.clients);
+  const trafficLimitGb = options.trafficLimitGb ?? 2;
+  const sniffingEnabled = options.sniffingEnabled ?? false;
+
+  return {
+    ...createTaskInput,
+    operation: 'inbound.update',
+    targetLabel: options.targetLabel ?? `${createTaskInput.targetLabel ?? metadata.customerNodeName ?? createTaskInput.targetId} Updated`,
+    summary: options.summary ?? 'Update Xray runtime smoke inbound and wait for Agent evidence',
+    metadata: {
+      ...metadata,
+      customerNodeName: options.targetLabel ?? metadata.customerNodeName,
+      trafficLimitGb,
+      sniffingEnabled,
+      clients: clients.map((client) => ({
+        ...readObject(client),
+        trafficLimitGb,
+        clientComment: options.clientComment ?? 'runtime-smoke-update-verified'
+      }))
+    }
+  };
+}
+
 function getSetCookieValues(headers) {
   if (typeof headers.getSetCookie === 'function') {
     return headers.getSetCookie();
@@ -536,16 +561,16 @@ async function readSnapshot(config, context) {
   return assertEnvelopeData('snapshot', result.payload);
 }
 
-async function createTask(config, context, taskInput) {
+async function createTask(config, context, taskInput, label = 'create Xray inbound task') {
   const result = await requestJson(config, context, 'POST', '/api/v1/tasks', {
     headers: {
       'X-Request-Id': `req-xray-smoke-${randomUUID()}`,
-      'Idempotency-Key': `idem-xray-smoke-${taskInput.targetId}`,
+      'Idempotency-Key': `idem-xray-smoke-${taskInput.operation}-${taskInput.targetId}`,
       'X-CSRF-Token': context.csrfToken
     },
     body: taskInput
   });
-  assertStatus('create Xray inbound task', result.response, result.payload, [201]);
+  assertStatus(label, result.response, result.payload, [201]);
 
   const payload = result.payload.json ?? {};
   const data = payload.data ?? {};
@@ -572,7 +597,11 @@ function findByTaskId(items, taskId) {
 function extractXrayApplyEvidence(snapshot, taskId, targetId) {
   const task =
     findById(snapshot?.tasks, taskId) ??
-    readArray(snapshot?.tasks).find((item) => item?.targetId === targetId && item?.operation === 'inbound.create');
+    readArray(snapshot?.tasks).find(
+      (item) =>
+        item?.targetId === targetId &&
+        (item?.operation === 'inbound.create' || item?.operation === 'inbound.update')
+    );
   const configRevision = findByTaskId(snapshot?.configRevisions, taskId);
   const preflightPlan = findByTaskId(snapshot?.preflightPlans, taskId);
   const runtimeSnapshot = findByTaskId(snapshot?.runtimeSnapshots, taskId);
@@ -598,6 +627,10 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
     errors.push('task is missing from snapshot');
   } else if (evidence.task.status !== 'succeeded') {
     errors.push(`task status is ${evidence.task.status ?? 'unknown'}`);
+  }
+
+  if (expected.operation && evidence.task?.operation !== expected.operation) {
+    errors.push(`task operation is ${evidence.task?.operation ?? 'missing'}`);
   }
 
   if (!evidence.commandOutboxItem) {
@@ -784,7 +817,8 @@ async function runXrayApplySmoke(config) {
     Object.assign(report, {
       agentId: agent.id,
       listenPort,
-      targetId: taskInput.targetId
+      targetId: taskInput.targetId,
+      phases: []
     });
 
     const createdTask = await createTask(config, context, taskInput);
@@ -795,12 +829,49 @@ async function runXrayApplySmoke(config) {
 
     const { evidence } = await waitForXrayApplyEvidence(config, context, createdTask.taskId, taskInput.targetId, {
       agentId: agent.id,
-      listenPort
+      listenPort,
+      operation: 'inbound.create'
     });
     const evidenceSummary = summarizeXrayApplyEvidence(evidence);
-    logPass('agent runtime evidence verified', `${evidenceSummary.configRevisionId} ${evidenceSummary.evidenceStage}`);
-    markReportComplete(report, 'passed', {
+    report.phases.push({
+      name: 'create',
+      taskId: createdTask.taskId,
       evidence: evidenceSummary
+    });
+    logPass('create agent runtime evidence verified', `${evidenceSummary.configRevisionId} ${evidenceSummary.evidenceStage}`);
+
+    const updateTaskInput = buildXrayInboundUpdateTaskInput(taskInput, {
+      targetLabel: `${taskInput.targetLabel} Updated`
+    });
+    const updatedTask = await createTask(config, context, updateTaskInput, 'update Xray inbound task');
+    logPass('xray update task created', updatedTask.taskId);
+
+    const { evidence: updateEvidence } = await waitForXrayApplyEvidence(
+      config,
+      context,
+      updatedTask.taskId,
+      updateTaskInput.targetId,
+      {
+        agentId: agent.id,
+        listenPort,
+        operation: 'inbound.update'
+      }
+    );
+    const updateEvidenceSummary = summarizeXrayApplyEvidence(updateEvidence);
+    report.phases.push({
+      name: 'update',
+      taskId: updatedTask.taskId,
+      evidence: updateEvidenceSummary
+    });
+    logPass(
+      'update agent runtime evidence verified',
+      `${updateEvidenceSummary.configRevisionId} ${updateEvidenceSummary.evidenceStage}`
+    );
+
+    markReportComplete(report, 'passed', {
+      evidence: updateEvidenceSummary,
+      createEvidence: evidenceSummary,
+      updateEvidence: updateEvidenceSummary
     });
 
     if (config.reportPath) {
@@ -877,6 +948,7 @@ if (require.main === module) {
 module.exports = {
   allocateXrayListenPort,
   buildXrayInboundTaskInput,
+  buildXrayInboundUpdateTaskInput,
   collectReservedXrayPorts,
   createXraySmokeReport,
   extractXrayApplyEvidence,

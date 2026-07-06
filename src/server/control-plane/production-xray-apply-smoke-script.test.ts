@@ -21,6 +21,15 @@ type XrayApplySmokeScript = {
     expiresAt?: string;
     nowMs?: number;
   }): Record<string, unknown>;
+  buildXrayInboundUpdateTaskInput(
+    createTaskInput: Record<string, unknown>,
+    options?: {
+      clientComment?: string;
+      sniffingEnabled?: boolean;
+      targetLabel?: string;
+      trafficLimitGb?: number;
+    }
+  ): Record<string, unknown>;
   collectReservedXrayPorts(snapshot: Record<string, unknown>, agentId: string): Set<number>;
   extractXrayApplyEvidence(
     snapshot: Record<string, unknown>,
@@ -79,6 +88,13 @@ function createVerifiedSnapshot() {
         resourceType: 'inbound',
         targetId: 'xray-live-smoke-42003',
         status: 'succeeded'
+      },
+      {
+        id: 'task-update-01',
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'xray-live-smoke-42003',
+        status: 'succeeded'
       }
     ],
     commandOutbox: [
@@ -87,12 +103,39 @@ function createVerifiedSnapshot() {
         commandId: 'cmd-task-apply-01',
         status: 'completed',
         agentId: 'agent-hkg-01'
+      },
+      {
+        taskId: 'task-update-01',
+        commandId: 'cmd-task-update-01',
+        status: 'completed',
+        agentId: 'agent-hkg-01'
       }
     ],
     configRevisions: [
       {
         id: 'cfg-task-apply-01',
         taskId: 'task-apply-01',
+        status: 'applied',
+        agentId: 'agent-hkg-01',
+        artifact: {
+          runtimeDiagnosis: {
+            state: 'ready',
+            evidenceStage: 'agent-result-verified',
+            hasRuntimeEvidence: true,
+            plannedRuntimeServices: ['ou-ui-xray.service'],
+            plannedInbound: {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 42003,
+              protocol: 'vless',
+              action: 'upsert_inbound'
+            }
+          }
+        }
+      },
+      {
+        id: 'cfg-task-update-01',
+        taskId: 'task-update-01',
         status: 'applied',
         agentId: 'agent-hkg-01',
         artifact: {
@@ -133,12 +176,24 @@ function createVerifiedSnapshot() {
         taskId: 'task-apply-01',
         status: 'passed',
         checks: []
+      },
+      {
+        id: 'preflight-task-update-01',
+        taskId: 'task-update-01',
+        status: 'passed',
+        checks: []
       }
     ],
     runtimeSnapshots: [
       {
         id: 'snapshot-before-xray-live-smoke-42003',
         taskId: 'task-apply-01',
+        status: 'verified',
+        agentId: 'agent-hkg-01'
+      },
+      {
+        id: 'snapshot-before-xray-live-smoke-42003-update',
+        taskId: 'task-update-01',
         status: 'verified',
         agentId: 'agent-hkg-01'
       }
@@ -261,6 +316,48 @@ describe('production Xray apply smoke script helpers', () => {
     });
   });
 
+  it('builds a follow-up inbound.update smoke task for the same runtime inbound and client', () => {
+    const createTaskInput = xraySmokeScript.buildXrayInboundTaskInput({
+      agentId: 'agent-hkg-01',
+      listenPort: 42003,
+      serverAddress: 'edge.example.com',
+      targetId: 'xray-live-smoke-42003',
+      targetLabel: 'Xray Live Smoke 42003',
+      clientIdentity: 'smoke-client',
+      clientEmail: 'smoke@example.test',
+      clientCredential: '11111111-1111-4111-8111-111111111111',
+      expiresAt: '2026-07-07T00:00:00.000Z'
+    });
+    const updateTaskInput = xraySmokeScript.buildXrayInboundUpdateTaskInput(createTaskInput, {
+      targetLabel: 'Xray Live Smoke 42003 Updated',
+      trafficLimitGb: 2
+    });
+
+    expect(updateTaskInput).toMatchObject({
+      operation: 'inbound.update',
+      resourceType: 'inbound',
+      targetId: 'xray-live-smoke-42003',
+      targetLabel: 'Xray Live Smoke 42003 Updated',
+      metadata: expect.objectContaining({
+        nodeId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        xrayProtocol: 'vless',
+        sniffingEnabled: false,
+        trafficLimitGb: 2,
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'smoke-client',
+            clientCredential: '11111111-1111-4111-8111-111111111111',
+            trafficLimitGb: 2,
+            clientComment: 'runtime-smoke-update-verified',
+            enabled: true
+          })
+        ]
+      })
+    });
+  });
+
   it('extracts and validates Agent-result runtime evidence from a control-plane snapshot', () => {
     const evidence = xraySmokeScript.extractXrayApplyEvidence(
       createVerifiedSnapshot(),
@@ -289,6 +386,40 @@ describe('production Xray apply smoke script helpers', () => {
     expect(JSON.stringify(xraySmokeScript.summarizeXrayApplyEvidence(evidence))).not.toContain(
       '11111111-1111-4111-8111-111111111111'
     );
+  });
+
+  it('extracts and validates the follow-up inbound.update Agent-result evidence separately from create', () => {
+    const evidence = xraySmokeScript.extractXrayApplyEvidence(
+      createVerifiedSnapshot(),
+      'task-update-01',
+      'xray-live-smoke-42003'
+    );
+
+    expect(
+      xraySmokeScript.validateXrayApplyEvidence(evidence, {
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.update'
+      })
+    ).toEqual([]);
+    expect(xraySmokeScript.summarizeXrayApplyEvidence(evidence)).toEqual(
+      expect.objectContaining({
+        taskId: 'task-update-01',
+        operation: 'inbound.update',
+        configRevisionId: 'cfg-task-update-01',
+        preflightStatus: 'passed',
+        runtimeSnapshotStatus: 'verified',
+        commandStatus: 'completed',
+        evidenceStage: 'agent-result-verified'
+      })
+    );
+    expect(
+      xraySmokeScript.validateXrayApplyEvidence(evidence, {
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.create'
+      })
+    ).toEqual(['task operation is inbound.update']);
   });
 
   it('returns operator-actionable evidence gaps while a task is still waiting for Agent result', () => {
