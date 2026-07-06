@@ -49,6 +49,7 @@ import {
   createCustomerNodeInboundTaskInput
 } from '../../features/nodes/customer-node-task-inputs';
 import {
+  createAddedCustomerNodeClientSubscriptionMetadata,
   createCustomerNodeAllSubscriptionText,
   createCustomerNodeSubscriptionMetadata
 } from '../../features/nodes/customer-node-subscription-binding';
@@ -1886,10 +1887,47 @@ export function AppShell({ ready }: AppShellProps) {
       setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
 
       try {
+        const addedClientInbound =
+          input.action.kind === 'add-client' ? inbounds.find((inbound) => inbound.id === input.inboundId) : undefined;
+
+        if (input.action.kind === 'add-client' && !addedClientInbound) {
+          throw new Error(`Xray inbound not found for ${input.inboundId}.`);
+        }
+
+        const addedClientSubscriptionMetadata =
+          input.action.kind === 'add-client' && addedClientInbound
+            ? createAddedCustomerNodeClientSubscriptionMetadata({
+                inbound: addedClientInbound,
+                action: input.action,
+                publicBaseUrl: createBrowserPublicBaseUrl(),
+                observedAt: input.observedAt
+              })
+            : undefined;
+
         await api.applyXrayClientAction(input, {
           ...createUiRequestContext('xray.client.action', input.inboundId, runtimeConfig),
           idempotencyKey: undefined
         });
+
+        if (addedClientSubscriptionMetadata) {
+          const subscriptionInput = createSubscriptionClientGenerateTaskInput(
+            addedClientSubscriptionMetadata,
+            'create',
+            {
+              create: t.createSubscriptionClientSummary,
+              update: t.updateSubscriptionClientSummary
+            }
+          );
+
+          await api.createTask(
+            subscriptionInput,
+            createUiMutationContext(
+              subscriptionInput,
+              createSubscriptionClientGenerateIdempotencyKey(addedClientSubscriptionMetadata, 'create'),
+              runtimeConfig
+            )
+          );
+        }
       } catch (error) {
         setTaskMutationState({
           status: 'failed',
@@ -1911,7 +1949,19 @@ export function AppShell({ ready }: AppShellProps) {
 
       return true;
     },
-    [api, language, runtimeConfig, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
+    [
+      api,
+      inbounds,
+      language,
+      runtimeConfig,
+      snapshot,
+      t.createSubscriptionClientSummary,
+      t.taskMutationFailed,
+      t.taskMutationPending,
+      t.taskQueued,
+      t.taskQueuedDeferred,
+      t.updateSubscriptionClientSummary
+    ]
   );
 
   const handleDeleteCustomerNode = useCallback(

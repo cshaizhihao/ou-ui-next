@@ -1563,6 +1563,78 @@ describe('AppShell', () => {
     });
   });
 
+  it('creates a subscription binding task when adding a shared-inbound Xray client', async () => {
+    const user = userEvent.setup();
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      applyXrayClientAction: vi.fn().mockResolvedValue(rollbackReadyTask),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    renderShell(api);
+
+    await clickNavigation(user, '节点');
+    await user.click((await screen.findAllByRole('button', { name: '管理客户端' }))[0]);
+
+    const dialog = await screen.findByRole('dialog', { name: /入站客户端/ });
+    await user.type(within(dialog).getByLabelText('客户端邮箱'), 'carol@example.com');
+    await user.clear(within(dialog).getByLabelText('流量上限'));
+    await user.type(within(dialog).getByLabelText('流量上限'), '50');
+    await user.clear(within(dialog).getByLabelText('有效天数'));
+    await user.type(within(dialog).getByLabelText('有效天数'), '45');
+    await user.clear(within(dialog).getByLabelText('IP 限制'));
+    await user.type(within(dialog).getByLabelText('IP 限制'), '1');
+    await user.type(within(dialog).getByLabelText('订阅规则'), 'premium-hk:carol');
+    await user.click(within(dialog).getByRole('button', { name: '添加客户端' }));
+
+    await waitFor(() => {
+      expect(api.applyXrayClientAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inboundId: 'inbound-vless-hkg-443',
+          action: expect.objectContaining({
+            kind: 'add-client',
+            clientEmail: 'carol@example.com',
+            trafficLimitGb: 50,
+            remainingDays: 45,
+            ipLimit: 1,
+            subscriptionRule: 'premium-hk:carol'
+          }),
+          reason: 'customer-node-client:add'
+        }),
+        expect.objectContaining({
+          requestId: 'ui:xray.client.action:inbound-vless-hkg-443',
+          idempotencyKey: undefined
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-carol-example-com-premium-hk-carol',
+          metadata: expect.objectContaining({
+            subscriptionClientId: 'sub-client-carol-example-com-premium-hk-carol',
+            customerName: 'carol@example.com',
+            subId: 'premium-hk:carol',
+            email: 'carol@example.com',
+            protocol: 'vless',
+            group: 'node-hkg-edge-01',
+            trafficLimitGb: 50,
+            remainingDays: 45,
+            ipLimit: 1,
+            outputFormats: expect.arrayContaining(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash'])
+          })
+        }),
+        expect.objectContaining({
+          idempotencyKey: expect.stringContaining(
+            'ui:subscription.generate:sub-client-carol-example-com-premium-hk-carol'
+          )
+        })
+      );
+    });
+  });
+
   it('resets matched Xray client traffic with a short quick action alias', async () => {
     const user = userEvent.setup();
     const confirm = vi.fn(() => true);

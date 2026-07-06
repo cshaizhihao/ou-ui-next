@@ -134,6 +134,7 @@ export type CustomerNodeClientActionMutation = {
   clientEmail?: string;
   action: XrayClientAction;
   reason?: string;
+  observedAt?: string;
 };
 
 export type HostConfigMetadata = {
