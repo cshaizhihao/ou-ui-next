@@ -263,6 +263,86 @@ describe('sqlite control-plane repository', () => {
           securePathPreview: '/sqliteIndexPath001',
           generatedNodeCount: 1
         });
+        await transaction.replaceSubscriptionInventoryNodesForSource('source-sqlite-index', [
+          {
+            id: 'node-sqlite-index',
+            sourceId: 'source-sqlite-index',
+            name: 'SQLite Indexed Node',
+            protocol: 'vless',
+            server: 'node-sqlite-index.example.com',
+            port: 443,
+            latencyMs: 42,
+            tags: ['premium'],
+            status: 'online',
+            customerName: 'Acme',
+            hostId: 'agent-sqlite-index',
+            rawUrl: `vless://${token}@node-sqlite-index.example.com:443`,
+            clashConfig: {
+              password: token
+            }
+          }
+        ]);
+        await transaction.insertConfigRevision({
+          id: 'runtime-revision-sqlite-index',
+          taskId: 'task-sqlite-index-forward',
+          operation: 'forward.create',
+          targetId: 'forward-sqlite-index',
+          targetLabel: 'SQLite indexed forward',
+          agentId: 'agent-sqlite-index',
+          moduleKind: 'port-forwarding',
+          artifactUri: 'sqlite://runtime/revision/runtime-revision-sqlite-index',
+          checksum: 'sha256:runtime-revision-sqlite-index',
+          signature: 'sig-runtime-revision-sqlite-index',
+          preflightPlanId: 'preflight-sqlite-index',
+          snapshotBeforeId: 'snapshot-sqlite-index',
+          status: 'compiled',
+          createdAt: '2026-06-05T00:01:00.000Z',
+          createdBy: 'admin',
+          diffSummary: {
+            added: 1,
+            changed: 0,
+            removed: 0
+          },
+          artifact: {
+            runtimeSecret: token
+          }
+        });
+        await transaction.insertPreflightPlan({
+          id: 'preflight-sqlite-index',
+          taskId: 'task-sqlite-index-forward',
+          configRevisionId: 'runtime-revision-sqlite-index',
+          targetId: 'forward-sqlite-index',
+          agentId: 'agent-sqlite-index',
+          moduleKind: 'port-forwarding',
+          status: 'failed',
+          checks: [
+            {
+              id: 'check-port-conflict',
+              label: 'Port conflict',
+              status: 'failed',
+              severity: 'critical'
+            }
+          ],
+          createdAt: '2026-06-05T00:01:10.000Z',
+          completedAt: '2026-06-05T00:01:20.000Z',
+          failureReason: `preflight failed ${token}`
+        });
+        await transaction.insertRuntimeSnapshot({
+          id: 'snapshot-sqlite-index',
+          taskId: 'task-sqlite-index-forward',
+          targetId: 'forward-sqlite-index',
+          targetLabel: 'SQLite indexed forward',
+          agentId: 'agent-sqlite-index',
+          moduleKind: 'port-forwarding',
+          reason: 'pre_apply',
+          status: 'captured',
+          checksum: 'sha256:snapshot-sqlite-index',
+          capturedAt: '2026-06-05T00:01:05.000Z',
+          capturedBy: 'admin',
+          state: {
+            previousRuntimeSecret: token
+          }
+        });
       });
 
       const rows = readEntityIndexRows(databaseFilePath);
@@ -283,6 +363,34 @@ describe('sqlite control-plane repository', () => {
             parent_id: 'sub_sqlite_index',
             status: 'enabled',
             label: 'SQLite Indexed Subscription'
+          }),
+          expect.objectContaining({
+            entity_type: 'subscription-inventory-node',
+            entity_id: 'source-sqlite-index:node-sqlite-index',
+            parent_id: 'source-sqlite-index',
+            status: 'online',
+            label: 'SQLite Indexed Node'
+          }),
+          expect.objectContaining({
+            entity_type: 'runtime-config-revision',
+            entity_id: 'runtime-revision-sqlite-index',
+            parent_id: 'task-sqlite-index-forward',
+            status: 'compiled',
+            label: 'SQLite indexed forward'
+          }),
+          expect.objectContaining({
+            entity_type: 'runtime-preflight-plan',
+            entity_id: 'preflight-sqlite-index',
+            parent_id: 'runtime-revision-sqlite-index',
+            status: 'failed',
+            label: 'forward-sqlite-index'
+          }),
+          expect.objectContaining({
+            entity_type: 'runtime-snapshot',
+            entity_id: 'snapshot-sqlite-index',
+            parent_id: 'task-sqlite-index-forward',
+            status: 'captured',
+            label: 'SQLite indexed forward'
           })
         ])
       );
@@ -293,8 +401,20 @@ describe('sqlite control-plane repository', () => {
         resourceType: 'forward',
         targetId: 'forward-sqlite-index'
       });
+      expect(JSON.parse(rows.find((row) => row.entity_id === 'preflight-sqlite-index')?.payload ?? '{}')).toEqual({
+        agentId: 'agent-sqlite-index',
+        checkCount: 1,
+        criticalFailureCount: 1,
+        moduleKind: 'port-forwarding',
+        targetId: 'forward-sqlite-index',
+        taskId: 'task-sqlite-index-forward'
+      });
       expect(rawIndex).not.toContain(token);
       expect(rawIndex).not.toContain('clientCredential');
+      expect(rawIndex).not.toContain('runtimeSecret');
+      expect(rawIndex).not.toContain('previousRuntimeSecret');
+      expect(rawIndex).not.toContain('rawUrl');
+      expect(rawIndex).not.toContain('clashConfig');
     });
   });
 

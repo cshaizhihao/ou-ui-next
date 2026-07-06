@@ -367,6 +367,27 @@ function createEntityIndexRows(state: ControlPlaneRepositoryState, fallbackUpdat
     });
   });
 
+  state.subscriptionInventoryNodes.forEach((node) => {
+    pushRow({
+      entityType: 'subscription-inventory-node',
+      entityId: `${node.sourceId}:${node.id}`,
+      parentId: node.sourceId,
+      status: node.status ?? 'unknown',
+      label: node.name,
+      updatedAt: fallbackUpdatedAt,
+      payload: {
+        nodeId: node.id,
+        protocol: node.protocol,
+        server: node.server,
+        port: node.port,
+        tags: node.tags,
+        customerName: node.customerName,
+        hostId: node.hostId,
+        probeAgentId: node.probeAgentId
+      }
+    });
+  });
+
   state.subscriptionClients.forEach((client) => {
     pushRow({
       entityType: 'subscription-client',
@@ -380,6 +401,65 @@ function createEntityIndexRows(state: ControlPlaneRepositoryState, fallbackUpdat
         email: client.email,
         group: client.group,
         outputFormats: client.outputFormats ?? client.formats
+      }
+    });
+  });
+
+  state.configRevisions.forEach((revision) => {
+    pushRow({
+      entityType: 'runtime-config-revision',
+      entityId: revision.id,
+      parentId: revision.taskId,
+      status: revision.status,
+      label: revision.targetLabel,
+      updatedAt: revision.appliedAt ?? revision.failedAt ?? revision.createdAt,
+      payload: {
+        operation: revision.operation,
+        targetId: revision.targetId,
+        agentId: revision.agentId,
+        moduleKind: revision.moduleKind,
+        checksum: revision.checksum,
+        preflightPlanId: revision.preflightPlanId,
+        snapshotBeforeId: revision.snapshotBeforeId,
+        diffSummary: revision.diffSummary
+      }
+    });
+  });
+
+  state.preflightPlans.forEach((plan) => {
+    pushRow({
+      entityType: 'runtime-preflight-plan',
+      entityId: plan.id,
+      parentId: plan.configRevisionId,
+      status: plan.status,
+      label: plan.targetId,
+      updatedAt: plan.completedAt ?? plan.createdAt,
+      payload: {
+        taskId: plan.taskId,
+        targetId: plan.targetId,
+        agentId: plan.agentId,
+        moduleKind: plan.moduleKind,
+        checkCount: plan.checks.length,
+        criticalFailureCount: plan.checks.filter((check) => check.severity === 'critical' && check.status === 'failed').length
+      }
+    });
+  });
+
+  state.runtimeSnapshots.forEach((snapshot) => {
+    pushRow({
+      entityType: 'runtime-snapshot',
+      entityId: snapshot.id,
+      parentId: snapshot.taskId,
+      status: snapshot.status,
+      label: snapshot.targetLabel,
+      updatedAt: snapshot.restoredAt ?? snapshot.verifiedAt ?? snapshot.capturedAt,
+      payload: {
+        targetId: snapshot.targetId,
+        agentId: snapshot.agentId,
+        moduleKind: snapshot.moduleKind,
+        reason: snapshot.reason,
+        checksum: snapshot.checksum,
+        restoredByTaskId: snapshot.restoredByTaskId
       }
     });
   });
