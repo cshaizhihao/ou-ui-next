@@ -36,6 +36,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 - 客户节点删除流程会在 `inbound.delete` 入队成功后同步入队绑定订阅身份的 `subscription.delete`，避免残留可访问的 public subscription identity。
 - 客户节点新增/编辑表单只允许选择具备 `xray` capability 的 Agent；没有 Xray runtime 能力的主机不会作为可落地目标提交。
 - Mock API 和 service-backed API 会拒绝把人工 `inbound.*` 任务提交到缺少 `xray` capability 的已知 Agent，并返回 `agent_runtime_capability.unsupported`；系统自动 guardrail 任务基于既有 inbound 放行。
+- `/api/v1/boundary` 会公开 Xray supported protocols、Forwarding supported/blocked controls 和 Agent capability vocabulary，外部客户端无需硬编码当前 runtime 边界。
 - Xray inbound create/update 会在入队前检查同 Agent、同监听地址/端口的协议冲突；同端口同协议继续合并为多 client inbound，不同 runtime 协议会以 `xray.port_conflict` 拒绝。
 - Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
 - Forwarding artifact 和工作区会显式声明 Agent runtime 已支持和未支持的控制项；artifact 会携带编译期 runtime diagnosis，规则行会展示 ready / waiting / degraded / blocked / failed 诊断，避免把 `proxyProtocol`、IP 级限速或连接数限制误写成已完整落地。

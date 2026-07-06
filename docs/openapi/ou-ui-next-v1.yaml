@@ -4142,6 +4142,7 @@ components:
         - transports
         - taskStatuses
         - taskTransitions
+        - runtimeCapabilities
       properties:
         version:
           type: string
@@ -4180,6 +4181,70 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/TaskStatus'
+        runtimeCapabilities:
+          type: object
+          required:
+            - agent
+            - xray
+            - forwarding
+          properties:
+            agent:
+              type: object
+              required:
+                - capabilities
+              properties:
+                capabilities:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AgentRuntimeCapability'
+              additionalProperties: false
+            xray:
+              type: object
+              required:
+                - supportedProtocols
+              properties:
+                supportedProtocols:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - vmess
+                      - vless
+                      - trojan
+                      - shadowsocks
+              additionalProperties: false
+            forwarding:
+              type: object
+              required:
+                - supportedControls
+                - blockedControls
+              properties:
+                supportedControls:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - listenAddress
+                      - listenPort
+                      - targetAddress
+                      - targetPort
+                      - protocol
+                      - rateLimitMbps
+                      - rateLimitMode
+                      - rateLimitDirection
+                      - quotaGb
+                      - monthlyResetDay
+                      - nftablesTrafficCounters
+                blockedControls:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - ipRateLimitMbps
+                      - maxConnections
+                      - maxConnectionsPerIp
+                      - proxyProtocol
+              additionalProperties: false
       additionalProperties: false
     AgentReadModel:
       type: object

@@ -724,8 +724,41 @@ describe('OpenAPI v1 contract', () => {
     );
 
     expect(document.components.schemas.ApiBoundaryDescriptor.required).toEqual(
-      expect.arrayContaining(['version', 'restBasePath', 'eventStreamPath', 'agentStreamPath', 'supportsIdempotency'])
+      expect.arrayContaining([
+        'version',
+        'restBasePath',
+        'eventStreamPath',
+        'agentStreamPath',
+        'supportsIdempotency',
+        'runtimeCapabilities'
+      ])
     );
+    expect(getSchemaProperty(document.components.schemas.ApiBoundaryDescriptor, 'runtimeCapabilities')).toMatchObject({
+      required: ['agent', 'xray', 'forwarding'],
+      properties: {
+        agent: {
+          properties: {
+            capabilities: {
+              items: { $ref: '#/components/schemas/AgentRuntimeCapability' }
+            }
+          }
+        },
+        xray: {
+          properties: {
+            supportedProtocols: {
+              items: { enum: ['vmess', 'vless', 'trojan', 'shadowsocks'] }
+            }
+          }
+        },
+        forwarding: {
+          properties: {
+            blockedControls: {
+              items: { enum: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'] }
+            }
+          }
+        }
+      }
+    });
     expect(document.components.schemas.ControlPlaneSnapshot.required).toEqual(
       expect.arrayContaining([
         'apiBoundary',

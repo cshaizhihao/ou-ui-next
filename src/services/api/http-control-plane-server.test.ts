@@ -306,7 +306,16 @@ describe('HTTP control-plane server', () => {
       expect(boundaryResponse.status).toBe(200);
       expect(boundaryEnvelope.data).toMatchObject({
         version: 'v1',
-        restBasePath: '/api/v1'
+        restBasePath: '/api/v1',
+        runtimeCapabilities: {
+          xray: {
+            supportedProtocols: ['vmess', 'vless', 'trojan', 'shadowsocks']
+          },
+          forwarding: {
+            supportedControls: expect.arrayContaining(['listenPort', 'targetAddress', 'nftablesTrafficCounters']),
+            blockedControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol']
+          }
+        }
       });
 
       const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);

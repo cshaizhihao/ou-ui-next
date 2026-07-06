@@ -1972,6 +1972,14 @@ describe('mock API contract', () => {
       eventStreamPath: '/events/v1',
       agentStreamPath: '/agent/v1',
       supportsIdempotency: true,
+      runtimeCapabilities: {
+        xray: {
+          supportedProtocols: ['vmess', 'vless', 'trojan', 'shadowsocks']
+        },
+        forwarding: {
+          blockedControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol']
+        }
+      },
       taskTransitions: {
         queued: ['running', 'failed', 'canceled'],
         succeeded: ['rolled_back']

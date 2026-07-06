@@ -1,3 +1,8 @@
+import {
+  FORWARDING_RUNTIME_BLOCKED_CONTROLS,
+  FORWARDING_RUNTIME_SUPPORTED_CONTROLS,
+  XRAY_RUNTIME_PROTOCOLS
+} from '../../domain';
 import type {
   Agent,
   AgentLogArchive,
@@ -8,6 +13,7 @@ import type {
   AgentInstallCommand,
   AgentInstallCommandRequest,
   AgentRegistrationRequest,
+  AgentRuntimeCapability,
   AgentRuntimeCredential,
   AgentUpgradeCommand,
   AgentUpgradeCommandRequest,
@@ -18,6 +24,8 @@ import type {
   DeployTask,
   DeployTaskOperation,
   DeployTaskStatus,
+  ForwardingRuntimeBlockedControl,
+  ForwardingRuntimeSupportedControl,
   ForwardRule,
   ManagedNode,
   OperatorSessionRevokeRequest,
@@ -61,7 +69,8 @@ import type {
   TrafficRollupCompaction,
   TrafficRollupDimension,
   TuningProfile,
-  XrayInbound
+  XrayInbound,
+  XrayRuntimeProtocol
 } from '../../domain';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
 import type {
@@ -84,6 +93,18 @@ export type ApiBoundaryDescriptor = {
   transports: ApiTransport[];
   taskStatuses: DeployTaskStatus[];
   taskTransitions: Record<DeployTaskStatus, DeployTaskStatus[]>;
+  runtimeCapabilities: {
+    agent: {
+      capabilities: AgentRuntimeCapability[];
+    };
+    xray: {
+      supportedProtocols: XrayRuntimeProtocol[];
+    };
+    forwarding: {
+      supportedControls: ForwardingRuntimeSupportedControl[];
+      blockedControls: ForwardingRuntimeBlockedControl[];
+    };
+  };
 };
 
 export type ListQuery = {
@@ -1028,6 +1049,18 @@ export const v1ApiBoundary: ApiBoundaryDescriptor = {
     failed: ['retrying', 'rolled_back'],
     rolled_back: [],
     canceled: []
+  },
+  runtimeCapabilities: {
+    agent: {
+      capabilities: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel', 'self-update']
+    },
+    xray: {
+      supportedProtocols: [...XRAY_RUNTIME_PROTOCOLS]
+    },
+    forwarding: {
+      supportedControls: [...FORWARDING_RUNTIME_SUPPORTED_CONTROLS],
+      blockedControls: [...FORWARDING_RUNTIME_BLOCKED_CONTROLS]
+    }
   }
 };
 
