@@ -82,6 +82,29 @@ export type ControlPlaneBackupPackage = {
   };
 };
 
+function redactBackupSecrets<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactBackupSecrets(item)) as T;
+  }
+
+  const record = asRecord(value);
+  if (!record) {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+
+  for (const [key, nestedValue] of Object.entries(record)) {
+    if (isSensitiveBackupField(key)) {
+      continue;
+    }
+
+    redacted[key] = redactBackupSecrets(nestedValue);
+  }
+
+  return redacted as T;
+}
+
 export function createControlPlaneBackupPackage({
   generatedAt,
   operatorSessions,
@@ -97,7 +120,7 @@ export function createControlPlaneBackupPackage({
   const firstAuditLog = auditTimeline[0];
   const latestAuditLog = auditTimeline[auditTimeline.length - 1];
 
-  return {
+  return redactBackupSecrets({
     kind: 'ou-ui-next.control-plane.backup',
     schemaVersion: 1,
     generatedAt,
@@ -111,7 +134,7 @@ export function createControlPlaneBackupPackage({
       command: 'sudo ou-ui restore-control-plane-backup --stdin',
       includes: ['inventory', 'runtimeEvidence', 'audit', 'security'],
       redaction:
-        'Login passwords, Telegram bot tokens, webhook secrets, proxy credentials, and Agent token hashes are not included.'
+        'Login passwords, Telegram bot tokens, webhook secrets, proxy credentials, Agent token hashes, and subscription access token hashes are not included.'
     },
     inventory: {
       agents: snapshot.agents,
@@ -177,7 +200,7 @@ export function createControlPlaneBackupPackage({
       telegramBindings: snapshot.telegramBindings,
       telegramNotificationPolicies: snapshot.telegramNotificationPolicies
     }
-  };
+  });
 }
 
 export function createControlPlaneBackupSummary(backup: ControlPlaneBackupPackage): ControlPlaneBackupSummary {
@@ -299,7 +322,7 @@ function isSensitiveBackupField(key: string): boolean {
     return false;
   }
 
-  return /(password|tokenHash|agentToken|botToken|webhookSecretPath|proxyUrl|secret)/i.test(key);
+  return /(password|tokenHash|accessTokenHash|accessTokenRaw|agentToken|botToken|webhookSecretPath|proxyUrl|secret)/i.test(key);
 }
 
 function createInvalidBackupPreflightResult(message: string): ControlPlaneBackupPreflightResult {

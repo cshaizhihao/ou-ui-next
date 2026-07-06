@@ -264,6 +264,7 @@ ou backup-state
 - 至少一台 Agent 已注册并能 ACK/result。
 - Xray 或 Forwarding 任务必须有 Agent runtime evidence，不能人工直接 transition 为成功。
 - Smoke 报告、Agent 日志、审计链和归档文件不得包含明文 token、密码、cookie 或 CSRF。
+- 控制面备份包会在生成阶段剔除 `tokenHash`、`accessTokenHash` 和 `accessTokenRaw` 等敏感字段，避免只靠导出后 preflight 才发现泄露。
 
 ## 安全与权限
 

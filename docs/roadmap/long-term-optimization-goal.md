@@ -46,6 +46,7 @@ Post-V2.0.0 progress already landed on `main`:
 - A minimal public subscription portal route now exists at `/portal/{securePath}/{subId}`, sharing the public subscription enabled/expiry/quota checks and showing enabled output links, expiry, usage, and generated-node status.
 - Public subscription portal requests now consume the same per-identity `requestLimitPerHour` bucket as public subscription downloads, and invalid subscription expiry timestamps fail closed as expired.
 - Public subscription downloads and portal requests now support an optional `accessTokenHash` gate; protected identities require a matching raw token via query string or bearer auth, HTTP task mutations can submit one-time `metadata.accessTokenRaw` for pre-persistence hashing, and HTTP JSON/SSE responses redact `accessTokenHash` / `tokenHash`.
+- Control-plane backup package generation now strips subscription `accessTokenHash` / `accessTokenRaw` and Agent `tokenHash` fields before preflight, so copied backup JSON does not contain those token materials.
 - Subscription link drawers now expose the customer portal URL with copy/open actions, so the backend portal route is discoverable from the operator workflow.
 - SQLite storage now has a schema v2 migration with a rebuildable `control_plane_entity_index` projection for core domain entities while preserving the compatible `json-state-v1` payload as the source of truth.
 
