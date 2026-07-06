@@ -740,6 +740,8 @@ describe('TasksPage', () => {
     expect(runtimeVerification).toHaveTextContent('Awaiting Evidence');
     expect(runtimeVerification).toHaveTextContent('Agent Result');
     expect(runtimeVerification).toHaveTextContent('control-plane-compiled');
+    expect(runtimeVerification).toHaveTextContent('Next Runtime Action');
+    expect(runtimeVerification).toHaveTextContent('Wait for the Agent runtime result');
     expect(rowDiagnosis).toHaveClass('tasks-xray-runtime-diagnosis');
     expect(rowDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
     expect(rowDiagnosis).toHaveTextContent('control-plane-compiled');
@@ -769,6 +771,24 @@ describe('TasksPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"runtimeDiagnosis": {'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"plannedInbound": {'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"clientCounters": {'));
+    const copiedContext = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
+      runtimeVerification?: {
+        nextAction?: string;
+        steps?: Array<{ id: string; actionHint?: string }>;
+      };
+    };
+
+    expect(copiedContext.runtimeVerification).toMatchObject({
+      nextAction: expect.stringContaining('Wait for the Agent runtime result')
+    });
+    expect(copiedContext.runtimeVerification?.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'agentResult',
+          actionHint: expect.stringContaining('Wait for the Agent runtime result')
+        })
+      ])
+    );
   });
 
   it('marks an Xray release as Agent verified only after result, config, preflight, and snapshot evidence align', async () => {
@@ -816,6 +836,8 @@ describe('TasksPage', () => {
     expect(runtimeVerification).toHaveTextContent('cfg-xray-current');
     expect(runtimeVerification).toHaveTextContent('preflight-xray-current');
     expect(runtimeVerification).toHaveTextContent('snapshot-xray-current');
+    expect(runtimeVerification).toHaveTextContent('Next Runtime Action');
+    expect(runtimeVerification).toHaveTextContent('No action required');
 
     await user.click(screen.getByRole('button', { name: 'View Task Details' }));
 
@@ -887,6 +909,10 @@ describe('TasksPage', () => {
 
     const copiedPayload = JSON.parse(writeText.mock.calls[0]?.[0] as string) as {
       runtimeArtifacts: {
+        runtimeVerification?: {
+          nextAction?: string;
+          steps?: Array<{ id: string; actionHint?: string }>;
+        };
         runtimeDiagnosis?: {
           plannedInbound?: { protocol: string; action: string };
           clientCounters?: { active: number; disabled: number };
@@ -903,6 +929,9 @@ describe('TasksPage', () => {
         active: 1,
         disabled: 1
       }
+    });
+    expect(copiedPayload.runtimeArtifacts.runtimeVerification).toMatchObject({
+      nextAction: expect.stringContaining('Inspect the config revision failure reason')
     });
   });
 
@@ -973,6 +1002,7 @@ describe('TasksPage', () => {
     expect(runtimeVerification).toHaveAttribute('data-runtime-verification-state', 'failed');
     expect(runtimeVerification).toHaveTextContent('Agent Failed');
     expect(runtimeVerification).toHaveTextContent('agent-result-failed');
+    expect(runtimeVerification).toHaveTextContent('Start with the Agent result failure reason');
     expect(runtimeVerification).toHaveTextContent('Rollback Task: task-auto-rollback-xray-001');
     expect(within(dialog).getByRole('group', { name: 'Xray Runtime Diagnosis' })).toHaveTextContent('Rollback');
   });

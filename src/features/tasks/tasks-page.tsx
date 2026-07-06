@@ -85,11 +85,13 @@ type RuntimeVerificationStep = {
   state: RuntimeVerificationStepState;
   value?: string;
   detail?: string;
+  actionHint?: string;
 };
 
 type RuntimeVerificationEvidence = {
   state: RuntimeVerificationState;
   description: string;
+  nextAction: string;
   steps: RuntimeVerificationStep[];
   rollbackTaskId?: string;
 };
@@ -357,6 +359,8 @@ const copy = {
     confirmRollback: (taskId: string) => `确认回滚任务 ${taskId}？`,
     runtimeRelease: '运行时发布',
     runtimeVerification: '运行验证',
+    runtimeVerificationNextAction: '下一步运行处置',
+    runtimeVerificationNoAction: '无需处置',
     runtimeVerificationStateLabels: {
       verified: 'Agent 已验证',
       failed: '运行失败',
@@ -381,6 +385,33 @@ const copy = {
     },
     runtimeVerificationCommandProgress: (completedCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(completedCount, language)}/${formatNumber(totalCount, language)} 已完成`,
+    runtimeVerificationStepActionHints: {
+      command: {
+        confirmed: '命令已完成，继续核对 Agent result。',
+        failed: '检查 Agent 命令错误、会话状态和关联日志。',
+        waiting: '等待 Agent ACK/result；持续等待时检查 Agent 会话和 command outbox。'
+      },
+      agentResult: {
+        confirmed: 'Agent result 已验证，继续核对配置、预检和快照。',
+        failed: '优先查看 Agent result 失败原因，并使用回滚或运行时诊断。',
+        waiting: '等待 Agent 回传运行结果；若超时，检查 Agent 在线状态和任务命令。'
+      },
+      configRevision: {
+        confirmed: '配置修订已应用。',
+        failed: '检查配置修订失败原因和 runtime diagnosis。',
+        waiting: '等待配置修订从 compiled/preflight_ready 进入 applied。'
+      },
+      preflight: {
+        confirmed: '预检已通过。',
+        failed: '修复失败的预检检查项后重新发布。',
+        waiting: '等待 xray run -test / runtime preflight 完成。'
+      },
+      snapshot: {
+        confirmed: '运行快照已验证或恢复。',
+        failed: '检查快照状态，确认回滚边界是否仍可用。',
+        waiting: '等待 pre-apply snapshot 捕获并验证。'
+      }
+    },
     agentCommand: 'Agent 命令',
     agentCommandDetail: (commandType: string, agentId: string, commandId: string) =>
       `${commandType} · ${agentId} · ${commandId}`,
@@ -726,6 +757,8 @@ const copy = {
     confirmRollback: (taskId: string) => `Start rollback for ${taskId}?`,
     runtimeRelease: 'Runtime Release',
     runtimeVerification: 'Runtime Verification',
+    runtimeVerificationNextAction: 'Next Runtime Action',
+    runtimeVerificationNoAction: 'No action required',
     runtimeVerificationStateLabels: {
       verified: 'Agent Verified',
       failed: 'Agent Failed',
@@ -750,6 +783,33 @@ const copy = {
     },
     runtimeVerificationCommandProgress: (completedCount: number, totalCount: number, language: AppLanguage) =>
       `${formatNumber(completedCount, language)}/${formatNumber(totalCount, language)} Completed`,
+    runtimeVerificationStepActionHints: {
+      command: {
+        confirmed: 'Command completed; continue checking Agent result.',
+        failed: 'Inspect the Agent command error, session state, and related logs.',
+        waiting: 'Wait for Agent ACK/result; if it stays pending, inspect the Agent session and command outbox.'
+      },
+      agentResult: {
+        confirmed: 'Agent result is verified; continue checking config, preflight, and snapshot.',
+        failed: 'Start with the Agent result failure reason, then use rollback or runtime diagnosis.',
+        waiting: 'Wait for the Agent runtime result; if it times out, inspect Agent liveness and task command state.'
+      },
+      configRevision: {
+        confirmed: 'Config revision is applied.',
+        failed: 'Inspect the config revision failure reason and runtime diagnosis.',
+        waiting: 'Wait for the config revision to move from compiled/preflight_ready to applied.'
+      },
+      preflight: {
+        confirmed: 'Preflight passed.',
+        failed: 'Fix the failed preflight checks before releasing again.',
+        waiting: 'Wait for xray run -test / runtime preflight to complete.'
+      },
+      snapshot: {
+        confirmed: 'Runtime snapshot is verified or restored.',
+        failed: 'Inspect snapshot state and confirm the rollback boundary is still usable.',
+        waiting: 'Wait for the pre-apply snapshot to be captured and verified.'
+      }
+    },
     agentCommand: 'Agent Command',
     agentCommandDetail: (commandType: string, agentId: string, commandId: string) =>
       `${commandType} · ${agentId} · ${commandId}`,
@@ -1123,6 +1183,32 @@ function readXrayRuntimeDiagnosis(bundle: RuntimeReleaseBundle): XrayRuntimeDiag
   };
 }
 
+function attachRuntimeVerificationActionHints(
+  steps: RuntimeVerificationStep[],
+  t: (typeof copy)[AppLanguage]
+) {
+  return steps.map((step) => ({
+    ...step,
+    actionHint: t.runtimeVerificationStepActionHints[step.id][step.state]
+  }));
+}
+
+function pickRuntimeVerificationNextAction(
+  steps: RuntimeVerificationStep[],
+  state: RuntimeVerificationState,
+  t: (typeof copy)[AppLanguage]
+) {
+  if (state === 'verified') {
+    return t.runtimeVerificationNoAction;
+  }
+
+  return (
+    steps.find((step) => step.state === 'failed')?.actionHint ??
+    steps.find((step) => step.state === 'waiting')?.actionHint ??
+    t.runtimeVerificationNoAction
+  );
+}
+
 function createRuntimeVerificationEvidence(
   bundle: RuntimeReleaseBundle,
   language: AppLanguage,
@@ -1190,7 +1276,10 @@ function createRuntimeVerificationEvidence(
     value: bundle.runtimeSnapshot?.id ?? t.pendingArtifact,
     detail: bundle.runtimeSnapshot?.status
   };
-  const steps = [commandStep, agentResultStep, configRevisionStep, preflightStep, snapshotStep];
+  const steps = attachRuntimeVerificationActionHints(
+    [commandStep, agentResultStep, configRevisionStep, preflightStep, snapshotStep],
+    t
+  );
   const state = steps.some((step) => step.state === 'failed')
     ? 'failed'
     : steps.every((step) => step.state === 'confirmed')
@@ -1200,6 +1289,7 @@ function createRuntimeVerificationEvidence(
   return {
     state,
     description: t.runtimeVerificationStateDescriptions[state],
+    nextAction: pickRuntimeVerificationNextAction(steps, state, t),
     steps,
     rollbackTaskId: bundle.task.rollbackTaskId
   };
@@ -1263,17 +1353,38 @@ function isSystemTuneTask(task: DeployTask) {
   return task.operation === 'system.tune';
 }
 
+function createRuntimeVerificationContextPayload(evidence: RuntimeVerificationEvidence) {
+  return {
+    state: evidence.state,
+    description: evidence.description,
+    nextAction: evidence.nextAction,
+    rollbackTaskId: evidence.rollbackTaskId,
+    steps: evidence.steps.map((step) => ({
+      id: step.id,
+      state: step.state,
+      value: step.value,
+      detail: step.detail,
+      actionHint: step.actionHint
+    }))
+  };
+}
+
 function createTaskContextPayload({
   bundle,
+  language,
+  labels,
   relatedArchives,
   relatedChunks
 }: {
   bundle: RuntimeReleaseBundle;
+  language: AppLanguage;
+  labels: (typeof copy)[AppLanguage];
   relatedArchives: AgentLogArchive[];
   relatedChunks: AgentLogChunk[];
 }) {
   const { task, configRevision, preflightPlan, runtimeSnapshot } = bundle;
   const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle) ?? readXrayRuntimeDiagnosis(bundle);
+  const runtimeVerification = createRuntimeVerificationEvidence(bundle, language, labels);
 
   return {
     taskId: task.id,
@@ -1293,6 +1404,7 @@ function createTaskContextPayload({
     configRevisionId: configRevision?.id,
     preflightPlanId: preflightPlan?.id,
     runtimeSnapshotId: runtimeSnapshot?.id,
+    runtimeVerification: createRuntimeVerificationContextPayload(runtimeVerification),
     runtimeDiagnosis,
     metadata: task.metadata ?? {},
     relatedLogEventIds: relatedChunks.map((chunk) => chunk.eventId),
@@ -1388,11 +1500,13 @@ function copyTaskRemediationPlans(tasks: DeployTask[], labels: (typeof copy)[App
 
 function createTaskFailureEvidencePackage({
   bundle,
+  language,
   labels,
   relatedArchives,
   relatedChunks
 }: {
   bundle: RuntimeReleaseBundle;
+  language: AppLanguage;
   labels: (typeof copy)[AppLanguage];
   relatedArchives: AgentLogArchive[];
   relatedChunks: AgentLogChunk[];
@@ -1402,6 +1516,7 @@ function createTaskFailureEvidencePackage({
   const failedSteps = getFailedTaskSteps(task);
   const failedChecks = preflightPlan?.checks.filter((check) => check.status === 'failed') ?? [];
   const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle) ?? readXrayRuntimeDiagnosis(bundle);
+  const runtimeVerification = createRuntimeVerificationEvidence(bundle, language, labels);
 
   return {
     taskId: task.id,
@@ -1462,6 +1577,7 @@ function createTaskFailureEvidencePackage({
             verifiedAt: runtimeSnapshot.verifiedAt
           }
         : undefined,
+      runtimeVerification: createRuntimeVerificationContextPayload(runtimeVerification),
       runtimeDiagnosis
     },
     relatedAgentLogs: createAgentLogContextPayload(relatedChunks),
@@ -1471,6 +1587,7 @@ function createTaskFailureEvidencePackage({
 
 function copyTaskFailureEvidencePackage(
   bundle: RuntimeReleaseBundle,
+  language: AppLanguage,
   labels: (typeof copy)[AppLanguage],
   relatedArchives: AgentLogArchive[],
   relatedChunks: AgentLogChunk[]
@@ -1479,6 +1596,7 @@ function copyTaskFailureEvidencePackage(
     stringifyJson(
       createTaskFailureEvidencePackage({
         bundle,
+        language,
         labels,
         relatedArchives,
         relatedChunks
@@ -1991,6 +2109,13 @@ function RuntimeVerificationStrip({
           {t.rollbackTask}: {evidence.rollbackTaskId}
         </p>
       ) : null}
+      <p
+        className="mt-2 border border-[#07111F]/14 bg-white/65 px-2 py-1.5 text-[11px] font-semibold leading-5 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/62"
+        data-runtime-verification-next-action={evidence.state}
+      >
+        <span className="font-black uppercase tracking-widest">{t.runtimeVerificationNextAction}: </span>
+        {evidence.nextAction}
+      </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {evidence.steps.map((step) => (
           <article className={`min-w-0 border p-2 ${stepClass[step.state]}`} key={step.id}>
@@ -2005,6 +2130,9 @@ function RuntimeVerificationStrip({
             <p className="mt-1 break-all font-mono text-[10px] font-bold">{step.value ?? t.pendingArtifact}</p>
             {step.detail ? (
               <p className="mt-1 break-all font-mono text-[9px] font-semibold opacity-75">{step.detail}</p>
+            ) : null}
+            {step.actionHint ? (
+              <p className="mt-1 text-[9px] font-semibold leading-4 opacity-80">{step.actionHint}</p>
             ) : null}
           </article>
         ))}
@@ -2514,7 +2642,7 @@ function TaskDetailsDrawer({
   const t = copy[language];
   const task = bundle?.task;
   const contextPayload = bundle
-    ? createTaskContextPayload({ bundle, relatedArchives, relatedChunks })
+    ? createTaskContextPayload({ bundle, language, labels: t, relatedArchives, relatedChunks })
     : undefined;
   const tuningProbeState = task ? readTuningProbeState(task.metadata) : undefined;
   const tuningPreset = task ? readTuningPresetMetadata(task.metadata) : undefined;
@@ -2802,7 +2930,7 @@ function TaskFailureDrawer({
             <div className="flex flex-wrap justify-end gap-2">
               <GlowButton
                 className="px-4 py-2 text-xs"
-                onClick={() => copyTaskFailureEvidencePackage(bundle, t, relatedArchives, relatedChunks)}
+                onClick={() => copyTaskFailureEvidencePackage(bundle, language, t, relatedArchives, relatedChunks)}
               >
                 <Copy className="h-3.5 w-3.5" />
                 {t.copyFailureEvidencePackage}
@@ -3423,6 +3551,8 @@ export function TasksPage({
     const contexts = selectedBundles.map((bundle) =>
       createTaskContextPayload({
         bundle,
+        language,
+        labels: t,
         relatedArchives: agentLogArchives.filter((archive) => archive.taskId === bundle.task.id),
         relatedChunks: agentLogChunks.filter((chunk) => chunk.taskId === bundle.task.id)
       })
