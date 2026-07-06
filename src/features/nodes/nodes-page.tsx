@@ -32,6 +32,7 @@ import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
 import { GlowButton } from '../../components/ui/glow-button';
+import type { XrayClientAction } from '../../services/api/xray-client-action-tasks';
 import {
   AGENT_TRAFFIC_ACCOUNTING_MODES,
   AGENT_INSTALL_PROFILE,
@@ -117,6 +118,7 @@ type NodesPageProps = {
   onOpenRuntimeEvidenceWorkspace?: () => void;
   onRollbackRuntimeTask?: (taskId: string) => void;
   onResetCustomerNodeTraffic?: (policy: QuotaPolicy) => void;
+  onApplyCustomerNodeClientAction?: (input: CustomerNodeClientActionMutation) => Promise<boolean | void> | boolean | void;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
 };
@@ -124,6 +126,14 @@ type NodesPageProps = {
 export type NodesFocusIntent =
   | { id: string; kind: 'host.deploy'; targetId: string }
   | { id: string; kind: 'customer-node.edit'; targetId: string };
+
+export type CustomerNodeClientActionMutation = {
+  inboundId: string;
+  clientId?: string;
+  clientEmail?: string;
+  action: XrayClientAction;
+  reason?: string;
+};
 
 export type HostConfigMetadata = {
   agentId: string;
@@ -3279,6 +3289,7 @@ export function NodesPage({
   onOpenRuntimeEvidenceWorkspace,
   onRollbackRuntimeTask,
   onResetCustomerNodeTraffic,
+  onApplyCustomerNodeClientAction,
   onSaveHostConfig,
   onSaveCustomerNode
 }: NodesPageProps) {
@@ -4083,6 +4094,53 @@ export function NodesPage({
     onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
   }
 
+  function createCustomerNodeClientActionMutation(
+    node: CustomerNodeRecord,
+    action: XrayClientAction,
+    reason: string
+  ): CustomerNodeClientActionMutation {
+    return {
+      inboundId: node.id,
+      clientId: node.clientIdentity || undefined,
+      clientEmail: node.clientEmail || undefined,
+      action,
+      reason
+    };
+  }
+
+  async function applyCustomerNodeClientAction(
+    node: CustomerNodeRecord,
+    action: XrayClientAction,
+    fallbackUpdate: (metadata: CustomerNodeConfigMetadata) => CustomerNodeConfigMetadata,
+    reason: string
+  ) {
+    setBulkCustomerNodeDeleteConfirming(false);
+
+    if (!onApplyCustomerNodeClientAction) {
+      updateCustomerNodeMetadata(node, fallbackUpdate);
+      return;
+    }
+
+    await onApplyCustomerNodeClientAction(createCustomerNodeClientActionMutation(node, action, reason));
+  }
+
+  async function applySelectedCustomerNodeClientAction(
+    action: XrayClientAction,
+    fallbackUpdate: (metadata: CustomerNodeConfigMetadata) => CustomerNodeConfigMetadata,
+    reason: string
+  ) {
+    setBulkCustomerNodeDeleteConfirming(false);
+
+    if (!onApplyCustomerNodeClientAction) {
+      updateSelectedCustomerNodeMetadata(fallbackUpdate);
+      return;
+    }
+
+    for (const node of selectedCustomerNodes) {
+      await onApplyCustomerNodeClientAction(createCustomerNodeClientActionMutation(node, action, reason));
+    }
+  }
+
   function setCustomerNodeEnabled(node: CustomerNodeRecord, enabled: boolean) {
     const actionLabel = enabled ? t.enableCustomerNode : t.disableCustomerNode;
     const confirmed =
@@ -4092,15 +4150,30 @@ export function NodesPage({
       return;
     }
 
-    updateCustomerNodeMetadata(node, (metadata) => createCustomerNodeEnabledUpdate(metadata, enabled));
+    void applyCustomerNodeClientAction(
+      node,
+      { kind: 'set-enabled', enabled },
+      (metadata) => createCustomerNodeEnabledUpdate(metadata, enabled),
+      `customer-node:${enabled ? 'enable' : 'disable'}`
+    );
   }
 
   function addTrafficToCustomerNode(node: CustomerNodeRecord) {
-    updateCustomerNodeMetadata(node, (metadata) => createCustomerNodeTrafficUpdate(metadata, 100));
+    void applyCustomerNodeClientAction(
+      node,
+      { kind: 'add-traffic', addedTrafficGb: 100 },
+      (metadata) => createCustomerNodeTrafficUpdate(metadata, 100),
+      'customer-node:add-traffic'
+    );
   }
 
   function renewCustomerNode(node: CustomerNodeRecord) {
-    updateCustomerNodeMetadata(node, (metadata) => createCustomerNodeRenewalUpdate(metadata, 30));
+    void applyCustomerNodeClientAction(
+      node,
+      { kind: 'renew', addedDays: 30 },
+      (metadata) => createCustomerNodeRenewalUpdate(metadata, 30),
+      'customer-node:renew'
+    );
   }
 
   function updateSelectedCustomerNodesEnabled(enabled: boolean) {
@@ -4117,8 +4190,10 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) =>
-      createCustomerNodeClientActionUpdate(metadata, { kind: 'set-enabled', enabled })
+    void applySelectedCustomerNodeClientAction(
+      { kind: 'set-enabled', enabled },
+      (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'set-enabled', enabled }),
+      `customer-node:bulk-${enabled ? 'enable' : 'disable'}`
     );
   }
 
@@ -4141,8 +4216,10 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) =>
-      createCustomerNodeClientActionUpdate(metadata, { kind: 'add-traffic', addedTrafficGb: trafficGb })
+    void applySelectedCustomerNodeClientAction(
+      { kind: 'add-traffic', addedTrafficGb: trafficGb },
+      (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'add-traffic', addedTrafficGb: trafficGb }),
+      'customer-node:bulk-add-traffic'
     );
   }
 
@@ -4165,7 +4242,11 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) => createCustomerNodeRenewalUpdate(metadata, days));
+    void applySelectedCustomerNodeClientAction(
+      { kind: 'renew', addedDays: days },
+      (metadata) => createCustomerNodeRenewalUpdate(metadata, days),
+      'customer-node:bulk-renew'
+    );
   }
 
   function resetSelectedCustomerNodeUsedTraffic() {
@@ -4181,8 +4262,10 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) =>
-      createCustomerNodeClientActionUpdate(metadata, { kind: 'reset-used-traffic' })
+    void applySelectedCustomerNodeClientAction(
+      { kind: 'reset-used-traffic' },
+      (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'reset-used-traffic' }),
+      'customer-node:bulk-reset-used-traffic'
     );
   }
 
@@ -4200,11 +4283,17 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) =>
-      createCustomerNodeClientActionUpdate(metadata, {
+    void applySelectedCustomerNodeClientAction(
+      {
         kind: 'set-reset-policy',
         resetPolicy: bulkCustomerNodeResetPolicy
-      })
+      },
+      (metadata) =>
+        createCustomerNodeClientActionUpdate(metadata, {
+          kind: 'set-reset-policy',
+          resetPolicy: bulkCustomerNodeResetPolicy
+        }),
+      'customer-node:bulk-reset-policy'
     );
   }
 

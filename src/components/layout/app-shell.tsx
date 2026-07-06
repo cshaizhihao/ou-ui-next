@@ -39,6 +39,7 @@ import {
   createForwardingUpsertTaskInput
 } from '../../features/forwarding/forwarding-task-inputs';
 import type {
+  CustomerNodeClientActionMutation,
   CustomerNodeConfigMetadata,
   HostConfigMetadata,
   NodesFocusIntent
@@ -1875,6 +1876,45 @@ export function AppShell({ ready }: AppShellProps) {
     ]
   );
 
+  const handleApplyCustomerNodeClientAction = useCallback(
+    async (input: CustomerNodeClientActionMutation) => {
+      if (taskMutationInFlightRef.current) {
+        setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
+        return false;
+      }
+
+      taskMutationInFlightRef.current = true;
+      setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
+
+      try {
+        await api.applyXrayClientAction(input, {
+          ...createUiRequestContext('xray.client.action', input.inboundId, runtimeConfig),
+          idempotencyKey: undefined
+        });
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.taskMutationFailed)
+        });
+        taskMutationInFlightRef.current = false;
+        return false;
+      }
+
+      setTaskMutationState({ status: 'succeeded', message: t.taskQueued });
+
+      try {
+        await snapshot.refetch();
+      } catch {
+        setTaskMutationState({ status: 'succeeded', message: t.taskQueuedDeferred });
+      } finally {
+        taskMutationInFlightRef.current = false;
+      }
+
+      return true;
+    },
+    [api, language, runtimeConfig, snapshot, t.taskMutationFailed, t.taskMutationPending, t.taskQueued, t.taskQueuedDeferred]
+  );
+
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
       const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
@@ -2925,6 +2965,7 @@ export function AppShell({ ready }: AppShellProps) {
             onOpenRuntimeEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
             onRollbackRuntimeTask={handleRollbackTask}
             onResetCustomerNodeTraffic={handleResetQuota}
+            onApplyCustomerNodeClientAction={handleApplyCustomerNodeClientAction}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -2955,6 +2996,7 @@ export function AppShell({ ready }: AppShellProps) {
             onOpenRuntimeEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
             onRollbackRuntimeTask={handleRollbackTask}
             onResetCustomerNodeTraffic={handleResetQuota}
+            onApplyCustomerNodeClientAction={handleApplyCustomerNodeClientAction}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
           />
@@ -3145,6 +3187,7 @@ export function AppShell({ ready }: AppShellProps) {
     forwardingRules,
     controlPlaneBackup,
     controlPlaneBackupSummary,
+    handleApplyCustomerNodeClientAction,
     handleCreateForwarding,
     handleCopyControlPlaneBackup,
     handleDeleteCustomerNode,

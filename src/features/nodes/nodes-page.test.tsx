@@ -2242,6 +2242,119 @@ describe('NodesPage', () => {
     );
   });
 
+  it('uses explicit Xray client action mutations for simplified row actions when available', async () => {
+    const user = userEvent.setup();
+    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const onSaveCustomerNode = vi.fn();
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound()]}
+        language="en"
+        workspaceMode="customerNodes"
+        onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Traffic' }));
+    await user.click(screen.getByRole('button', { name: 'Renew' }));
+    await user.click(screen.getByRole('button', { name: 'Disable Node' }));
+
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(3));
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, {
+      inboundId: 'inbound-premium-vless',
+      clientId: 'client-acme-premium',
+      clientEmail: 'acme-premium@example.com',
+      action: {
+        kind: 'add-traffic',
+        addedTrafficGb: 100
+      },
+      reason: 'customer-node:add-traffic'
+    });
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(2, {
+      inboundId: 'inbound-premium-vless',
+      clientId: 'client-acme-premium',
+      clientEmail: 'acme-premium@example.com',
+      action: {
+        kind: 'renew',
+        addedDays: 30
+      },
+      reason: 'customer-node:renew'
+    });
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(3, {
+      inboundId: 'inbound-premium-vless',
+      clientId: 'client-acme-premium',
+      clientEmail: 'acme-premium@example.com',
+      action: {
+        kind: 'set-enabled',
+        enabled: false
+      },
+      reason: 'customer-node:disable'
+    });
+    expect(onSaveCustomerNode).not.toHaveBeenCalled();
+  });
+
+  it('submits selected customer-node quick actions through the explicit client action mutation path', async () => {
+    const user = userEvent.setup();
+    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const onSaveCustomerNode = vi.fn();
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound(), createBetaInbound()]}
+        language="en"
+        workspaceMode="customerNodes"
+        onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
+    await user.clear(screen.getByRole('spinbutton', { name: 'Bulk Add Traffic GB' }));
+    await user.type(screen.getByRole('spinbutton', { name: 'Bulk Add Traffic GB' }), '50');
+    await user.click(screen.getByRole('button', { name: 'Bulk Add Traffic' }));
+
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(2));
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, {
+      inboundId: 'inbound-premium-vless',
+      clientId: 'client-acme-premium',
+      clientEmail: 'acme-premium@example.com',
+      action: {
+        kind: 'add-traffic',
+        addedTrafficGb: 50
+      },
+      reason: 'customer-node:bulk-add-traffic'
+    });
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(2, {
+      inboundId: 'inbound-beta-vless',
+      clientId: 'client-beta',
+      clientEmail: 'beta@example.com',
+      action: {
+        kind: 'add-traffic',
+        addedTrafficGb: 50
+      },
+      reason: 'customer-node:bulk-add-traffic'
+    });
+    expect(onSaveCustomerNode).not.toHaveBeenCalled();
+  });
+
   it('confirms before bulk resetting used traffic and changing reset policy for selected customer nodes', async () => {
     const user = userEvent.setup();
     const onSaveCustomerNode = vi.fn();
