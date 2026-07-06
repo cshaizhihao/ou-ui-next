@@ -84,6 +84,14 @@ function readExistingStateRow(database: SqliteDatabase) {
     .get(SQLITE_STATE_ROW_ID) as { payload: string } | undefined;
 }
 
+function stateRowExists(database: SqliteDatabase) {
+  return (
+    database
+      .prepare('SELECT 1 FROM control_plane_state WHERE id = ?')
+      .get(SQLITE_STATE_ROW_ID) as { '1': number } | undefined
+  ) !== undefined;
+}
+
 function readMigrationRows(database: SqliteDatabase) {
   return database
     .prepare('SELECT version, name, checksum, applied_at FROM control_plane_migrations ORDER BY version ASC')
@@ -224,6 +232,7 @@ function upsertDatabaseMetadata(database: SqliteDatabase) {
 
 function applySupportedMigrations(database: SqliteDatabase, originLabel: string, now = new Date().toISOString()) {
   const existingRows = tableExists(database, 'control_plane_migrations') ? readMigrationRows(database) : [];
+  const appliedVersions: number[] = [];
   const insertMigration = database.prepare(`
     INSERT INTO control_plane_migrations (version, name, checksum, applied_at)
     VALUES (@version, @name, @checksum, @appliedAt)
@@ -239,6 +248,7 @@ function applySupportedMigrations(database: SqliteDatabase, originLabel: string,
         checksum: migration.checksum,
         appliedAt: now
       });
+      appliedVersions.push(migration.version);
       continue;
     }
 
@@ -246,6 +256,8 @@ function applySupportedMigrations(database: SqliteDatabase, originLabel: string,
       throw new Error(`Invalid control-plane sqlite migration ${migration.version}: ${originLabel}`);
     }
   }
+
+  return appliedVersions;
 }
 
 function initializeDatabase(database: SqliteDatabase, originLabel: string) {
@@ -258,10 +270,10 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
     assertSupportedDatabaseMetadata(database, originLabel);
     configureDatabaseConnection(database);
     createDatabaseTables(database);
-    applySupportedMigrations(database, originLabel);
+    const appliedMigrations = applySupportedMigrations(database, originLabel);
     upsertDatabaseMetadata(database);
     assertSupportedMigrationLedger(database, originLabel);
-    return;
+    return { appliedMigrations };
   }
 
   if (hasStateTable) {
@@ -270,9 +282,10 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
 
   configureDatabaseConnection(database);
   createDatabaseTables(database);
-  applySupportedMigrations(database, originLabel);
+  const appliedMigrations = applySupportedMigrations(database, originLabel);
   upsertDatabaseMetadata(database);
   assertSupportedMigrationLedger(database, originLabel);
+  return { appliedMigrations };
 }
 
 function createEntityIndexRow(
@@ -1021,12 +1034,12 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
   const database = new Database(input.databaseFilePath);
 
   try {
-    initializeDatabase(database, input.databaseFilePath);
+    const initialization = initializeDatabase(database, input.databaseFilePath);
     database.exec('BEGIN IMMEDIATE');
     assertSupportedDatabaseMetadata(database, input.databaseFilePath);
-    const existingRow = readExistingStateRow(database);
+    const hasStateRow = stateRowExists(database);
 
-    if (!existingRow) {
+    if (!hasStateRow) {
       const state = loadLegacyState(input);
       const persistedState = compactHighFrequencyAgentEventsForPersistence(state);
       const updatedAt = new Date().toISOString();
@@ -1042,8 +1055,8 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
           updatedAt
         });
       rebuildEntityIndex(database, persistedState, updatedAt);
-    } else {
-      const state = parseStatePayload(existingRow.payload, input.databaseFilePath);
+    } else if (initialization.appliedMigrations.includes(2)) {
+      const state = readStateFromDatabase(database, input.databaseFilePath);
       writeStateToDatabase(database, state, input.databaseFilePath);
     }
 

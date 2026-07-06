@@ -193,6 +193,35 @@ describe('sqlite control-plane repository', () => {
     });
   });
 
+  it('opens an existing current sqlite database without rewriting state or rebuilding the entity index', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTask(createIndexedTask('task-sqlite-existing-open'));
+      });
+
+      installStatePayloadUpdateFailureTrigger(databaseFilePath);
+      installEntityIndexFullRebuildFailureTrigger(databaseFilePath);
+
+      const reopenedRepository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await expect(reopenedRepository.listTasks()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'task-sqlite-existing-open'
+        })
+      ]);
+      expect(readEntityIndexRows(databaseFilePath)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            entity_type: 'task',
+            entity_id: 'task-sqlite-existing-open'
+          })
+        ])
+      );
+    });
+  });
+
   it('compacts high-frequency Agent heartbeat and telemetry events before sqlite persistence', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
       const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
