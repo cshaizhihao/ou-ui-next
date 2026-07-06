@@ -2479,6 +2479,8 @@ describe('SubscriptionMixerPage', () => {
     expect(within(drawer).getByText('URI')).toBeInTheDocument();
     expect(within(drawer).getByText('Clash')).toBeInTheDocument();
     expect(within(drawer).getByText('Mihomo')).toBeInTheDocument();
+    expect(within(drawer).getByText('门户链接')).toBeInTheDocument();
+    expect(within(drawer).getByText(/\/portal\/secure-acme-hkg\/sub_acme_hkg_premium$/)).toBeInTheDocument();
     expect(within(drawer).getByText('Subscription-Userinfo')).toBeInTheDocument();
     expect(
       within(drawer).getByText('upload=0; download=137438953472; total=1099511627776; expire=1798761599')
@@ -2498,6 +2500,11 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(drawer).getByRole('button', { name: '复制 Clash 链接' }));
     expect(writeText).toHaveBeenCalledWith(
       expect.stringMatching(/^http:\/\/localhost(?::\d+)?\/sub\/secure-acme-hkg\/clash\/sub_acme_hkg_premium$/)
+    );
+
+    await user.click(within(drawer).getByRole('button', { name: '复制门户链接' }));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringMatching(/^http:\/\/localhost(?::\d+)?\/portal\/secure-acme-hkg\/sub_acme_hkg_premium$/)
     );
 
     await user.click(within(drawer).getByRole('button', { name: '复制订阅用量头' }));
@@ -2555,6 +2562,13 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(drawer).getByRole('button', { name: '打开 Mihomo 链接' }));
     expect(open).toHaveBeenCalledWith(
       expect.stringMatching(/^http:\/\/localhost(?::\d+)?\/sub\/secure-acme-hkg\/mihomo\/sub_acme_hkg_premium$/),
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    await user.click(within(drawer).getByRole('button', { name: '打开门户链接' }));
+    expect(open).toHaveBeenCalledWith(
+      expect.stringMatching(/^http:\/\/localhost(?::\d+)?\/portal\/secure-acme-hkg\/sub_acme_hkg_premium$/),
       '_blank',
       'noopener,noreferrer'
     );

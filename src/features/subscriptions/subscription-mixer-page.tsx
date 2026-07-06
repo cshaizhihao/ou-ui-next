@@ -345,6 +345,9 @@ const copy = {
     selectedInventoryNodes: '已选库存节点',
     bulkCopyInventoryNodeLinks: '批量复制节点链接',
     subscriptionLinksTitle: (name: string) => `${name} 订阅链接`,
+    portalLink: '门户链接',
+    copyPortalLink: '复制门户链接',
+    openPortalLink: '打开门户链接',
     subscriptionUsageHeader: 'Subscription-Userinfo',
     copySubscriptionUsageHeader: '复制订阅用量头',
     subscriptionAccessStats: '访问统计',
@@ -591,6 +594,9 @@ const copy = {
     selectedInventoryNodes: 'Selected Inventory Nodes',
     bulkCopyInventoryNodeLinks: 'Bulk Copy Node Links',
     subscriptionLinksTitle: (name: string) => `${name} Subscription Links`,
+    portalLink: 'Portal Link',
+    copyPortalLink: 'Copy Portal Link',
+    openPortalLink: 'Open Portal Link',
     subscriptionUsageHeader: 'Subscription-Userinfo',
     copySubscriptionUsageHeader: 'Copy Usage Header',
     subscriptionAccessStats: 'Access Statistics',
@@ -1419,6 +1425,14 @@ function createClientSubscriptionUrl(client: SubscriptionClientIdentity, outputF
   const subId = encodeURIComponent(client.subId);
 
   return `${createBrowserPublicBaseUrl()}/sub${securePathPreview}/${outputFormat}/${subId}`;
+}
+
+function createClientSubscriptionPortalUrl(client: SubscriptionClientIdentity) {
+  const securePathPreview =
+    client.securePathPreview || `/${client.accessTokenPreview.replace(/[^A-Za-z0-9]+/g, '').slice(0, 24)}`;
+  const subId = encodeURIComponent(client.subId);
+
+  return `${createBrowserPublicBaseUrl()}/portal${securePathPreview}/${subId}`;
 }
 
 function createClientAllFormatSubscriptionLinks(client: SubscriptionClientIdentity, language: AppLanguage) {
@@ -4042,6 +4056,33 @@ export function SubscriptionMixerPage({
       >
         {linkDrawerClient ? (
           <div className="space-y-3">
+            <div className={subscriptionDrawerNeutralPanelClass}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
+                  {t.portalLink}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={compactNeutralActionButtonClass}
+                    onClick={() => copyToClipboard(createClientSubscriptionPortalUrl(linkDrawerClient))}
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {t.copyPortalLink}
+                  </button>
+                  <button
+                    className={compactCommandActionButtonClass}
+                    onClick={() => openExternalLink(createClientSubscriptionPortalUrl(linkDrawerClient))}
+                    type="button"
+                  >
+                    {t.openPortalLink}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-3 break-all border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 font-mono text-[11px] leading-5 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70">
+                {createClientSubscriptionPortalUrl(linkDrawerClient)}
+              </p>
+            </div>
             <div className={subscriptionDrawerCommandPanelClass}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-widest text-[#1E3AFF] dark:text-[#DDE3FF]">
