@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, vi } from 'vitest';
 import { createMockApi } from '../mock/mock-api';
-import { createHttpControlPlaneServer, type ControlPlaneStructuredLogEvent } from './http-control-plane-server';
+import {
+  createHttpControlPlaneServer,
+  type ControlPlaneStructuredLogEvent,
+  type CreateHttpControlPlaneServerOptions
+} from './http-control-plane-server';
 
 beforeAll(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -57,10 +61,12 @@ async function withServerApi<T>(api: ReturnType<typeof createMockApi>, run: (bas
 }
 
 async function withLoggedServer<T>(
-  run: (baseUrl: string, logs: ControlPlaneStructuredLogEvent[]) => Promise<T>
+  run: (baseUrl: string, logs: ControlPlaneStructuredLogEvent[]) => Promise<T>,
+  options: Omit<CreateHttpControlPlaneServerOptions, 'logger'> = {}
 ) {
   const logs: ControlPlaneStructuredLogEvent[] = [];
   const server = createHttpControlPlaneServer(createMockApi({ seedInventory: true }), {
+    ...options,
     logger: {
       write(event) {
         logs.push(event);
@@ -250,6 +256,146 @@ describe('HTTP control-plane server', () => {
         ])
       );
     });
+  });
+
+  it('samples routine Agent poll and heartbeat logs while preserving command poll evidence', async () => {
+    await withLoggedServer(
+      async (baseUrl, logs) => {
+        for (let index = 1; index <= 2; index += 1) {
+          const pollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              agentId: 'agent-hkg-01',
+              sessionId: 'sess-routine-agent',
+              requestId: `req-agent-routine-poll-00${index}`
+            })
+          });
+
+          expect(pollResponse.status).toBe(200);
+        }
+
+        expect(logs.some((log) => log.event === 'agent.poll')).toBe(false);
+        expect(logs.some((log) => log.event === 'http.request.completed' && log.path === '/agent/v1/poll')).toBe(false);
+
+        const sampledPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agentId: 'agent-hkg-01',
+            sessionId: 'sess-routine-agent',
+            requestId: 'req-agent-routine-poll-003'
+          })
+        });
+
+        expect(sampledPollResponse.status).toBe(200);
+        expect(logs).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              event: 'agent.poll',
+              requestId: 'req-agent-routine-poll-003',
+              commandCount: 0,
+              routineSampled: true
+            }),
+            expect.objectContaining({
+              event: 'http.request.completed',
+              path: '/agent/v1/poll',
+              statusCode: 200
+            })
+          ])
+        );
+
+        for (let index = 1; index <= 3; index += 1) {
+          const heartbeatResponse = await fetch(`${baseUrl}/agent/v1/events`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              events: [
+                {
+                  type: 'heartbeat',
+                  eventId: `evt-routine-heartbeat-00${index}`,
+                  agentId: 'agent-hkg-01',
+                  seq: 100 + index,
+                  sessionId: 'sess-routine-agent',
+                  observedAt: `2026-06-02T00:00:0${index}.000Z`,
+                  payload: {
+                    version: '1.0.0'
+                  }
+                }
+              ]
+            })
+          });
+
+          expect(heartbeatResponse.status).toBe(202);
+        }
+
+        const sampledEvents = logs.filter((log) => log.event === 'agent.events.accepted');
+        expect(sampledEvents).toHaveLength(1);
+        expect(sampledEvents[0]).toMatchObject({
+          routineSampled: true,
+          eventIds: ['evt-routine-heartbeat-003'],
+          eventTypes: ['heartbeat']
+        });
+        expect(logs.filter((log) => log.event === 'http.request.completed' && log.path === '/agent/v1/events')).toHaveLength(
+          1
+        );
+
+        const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': 'req-http-routine-log-task',
+            'Idempotency-Key': 'idem-http-routine-log-task'
+          }),
+          body: JSON.stringify({
+            operation: 'agent.deploy',
+            resourceType: 'agent',
+            targetId: 'agent-hkg-01',
+            targetLabel: 'Agent HKG 01',
+            summary: 'Deploy command poll logging task'
+          })
+        });
+        const taskEnvelope = await taskResponse.json();
+
+        expect(taskResponse.status).toBe(201);
+
+        const commandPollResponse = await fetch(`${baseUrl}/agent/v1/poll`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            agentId: 'agent-hkg-01',
+            sessionId: 'sess-routine-agent',
+            requestId: 'req-agent-command-poll'
+          })
+        });
+        const commandPollEnvelope = await commandPollResponse.json();
+
+        expect(commandPollResponse.status).toBe(200);
+        expect(logs).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              event: 'agent.poll',
+              requestId: 'req-agent-command-poll',
+              commandCount: 1,
+              commandIds: [commandPollEnvelope.data.commands[0].commandId],
+              taskIds: [taskEnvelope.taskId]
+            })
+          ])
+        );
+      },
+      {
+        agentRoutineLogSampling: {
+          sampleEvery: 3
+        }
+      }
+    );
   });
 
   it('emits structured error logs with request and trace context', async () => {

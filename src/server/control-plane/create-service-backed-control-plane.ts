@@ -98,6 +98,7 @@ type CreateServiceBackedControlPlaneOptions = (
   logger?: CreateHttpControlPlaneServerOptions['logger'];
   operatorAuthFailureThrottle?: CreateHttpControlPlaneServerOptions['operatorAuthFailureThrottle'];
   agentAuthFailureThrottle?: CreateHttpControlPlaneServerOptions['agentAuthFailureThrottle'];
+  agentRoutineLogSampling?: CreateHttpControlPlaneServerOptions['agentRoutineLogSampling'];
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   highFrequencyAgentEventPersistence?: Partial<HighFrequencyAgentEventPersistencePolicy>;
@@ -480,6 +481,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     logger: options.logger,
     operatorAuthFailureThrottle: options.operatorAuthFailureThrottle,
     agentAuthFailureThrottle: options.agentAuthFailureThrottle,
+    agentRoutineLogSampling: options.agentRoutineLogSampling,
     operatorSessionStore,
     runtimeMetrics,
     auth: {

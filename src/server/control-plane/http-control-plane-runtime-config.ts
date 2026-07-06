@@ -1,4 +1,5 @@
 import type {
+  AgentRoutineLogSamplingOptions,
   AgentAuthFailureThrottleOptions,
   HttpControlPlaneAuthOptions,
   OperatorAuthFailureThrottleOptions
@@ -26,6 +27,7 @@ export type HttpControlPlaneRuntimeConfig = {
   agentLogRetention: AgentLogRetentionPolicy;
   trafficRollupRetention: TrafficRollupRetentionPolicy;
   highFrequencyAgentEventPersistence: HighFrequencyAgentEventPersistencePolicy;
+  agentRoutineLogSampling: Required<AgentRoutineLogSamplingOptions>;
   commandTimeoutSweep: {
     enabled: boolean;
     intervalMs: number;
@@ -493,6 +495,13 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
     )
   };
+  const agentRoutineLogSampling = {
+    sampleEvery: parsePositiveInteger(
+      env.OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY,
+      'OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY',
+      20
+    )
+  };
   const commandTimeoutSweep = {
     enabled: parseBoolean(env.OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED, true),
     intervalMs: parsePositiveInteger(
@@ -694,6 +703,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       agentLogRetention,
       trafficRollupRetention,
       highFrequencyAgentEventPersistence,
+      agentRoutineLogSampling,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       agentAuthFailureThrottle,
@@ -727,6 +737,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       agentLogRetention,
       trafficRollupRetention,
       highFrequencyAgentEventPersistence,
+      agentRoutineLogSampling,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       agentAuthFailureThrottle,
@@ -763,6 +774,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       agentLogRetention,
       trafficRollupRetention,
       highFrequencyAgentEventPersistence,
+      agentRoutineLogSampling,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       agentAuthFailureThrottle,

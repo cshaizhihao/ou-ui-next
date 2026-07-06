@@ -535,6 +535,7 @@ OU_UI_CONTROL_PLANE_INITIAL_STATE=empty
 OU_UI_AGENT_LOG_RETENTION_DAYS=7
 OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000
 OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=5
+OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY=20
 OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${STATE_DIR}/external-archives
 OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true
 OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=30000
@@ -5096,6 +5097,7 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY 5
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY 20
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_EXTERNAL_ARCHIVE_DIRECTORY "${STATE_DIR}/external-archives"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS 30000
@@ -5636,11 +5638,12 @@ show_boolean_config_health() {
 }
 
 show_agent_log_retention_health() {
-  local retention_days max_events_per_agent high_frequency_persist_every
+  local retention_days max_events_per_agent high_frequency_persist_every routine_log_sample_every
 
   retention_days="$(read_backend_env_value OU_UI_AGENT_LOG_RETENTION_DAYS)"
   max_events_per_agent="$(read_backend_env_value OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT)"
   high_frequency_persist_every="$(read_backend_env_value OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY)"
+  routine_log_sample_every="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY)"
 
   if [[ -n "${retention_days}" ]]; then
     show_positive_number_config_health "Agent 日志留存天数" "${retention_days}" " 天"
@@ -5658,6 +5661,12 @@ show_agent_log_retention_health() {
     show_positive_integer_config_health "Agent 高频事件 raw evidence 采样间隔" "${high_frequency_persist_every}"
   else
     echo "  Agent 高频事件 raw evidence 采样间隔: 默认 5"
+  fi
+
+  if [[ -n "${routine_log_sample_every}" ]]; then
+    show_positive_integer_config_health "Agent routine console 日志采样间隔" "${routine_log_sample_every}"
+  else
+    echo "  Agent routine console 日志采样间隔: 默认 20"
   fi
 }
 

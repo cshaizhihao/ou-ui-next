@@ -26,6 +26,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       highFrequencyAgentEventPersistence: {
         persistEvery: DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
       },
+      agentRoutineLogSampling: {
+        sampleEvery: 20
+      },
       commandTimeoutSweep: {
         enabled: true,
         intervalMs: 30_000,
@@ -60,6 +63,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS: '31',
         OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE: '5000',
         OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY: '10',
+        OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY: '12',
         OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED: 'false',
         OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS: '10000',
         OU_UI_COMMAND_ACK_TIMEOUT_MS: '20000',
@@ -84,6 +88,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       },
       highFrequencyAgentEventPersistence: {
         persistEvery: 10
+      },
+      agentRoutineLogSampling: {
+        sampleEvery: 12
       },
       commandTimeoutSweep: {
         enabled: false,
@@ -431,6 +438,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       highFrequencyAgentEventPersistence: {
         persistEvery: DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
       },
+      agentRoutineLogSampling: {
+        sampleEvery: 20
+      },
       commandTimeoutSweep: {
         enabled: true,
         intervalMs: 30_000,
@@ -601,6 +611,14 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY: '0'
       })
     ).toThrow('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY must be a positive integer.');
+  });
+
+  it('rejects invalid routine Agent log sampling settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY: '0'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY must be a positive integer.');
   });
 
   it('rejects invalid command timeout sweep settings', () => {

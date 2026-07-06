@@ -296,16 +296,27 @@ export type CreateHttpControlPlaneServerOptions = {
   logger?: ControlPlaneStructuredLogger;
   operatorAuthFailureThrottle?: OperatorAuthFailureThrottleOptions | false;
   agentAuthFailureThrottle?: AgentAuthFailureThrottleOptions | false;
+  agentRoutineLogSampling?: AgentRoutineLogSamplingOptions | false;
   operatorSessionStore?: OperatorSessionStore;
   runtimeMetrics?: HttpRuntimeMetrics;
 };
 
 type ResolvedHttpControlPlaneServerOptions = Omit<
   CreateHttpControlPlaneServerOptions,
-  'agentAuthFailureThrottle'
+  'agentAuthFailureThrottle' | 'agentRoutineLogSampling'
 > & {
   agentAuthFailureThrottle?: AgentAuthFailureThrottle;
+  agentRoutineLogSampling?: AgentRoutineLogSampling;
   runtimeMetrics: HttpRuntimeMetrics;
+};
+
+export type AgentRoutineLogSamplingOptions = {
+  sampleEvery?: number;
+};
+
+type AgentRoutineLogSampling = {
+  sampleEvery: number;
+  counters: Map<string, number>;
 };
 
 export type ControlPlaneStructuredLogLevel = 'info' | 'warning' | 'error';
@@ -446,6 +457,34 @@ function logRequestEvent(
   });
 }
 
+const routineAgentRequestLogSuppression = new WeakSet<IncomingMessage>();
+
+function suppressRoutineAgentRequestCompletionLog(request: IncomingMessage) {
+  routineAgentRequestLogSuppression.add(request);
+}
+
+function shouldLogRoutineAgentEvent(options: ResolvedHttpControlPlaneServerOptions, bucket: string) {
+  const sampling = options.agentRoutineLogSampling;
+
+  if (!sampling) {
+    return true;
+  }
+
+  const nextCount = (sampling.counters.get(bucket) ?? 0) + 1;
+
+  if (nextCount >= sampling.sampleEvery) {
+    sampling.counters.set(bucket, 0);
+    return true;
+  }
+
+  sampling.counters.set(bucket, nextCount);
+  return false;
+}
+
+function isRoutineAgentEventType(type: string) {
+  return type === 'heartbeat' || type === 'telemetry_sample';
+}
+
 function readErrorCode(error: unknown) {
   return 'code' in Object(error) && typeof (error as { code?: unknown }).code === 'string'
     ? (error as { code: string }).code
@@ -562,6 +601,25 @@ export function createJsonConsoleControlPlaneLogger(): ControlPlaneStructuredLog
     write(event) {
       console.log(JSON.stringify(event));
     }
+  };
+}
+
+function normalizeAgentRoutineLogSampling(
+  options: CreateHttpControlPlaneServerOptions['agentRoutineLogSampling']
+): AgentRoutineLogSampling | undefined {
+  if (options === false) {
+    return undefined;
+  }
+
+  const sampleEvery = Math.round(options?.sampleEvery ?? 20);
+
+  if (sampleEvery <= 1) {
+    return undefined;
+  }
+
+  return {
+    sampleEvery,
+    counters: new Map()
   };
 }
 
@@ -3707,16 +3765,23 @@ async function routeRequest(
       sessionId: body.sessionId,
       lastSeenCommandSeq: body.lastSeenCommandSeq
     });
-    logRequestEvent(options, request, {
-      event: 'agent.poll',
-      requestId: body.requestId,
-      httpRequestId: requestId,
-      agentId: body.agentId,
-      sessionId: body.sessionId,
-      commandCount: commands.length,
-      commandIds: commands.map((command) => command.commandId),
-      taskIds: commands.map((command) => command.taskId)
-    });
+    const routinePoll = commands.length === 0;
+
+    if (!routinePoll || shouldLogRoutineAgentEvent(options, `poll:${body.agentId}:${body.sessionId ?? ''}`)) {
+      logRequestEvent(options, request, {
+        event: 'agent.poll',
+        requestId: body.requestId,
+        httpRequestId: requestId,
+        agentId: body.agentId,
+        sessionId: body.sessionId,
+        commandCount: commands.length,
+        commandIds: commands.map((command) => command.commandId),
+        taskIds: commands.map((command) => command.taskId),
+        ...(routinePoll ? { routineSampled: true } : {})
+      });
+    } else {
+      suppressRoutineAgentRequestCompletionLog(request);
+    }
     sendData(response, requestId, {
       commands,
       nextPollAfterMs: 1000
@@ -3794,18 +3859,37 @@ async function routeRequest(
       }
     }
 
-    logRequestEvent(options, request, {
-      event: 'agent.events.accepted',
-      requestId,
-      accepted,
-      rejected,
-      agentIds: uniqueValues(body.events.map((event) => event.agentId)),
-      sessionIds: uniqueValues(body.events.map((event) => event.sessionId)),
-      eventIds: body.events.map((event) => event.eventId),
-      eventTypes: body.events.map((event) => event.type),
-      commandIds: uniqueValues(body.events.map((event) => ('commandId' in event ? event.commandId : undefined))),
-      taskIds: uniqueValues(body.events.map((event) => ('taskId' in event ? event.taskId : undefined)))
-    });
+    const agentIds = uniqueValues(body.events.map((event) => event.agentId));
+    const sessionIds = uniqueValues(body.events.map((event) => event.sessionId));
+    const eventTypes = uniqueValues(body.events.map((event) => event.type));
+    const commandIds = uniqueValues(body.events.map((event) => ('commandId' in event ? event.commandId : undefined)));
+    const taskIds = uniqueValues(body.events.map((event) => ('taskId' in event ? event.taskId : undefined)));
+    const routineEvents =
+      rejected === 0 &&
+      commandIds.length === 0 &&
+      taskIds.length === 0 &&
+      body.events.every((event) => isRoutineAgentEventType(event.type));
+
+    if (
+      !routineEvents ||
+      shouldLogRoutineAgentEvent(options, `events:${agentIds.join(',')}:${sessionIds.join(',')}:${eventTypes.join(',')}`)
+    ) {
+      logRequestEvent(options, request, {
+        event: 'agent.events.accepted',
+        requestId,
+        accepted,
+        rejected,
+        agentIds,
+        sessionIds,
+        eventIds: body.events.map((event) => event.eventId),
+        eventTypes,
+        commandIds,
+        taskIds,
+        ...(routineEvents ? { routineSampled: true } : {})
+      });
+    } else {
+      suppressRoutineAgentRequestCompletionLog(request);
+    }
     sendData(
       response,
       requestId,
@@ -3824,12 +3908,14 @@ async function routeRequest(
 export function createHttpControlPlaneServer(api: ControlPlaneApi, options: CreateHttpControlPlaneServerOptions = {}) {
   const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
   const agentAuthFailureThrottle = normalizeAgentAuthFailureThrottle(options.agentAuthFailureThrottle);
+  const agentRoutineLogSampling = normalizeAgentRoutineLogSampling(options.agentRoutineLogSampling);
   const operatorSessionStore =
     options.operatorSessionStore ?? (options.auth?.operatorSession ? createInMemoryOperatorSessionStore() : undefined);
   const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
   const resolvedOptions: ResolvedHttpControlPlaneServerOptions = {
     ...options,
     agentAuthFailureThrottle,
+    agentRoutineLogSampling,
     operatorSessionStore,
     runtimeMetrics
   };
@@ -3846,6 +3932,10 @@ export function createHttpControlPlaneServer(api: ControlPlaneApi, options: Crea
       }
 
       completionLogged = true;
+      if (response.statusCode < 400 && routineAgentRequestLogSuppression.has(request)) {
+        return;
+      }
+
       logRequestEvent(resolvedOptions, request, {
         event: 'http.request.completed',
         level: response.statusCode >= 500 ? 'error' : response.statusCode >= 400 ? 'warning' : 'info',
