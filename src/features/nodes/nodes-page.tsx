@@ -35,6 +35,7 @@ import { GlowButton } from '../../components/ui/glow-button';
 import {
   AGENT_TRAFFIC_ACCOUNTING_MODES,
   AGENT_INSTALL_PROFILE,
+  type AgentRuntimeDeploymentProof,
   type Agent,
   type AgentInstallCommand,
   type AgentInstallMetadata,
@@ -257,6 +258,8 @@ type CustomerNodeRecord = {
   subscriptionRule: string;
   inboundStatus: XrayInboundStatus;
   enabled: boolean;
+  configVersion: string;
+  runtimeDeployment?: AgentRuntimeDeploymentProof;
 };
 
 type CustomerDraft = {
@@ -516,6 +519,14 @@ const copy = {
     customerRuntimeEvidenceValueReady: 'command + preflight + snapshot',
     customerRuntimeEvidenceValueWaiting: '等待 Agent 证据',
     customerRuntimeEvidenceValueBlocked: '不会提交',
+    customerRuntimeEvidenceTitle: '运行时证据',
+    customerRuntimeEvidenceVerified: 'Agent 已验证',
+    customerRuntimeEvidenceAwaiting: '等待 Agent 结果',
+    customerRuntimeEvidenceAgent: (agents: string) => `Agent ${agents}`,
+    customerRuntimeEvidenceCommandCount: (count: string) => `${count} 条命令`,
+    customerRuntimeEvidenceConfig: (config: string) => `配置 ${config}`,
+    customerRuntimeEvidenceVerifiedAt: (time: string) => `验证于 ${time}`,
+    customerRuntimeEvidenceAwaitingDetail: '已入队或应用中，等待 command/result/preflight/snapshot 证据回传。',
     operatorCreateHint: '',
     protocolTemplate: '协议模板',
     protocolTemplateOptions: {
@@ -846,6 +857,14 @@ const copy = {
     customerRuntimeEvidenceValueReady: 'command + preflight + snapshot',
     customerRuntimeEvidenceValueWaiting: 'Waiting for Agent evidence',
     customerRuntimeEvidenceValueBlocked: 'Not submitted',
+    customerRuntimeEvidenceTitle: 'Runtime Evidence',
+    customerRuntimeEvidenceVerified: 'Agent Verified',
+    customerRuntimeEvidenceAwaiting: 'Awaiting Agent Result',
+    customerRuntimeEvidenceAgent: (agents: string) => `Agent ${agents}`,
+    customerRuntimeEvidenceCommandCount: (count: string) => `${count} command${count === '1' ? '' : 's'}`,
+    customerRuntimeEvidenceConfig: (config: string) => `Config ${config}`,
+    customerRuntimeEvidenceVerifiedAt: (time: string) => `Verified ${time}`,
+    customerRuntimeEvidenceAwaitingDetail: 'Queued or applying; waiting for command/result/preflight/snapshot evidence.',
     operatorCreateHint: '',
     protocolTemplate: 'Protocol Template',
     protocolTemplateOptions: {
@@ -2214,8 +2233,66 @@ function mapInboundToCustomerNode(
     guardrailReason: primaryClient?.guardrailReason ?? '',
     subscriptionRule: inbound.subscriptionRule ?? 'manual',
     inboundStatus: inbound.status,
-    enabled: primaryClient?.enabled ?? inbound.status !== 'disabled'
+    enabled: primaryClient?.enabled ?? inbound.status !== 'disabled',
+    configVersion: inbound.configVersion,
+    runtimeDeployment: inbound.runtimeDeployment
   };
+}
+
+function CustomerNodeRuntimeEvidenceStrip({
+  language,
+  node,
+  t
+}: {
+  language: AppLanguage;
+  node: CustomerNodeRecord;
+  t: NodesCopy;
+}) {
+  const proof = node.runtimeDeployment;
+  const verified = Boolean(proof);
+  const configRevision = proof?.appliedConfigRevisions[0] ?? node.configVersion;
+  const agentLabel = proof?.agentIds.join(', ') ?? node.agentId;
+  const commandCount = String(proof?.commandIds.length ?? 0);
+
+  return (
+    <div
+      aria-label={`${t.customerRuntimeEvidenceTitle} ${node.nodeName}`}
+      className={cn(
+        'mt-2 border px-2 py-1.5',
+        verified
+          ? 'border-[#00A878]/35 bg-[#00A878]/10 dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10'
+          : 'border-[#FFB020]/35 bg-[#FFF3C4]/50 dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10'
+      )}
+      data-customer-runtime-evidence-state={verified ? 'verified' : 'waiting'}
+      role="group"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        {verified ? (
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#007D5E] dark:text-[#9EF4C4]" />
+        ) : (
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#B7791F] dark:text-[#FFD166]" />
+        )}
+        <span
+          className={cn(
+            'text-[11px] font-black uppercase',
+            verified ? 'text-[#007D5E] dark:text-[#9EF4C4]' : 'text-[#8A5A00] dark:text-[#FFD166]'
+          )}
+        >
+          {verified ? t.customerRuntimeEvidenceVerified : t.customerRuntimeEvidenceAwaiting}
+        </span>
+        <span className="text-[11px] font-semibold text-[#35405A] dark:text-white/50">
+          {verified
+            ? t.customerRuntimeEvidenceVerifiedAt(formatDateTime(proof?.verifiedAt ?? '', language))
+            : t.customerRuntimeEvidenceAwaitingDetail}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/55">
+        <span>{t.customerRuntimeEvidenceAgent(agentLabel)}</span>
+        <span>{t.customerRuntimeEvidenceCommandCount(commandCount)}</span>
+        <span>{t.customerRuntimeEvidenceConfig(configRevision || '-')}</span>
+      </div>
+    </div>
+  );
 }
 
 type CustomerNodeBulkImpactSummary = {
@@ -3439,7 +3516,9 @@ export function NodesPage({
       guardrailReason: editingCustomerNode?.guardrailReason ?? '',
       subscriptionRule: resolvedSubscriptionRule,
       inboundStatus: editingCustomerNode?.inboundStatus ?? 'enabled',
-      enabled: editingCustomerNode?.enabled ?? true
+      enabled: editingCustomerNode?.enabled ?? true,
+      configVersion: editingCustomerNode?.configVersion ?? '',
+      runtimeDeployment: editingCustomerNode?.runtimeDeployment
     };
     const saveAction = editingCustomerNode ? 'update' : 'create';
 
@@ -4432,6 +4511,7 @@ export function NodesPage({
                           <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">
                             {node.remainingDays} {t.unitDays}
                           </p>
+                          <CustomerNodeRuntimeEvidenceStrip language={language} node={node} t={t} />
                         </td>
                         <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold leading-5 text-[#35405A] [overflow-wrap:anywhere] dark:text-white/70">
                           {node.customerName}

@@ -1,6 +1,6 @@
 import { AGENT_TRAFFIC_ACCOUNTING_MODES, type Agent, type AgentTrafficAccountingMode } from './agent';
 import type { BillingDirection, RateLimitDirection, RateLimitMode } from './quota';
-import { hasAgentRuntimeDeploymentProof, type DeployTask } from './task';
+import { hasAgentRuntimeDeploymentProof, readAgentRuntimeDeploymentProof, type DeployTask } from './task';
 import type {
   ForwardingRuntimeBlockedControl,
   ForwardProtocol,
@@ -507,6 +507,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   const fallbackDestination = readString(metadata, 'fallbackDestination', '');
   const alpn = readStringArray(metadata, 'alpn', ['h2', 'http/1.1']);
   const listenPort = resolveXrayListenPort(metadata, task.targetId);
+  const runtimeDeployment = readAgentRuntimeDeploymentProof(task);
   const clients = createXrayClientsFromTask({
     task,
     protocol,
@@ -566,7 +567,8 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
         ]
       : [],
     sniffingEnabled: readBoolean(metadata, 'sniffingEnabled', true),
-    configVersion: `cfg-${task.id}`
+    configVersion: `cfg-${task.id}`,
+    ...(runtimeDeployment ? { runtimeDeployment } : {})
   };
 }
 

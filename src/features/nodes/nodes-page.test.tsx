@@ -2436,6 +2436,64 @@ describe('NodesPage', () => {
     expect(screen.queryByRole('button', { name: 'Reset Traffic' })).not.toBeInTheDocument();
   });
 
+  it('shows verified runtime evidence for customer nodes after Agent result proof is projected', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:05:00.000Z',
+              agentIds: ['agent-metered-01'],
+              commandIds: ['cmd-task-xray-apply-01'],
+              appliedConfigRevisions: ['cfg-task-xray-apply-01']
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const evidence = screen.getByRole('group', { name: 'Runtime Evidence Acme Premium VLESS' });
+
+    expect(evidence).toHaveAttribute('data-customer-runtime-evidence-state', 'verified');
+    expect(within(evidence).getByText('Agent Verified')).toBeInTheDocument();
+    expect(within(evidence).getByText('Agent agent-metered-01')).toBeInTheDocument();
+    expect(within(evidence).getByText('1 command')).toBeInTheDocument();
+    expect(within(evidence).getByText('Config cfg-task-xray-apply-01')).toBeInTheDocument();
+  });
+
+  it('keeps customer-node runtime evidence waiting when no Agent result proof exists', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound({ status: 'applying' })]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const evidence = screen.getByRole('group', { name: 'Runtime Evidence Acme Premium VLESS' });
+
+    expect(evidence).toHaveAttribute('data-customer-runtime-evidence-state', 'waiting');
+    expect(within(evidence).getByText('Awaiting Agent Result')).toBeInTheDocument();
+    expect(within(evidence).getByText(/waiting for command\/result\/preflight\/snapshot evidence/i)).toBeInTheDocument();
+  });
+
   it('only offers executable Xray inbound protocols for customer nodes', async () => {
     const user = userEvent.setup();
     render(

@@ -1,3 +1,5 @@
+import type { AgentRuntimeDeploymentProof } from './task';
+
 export type XrayProtocol =
   | 'vmess'
   | 'vless'
@@ -139,4 +141,5 @@ export type XrayInbound = {
   fallbacks: InboundFallbackRule[];
   sniffingEnabled: boolean;
   configVersion: string;
+  runtimeDeployment?: AgentRuntimeDeploymentProof;
 };

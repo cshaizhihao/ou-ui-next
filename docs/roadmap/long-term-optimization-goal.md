@@ -85,6 +85,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Runtime apply snapshots now use per-task IDs instead of target-only IDs, and manual rollback resolves the latest matching pre-apply snapshot when no explicit snapshot is supplied, preventing same-target update tasks from breaking SQLite entity indexing or rollback evidence links.
 - Service-backed Control Plane startup now hydrates its runtime sequence from persisted task, outbox, audit, and permission IDs before queuing new work, preventing post-restart task/config/outbox ID reuse from breaking SQLite entity indexing.
 - Task release rows, task details, and failure drawers now include a runtime verification strip that summarizes command completion, Agent result stage, config revision, preflight, snapshot, and rollback linkage so operators can distinguish verified runtime success from merely compiled or waiting evidence.
+- Xray customer-node read models now project Agent runtime deployment proof into the inbound model, and customer-node rows show a compact verified/waiting runtime evidence strip tied to Agent result, command IDs, config revision, and verification timestamp.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

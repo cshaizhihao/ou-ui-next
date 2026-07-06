@@ -117,6 +117,43 @@ describe('task read models', () => {
     });
   });
 
+  it('projects Agent runtime deployment proof into Xray inbound read models', () => {
+    const task = markTaskAgentRuntimeDeploymentVerified(
+      {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme VLESS',
+          xrayProtocol: 'vless',
+          clientIdentity: 'acme-runtime-client',
+          clientCredential: '11111111-1111-4111-8111-111111111111'
+        }),
+        id: 'task-xray-runtime-proof',
+        status: 'succeeded',
+        updatedAt: '2026-06-04T00:01:00.000Z'
+      },
+      {
+        verifiedAt: '2026-06-04T00:01:00.000Z',
+        agentIds: ['agent-hkg-01'],
+        commandIds: ['cmd-task-xray-runtime-proof'],
+        appliedConfigRevisions: ['cfg-task-xray-runtime-proof']
+      }
+    );
+
+    const inbound = createXrayInboundFromTask(task);
+
+    expect(inbound).toMatchObject({
+      status: 'enabled',
+      runtimeDeployment: {
+        source: 'agent-result',
+        verifiedAt: '2026-06-04T00:01:00.000Z',
+        agentIds: ['agent-hkg-01'],
+        commandIds: ['cmd-task-xray-runtime-proof'],
+        appliedConfigRevisions: ['cfg-task-xray-runtime-proof']
+      }
+    });
+  });
+
   it('projects multiple Xray clients from customer-node task metadata', () => {
     const inbound = createXrayInboundFromTask(
       createInboundTask({
