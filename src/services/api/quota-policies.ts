@@ -32,7 +32,7 @@ function resolveQuotaEnforcementState(
   runtimeDisabledByPolicy: boolean,
   fallback?: QuotaEnforcementState
 ): QuotaEnforcementState {
-  if (runtimeDisabledByPolicy && quotaExceeded) {
+  if (runtimeDisabledByPolicy) {
     return 'disabled_by_quota';
   }
 
@@ -118,7 +118,16 @@ function readCustomerNodePolicy(inbound: XrayInbound, client: XrayClient): Quota
   const limitBytes = clampBytes(client.trafficLimitBytes);
   const usedBytes = clampBytes(client.usedTrafficBytes || client.manualUsedTrafficBytes);
   const quotaExceeded = client.quotaExceeded ?? (limitBytes > 0 && usedBytes >= limitBytes);
-  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) && quotaExceeded;
+  const clientExpired = client.clientExpired === true;
+  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) || quotaExceeded || clientExpired;
+  const guardrailReason =
+    runtimeDisabledByPolicy && client.guardrailReason && client.guardrailReason !== 'ok'
+      ? client.guardrailReason
+      : clientExpired
+        ? 'xray_client_expired'
+        : quotaExceeded
+          ? 'xray_client_monthly_quota_exceeded'
+          : undefined;
   const detailParts = [inbound.customerName, client.email].filter((value) => typeof value === 'string' && value.trim() !== '');
 
   return {
@@ -135,7 +144,7 @@ function readCustomerNodePolicy(inbound: XrayInbound, client: XrayClient): Quota
     resetDay: client.monthlyResetDay,
     reportedAt: client.lastTrafficSampleAt,
     runtimeDisabledByPolicy,
-    guardrailReason: quotaExceeded ? client.guardrailReason : undefined
+    guardrailReason
   };
 }
 

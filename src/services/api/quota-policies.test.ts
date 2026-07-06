@@ -320,6 +320,37 @@ describe('createQuotaPoliciesFromReadModels', () => {
     ]);
   });
 
+  it('surfaces expired Xray clients as runtime-disabled customer-node policies without quota overage', () => {
+    const inbound = createInbound();
+    inbound.clients = [
+      {
+        ...inbound.clients[0],
+        usedTrafficBytes: 1 * GB,
+        quotaExceeded: false,
+        clientExpired: true,
+        runtimeDisabledByPolicy: false,
+        guardrailReason: ''
+      }
+    ];
+    const quotaPolicies = createQuotaPoliciesFromReadModels({
+      agents: [],
+      inbounds: [inbound],
+      forwardRules: []
+    });
+
+    expect(quotaPolicies).toEqual([
+      expect.objectContaining({
+        id: 'customer-node:customer-node-01:client-a',
+        scope: 'customer-node',
+        usedBytes: 1 * GB,
+        limitBytes: 10 * GB,
+        enforcementState: 'disabled_by_quota',
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_expired'
+      })
+    ]);
+  });
+
   it('keeps uncovered explicit quota policies when no live read model is attached', () => {
     expect(
       createQuotaPoliciesFromReadModels({
