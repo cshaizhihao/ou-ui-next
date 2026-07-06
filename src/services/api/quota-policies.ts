@@ -180,11 +180,20 @@ function readUserPolicy(client: SubscriptionClientIdentity, existingPolicy?: Quo
   };
 }
 
+function readForwardRuleQuotaExceeded(rule: ForwardRule) {
+  const limitBytes = clampBytes(rule.quotaBytes);
+  return rule.quotaExceeded ?? (limitBytes > 0 && calculateForwardingBilledBytes(rule) >= limitBytes);
+}
+
+function readForwardRuleRuntimeDisabledByPolicy(rule: ForwardRule) {
+  return Boolean(rule.runtimeDisabledByPolicy) && readForwardRuleQuotaExceeded(rule);
+}
+
 function readForwardRulePolicy(rule: ForwardRule): QuotaPolicy {
   const limitBytes = clampBytes(rule.quotaBytes);
   const usedBytes = clampBytes(calculateForwardingBilledBytes(rule));
-  const quotaExceeded = rule.quotaExceeded ?? (limitBytes > 0 && usedBytes >= limitBytes);
-  const runtimeDisabledByPolicy = Boolean(rule.runtimeDisabledByPolicy) && quotaExceeded;
+  const quotaExceeded = readForwardRuleQuotaExceeded(rule);
+  const runtimeDisabledByPolicy = readForwardRuleRuntimeDisabledByPolicy(rule);
   const primaryPort = rule.ports[0];
   const detail = primaryPort
     ? `${primaryPort.listenAddress}:${primaryPort.listenPort} -> ${primaryPort.targetAddress}:${primaryPort.targetPort}`
@@ -221,12 +230,8 @@ function readForwardingAccountPolicy(
       : rules.reduce((sum, rule) => sum + clampBytes(rule.quotaBytes), 0);
   const quotaExceeded =
     (limitBytes > 0 && usedBytes >= limitBytes)
-    || rules.some(
-      (rule) =>
-        rule.quotaExceeded
-        ?? (clampBytes(rule.quotaBytes) > 0 && clampBytes(calculateForwardingBilledBytes(rule)) >= clampBytes(rule.quotaBytes))
-    );
-  const runtimeDisabledByPolicy = rules.some((rule) => Boolean(rule.runtimeDisabledByPolicy) && (rule.quotaExceeded ?? false));
+    || rules.some((rule) => readForwardRuleQuotaExceeded(rule));
+  const runtimeDisabledByPolicy = rules.some((rule) => readForwardRuleRuntimeDisabledByPolicy(rule));
   const billingDirections = [...new Set(rules.map((rule) => rule.billingDirection))];
   const resetDays = [...new Set(rules.map((rule) => rule.monthlyResetDay).filter((day) => Number.isFinite(day)))];
   const ownerName = rules[0]?.ownerName ?? existingPolicy?.name ?? policyId;
@@ -249,7 +254,7 @@ function readForwardingAccountPolicy(
         .sort((left, right) => right.localeCompare(left))[0] ?? existingPolicy?.reportedAt,
     runtimeDisabledByPolicy,
     guardrailReason:
-      rules.find((rule) => rule.quotaExceeded && rule.guardrailReason)?.guardrailReason
+      rules.find((rule) => readForwardRuleQuotaExceeded(rule) && rule.guardrailReason)?.guardrailReason
       ?? existingPolicy?.guardrailReason
       ?? (quotaExceeded ? 'forwarding_account_monthly_quota_exceeded' : undefined),
     sourceCount: rules.length
@@ -269,12 +274,8 @@ function readTunnelPolicy(
       : rules.reduce((sum, rule) => sum + clampBytes(rule.quotaBytes), 0);
   const quotaExceeded =
     (limitBytes > 0 && usedBytes >= limitBytes)
-    || rules.some(
-      (rule) =>
-        rule.quotaExceeded
-        ?? (clampBytes(rule.quotaBytes) > 0 && clampBytes(calculateForwardingBilledBytes(rule)) >= clampBytes(rule.quotaBytes))
-    );
-  const runtimeDisabledByPolicy = rules.some((rule) => Boolean(rule.runtimeDisabledByPolicy) && (rule.quotaExceeded ?? false));
+    || rules.some((rule) => readForwardRuleQuotaExceeded(rule));
+  const runtimeDisabledByPolicy = rules.some((rule) => readForwardRuleRuntimeDisabledByPolicy(rule));
   const billingDirections = [...new Set(rules.map((rule) => rule.billingDirection))];
   const resetDays = [...new Set(rules.map((rule) => rule.monthlyResetDay).filter((day) => Number.isFinite(day)))];
   const latestSampleAt =
@@ -297,7 +298,7 @@ function readTunnelPolicy(
     reportedAt: latestSampleAt,
     runtimeDisabledByPolicy,
     guardrailReason:
-      rules.find((rule) => rule.quotaExceeded && rule.guardrailReason)?.guardrailReason
+      rules.find((rule) => readForwardRuleQuotaExceeded(rule) && rule.guardrailReason)?.guardrailReason
       ?? existingPolicy?.guardrailReason
       ?? (quotaExceeded ? 'tunnel_monthly_quota_exceeded' : undefined),
     sourceCount: rules.length

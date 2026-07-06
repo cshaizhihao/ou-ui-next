@@ -407,6 +407,72 @@ describe('createQuotaPoliciesFromReadModels', () => {
     ]);
   });
 
+  it('derives forwarding runtime-disabled quota policies from billed usage when rule quota flags are omitted', () => {
+    const rule = {
+      ...createForwardRule(),
+      quotaExceeded: undefined,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'rule_monthly_quota_exceeded',
+      quotaBytes: 6 * GB,
+      inboundBytes: 4 * GB,
+      outboundBytes: 3 * GB,
+      manualUsedBytes: 0,
+      trafficMultiplier: 1,
+      billingDirection: 'both' as const
+    };
+    const quotaPolicies = createQuotaPoliciesFromReadModels({
+      agents: [],
+      inbounds: [],
+      forwardRules: [rule],
+      quotaPolicies: [
+        {
+          id: 'quota-acme-account',
+          name: 'Acme 团队转发配额',
+          scope: 'forwarding-account',
+          limitBytes: 16 * GB,
+          usedBytes: 0,
+          resetWindow: 'monthly',
+          billingDirection: 'both',
+          enforcementState: 'active'
+        } satisfies QuotaPolicy,
+        {
+          id: 'quota-tunnel-01',
+          name: '东京链路配额',
+          scope: 'tunnel',
+          resourceId: 'tunnel-01',
+          limitBytes: 8 * GB,
+          usedBytes: 0,
+          resetWindow: 'monthly',
+          billingDirection: 'both',
+          enforcementState: 'active'
+        } satisfies QuotaPolicy
+      ]
+    });
+
+    expect(quotaPolicies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'forward-rule:forward-rule-01',
+          enforcementState: 'disabled_by_quota',
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'rule_monthly_quota_exceeded'
+        }),
+        expect.objectContaining({
+          id: 'quota-acme-account',
+          enforcementState: 'disabled_by_quota',
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'rule_monthly_quota_exceeded'
+        }),
+        expect.objectContaining({
+          id: 'quota-tunnel-01',
+          enforcementState: 'disabled_by_quota',
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'rule_monthly_quota_exceeded'
+        })
+      ])
+    );
+  });
+
   it('keeps uncovered explicit quota policies when no live read model is attached', () => {
     expect(
       createQuotaPoliciesFromReadModels({

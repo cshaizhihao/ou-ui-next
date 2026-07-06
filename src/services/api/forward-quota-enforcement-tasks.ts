@@ -1,4 +1,9 @@
-import { normalizeBlockedForwardingRuntimeControls, type ForwardRule } from '../../domain/forwarding';
+import {
+  calculateForwardingBilledBytes,
+  isForwardingQuotaExceeded,
+  normalizeBlockedForwardingRuntimeControls,
+  type ForwardRule
+} from '../../domain/forwarding';
 import type { CreateTaskInput, DeployTask } from '../../domain/task';
 import type { QuotaPolicy } from '../../domain/quota';
 
@@ -53,6 +58,10 @@ function readForwardRuleAgentIds(rule: ForwardRule) {
 
 function readPrimaryBinding(rule: ForwardRule) {
   return rule.ports[0];
+}
+
+function isRuleQuotaExceeded(rule: ForwardRule) {
+  return rule.quotaExceeded === true || isForwardingQuotaExceeded(rule);
 }
 
 function readForwardingAccountPolicyId(rule: ForwardRule) {
@@ -130,7 +139,7 @@ function createForwardQuotaMetadata(
     strategy: rule.strategy,
     quotaGb: gbFromBytes(rule.quotaBytes),
     monthlyResetDay: rule.monthlyResetDay,
-    currentUsedTrafficGb: gbFromBytes(rule.manualUsedBytes),
+    currentUsedTrafficGb: gbFromBytes(calculateForwardingBilledBytes(rule)),
     rateLimitMbps: rule.rateLimitMbps ?? 0,
     rateLimitMode: rule.rateLimitMode,
     rateLimitDirection: rule.rateLimitDirection,
@@ -235,9 +244,10 @@ export function deriveForwardQuotaEnforcementTaskIntents(
     const intents: ForwardQuotaEnforcementTaskIntent[] = [];
     const accountPolicy = accountPoliciesById.get(readForwardingAccountPolicyId(rule));
     const tunnelPolicy = findTunnelPolicyForRule(rule, tunnelPolicies);
+    const ruleQuotaExceeded = isRuleQuotaExceeded(rule);
     const accountPolicyExceeded = accountPolicy ? exceededQuotaStates.has(accountPolicy.enforcementState) : false;
     const tunnelPolicyExceeded = tunnelPolicy ? exceededQuotaStates.has(tunnelPolicy.enforcementState) : false;
-    const hasAnyBlockingPolicy = Boolean(rule.quotaExceeded) || accountPolicyExceeded || tunnelPolicyExceeded;
+    const hasAnyBlockingPolicy = ruleQuotaExceeded || accountPolicyExceeded || tunnelPolicyExceeded;
     const rulePolicy: Pick<QuotaPolicy, 'id' | 'name' | 'scope' | 'guardrailReason'> = {
       id: `forward-rule:${rule.id}`,
       name: rule.name,
@@ -254,7 +264,7 @@ export function deriveForwardQuotaEnforcementTaskIntents(
     const hasActiveRulePolicyResume =
       latestRulePolicyTask?.operation === 'forward.resume' && isAutomaticQuotaEnforcementTask(latestRulePolicyTask, rulePolicy.id);
 
-    if (rule.enabled && rule.quotaExceeded && !hasActiveRulePolicyPause) {
+    if (rule.enabled && ruleQuotaExceeded && !hasActiveRulePolicyPause) {
       intents.push(createPauseIntent(rule, trigger, rulePolicy));
     }
 
@@ -262,7 +272,7 @@ export function deriveForwardQuotaEnforcementTaskIntents(
       intents.push(createResumeIntent(rule, trigger, rulePolicy));
     }
 
-    if (accountPolicy && !rule.quotaExceeded) {
+    if (accountPolicy && !ruleQuotaExceeded) {
       const latestAccountPolicyTask = readLatestForwardIntentTask(tasks, rule.id, accountPolicy.id);
       const hasActiveAccountPause =
         latestAccountPolicyTask?.operation === 'forward.pause'
@@ -286,7 +296,7 @@ export function deriveForwardQuotaEnforcementTaskIntents(
       }
     }
 
-    if (tunnelPolicy && !rule.quotaExceeded) {
+    if (tunnelPolicy && !ruleQuotaExceeded) {
       const latestTunnelPolicyTask = readLatestForwardIntentTask(tasks, rule.id, tunnelPolicy.id);
       const hasActiveTunnelPause =
         latestTunnelPolicyTask?.operation === 'forward.pause'
