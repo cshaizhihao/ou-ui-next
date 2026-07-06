@@ -546,6 +546,7 @@ const copy = {
     customerRuntimeEvidenceCommandCount: (count: string) => `${count} 条命令`,
     customerRuntimeEvidenceConfig: (config: string) => `配置 ${config}`,
     customerRuntimeEvidenceVerifiedAt: (time: string) => `验证于 ${time}`,
+    customerRuntimeEvidenceRestoredAt: (time: string) => `恢复于 ${time}`,
     customerRuntimeEvidenceAwaitingDetail: '已入队或应用中，等待 command/result/preflight/snapshot 证据回传。',
     customerRuntimeEvidenceOpen: '查看运行时证据',
     customerRuntimeEvidenceDrawerTitle: '客户节点运行时证据',
@@ -553,6 +554,8 @@ const copy = {
     customerRuntimeEvidenceWorkspace: '打开任务证据',
     customerRuntimeEvidenceCopyPackage: '复制诊断包',
     customerRuntimeEvidenceRollbackAction: '发起回滚',
+    customerRuntimeEvidenceRollbackRecovery: '回滚恢复',
+    customerRuntimeEvidenceRollbackRestoredSnapshot: '恢复快照',
     customerRuntimeEvidenceTask: '任务',
     customerRuntimeEvidenceAgentResult: 'Agent 结果',
     customerRuntimeEvidenceCommand: '命令',
@@ -567,6 +570,11 @@ const copy = {
       verified: '已验证',
       failed: '失败',
       waiting: '等待'
+    },
+    customerRuntimeEvidenceRollbackStateLabels: {
+      restored: '已恢复',
+      failed: '回滚失败',
+      waiting: '等待恢复证据'
     },
     customerRuntimeEvidenceStepStateLabels: {
       confirmed: '确认',
@@ -916,6 +924,7 @@ const copy = {
     customerRuntimeEvidenceCommandCount: (count: string) => `${count} command${count === '1' ? '' : 's'}`,
     customerRuntimeEvidenceConfig: (config: string) => `Config ${config}`,
     customerRuntimeEvidenceVerifiedAt: (time: string) => `Verified ${time}`,
+    customerRuntimeEvidenceRestoredAt: (time: string) => `Restored ${time}`,
     customerRuntimeEvidenceAwaitingDetail: 'Queued or applying; waiting for command/result/preflight/snapshot evidence.',
     customerRuntimeEvidenceOpen: 'View runtime evidence',
     customerRuntimeEvidenceDrawerTitle: 'Customer Node Runtime Evidence',
@@ -923,6 +932,8 @@ const copy = {
     customerRuntimeEvidenceWorkspace: 'Open Task Evidence',
     customerRuntimeEvidenceCopyPackage: 'Copy Evidence Package',
     customerRuntimeEvidenceRollbackAction: 'Start Rollback',
+    customerRuntimeEvidenceRollbackRecovery: 'Rollback Recovery',
+    customerRuntimeEvidenceRollbackRestoredSnapshot: 'Restored Snapshot',
     customerRuntimeEvidenceTask: 'Task',
     customerRuntimeEvidenceAgentResult: 'Agent Result',
     customerRuntimeEvidenceCommand: 'Command',
@@ -937,6 +948,11 @@ const copy = {
       verified: 'Verified',
       failed: 'Failed',
       waiting: 'Waiting'
+    },
+    customerRuntimeEvidenceRollbackStateLabels: {
+      restored: 'Restored',
+      failed: 'Rollback Failed',
+      waiting: 'Waiting for Recovery Evidence'
     },
     customerRuntimeEvidenceStepStateLabels: {
       confirmed: 'Confirmed',
@@ -2448,6 +2464,35 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
   const snapshotValue = evidence.runtimeSnapshot
     ? `${evidence.runtimeSnapshot.id} · ${evidence.runtimeSnapshot.status}`
     : t.customerRuntimeEvidenceMissing;
+  const rollbackRecovery = evidence.rollbackRecovery;
+  const rollbackCommandValue = rollbackRecovery
+    ? rollbackRecovery.commandOutboxItems.length > 0
+      ? `${t.customerRuntimeEvidenceCommandProgress(
+          String(rollbackRecovery.commandOutboxItems.filter((item) => item.status === 'completed').length),
+          String(rollbackRecovery.commandOutboxItems.length)
+        )} · ${rollbackRecovery.commandOutboxItems.map((item) => item.commandId).join(', ')}`
+      : t.customerRuntimeEvidenceMissing
+    : '';
+  const rollbackTaskValue = rollbackRecovery
+    ? `${rollbackRecovery.task?.id ?? rollbackRecovery.taskId} · ${rollbackRecovery.task?.status ?? t.customerRuntimeEvidenceMissing}`
+    : '';
+  const rollbackSnapshotValue = rollbackRecovery
+    ? rollbackRecovery.restoredSnapshot
+      ? `${rollbackRecovery.restoredSnapshot.id} · ${rollbackRecovery.restoredSnapshot.status}${
+          rollbackRecovery.restoredSnapshot.restoredAt
+            ? ` · ${t.customerRuntimeEvidenceRestoredAt(formatDateTime(rollbackRecovery.restoredSnapshot.restoredAt, language))}`
+            : ''
+        }`
+      : t.customerRuntimeEvidenceMissing
+    : '';
+  const rollbackStateClass = {
+    restored:
+      'border-[#00A878]/30 bg-[#00A878]/10 text-[#006B50] dark:border-[#00D49A]/22 dark:bg-[#00A878]/[0.12] dark:text-[#7FF3C9]',
+    failed:
+      'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]',
+    waiting:
+      'border-[#1E3AFF]/24 bg-[#DCE1FF]/55 text-[#1E3AFF] dark:border-[#6B7CFF]/22 dark:bg-primary/10 dark:text-primary'
+  } satisfies Record<'restored' | 'failed' | 'waiting', string>;
 
   return (
     <div className="space-y-4">
@@ -2489,6 +2534,33 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
           <InfoField label={t.customerRuntimeEvidenceRollback} value={evidence.task.rollbackTaskId} />
         ) : null}
       </div>
+
+      {rollbackRecovery ? (
+        <section
+          aria-label={t.customerRuntimeEvidenceRollbackRecovery}
+          className={cn('border p-3', rollbackStateClass[rollbackRecovery.state])}
+          data-customer-runtime-rollback-state={rollbackRecovery.state}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em]">
+                {t.customerRuntimeEvidenceRollbackRecovery}
+              </p>
+              <p className="mt-1 text-xs font-semibold opacity-80">
+                {rollbackRecovery.task?.failureReason ?? rollbackRecovery.restoredSnapshot?.restoredAt ?? rollbackRecovery.taskId}
+              </p>
+            </div>
+            <span className="border border-current/25 px-2.5 py-1 text-[10px] font-black uppercase">
+              {t.customerRuntimeEvidenceRollbackStateLabels[rollbackRecovery.state]}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <InfoField label={t.customerRuntimeEvidenceTask} value={rollbackTaskValue} />
+            <InfoField label={t.customerRuntimeEvidenceCommand} value={rollbackCommandValue} />
+            <InfoField label={t.customerRuntimeEvidenceRollbackRestoredSnapshot} value={rollbackSnapshotValue} />
+          </div>
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap justify-end gap-2">
         <GhostButton label={t.customerRuntimeEvidenceCopyPackage} onClick={onCopyPackage} />
@@ -3379,7 +3451,9 @@ export function NodesPage({
       })
     : undefined;
   const selectedRuntimeEvidenceRollbackTaskId =
-    selectedRuntimeEvidence?.task?.rollbackAvailable && selectedRuntimeEvidence.task.status === 'succeeded'
+    selectedRuntimeEvidence?.task?.rollbackAvailable &&
+    selectedRuntimeEvidence.task.status === 'succeeded' &&
+    !selectedRuntimeEvidence.rollbackRecovery
       ? selectedRuntimeEvidence.task.id
       : undefined;
   const reusableCustomerNodePort = useMemo(

@@ -38,8 +38,19 @@ export type CustomerNodeRuntimeEvidenceBundle = {
   configRevision?: RuntimeConfigRevision;
   preflightPlan?: RuntimePreflightPlan;
   runtimeSnapshot?: RuntimeSnapshot;
+  rollbackRecovery?: CustomerNodeRuntimeRollbackRecoveryEvidence;
   evidenceStage: string;
   steps: CustomerNodeRuntimeEvidenceStep[];
+};
+
+export type CustomerNodeRuntimeRollbackRecoveryState = 'restored' | 'failed' | 'waiting';
+
+export type CustomerNodeRuntimeRollbackRecoveryEvidence = {
+  state: CustomerNodeRuntimeRollbackRecoveryState;
+  taskId: string;
+  task?: DeployTask;
+  commandOutboxItems: CommandOutboxSummary[];
+  restoredSnapshot?: RuntimeSnapshot;
 };
 
 export type CustomerNodeRuntimeEvidencePackageNode = CustomerNodeRuntimeEvidenceNode & {
@@ -124,6 +135,44 @@ export type CustomerNodeRuntimeEvidencePackage = {
     restoredAt?: string;
     restoredByTaskId?: string;
   };
+  rollbackRecovery?: {
+    state: CustomerNodeRuntimeRollbackRecoveryState;
+    taskId: string;
+    task?: {
+      id: string;
+      requestId: string;
+      operation: DeployTask['operation'];
+      status: DeployTask['status'];
+      targetId: string;
+      targetLabel: string;
+      createdAt: string;
+      updatedAt: string;
+      failureReason?: string;
+    };
+    commands: Array<{
+      commandId: string;
+      agentId: string;
+      commandType: CommandOutboxSummary['commandType'];
+      status: CommandOutboxSummary['status'];
+      attempts: number;
+      createdAt: string;
+      updatedAt: string;
+      ackedAt?: string;
+      resultAt?: string;
+      deadlineAt: string;
+      lastError?: string;
+    }>;
+    restoredSnapshot?: {
+      id: string;
+      status: RuntimeSnapshot['status'];
+      reason: RuntimeSnapshot['reason'];
+      checksum: string;
+      capturedAt: string;
+      verifiedAt?: string;
+      restoredAt?: string;
+      restoredByTaskId?: string;
+    };
+  };
 };
 
 type ResolveCustomerNodeRuntimeEvidenceInput = {
@@ -193,6 +242,35 @@ function readRuntimeDiagnosisSummary(configRevision: RuntimeConfigRevision | und
   );
 }
 
+function createCommandSummary(item: CommandOutboxSummary) {
+  return {
+    commandId: item.commandId,
+    agentId: item.agentId,
+    commandType: item.commandType,
+    status: item.status,
+    attempts: item.attempts,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    ackedAt: item.ackedAt,
+    resultAt: item.resultAt,
+    deadlineAt: item.deadlineAt,
+    lastError: item.lastError
+  };
+}
+
+function createSnapshotSummary(snapshot: RuntimeSnapshot) {
+  return {
+    id: snapshot.id,
+    status: snapshot.status,
+    reason: snapshot.reason,
+    checksum: snapshot.checksum,
+    capturedAt: snapshot.capturedAt,
+    verifiedAt: snapshot.verifiedAt,
+    restoredAt: snapshot.restoredAt,
+    restoredByTaskId: snapshot.restoredByTaskId
+  };
+}
+
 function resolveConfigRevision({
   node,
   proof,
@@ -233,6 +311,51 @@ function resolveConfigRevision({
     configRevisions.filter((revision) => revision.targetId === node.id),
     (revision) => revision.appliedAt ?? revision.failedAt ?? revision.createdAt
   )[0];
+}
+
+function resolveRollbackRecoveryEvidence({
+  task,
+  tasks,
+  commandOutbox,
+  runtimeSnapshot,
+  runtimeSnapshots
+}: {
+  task: DeployTask | undefined;
+  tasks: DeployTask[];
+  commandOutbox: CommandOutboxSummary[];
+  runtimeSnapshot: RuntimeSnapshot | undefined;
+  runtimeSnapshots: RuntimeSnapshot[];
+}): CustomerNodeRuntimeRollbackRecoveryEvidence | undefined {
+  const rollbackTaskId = task?.rollbackTaskId;
+
+  if (!rollbackTaskId) {
+    return undefined;
+  }
+
+  const rollbackTask = tasks.find((item) => item.id === rollbackTaskId);
+  const rollbackCommandOutboxItems = commandOutbox.filter((item) => item.taskId === rollbackTaskId);
+  const restoredSnapshot =
+    (runtimeSnapshot?.restoredByTaskId === rollbackTaskId ? runtimeSnapshot : undefined) ??
+    byNewestTimestamp(
+      runtimeSnapshots.filter((snapshot) => snapshot.restoredByTaskId === rollbackTaskId),
+      (snapshot) => snapshot.restoredAt ?? snapshot.verifiedAt ?? snapshot.capturedAt
+    )[0] ??
+    (runtimeSnapshot?.status === 'restored' && !runtimeSnapshot.restoredByTaskId ? runtimeSnapshot : undefined);
+  const failedCommand = rollbackCommandOutboxItems.find((item) => failedCommandStatuses.has(item.status));
+  const state: CustomerNodeRuntimeRollbackRecoveryState =
+    failedCommand || rollbackTask?.status === 'failed' || rollbackTask?.status === 'canceled'
+      ? 'failed'
+      : restoredSnapshot?.status === 'restored'
+        ? 'restored'
+        : 'waiting';
+
+  return {
+    state,
+    taskId: rollbackTaskId,
+    task: rollbackTask,
+    commandOutboxItems: rollbackCommandOutboxItems,
+    restoredSnapshot
+  };
 }
 
 export function resolveCustomerNodeRuntimeEvidence({
@@ -289,6 +412,13 @@ export function resolveCustomerNodeRuntimeEvidence({
       runtimeSnapshots.filter((snapshot) => snapshot.taskId === resolvedTaskId || snapshot.targetId === node.id),
       (snapshot) => snapshot.verifiedAt ?? snapshot.restoredAt ?? snapshot.capturedAt
     )[0];
+  const rollbackRecovery = resolveRollbackRecoveryEvidence({
+    task,
+    tasks,
+    commandOutbox,
+    runtimeSnapshot,
+    runtimeSnapshots
+  });
   const evidenceStage = readRuntimeEvidenceStage(configRevision);
   const failedCommand = taskCommandItems.find((item) => failedCommandStatuses.has(item.status));
   const commandStep: CustomerNodeRuntimeEvidenceStep = {
@@ -356,6 +486,7 @@ export function resolveCustomerNodeRuntimeEvidence({
     configRevision,
     preflightPlan,
     runtimeSnapshot,
+    rollbackRecovery,
     evidenceStage: proof ? 'agent-result-verified' : evidenceStage || 'waiting',
     steps
   };
@@ -402,19 +533,7 @@ export function createCustomerNodeRuntimeEvidencePackage({
           }
         }
       : {}),
-    commands: evidence.commandOutboxItems.map((item) => ({
-      commandId: item.commandId,
-      agentId: item.agentId,
-      commandType: item.commandType,
-      status: item.status,
-      attempts: item.attempts,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-      ackedAt: item.ackedAt,
-      resultAt: item.resultAt,
-      deadlineAt: item.deadlineAt,
-      lastError: item.lastError
-    })),
+    commands: evidence.commandOutboxItems.map(createCommandSummary),
     ...(configRevision
       ? {
           configRevision: {
@@ -449,14 +568,32 @@ export function createCustomerNodeRuntimeEvidencePackage({
     ...(runtimeSnapshot
       ? {
           runtimeSnapshot: {
-            id: runtimeSnapshot.id,
-            status: runtimeSnapshot.status,
-            reason: runtimeSnapshot.reason,
-            checksum: runtimeSnapshot.checksum,
-            capturedAt: runtimeSnapshot.capturedAt,
-            verifiedAt: runtimeSnapshot.verifiedAt,
-            restoredAt: runtimeSnapshot.restoredAt,
-            restoredByTaskId: runtimeSnapshot.restoredByTaskId
+            ...createSnapshotSummary(runtimeSnapshot)
+          }
+        }
+      : {}),
+    ...(evidence.rollbackRecovery
+      ? {
+          rollbackRecovery: {
+            state: evidence.rollbackRecovery.state,
+            taskId: evidence.rollbackRecovery.taskId,
+            task: evidence.rollbackRecovery.task
+              ? {
+                  id: evidence.rollbackRecovery.task.id,
+                  requestId: evidence.rollbackRecovery.task.requestId,
+                  operation: evidence.rollbackRecovery.task.operation,
+                  status: evidence.rollbackRecovery.task.status,
+                  targetId: evidence.rollbackRecovery.task.targetId,
+                  targetLabel: evidence.rollbackRecovery.task.targetLabel,
+                  createdAt: evidence.rollbackRecovery.task.createdAt,
+                  updatedAt: evidence.rollbackRecovery.task.updatedAt,
+                  failureReason: evidence.rollbackRecovery.task.failureReason
+                }
+              : undefined,
+            commands: evidence.rollbackRecovery.commandOutboxItems.map(createCommandSummary),
+            restoredSnapshot: evidence.rollbackRecovery.restoredSnapshot
+              ? createSnapshotSummary(evidence.rollbackRecovery.restoredSnapshot)
+              : undefined
           }
         }
       : {})

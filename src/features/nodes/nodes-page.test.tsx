@@ -2674,7 +2674,7 @@ describe('NodesPage', () => {
     expect(within(drawer).getByText('cfg-task-xray-apply-01 · applied')).toBeInTheDocument();
     expect(within(drawer).getByText('preflight-task-xray-apply-01 · passed')).toBeInTheDocument();
     expect(within(drawer).getByText('snapshot-task-xray-apply-01 · verified')).toBeInTheDocument();
-    expect(within(drawer).getByText('task-xray-rollback-01')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('task-xray-rollback-01')).toHaveLength(2);
 
     await user.click(within(drawer).getByRole('button', { name: 'Copy Evidence Package' }));
     expect(writeText).toHaveBeenCalledTimes(1);
@@ -2732,7 +2732,7 @@ describe('NodesPage', () => {
         ]}
         language="en"
         workspaceMode="customerNodes"
-        tasks={[createRuntimeTask()]}
+        tasks={[createRuntimeTask({ rollbackTaskId: undefined })]}
         commandOutbox={[createRuntimeCommand()]}
         configRevisions={[createRuntimeConfigRevision()]}
         preflightPlans={[createRuntimePreflightPlan()]}
@@ -2755,6 +2755,81 @@ describe('NodesPage', () => {
 
     expect(onRollbackRuntimeTask).toHaveBeenCalledWith('task-xray-apply-01');
     expect(screen.queryByRole('dialog', { name: 'Customer Node Runtime Evidence' })).not.toBeInTheDocument();
+  });
+
+  it('shows rollback recovery evidence in the customer-node runtime evidence drawer', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            configVersion: 'cfg-task-xray-apply-01',
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:05:00.000Z',
+              agentIds: ['agent-metered-01'],
+              commandIds: ['cmd-task-xray-apply-01'],
+              appliedConfigRevisions: ['cfg-task-xray-apply-01']
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[
+          createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-xray-rollback-01',
+            operation: 'agent.rollback',
+            status: 'succeeded',
+            requestId: 'req-task-xray-rollback-01',
+            rollbackAvailable: false,
+            rollbackTaskId: undefined,
+            summary: 'Rollback Acme Premium VLESS'
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand(),
+          createRuntimeCommand({
+            id: 'outbox-task-xray-rollback-01',
+            taskId: 'task-xray-rollback-01',
+            commandId: 'cmd-task-xray-rollback-01',
+            commandType: 'rollback',
+            resultAt: '2026-06-04T04:09:50.000Z',
+            updatedAt: '2026-06-04T04:09:50.000Z'
+          })
+        ]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot({
+            status: 'restored',
+            restoredAt: '2026-06-04T04:10:00.000Z',
+            restoredByTaskId: 'task-xray-rollback-01'
+          })
+        ]}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onRollbackRuntimeTask={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' }));
+
+    const drawer = screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' });
+    const rollbackRecovery = within(drawer).getByRole('region', { name: 'Rollback Recovery' });
+
+    expect(rollbackRecovery).toHaveAttribute('data-customer-runtime-rollback-state', 'restored');
+    expect(within(rollbackRecovery).getByText('Restored')).toBeInTheDocument();
+    expect(within(rollbackRecovery).getByText('task-xray-rollback-01 · succeeded')).toBeInTheDocument();
+    expect(within(rollbackRecovery).getByText(/1\/1 completed · cmd-task-xray-rollback-01/u)).toBeInTheDocument();
+    expect(within(rollbackRecovery).getByText(/snapshot-task-xray-apply-01 · restored/u)).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: 'Start Rollback' })).not.toBeInTheDocument();
   });
 
   it('only offers executable Xray inbound protocols for customer nodes', async () => {

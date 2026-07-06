@@ -251,6 +251,110 @@ describe('customer node runtime evidence', () => {
     );
   });
 
+  it('links rollback task, command, and restored snapshot evidence to the customer-node release bundle', () => {
+    const rollbackTask = createTask({
+      id: 'task-0099',
+      operation: 'agent.rollback',
+      status: 'succeeded',
+      rollbackAvailable: false,
+      rollbackTaskId: undefined,
+      requestId: 'req-task-0099',
+      summary: 'Rollback Acme VLESS',
+      updatedAt: '2026-06-04T04:10:00.000Z',
+      metadata: {
+        snapshotId: 'snapshot-task-0100'
+      }
+    });
+    const rollbackCommand = createCommand({
+      id: 'outbox-0099',
+      taskId: 'task-0099',
+      commandId: 'cmd-task-0099',
+      commandType: 'rollback',
+      resultAt: '2026-06-04T04:10:00.000Z',
+      updatedAt: '2026-06-04T04:10:00.000Z'
+    });
+    const restoredSnapshot = createRuntimeSnapshot({
+      status: 'restored',
+      restoredAt: '2026-06-04T04:10:00.000Z',
+      restoredByTaskId: 'task-0099',
+      state: {
+        secretRuntimeBody: 'do-not-copy'
+      }
+    });
+
+    const evidence = resolveCustomerNodeRuntimeEvidence({
+      node: {
+        id: 'inbound-acme',
+        configVersion: 'cfg-task-0100',
+        runtimeDeployment: {
+          source: 'agent-result',
+          verifiedAt: '2026-06-04T04:00:30.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-0100'],
+          appliedConfigRevisions: ['cfg-task-0100']
+        }
+      },
+      tasks: [createTask(), rollbackTask],
+      commandOutbox: [createCommand(), rollbackCommand],
+      configRevisions: [createConfigRevision()],
+      preflightPlans: [createPreflightPlan()],
+      runtimeSnapshots: [restoredSnapshot]
+    });
+
+    expect(evidence.rollbackRecovery).toMatchObject({
+      state: 'restored',
+      taskId: 'task-0099',
+      task: {
+        id: 'task-0099',
+        status: 'succeeded'
+      },
+      commandOutboxItems: [
+        {
+          commandId: 'cmd-task-0099',
+          commandType: 'rollback',
+          status: 'completed'
+        }
+      ],
+      restoredSnapshot: {
+        id: 'snapshot-task-0100',
+        status: 'restored',
+        restoredByTaskId: 'task-0099'
+      }
+    });
+
+    const diagnosticPackage = createCustomerNodeRuntimeEvidencePackage({
+      node: {
+        id: 'inbound-acme',
+        agentId: 'agent-hkg-01',
+        configVersion: 'cfg-task-0100'
+      },
+      evidence
+    });
+
+    expect(diagnosticPackage.rollbackRecovery).toMatchObject({
+      state: 'restored',
+      taskId: 'task-0099',
+      task: {
+        id: 'task-0099',
+        operation: 'agent.rollback',
+        status: 'succeeded'
+      },
+      commands: [
+        {
+          commandId: 'cmd-task-0099',
+          commandType: 'rollback',
+          status: 'completed'
+        }
+      ],
+      restoredSnapshot: {
+        id: 'snapshot-task-0100',
+        status: 'restored',
+        restoredByTaskId: 'task-0099'
+      }
+    });
+    expect(JSON.stringify(diagnosticPackage)).not.toContain('secretRuntimeBody');
+  });
+
   it('creates a copyable safe diagnostic package without raw runtime bodies', () => {
     const evidence = resolveCustomerNodeRuntimeEvidence({
       node: {
