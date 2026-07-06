@@ -24,6 +24,8 @@ type CreateSqliteControlPlaneRepositoryInput = {
 const SQLITE_SCHEMA_VERSION = 2;
 const SQLITE_STATE_ROW_ID = 1;
 const SQLITE_STATE_FORMAT = 'json-state-v1';
+const SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE = 120;
+const SQLITE_HIGH_FREQUENCY_AGENT_EVENT_TYPES = new Set(['heartbeat', 'telemetry_sample']);
 const SQLITE_MIGRATIONS = [
   {
     version: 1,
@@ -527,10 +529,30 @@ function readStateFromDatabase(database: SqliteDatabase, originLabel: string): C
   return parseStatePayload(row.payload, originLabel);
 }
 
+function compactHighFrequencyAgentEventsForPersistence(
+  state: ControlPlaneRepositoryState
+): ControlPlaneRepositoryState {
+  const counters = new Map<string, number>();
+  const agentEvents = state.agentEvents.filter((event) => {
+    if (!SQLITE_HIGH_FREQUENCY_AGENT_EVENT_TYPES.has(event.type)) {
+      return true;
+    }
+
+    const key = `${event.agentId}\0${event.type}`;
+    const count = counters.get(key) ?? 0;
+    counters.set(key, count + 1);
+
+    return count < SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE;
+  });
+
+  return agentEvents.length === state.agentEvents.length ? state : { ...state, agentEvents };
+}
+
 function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepositoryState, originLabel: string) {
   assertSupportedDatabaseMetadata(database, originLabel);
   assertSupportedMigrationLedger(database, originLabel);
   const updatedAt = new Date().toISOString();
+  const persistedState = compactHighFrequencyAgentEventsForPersistence(state);
 
   database
     .prepare(
@@ -540,10 +562,10 @@ function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepos
     )
     .run({
       id: SQLITE_STATE_ROW_ID,
-      payload: JSON.stringify(state, null, 2),
+      payload: JSON.stringify(persistedState),
       updatedAt
     });
-  rebuildEntityIndex(database, state, updatedAt);
+  rebuildEntityIndex(database, persistedState, updatedAt);
 }
 
 function loadLegacyState(input: CreateSqliteControlPlaneRepositoryInput) {
@@ -568,6 +590,8 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
 
     if (!existingRow) {
       const state = loadLegacyState(input);
+      const persistedState = compactHighFrequencyAgentEventsForPersistence(state);
+      const updatedAt = new Date().toISOString();
 
       database
         .prepare(
@@ -576,10 +600,10 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
         )
         .run({
           id: SQLITE_STATE_ROW_ID,
-          payload: JSON.stringify(state, null, 2),
-          updatedAt: new Date().toISOString()
+          payload: JSON.stringify(persistedState),
+          updatedAt
         });
-      rebuildEntityIndex(database, state, new Date().toISOString());
+      rebuildEntityIndex(database, persistedState, updatedAt);
     } else {
       const state = parseStatePayload(existingRow.payload, input.databaseFilePath);
       writeStateToDatabase(database, state, input.databaseFilePath);

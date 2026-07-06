@@ -119,6 +119,74 @@ describe('sqlite control-plane repository', () => {
     });
   });
 
+  it('compacts high-frequency Agent heartbeat and telemetry events before sqlite persistence', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        for (let index = 0; index < 130; index += 1) {
+          const observedAt = new Date(Date.parse('2026-06-05T00:00:00.000Z') + index * 1000).toISOString();
+
+          await transaction.insertAgentEvent({
+            agentId: 'agent-retention-01',
+            eventId: `evt-heartbeat-${index}`,
+            observedAt,
+            payload: {
+              capabilities: ['host-agent', 'xray']
+            },
+            seq: index,
+            sessionId: 'sess-agent-retention',
+            type: 'heartbeat'
+          });
+          await transaction.insertAgentEvent({
+            agentId: 'agent-retention-01',
+            eventId: `evt-telemetry-${index}`,
+            observedAt,
+            payload: {
+              cpuPercent: index,
+              reportedAt: observedAt
+            },
+            seq: 1_000 + index,
+            sessionId: 'sess-agent-retention',
+            type: 'telemetry_sample'
+          });
+        }
+
+        await transaction.insertAgentEvent({
+          agentId: 'agent-retention-01',
+          commandId: 'cmd-retention-01',
+          eventId: 'evt-result-retention-01',
+          observedAt: '2026-06-05T00:03:00.000Z',
+          payload: {
+            appliedConfigRevision: 'cfg-retention-01',
+            status: 'succeeded'
+          },
+          seq: 2_000,
+          sessionId: 'sess-agent-retention',
+          taskId: 'task-retention-01',
+          type: 'result'
+        });
+      });
+
+      const events = await repository.listAgentEvents();
+
+      expect(events.filter((event) => event.type === 'heartbeat')).toHaveLength(120);
+      expect(events.filter((event) => event.type === 'telemetry_sample')).toHaveLength(120);
+      expect(events.some((event) => event.eventId === 'evt-heartbeat-129')).toBe(true);
+      expect(events.some((event) => event.eventId === 'evt-heartbeat-0')).toBe(false);
+      expect(events.some((event) => event.eventId === 'evt-telemetry-129')).toBe(true);
+      expect(events.some((event) => event.eventId === 'evt-telemetry-0')).toBe(false);
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            eventId: 'evt-result-retention-01',
+            type: 'result'
+          })
+        ])
+      );
+    });
+  });
+
   it('backfills the migration ledger when opening an existing v1 sqlite database', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
       writeControlPlaneDatabaseMetadataFixture(databaseFilePath, '1');
