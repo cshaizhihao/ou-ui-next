@@ -265,12 +265,22 @@ ou browser-smoke
 ou backup-state
 ```
 
+需要对在线 Agent 做一次真实 Xray inbound apply 验证时，可以在应用目录运行：
+
+```bash
+OU_UI_XRAY_SMOKE_BASE_URL=https://panel.example/ou-secure \
+OU_UI_XRAY_SMOKE_USERNAME=operator \
+OU_UI_XRAY_SMOKE_PASSWORD=... \
+npm run smoke:xray-apply -- --agent-id agent-id --report /var/lib/ou-ui-next/acceptance/xray-apply-smoke.json
+```
+
 验收重点：
 
 - 面板可以登录，静态 bundle 不包含 operator token、session secret 或登录密码。
 - `/api/v1/boundary`、受保护 API、SSE、metrics 和 CSRF 保护工作正常。
 - 至少一台 Agent 已注册并能 ACK/result。
 - Xray 或 Forwarding 任务必须有 Agent runtime evidence，不能人工直接 transition 为成功。
+- `smoke:xray-apply` 会创建一个临时 VLESS/TCP/no-security 测试 inbound，并等待 `agent-result-verified`、passed preflight、verified snapshot 和 completed command outbox 同时出现；失败会输出缺失的 evidence 环节。
 - Smoke 报告、Agent 日志、审计链和归档文件不得包含明文 token、密码、cookie 或 CSRF。
 - 控制面备份包会在生成阶段剔除 `tokenHash`、`accessTokenHash` 和 `accessTokenRaw` 等敏感字段，避免只靠导出后 preflight 才发现泄露。
 

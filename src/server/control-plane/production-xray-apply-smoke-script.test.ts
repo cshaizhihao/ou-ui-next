@@ -1,0 +1,333 @@
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
+type XrayApplySmokeScript = {
+  allocateXrayListenPort(
+    snapshot: Record<string, unknown>,
+    agentId: string,
+    options?: { listenPort?: number; portMin?: number; portMax?: number }
+  ): number;
+  buildXrayInboundTaskInput(options: {
+    agentId: string;
+    listenPort: number;
+    serverAddress: string;
+    targetId?: string;
+    targetLabel?: string;
+    targetPrefix?: string;
+    clientIdentity?: string;
+    clientEmail?: string;
+    clientCredential?: string;
+    expiresAt?: string;
+    nowMs?: number;
+  }): Record<string, unknown>;
+  collectReservedXrayPorts(snapshot: Record<string, unknown>, agentId: string): Set<number>;
+  extractXrayApplyEvidence(
+    snapshot: Record<string, unknown>,
+    taskId: string,
+    targetId: string
+  ): Record<string, unknown>;
+  parseArgs(argv: string[]): Record<string, unknown>;
+  resolveXrayApplySmokeConfig(
+    env: Record<string, string | undefined>,
+    argv: string[]
+  ): {
+    baseUrl: URL;
+    username: string;
+    password: string;
+    agentId?: string;
+    listenPort?: number;
+    portMin: number;
+    portMax: number;
+    waitMs: number;
+    pollIntervalMs: number;
+    serverAddress: string;
+    reportPath?: string;
+  };
+  selectXrayAgent(snapshot: Record<string, unknown>, preferredAgentId?: string): Record<string, unknown>;
+  summarizeXrayApplyEvidence(evidence: Record<string, unknown>): Record<string, unknown>;
+  validateXrayApplyEvidence(evidence: Record<string, unknown>, expected?: Record<string, unknown>): string[];
+};
+
+const xraySmokeScript = require('../../../scripts/production-xray-apply-smoke.cjs') as XrayApplySmokeScript;
+
+function createVerifiedSnapshot() {
+  return {
+    agents: [
+      {
+        id: 'agent-fra-01',
+        status: 'offline',
+        capabilities: ['host-agent', 'xray']
+      },
+      {
+        id: 'agent-hkg-01',
+        status: 'online',
+        capabilities: ['host-agent', 'xray', 'port-forwarding']
+      }
+    ],
+    inbounds: [
+      {
+        id: 'inbound-existing',
+        agentId: 'agent-hkg-01',
+        listenPort: 42000
+      }
+    ],
+    tasks: [
+      {
+        id: 'task-apply-01',
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'xray-live-smoke-42003',
+        status: 'succeeded'
+      }
+    ],
+    commandOutbox: [
+      {
+        taskId: 'task-apply-01',
+        commandId: 'cmd-task-apply-01',
+        status: 'completed',
+        agentId: 'agent-hkg-01'
+      }
+    ],
+    configRevisions: [
+      {
+        id: 'cfg-task-apply-01',
+        taskId: 'task-apply-01',
+        status: 'applied',
+        agentId: 'agent-hkg-01',
+        artifact: {
+          runtimeDiagnosis: {
+            state: 'ready',
+            evidenceStage: 'agent-result-verified',
+            hasRuntimeEvidence: true,
+            plannedRuntimeServices: ['ou-ui-xray.service'],
+            plannedInbound: {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 42003,
+              protocol: 'vless',
+              action: 'upsert_inbound'
+            }
+          }
+        }
+      },
+      {
+        id: 'cfg-reserved',
+        taskId: 'task-reserved',
+        status: 'applied',
+        artifact: {
+          runtimeDiagnosis: {
+            plannedInbound: {
+              agentId: 'agent-hkg-01',
+              listenPort: 42001,
+              protocol: 'vless',
+              action: 'upsert_inbound'
+            }
+          }
+        }
+      }
+    ],
+    preflightPlans: [
+      {
+        id: 'preflight-task-apply-01',
+        taskId: 'task-apply-01',
+        status: 'passed',
+        checks: []
+      }
+    ],
+    runtimeSnapshots: [
+      {
+        id: 'snapshot-before-xray-live-smoke-42003',
+        taskId: 'task-apply-01',
+        status: 'verified',
+        agentId: 'agent-hkg-01'
+      }
+    ]
+  };
+}
+
+describe('production Xray apply smoke script helpers', () => {
+  it('resolves config without putting the operator password on the command line', () => {
+    const config = xraySmokeScript.resolveXrayApplySmokeConfig(
+      {
+        OU_UI_XRAY_SMOKE_BASE_URL: 'https://panel.example/secure/',
+        OU_UI_XRAY_SMOKE_USERNAME: 'operator_001',
+        OU_UI_XRAY_SMOKE_PASSWORD: 'operator-password',
+        OU_UI_XRAY_SMOKE_AGENT_ID: 'agent-hkg-01',
+        OU_UI_XRAY_SMOKE_LISTEN_PORT: '42424',
+        OU_UI_XRAY_SMOKE_WAIT_MS: '120000',
+        OU_UI_XRAY_SMOKE_POLL_INTERVAL_MS: '2500',
+        OU_UI_XRAY_SMOKE_PORT_MIN: '42000',
+        OU_UI_XRAY_SMOKE_PORT_MAX: '42100'
+      },
+      ['--server-address', 'edge.example.com', '--report', '/tmp/xray-smoke.json']
+    );
+
+    expect(config.baseUrl.toString()).toBe('https://panel.example/secure/');
+    expect(config).toMatchObject({
+      username: 'operator_001',
+      password: 'operator-password',
+      agentId: 'agent-hkg-01',
+      listenPort: 42424,
+      waitMs: 120_000,
+      pollIntervalMs: 2_500,
+      portMin: 42_000,
+      portMax: 42_100,
+      serverAddress: 'edge.example.com',
+      reportPath: '/tmp/xray-smoke.json'
+    });
+    expect(
+      xraySmokeScript.parseArgs([
+        '--base-url',
+        'https://panel.example/panel',
+        '--agent-id',
+        'agent-hkg-01',
+        '--listen-port',
+        '42003'
+      ])
+    ).toMatchObject({
+      baseUrl: 'https://panel.example/panel',
+      agentId: 'agent-hkg-01',
+      listenPort: '42003'
+    });
+  });
+
+  it('selects an online Xray Agent and allocates an unused listen port from runtime evidence', () => {
+    const snapshot = createVerifiedSnapshot();
+
+    expect(xraySmokeScript.selectXrayAgent(snapshot)).toMatchObject({
+      id: 'agent-hkg-01',
+      status: 'online'
+    });
+    expect(xraySmokeScript.collectReservedXrayPorts(snapshot, 'agent-hkg-01')).toEqual(new Set([42000, 42001, 42003]));
+    expect(
+      xraySmokeScript.allocateXrayListenPort(
+        {
+          ...snapshot,
+          tasks: [
+            ...(snapshot.tasks as Array<Record<string, unknown>>),
+            {
+              id: 'task-pending',
+              resourceType: 'inbound',
+              status: 'queued',
+              metadata: {
+                agentId: 'agent-hkg-01',
+                listenPort: 42002
+              }
+            }
+          ]
+        },
+        'agent-hkg-01',
+        { portMin: 42000, portMax: 42005 }
+      )
+    ).toBe(42004);
+    expect(() =>
+      xraySmokeScript.allocateXrayListenPort(snapshot, 'agent-hkg-01', { listenPort: 42000 })
+    ).toThrow('already reserved');
+    expect(() => xraySmokeScript.selectXrayAgent(snapshot, 'agent-fra-01')).toThrow('not online');
+  });
+
+  it('builds a real inbound.create task while keeping reports free of client credentials', () => {
+    const taskInput = xraySmokeScript.buildXrayInboundTaskInput({
+      agentId: 'agent-hkg-01',
+      listenPort: 42003,
+      serverAddress: 'edge.example.com',
+      targetId: 'xray-live-smoke-42003',
+      targetLabel: 'Xray Live Smoke 42003',
+      clientIdentity: 'smoke-client',
+      clientEmail: 'smoke@example.test',
+      clientCredential: '11111111-1111-4111-8111-111111111111',
+      expiresAt: '2026-07-07T00:00:00.000Z'
+    });
+
+    expect(taskInput).toMatchObject({
+      operation: 'inbound.create',
+      resourceType: 'inbound',
+      targetId: 'xray-live-smoke-42003',
+      metadata: expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        xrayProtocol: 'vless',
+        listenPort: 42003,
+        security: 'none',
+        streamNetwork: 'tcp',
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'smoke-client',
+            clientCredential: '11111111-1111-4111-8111-111111111111',
+            enabled: true
+          })
+        ]
+      })
+    });
+  });
+
+  it('extracts and validates Agent-result runtime evidence from a control-plane snapshot', () => {
+    const evidence = xraySmokeScript.extractXrayApplyEvidence(
+      createVerifiedSnapshot(),
+      'task-apply-01',
+      'xray-live-smoke-42003'
+    );
+
+    expect(xraySmokeScript.validateXrayApplyEvidence(evidence, { agentId: 'agent-hkg-01', listenPort: 42003 })).toEqual(
+      []
+    );
+    expect(xraySmokeScript.summarizeXrayApplyEvidence(evidence)).toEqual(
+      expect.objectContaining({
+        taskId: 'task-apply-01',
+        taskStatus: 'succeeded',
+        configRevisionId: 'cfg-task-apply-01',
+        configRevisionStatus: 'applied',
+        preflightStatus: 'passed',
+        runtimeSnapshotStatus: 'verified',
+        commandStatus: 'completed',
+        evidenceStage: 'agent-result-verified',
+        runtimeState: 'ready',
+        listenPort: 42003,
+        protocol: 'vless'
+      })
+    );
+    expect(JSON.stringify(xraySmokeScript.summarizeXrayApplyEvidence(evidence))).not.toContain(
+      '11111111-1111-4111-8111-111111111111'
+    );
+  });
+
+  it('returns operator-actionable evidence gaps while a task is still waiting for Agent result', () => {
+    const waitingEvidence = xraySmokeScript.extractXrayApplyEvidence(
+      {
+        ...createVerifiedSnapshot(),
+        tasks: [
+          {
+            id: 'task-apply-01',
+            operation: 'inbound.create',
+            resourceType: 'inbound',
+            targetId: 'xray-live-smoke-42003',
+            status: 'running'
+          }
+        ],
+        commandOutbox: [
+          {
+            taskId: 'task-apply-01',
+            commandId: 'cmd-task-apply-01',
+            status: 'acknowledged'
+          }
+        ],
+        configRevisions: [],
+        preflightPlans: [],
+        runtimeSnapshots: []
+      },
+      'task-apply-01',
+      'xray-live-smoke-42003'
+    );
+
+    expect(xraySmokeScript.validateXrayApplyEvidence(waitingEvidence, { agentId: 'agent-hkg-01', listenPort: 42003 })).toEqual(
+      expect.arrayContaining([
+        'task status is running',
+        'Agent command status is acknowledged',
+        'runtime config revision is missing',
+        'preflight plan is missing',
+        'runtime snapshot is missing',
+        'runtime diagnosis evidenceStage is missing'
+      ])
+    );
+  });
+});

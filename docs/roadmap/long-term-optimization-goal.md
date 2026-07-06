@@ -79,6 +79,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray runtime artifacts now carry a `control-plane-compiled` runtime diagnosis with planned inbound binding, `ou-ui-xray.service`, active/disabled client counters, quota/expiry/policy-disabled reasons, and next-action hints, and task release/failure evidence surfaces that diagnosis alongside Agent command/preflight/snapshot evidence.
 - Agent result handling now stamps existing runtime diagnosis artifacts with `agent-result-verified` or `agent-result-failed`, so raw API evidence and task UI no longer disagree after a real runtime apply completes.
 - Failed Xray Agent apply results with unhealthy runtime evidence now link the failed config revision, failed preflight plan, automatic rollback task, rollback command outbox item, and active runtime health alert in one tested service-backed evidence chain.
+- A dedicated `smoke:xray-apply` production diagnostic now creates a real test Xray inbound through the public HTTP API and waits for online Agent command completion, passed preflight, verified runtime snapshot, applied config revision, and `agent-result-verified` runtime diagnosis.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 
