@@ -1241,18 +1241,6 @@ function assertAgentEventMatchesCommandTask(
   });
 }
 
-function isSameLogicalLogChunk(
-  left: Extract<AgentEventEnvelope, { type: 'log_chunk' }>,
-  right: Extract<AgentEventEnvelope, { type: 'log_chunk' }>
-) {
-  return (
-    left.agentId === right.agentId &&
-    left.taskId === right.taskId &&
-    left.commandId === right.commandId &&
-    left.payload.chunkSeq === right.payload.chunkSeq
-  );
-}
-
 function normalizeResultEventForCommand(
   command: CommandOutboxItem['command'],
   agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
@@ -2692,9 +2680,11 @@ export function createControlPlaneService({
     }
 
     if (agentEvent.type === 'log_chunk') {
-      const existingLogicalChunk = (await transaction.listAgentEvents()).some(
-        (event): event is Extract<AgentEventEnvelope, { type: 'log_chunk' }> =>
-          event.type === 'log_chunk' && isSameLogicalLogChunk(event, agentEvent)
+      const existingLogicalChunk = await transaction.findAgentLogChunk(
+        agentEvent.agentId,
+        agentEvent.taskId,
+        agentEvent.commandId,
+        agentEvent.payload.chunkSeq
       );
 
       if (existingLogicalChunk) {

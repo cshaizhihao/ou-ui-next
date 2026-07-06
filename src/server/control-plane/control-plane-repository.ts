@@ -163,6 +163,12 @@ export type ControlPlaneTransaction = {
   updateCommandOutboxItem(item: CommandOutboxItem): Promise<void>;
   insertCommandOutbox(item: CommandOutboxItem): Promise<void>;
   findAgentEvent(eventId: string): Promise<AgentEventEnvelope | undefined>;
+  findAgentLogChunk(
+    agentId: string,
+    taskId: string,
+    commandId: string,
+    chunkSeq: number
+  ): Promise<Extract<AgentEventEnvelope, { type: 'log_chunk' }> | undefined>;
   listAgentEvents(): Promise<AgentEventEnvelope[]>;
   insertAgentEvent(event: AgentEventEnvelope): Promise<void>;
   listAgentLogArchives(): Promise<AgentLogArchive[]>;

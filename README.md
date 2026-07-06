@@ -256,6 +256,7 @@ Preview / blocked 能力：
 | `OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS` | runtime credential `lastUsedAt` 写库节流间隔，默认 `60000`；认证仍逐次校验缓存 TTL 和过期时间，可设 `0` 恢复每次写库 |
 | `OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY` | 空 Agent poll、heartbeat、telemetry_sample 的 console 结构化日志采样间隔，默认 `20`；命令、失败、ACK/result 和 runtime evidence 日志不采样 |
 | `OU_UI_SQLITE_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE` | SQLite 对 heartbeat / telemetry_sample 的每 Agent 每类型保留上限，默认 `30` |
+| `OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT` | 每个 Agent 保留的命令日志事件上限，默认 `5000`；频繁跑 runtime smoke 的开发环境可调低以减少 SQLite JSON 状态写入压力 |
 | `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST` | 订阅源出站 allowlist |
 | `OU_UI_SYSTEM_ALERT_WEBHOOK_URLS` | 系统告警 webhook |
 | `OU_UI_EXTERNAL_ARCHIVE_DIRECTORY` | 外部归档目录 |

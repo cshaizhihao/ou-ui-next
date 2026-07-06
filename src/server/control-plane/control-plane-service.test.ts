@@ -3023,6 +3023,87 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('deduplicates Agent log chunks without scanning the full Agent event list', async () => {
+    const backingRepository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    const repository: typeof backingRepository = {
+      ...backingRepository,
+      async transaction(run) {
+        return backingRepository.transaction((transaction) =>
+          run({
+            ...transaction,
+            async listAgentEvents() {
+              throw new Error('listAgentEvents should not run on the Agent log chunk hot path');
+            }
+          })
+        );
+      }
+    };
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy service Agent config with indexed log chunks'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-log-chunk-indexed',
+        idempotencyKey: 'idem-service-agent-log-chunk-indexed',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    await service.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-service-agent-log-chunk-indexed-first',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-log-chunk-indexed',
+      observedAt: '2026-06-02T00:00:06.000Z',
+      payload: {
+        chunkSeq: 1,
+        stream: 'stdout',
+        content: 'first indexed command output'
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-service-agent-log-chunk-indexed-duplicate',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 2,
+      sessionId: 'sess-agent-log-chunk-indexed',
+      observedAt: '2026-06-02T00:00:07.000Z',
+      payload: {
+        chunkSeq: 1,
+        stream: 'stderr',
+        content: 'duplicate command output must not be retained'
+      }
+    });
+
+    await expect(backingRepository.listAgentEvents()).resolves.toEqual([
+      expect.objectContaining({
+        eventId: 'evt-service-agent-log-chunk-indexed-first',
+        type: 'log_chunk',
+        payload: expect.objectContaining({
+          chunkSeq: 1,
+          stream: 'stdout',
+          content: 'first indexed command output'
+        })
+      })
+    ]);
+  });
+
   it('ignores late ACK and result events after a command reaches a terminal state', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(

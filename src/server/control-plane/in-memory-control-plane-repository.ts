@@ -93,6 +93,19 @@ function createTransaction(state: ControlPlaneRepositoryState): ControlPlaneTran
       return clone(state.agentEvents.find((event) => event.eventId === eventId));
     },
 
+    async findAgentLogChunk(agentId: string, taskId: string, commandId: string, chunkSeq: number) {
+      return clone(
+        state.agentEvents.find(
+          (event): event is Extract<(typeof state.agentEvents)[number], { type: 'log_chunk' }> =>
+            event.type === 'log_chunk' &&
+            event.agentId === agentId &&
+            event.taskId === taskId &&
+            event.commandId === commandId &&
+            event.payload.chunkSeq === chunkSeq
+        )
+      );
+    },
+
     async listAgentEvents() {
       return clone(state.agentEvents);
     },
