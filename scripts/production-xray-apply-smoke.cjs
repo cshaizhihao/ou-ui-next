@@ -21,6 +21,14 @@ function parseBoolean(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? '').trim());
 }
 
+function parseBooleanDefaultTrue(value) {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+
+  return !/^(0|false|no|off)$/i.test(String(value).trim());
+}
+
 function parseArgs(argv) {
   const options = {
     positional: []
@@ -107,6 +115,16 @@ function parseArgs(argv) {
 
     if (arg === '--skip-client-actions') {
       options.clientActions = false;
+      continue;
+    }
+
+    if (arg === '--cleanup') {
+      options.cleanup = true;
+      continue;
+    }
+
+    if (arg === '--skip-cleanup') {
+      options.cleanup = false;
       continue;
     }
 
@@ -253,6 +271,10 @@ function resolveXrayApplySmokeConfig(env = process.env, argv = process.argv.slic
       args.clientActions === undefined
         ? parseBoolean(env.OU_UI_XRAY_SMOKE_CLIENT_ACTIONS)
         : Boolean(args.clientActions),
+    cleanup:
+      args.cleanup === undefined
+        ? parseBooleanDefaultTrue(env.OU_UI_XRAY_SMOKE_CLEANUP)
+        : Boolean(args.cleanup),
     reportPath: args.reportPath ?? env.OU_UI_XRAY_SMOKE_REPORT_PATH
   };
 }
@@ -305,15 +327,36 @@ function collectReservedXrayPorts(snapshot, agentId) {
     }
   }
 
-  for (const revision of readArray(snapshot?.configRevisions)) {
+  const latestRevisionByTarget = new Map();
+
+  readArray(snapshot?.configRevisions).forEach((revision, index) => {
     const diagnosis = readObject(readObject(revision?.artifact).runtimeDiagnosis);
     const plannedInbound = readObject(diagnosis.plannedInbound);
 
-    if (
-      plannedInbound.agentId === agentId &&
-      Number.isSafeInteger(plannedInbound.listenPort) &&
-      plannedInbound.action !== 'remove_inbound'
-    ) {
+    if (plannedInbound.agentId !== agentId || !Number.isSafeInteger(plannedInbound.listenPort)) {
+      return;
+    }
+
+    const targetKey =
+      typeof revision?.targetId === 'string' && revision.targetId.trim()
+        ? revision.targetId.trim()
+        : typeof revision?.id === 'string'
+          ? revision.id
+          : `${plannedInbound.agentId}:${plannedInbound.listenPort}:${index}`;
+    const revisionTime = Date.parse(revision?.appliedAt ?? revision?.failedAt ?? revision?.createdAt ?? '');
+    const rank = Number.isNaN(revisionTime) ? index : revisionTime;
+    const current = latestRevisionByTarget.get(targetKey);
+
+    if (!current || rank >= current.rank) {
+      latestRevisionByTarget.set(targetKey, {
+        rank,
+        plannedInbound
+      });
+    }
+  });
+
+  for (const { plannedInbound } of latestRevisionByTarget.values()) {
+    if (plannedInbound.action !== 'remove_inbound') {
       reserved.add(plannedInbound.listenPort);
     }
   }
@@ -324,7 +367,8 @@ function collectReservedXrayPorts(snapshot, agentId) {
     if (
       metadata.agentId === agentId &&
       task?.resourceType === 'inbound' &&
-      task?.status !== 'failed' &&
+      ['queued', 'running', 'retrying'].includes(task?.status) &&
+      task?.operation !== 'inbound.delete' &&
       Number.isSafeInteger(metadata.listenPort)
     ) {
       reserved.add(metadata.listenPort);
@@ -439,6 +483,35 @@ function buildXrayInboundUpdateTaskInput(createTaskInput, options = {}) {
         trafficLimitGb,
         clientComment: options.clientComment ?? 'runtime-smoke-update-verified'
       }))
+    }
+  };
+}
+
+function buildXrayInboundDeleteTaskInput(createTaskInput, options = {}) {
+  const metadata = readObject(createTaskInput.metadata);
+  const clients = readArray(metadata.clients);
+
+  return {
+    ...createTaskInput,
+    operation: 'inbound.delete',
+    targetLabel:
+      options.targetLabel ??
+      `${createTaskInput.targetLabel ?? metadata.customerNodeName ?? createTaskInput.targetId} Cleanup`,
+    summary: options.summary ?? 'Delete Xray runtime smoke inbound and verify Agent removal evidence',
+    metadata: {
+      ...metadata,
+      customerNodeName: options.targetLabel ?? metadata.customerNodeName,
+      enabled: false,
+      clients: clients.map((client) => ({
+        ...readObject(client),
+        enabled: false,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'runtime_smoke_cleanup'
+      }))
+    },
+    riskConfirmation: {
+      operation: 'inbound.delete',
+      targetId: createTaskInput.targetId
     }
   };
 }
@@ -678,7 +751,7 @@ function extractXrayApplyEvidence(snapshot, taskId, targetId) {
     readArray(snapshot?.tasks).find(
       (item) =>
         item?.targetId === targetId &&
-        (item?.operation === 'inbound.create' || item?.operation === 'inbound.update')
+        (item?.operation === 'inbound.create' || item?.operation === 'inbound.update' || item?.operation === 'inbound.delete')
     );
   const configRevision = findByTaskId(snapshot?.configRevisions, taskId);
   const preflightPlan = findByTaskId(snapshot?.preflightPlans, taskId);
@@ -753,7 +826,9 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
     errors.push('runtime diagnosis does not have Agent runtime evidence');
   }
 
-  if (evidence.runtimeDiagnosis.state !== 'ready') {
+  const expectedRuntimeState = expected.runtimeState ?? 'ready';
+
+  if (evidence.runtimeDiagnosis.state !== expectedRuntimeState) {
     errors.push(`runtime diagnosis state is ${evidence.runtimeDiagnosis.state ?? 'missing'}`);
   }
 
@@ -769,8 +844,14 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
     errors.push(`planned inbound protocol is ${plannedInbound.protocol ?? 'missing'}`);
   }
 
-  if (plannedInbound.action !== 'upsert_inbound') {
+  const expectedPlannedInboundAction = expected.plannedInboundAction ?? 'upsert_inbound';
+
+  if (plannedInbound.action !== expectedPlannedInboundAction) {
     errors.push(`planned inbound action is ${plannedInbound.action ?? 'missing'}`);
+  }
+
+  if (expected.plannedBindingStatus && evidence.runtimeDiagnosis.plannedBindingStatus !== expected.plannedBindingStatus) {
+    errors.push(`planned binding status is ${evidence.runtimeDiagnosis.plannedBindingStatus ?? 'missing'}`);
   }
 
   if (!readArray(evidence.runtimeDiagnosis.plannedRuntimeServices).includes('ou-ui-xray.service')) {
@@ -813,6 +894,7 @@ function summarizeXrayApplyEvidence(evidence) {
     action: plannedInbound.action,
     runtimeState: evidence.runtimeDiagnosis.state,
     evidenceStage: evidence.runtimeDiagnosis.evidenceStage,
+    plannedBindingStatus: evidence.runtimeDiagnosis.plannedBindingStatus,
     xrayClientAction: taskMetadata.xrayClientAction,
     xrayClientActionTargetEmail: taskMetadata.xrayClientActionTargetEmail,
     clientCounters,
@@ -919,6 +1001,7 @@ async function runXrayApplySmoke(config) {
       agentId: agent.id,
       listenPort,
       targetId: taskInput.targetId,
+      cleanup: config.cleanup,
       phases: []
     });
 
@@ -971,6 +1054,7 @@ async function runXrayApplySmoke(config) {
 
     let addClientEvidenceSummary;
     let deleteClientEvidenceSummary;
+    let cleanupEvidenceSummary;
 
     if (config.clientActions) {
       const addClientRequest = buildXrayClientAddActionRequest(taskInput);
@@ -1046,12 +1130,48 @@ async function runXrayApplySmoke(config) {
       );
     }
 
+    if (config.cleanup) {
+      const deleteTaskInput = buildXrayInboundDeleteTaskInput(taskInput);
+      const deletedInboundTask = await createTask(config, context, deleteTaskInput, 'delete Xray smoke inbound task');
+      logPass('xray cleanup delete task created', deletedInboundTask.taskId);
+
+      const { evidence: cleanupEvidence } = await waitForXrayApplyEvidence(
+        config,
+        context,
+        deletedInboundTask.taskId,
+        deleteTaskInput.targetId,
+        {
+          agentId: agent.id,
+          listenPort,
+          operation: 'inbound.delete',
+          plannedInboundAction: 'remove_inbound',
+          plannedBindingStatus: 'releasing',
+          runtimeState: 'waiting',
+          clientCounters: {
+            total: 1,
+            active: 0
+          }
+        }
+      );
+      cleanupEvidenceSummary = summarizeXrayApplyEvidence(cleanupEvidence);
+      report.phases.push({
+        name: 'cleanup-delete',
+        taskId: deletedInboundTask.taskId,
+        evidence: cleanupEvidenceSummary
+      });
+      logPass(
+        'cleanup delete agent runtime evidence verified',
+        `${cleanupEvidenceSummary.configRevisionId} ${cleanupEvidenceSummary.evidenceStage}`
+      );
+    }
+
     markReportComplete(report, 'passed', {
-      evidence: deleteClientEvidenceSummary ?? updateEvidenceSummary,
+      evidence: cleanupEvidenceSummary ?? deleteClientEvidenceSummary ?? updateEvidenceSummary,
       createEvidence: evidenceSummary,
       updateEvidence: updateEvidenceSummary,
       addClientEvidence: addClientEvidenceSummary,
-      deleteClientEvidence: deleteClientEvidenceSummary
+      deleteClientEvidence: deleteClientEvidenceSummary,
+      cleanupEvidence: cleanupEvidenceSummary
     });
 
     if (config.reportPath) {
@@ -1101,6 +1221,8 @@ Options:
   --target-prefix <prefix>     Test inbound target prefix
   --client-actions             Also verify add-client and delete-client through /api/v1/xray-client-actions
   --skip-client-actions        Disable client action phases when enabled by env
+  --cleanup                    Delete the smoke inbound after verification, default on
+  --skip-cleanup               Leave the smoke inbound in place for manual inspection
   --timeout-ms <ms>            Per-request timeout, default ${defaultTimeoutMs}
   --wait-ms <ms>               Total Agent evidence wait, default ${defaultWaitMs}
   --poll-interval-ms <ms>      Snapshot polling interval, default ${defaultPollIntervalMs}
@@ -1131,6 +1253,7 @@ module.exports = {
   allocateXrayListenPort,
   buildXrayClientAddActionRequest,
   buildXrayClientDeleteActionRequest,
+  buildXrayInboundDeleteTaskInput,
   buildXrayInboundTaskInput,
   buildXrayInboundUpdateTaskInput,
   collectReservedXrayPorts,
