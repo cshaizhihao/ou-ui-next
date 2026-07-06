@@ -958,6 +958,14 @@ function readFiniteNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function hasRuntimeReleaseEvidence(bundle: RuntimeReleaseBundle) {
+  return (
+    bundle.configRevision?.status === 'applied' ||
+    bundle.commandOutboxItems.some((item) => item.status === 'completed') ||
+    (bundle.preflightPlan?.status === 'passed' && bundle.runtimeSnapshot?.status === 'verified')
+  );
+}
+
 function readForwardingRuntimeDiagnosis(bundle: RuntimeReleaseBundle): ForwardingRuntimeDiagnosisEvidence | undefined {
   if (bundle.configRevision?.moduleKind !== 'port-forwarding') {
     return undefined;
@@ -985,7 +993,7 @@ function readForwardingRuntimeDiagnosis(bundle: RuntimeReleaseBundle): Forwardin
     reasons,
     blockedControls: readStringList(value.blockedControls),
     nextActions,
-    hasRuntimeEvidence: value.hasRuntimeEvidence === true,
+    hasRuntimeEvidence: value.hasRuntimeEvidence === true || hasRuntimeReleaseEvidence(bundle),
     impactedBindingCount,
     evidenceStage: typeof value.evidenceStage === 'string' && value.evidenceStage.trim() ? value.evidenceStage.trim() : 'unknown',
     plannedBindingStatus:
@@ -1020,7 +1028,7 @@ function readXrayRuntimeDiagnosis(bundle: RuntimeReleaseBundle): XrayRuntimeDiag
     state: value.state as XrayRuntimeDiagnosisState,
     reasons,
     nextActions,
-    hasRuntimeEvidence: value.hasRuntimeEvidence === true,
+    hasRuntimeEvidence: value.hasRuntimeEvidence === true || hasRuntimeReleaseEvidence(bundle),
     evidenceStage: typeof value.evidenceStage === 'string' && value.evidenceStage.trim() ? value.evidenceStage.trim() : 'unknown',
     plannedBindingStatus:
       typeof value.plannedBindingStatus === 'string' && value.plannedBindingStatus.trim()

@@ -260,6 +260,14 @@ const commandOutboxSummary: CommandOutboxSummary = {
   resultAt: '2026-06-02T00:00:08.000Z'
 };
 
+const xrayCommandOutboxSummary: CommandOutboxSummary = {
+  ...commandOutboxSummary,
+  id: 'outbox-xray-release-001',
+  taskId: xrayTask.id,
+  commandId: 'cmd-xray-apply-001',
+  agentId: 'agent-hkg-01'
+};
+
 const agentLogArchive: AgentLogArchive = {
   id: 'agent-log-archive-test',
   agentId: 'agent-hkg-01',
@@ -712,10 +720,11 @@ describe('TasksPage', () => {
 
     render(
       <TasksPage
-        tasks={[xrayTask]}
-        configRevisions={[xrayConfigRevision]}
-        preflightPlans={[xrayPreflightPlan]}
-        runtimeSnapshots={[xrayRuntimeSnapshot]}
+        tasks={[{ ...xrayTask, status: 'succeeded' }]}
+        commandOutbox={[xrayCommandOutboxSummary]}
+        configRevisions={[{ ...xrayConfigRevision, status: 'applied' }]}
+        preflightPlans={[{ ...xrayPreflightPlan, status: 'passed' }]}
+        runtimeSnapshots={[{ ...xrayRuntimeSnapshot, status: 'verified' }]}
         language="en"
         onRollbackTask={vi.fn()}
         onRefresh={vi.fn()}
@@ -729,7 +738,7 @@ describe('TasksPage', () => {
     expect(rowDiagnosis).toHaveClass('tasks-xray-runtime-diagnosis');
     expect(rowDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
     expect(rowDiagnosis).toHaveTextContent('control-plane-compiled');
-    expect(rowDiagnosis).toHaveTextContent('1 active / 2 clients / 1 disabled / waiting for Agent evidence');
+    expect(rowDiagnosis).toHaveTextContent('1 active / 2 clients / 1 disabled / runtime evidence present');
     expect(rowDiagnosis).toHaveTextContent('agent-hkg-01 · 0.0.0.0:443 · vless/tcp/tls · upsert_inbound');
     expect(rowDiagnosis).toHaveTextContent('ou-ui-xray.service');
     expect(rowDiagnosis).toHaveTextContent('Quota exceeded');
