@@ -170,11 +170,15 @@ describe('sqlite control-plane repository', () => {
 
       const events = await repository.listAgentEvents();
 
-      expect(events.filter((event) => event.type === 'heartbeat')).toHaveLength(120);
-      expect(events.filter((event) => event.type === 'telemetry_sample')).toHaveLength(120);
+      expect(events.filter((event) => event.type === 'heartbeat')).toHaveLength(30);
+      expect(events.filter((event) => event.type === 'telemetry_sample')).toHaveLength(30);
       expect(events.some((event) => event.eventId === 'evt-heartbeat-129')).toBe(true);
+      expect(events.some((event) => event.eventId === 'evt-heartbeat-100')).toBe(true);
+      expect(events.some((event) => event.eventId === 'evt-heartbeat-99')).toBe(false);
       expect(events.some((event) => event.eventId === 'evt-heartbeat-0')).toBe(false);
       expect(events.some((event) => event.eventId === 'evt-telemetry-129')).toBe(true);
+      expect(events.some((event) => event.eventId === 'evt-telemetry-100')).toBe(true);
+      expect(events.some((event) => event.eventId === 'evt-telemetry-99')).toBe(false);
       expect(events.some((event) => event.eventId === 'evt-telemetry-0')).toBe(false);
       expect(events).toEqual(
         expect.arrayContaining([

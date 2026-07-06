@@ -24,7 +24,8 @@ type CreateSqliteControlPlaneRepositoryInput = {
 const SQLITE_SCHEMA_VERSION = 2;
 const SQLITE_STATE_ROW_ID = 1;
 const SQLITE_STATE_FORMAT = 'json-state-v1';
-const SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE = 120;
+const SQLITE_DEFAULT_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE = 30;
+const SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE_ENV = 'OU_UI_SQLITE_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE';
 const SQLITE_HIGH_FREQUENCY_AGENT_EVENT_TYPES = new Set(['heartbeat', 'telemetry_sample']);
 const SQLITE_MIGRATIONS = [
   {
@@ -516,6 +517,17 @@ function rebuildEntityIndex(database: SqliteDatabase, state: ControlPlaneReposit
   }
 }
 
+function readMaxHighFrequencyAgentEventsPerType() {
+  const rawValue = process.env[SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE_ENV];
+  const parsedValue = rawValue ? Number.parseInt(rawValue, 10) : NaN;
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return SQLITE_DEFAULT_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE;
+  }
+
+  return Math.min(parsedValue, 500);
+}
+
 function readStateFromDatabase(database: SqliteDatabase, originLabel: string): ControlPlaneRepositoryState {
   assertSupportedDatabaseMetadata(database, originLabel);
   assertSupportedMigrationLedger(database, originLabel);
@@ -533,6 +545,7 @@ function compactHighFrequencyAgentEventsForPersistence(
   state: ControlPlaneRepositoryState
 ): ControlPlaneRepositoryState {
   const counters = new Map<string, number>();
+  const maxEventsPerType = readMaxHighFrequencyAgentEventsPerType();
   const agentEvents = state.agentEvents.filter((event) => {
     if (!SQLITE_HIGH_FREQUENCY_AGENT_EVENT_TYPES.has(event.type)) {
       return true;
@@ -542,7 +555,7 @@ function compactHighFrequencyAgentEventsForPersistence(
     const count = counters.get(key) ?? 0;
     counters.set(key, count + 1);
 
-    return count < SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE;
+    return count < maxEventsPerType;
   });
 
   return agentEvents.length === state.agentEvents.length ? state : { ...state, agentEvents };
