@@ -1478,6 +1478,10 @@ describe('OpenAPI v1 contract', () => {
       minLength: 1,
       maxLength: 255
     });
+    expect(getSchemaProperty(schemas.TaskMetadata, 'trafficMultiplier')).toMatchObject({
+      type: 'number',
+      minimum: 0
+    });
     expect(getSchemaProperty(schemas.TaskMetadata, 'clients')).toMatchObject({
       type: 'array',
       minItems: 1,
@@ -1490,6 +1494,10 @@ describe('OpenAPI v1 contract', () => {
       type: 'string',
       minLength: 1,
       maxLength: 255
+    });
+    expect(getSchemaProperty(schemas.XrayClientTaskMetadata, 'trafficMultiplier')).toMatchObject({
+      type: 'number',
+      minimum: 0
     });
     expect(getSchemaProperty(schemas.XrayClientTaskMetadata, 'runtimeDisabledByPolicy')).toMatchObject({
       type: 'boolean'

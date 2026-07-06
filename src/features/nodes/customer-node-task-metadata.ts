@@ -2,7 +2,7 @@ import type { CustomerNodeConfigMetadata } from './nodes-page';
 
 type CustomerNodeTaskOperation = 'inbound.create' | 'inbound.update' | 'inbound.delete';
 type MetadataValue = string | number | boolean | string[] | undefined;
-export type CustomerNodeTaskMetadata = Record<string, string | number | boolean | string[]>;
+export type CustomerNodeTaskMetadata = Record<string, unknown>;
 
 function compactMetadata(input: Record<string, MetadataValue>): CustomerNodeTaskMetadata {
   return Object.fromEntries(
@@ -40,6 +40,55 @@ function createDeleteMetadata(metadata: CustomerNodeConfigMetadata) {
   });
 }
 
+function createClientMetadata(metadata: CustomerNodeConfigMetadata) {
+  return {
+    ...compactMetadata({
+      clientIdentity: metadata.clientIdentity,
+      clientEmail: metadata.clientEmail,
+      clientCredential: metadata.clientCredential,
+      clientLevel: metadata.clientLevel,
+      clientComment: metadata.clientComment,
+      telegramId: metadata.telegramId,
+      resetPolicy: metadata.resetPolicy,
+      flow: metadata.flow,
+      ipLimit: metadata.ipLimit,
+      trafficMultiplier: metadata.trafficMultiplier,
+      trafficLimitGb: metadata.trafficLimitGb,
+      monthlyResetDay: metadata.monthlyResetDay,
+      currentUsedTrafficGb: metadata.currentUsedTrafficGb,
+      remainingDays: metadata.remainingDays,
+      expiresAt: metadata.expiresAt,
+      quotaExceeded: metadata.quotaExceeded,
+      clientExpired: metadata.clientExpired,
+      runtimeDisabledByPolicy: metadata.runtimeDisabledByPolicy,
+      guardrailReason: metadata.guardrailReason,
+      subscriptionRule: metadata.subscriptionRule,
+      enabled: metadata.enabled
+    }),
+    ...compactMetadata(
+      metadata.xrayProtocol === 'vmess'
+        ? {
+            vmessSecurity: metadata.vmessSecurity
+          }
+        : {}
+    ),
+    ...compactMetadata(
+      metadata.xrayProtocol === 'shadowsocks'
+        ? {
+            shadowsocksMethod: metadata.shadowsocksMethod
+          }
+        : {}
+    ),
+    ...compactMetadata(
+      metadata.xrayProtocol === 'hysteria'
+        ? {
+            hysteriaAuth: metadata.hysteriaAuth
+          }
+        : {}
+    )
+  };
+}
+
 function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
   const common = compactMetadata({
     nodeId: metadata.nodeId,
@@ -74,6 +123,10 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
     currentUsedTrafficGb: metadata.currentUsedTrafficGb,
     remainingDays: metadata.remainingDays,
     expiresAt: metadata.expiresAt,
+    quotaExceeded: metadata.quotaExceeded,
+    clientExpired: metadata.clientExpired,
+    runtimeDisabledByPolicy: metadata.runtimeDisabledByPolicy,
+    guardrailReason: metadata.guardrailReason,
     subscriptionRule: metadata.subscriptionRule,
     enabled: metadata.enabled
   });
@@ -110,7 +163,8 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
             realityShortId: metadata.realityShortId
           }
         : {}
-    )
+    ),
+    clients: [createClientMetadata(metadata)]
   };
 }
 

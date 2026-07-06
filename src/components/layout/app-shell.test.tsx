@@ -1587,7 +1587,13 @@ describe('AppShell', () => {
           metadata: expect.objectContaining({
             customerNodeName: 'Primary VLESS Gateway',
             clientEmail: 'ops-hkg',
-            enabled: false
+            enabled: false,
+            clients: [
+              expect.objectContaining({
+                clientEmail: 'ops-hkg',
+                enabled: false
+              })
+            ]
           })
         }),
         expect.objectContaining({
@@ -1620,7 +1626,13 @@ describe('AppShell', () => {
           targetId: 'inbound-vless-hkg-443',
           metadata: expect.objectContaining({
             clientEmail: 'ops-hkg',
-            enabled: false
+            enabled: false,
+            clients: [
+              expect.objectContaining({
+                clientEmail: 'ops-hkg',
+                enabled: false
+              })
+            ]
           })
         }),
         expect.objectContaining({
@@ -1669,7 +1681,13 @@ describe('AppShell', () => {
           targetId: 'inbound-vless-hkg-443',
           metadata: expect.objectContaining({
             clientEmail: 'ops-hkg',
-            enabled: true
+            enabled: true,
+            clients: [
+              expect.objectContaining({
+                clientEmail: 'ops-hkg',
+                enabled: true
+              })
+            ]
           })
         }),
         expect.objectContaining({
@@ -2621,7 +2639,14 @@ describe('AppShell', () => {
             xrayProtocol: 'vless',
             listenPort: expect.any(Number),
             expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            subscriptionRule: 'region:hk AND tier:premium'
+            subscriptionRule: 'region:hk AND tier:premium',
+            clients: [
+              expect.objectContaining({
+                clientEmail: 'Acme',
+                subscriptionRule: 'region:hk AND tier:premium',
+                enabled: true
+              })
+            ]
           })
         }),
         expect.any(Object)

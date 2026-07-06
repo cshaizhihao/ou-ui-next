@@ -6171,6 +6171,9 @@ components:
         ipLimit:
           type: integer
           minimum: 0
+        trafficMultiplier:
+          type: number
+          minimum: 0
         trafficLimitGb:
           type: integer
           minimum: 0
@@ -6366,6 +6369,9 @@ components:
           maxLength: 32
         ipLimit:
           type: integer
+          minimum: 0
+        trafficMultiplier:
+          type: number
           minimum: 0
         requestLimitPerHour:
           type: integer

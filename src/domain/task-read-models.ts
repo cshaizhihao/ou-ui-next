@@ -36,6 +36,12 @@ function readNumber(metadata: Record<string, unknown> | undefined, key: string, 
   return fallback;
 }
 
+function readTrafficMultiplier(metadata: Record<string, unknown> | undefined, fallback: XrayClient['trafficMultiplier']) {
+  const value = readNumber(metadata, 'trafficMultiplier', fallback ?? 1);
+
+  return value === 0.5 || value === 1 || value === 1.5 || value === 2 ? value : fallback;
+}
+
 function readBoolean(metadata: Record<string, unknown> | undefined, key: string, fallback: boolean) {
   const value = metadata?.[key];
   return typeof value === 'boolean' ? value : fallback;
@@ -390,6 +396,7 @@ function createXrayClientsFromTask(input: {
       comment: readString(clientMetadata, 'clientComment', ''),
       tgId: readString(clientMetadata, 'telegramId', ''),
       resetPolicy: readResetPolicy(clientMetadata),
+      trafficMultiplier: readTrafficMultiplier(clientMetadata, readTrafficMultiplier(metadata, 1)),
       trafficLimitBytes: bytesFromGb(trafficLimitGb),
       usedTrafficBytes: bytesFromGb(currentUsedTrafficGb),
       monthlyResetDay,

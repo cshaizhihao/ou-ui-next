@@ -30,6 +30,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 
 - Xray customer node 不再只按单 client 原型建模，runtime artifact 已支持 `metadata.clients[]` 编译为多 client inbound、逐 client policy 和逐 client share URI。
 - Xray inbound create/update 的 `metadata.clients[]` 已进入 API contract / OpenAPI，Control Plane 会拒绝重复的 client identity、email 或 subscription rule。
+- 客户节点 UI 发出的 Xray create/update 任务会同时携带结构化 `metadata.clients[]`，顶层 client 字段仅作为兼容层，并保留配额、到期、guardrail 和流量倍率证据。
 - Xray inbound delete artifact 会生成 `remove_inbound`，并强制清空 runtime `settings.clients`，避免删除任务仍携带 active client evidence。
 - Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
 - Forwarding artifact 和工作区会显式声明 Agent runtime 已支持和未支持的控制项；artifact 会携带编译期 runtime diagnosis，规则行会展示 ready / waiting / degraded / blocked / failed 诊断，避免把 `proxyProtocol`、IP 级限速或连接数限制误写成已完整落地。
@@ -40,7 +41,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 
 | 方向 | V2.0.0 变化 |
 | --- | --- |
-| Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、结构化 `clients[]` 校验、delete remove artifact、Xray config preflight、systemd runtime restart |
+| Xray inbound | 支持多 client artifact、逐 client policy、逐 client share URI、UI/API 结构化 `clients[]` 校验、delete remove artifact、Xray config preflight、systemd runtime restart |
 | Client guardrail | Agent profile 读取支持 `clientPolicies[]` 展开，配额和过期策略可以按 client 评估 |
 | Forwarding runtime | TCP/UDP/tcp+udp 转发、GOST 规则级限速、nftables 计数继续保留；forward/tunnel 入队前检查端口绑定冲突；未实现控制项进入 runtime capability 状态；artifact 和规则行展示运行时诊断和下一步动作 |
 | 订阅输出 | 保留 URI、v2ray、Clash/Mihomo、sing-box、Shadowrocket/Stash 等输出链路；订阅身份和导出配置都可选择 public output formats，并支持访问凭据轮换 |
@@ -154,6 +155,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - `vless`、`vmess`、`trojan`、`shadowsocks` inbound artifact。
 - TLS / Reality stream settings 编译。
 - 多 client inbound artifact：`metadata.clients[]` 会生成 Xray `settings.clients`、`clientPolicies[]` 和 `subscription.shareUris[]`。
+- 客户节点新增、编辑、启停、续期、加量等 UI 操作会提交结构化 `metadata.clients[]`，并保留 quota / expiry / guardrail / `trafficMultiplier` 证据。
 - 被 quota / expiry guardrail 标记为 `runtimeDisabledByPolicy` 的 client 会保留在 `clientPolicies[]` 和订阅诊断中，但不会进入实际 Xray `settings.clients`。
 - 自动 guardrail 任务会按 client 派生 disable / resume intent，多 client inbound 不再因为共享一个 inbound 而整体跳过。
 - 同端口同协议 inbound fragment 合并，保留独立 client profile。

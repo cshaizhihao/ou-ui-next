@@ -169,6 +169,10 @@ export type CustomerNodeConfigMetadata = {
   currentUsedTrafficGb: number;
   remainingDays: number;
   expiresAt?: string;
+  quotaExceeded?: boolean;
+  clientExpired?: boolean;
+  runtimeDisabledByPolicy?: boolean;
+  guardrailReason?: string;
   subscriptionRule: string;
   subscriptionClientId?: string;
   subId?: string;
@@ -2124,6 +2128,10 @@ function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): Custome
     currentUsedTrafficGb: node.currentUsedTrafficGb,
     remainingDays: node.remainingDays,
     expiresAt: node.expiresAt,
+    quotaExceeded: node.quotaExceeded,
+    clientExpired: node.clientExpired,
+    runtimeDisabledByPolicy: node.runtimeDisabledByPolicy,
+    guardrailReason: node.guardrailReason,
     subscriptionRule: node.subscriptionRule,
     enabled: node.enabled
   };
@@ -3178,6 +3186,10 @@ export function NodesPage({
         currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
         remainingDays: nextNode.remainingDays,
         expiresAt: nextNode.expiresAt,
+        quotaExceeded: nextNode.quotaExceeded,
+        clientExpired: nextNode.clientExpired,
+        runtimeDisabledByPolicy: nextNode.runtimeDisabledByPolicy,
+        guardrailReason: nextNode.guardrailReason,
         subscriptionRule: nextNode.subscriptionRule,
         subscriptionClientId: subscriptionMaterial.subscriptionClientId,
         subId: subscriptionMaterial.subId,

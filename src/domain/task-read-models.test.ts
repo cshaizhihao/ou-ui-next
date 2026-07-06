@@ -132,7 +132,8 @@ describe('task read models', () => {
             clientCredential: 'alice-token',
             clientEmail: 'alice@example.com',
             trafficLimitGb: 100,
-            monthlyResetDay: 5
+            monthlyResetDay: 5,
+            trafficMultiplier: 1.5
           },
           {
             clientIdentity: 'bob',
@@ -150,7 +151,8 @@ describe('task read models', () => {
     expect(inbound?.clients.map((client) => client.email)).toEqual(['alice@example.com', 'bob@example.com']);
     expect(inbound?.clients[0]).toMatchObject({
       trafficLimitBytes: 100 * 1024 * 1024 * 1024,
-      monthlyResetDay: 5
+      monthlyResetDay: 5,
+      trafficMultiplier: 1.5
     });
     expect(inbound?.clients[1]).toMatchObject({
       trafficLimitBytes: 200 * 1024 * 1024 * 1024,

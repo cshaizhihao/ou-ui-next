@@ -1634,6 +1634,7 @@ describe('v1 API runtime contract', () => {
             clientEmail: 'alice@example.com',
             subscriptionRule: 'alice-sub',
             trafficLimitGb: 100,
+            trafficMultiplier: 1.5,
             monthlyResetDay: 5,
             remainingDays: 30,
             expiresAt: '2026-12-31'
@@ -1657,6 +1658,7 @@ describe('v1 API runtime contract', () => {
         clients: [
           {
             clientIdentity: 'alice',
+            trafficMultiplier: 1.5,
             expiresAt: '2026-12-31T23:59:59.000Z'
           },
           {

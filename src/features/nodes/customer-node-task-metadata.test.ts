@@ -76,7 +76,21 @@ describe('customer node task metadata', () => {
         security: 'reality',
         trafficMultiplier: 1.5,
         expiresAt: '2026-08-01T00:00:00.000Z',
-        realityPrivateKey: 'server-private-key'
+        realityPrivateKey: 'server-private-key',
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'acme-client',
+            clientEmail: 'acme@example.com',
+            clientCredential: 'not-a-uuid',
+            trafficMultiplier: 1.5,
+            trafficLimitGb: 100,
+            monthlyResetDay: 1,
+            currentUsedTrafficGb: 0,
+            remainingDays: 30,
+            expiresAt: '2026-08-01T00:00:00.000Z',
+            enabled: true
+          })
+        ]
       })
     );
     expect(request.metadata).not.toHaveProperty('hysteriaAuth');

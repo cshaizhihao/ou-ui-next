@@ -386,6 +386,10 @@ function createCustomerNodeMetadataFromInbound(
     currentUsedTrafficGb: gbFromBytes(client.manualUsedTrafficBytes ?? 0),
     remainingDays,
     expiresAt: client.expiresAt,
+    quotaExceeded: client.quotaExceeded,
+    clientExpired: client.clientExpired,
+    runtimeDisabledByPolicy: client.runtimeDisabledByPolicy,
+    guardrailReason: client.guardrailReason,
     subscriptionRule: inbound.subscriptionRule ?? 'manual',
     enabled
   };
