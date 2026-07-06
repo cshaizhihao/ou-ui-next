@@ -6394,6 +6394,10 @@ components:
           type: string
           description: Optional sha256 hash of the raw public subscription access token. HTTP JSON and SSE responses redact this field.
           pattern: '^sha256:[a-f0-9]{64}$'
+        accessTokenRaw:
+          type: string
+          description: Optional one-time raw public subscription access token accepted only on task creation/update. The HTTP Control Plane converts it to accessTokenHash before persistence and does not return it.
+          minLength: 1
         trafficLimitGb:
           type: integer
           minimum: 0

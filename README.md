@@ -213,12 +213,12 @@ Preview / blocked 能力：
 - 订阅身份和导出配置都可选择 public output formats，含 Shadowrocket / Stash。
 - 订阅链接抽屉支持门户链接、二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和访问凭据轮换；轮换会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL。
 - `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、到期、用量和生成节点，并与公开订阅下载共享 `requestLimitPerHour` 限流桶。
-- 公开订阅下载和门户支持可选 `accessTokenHash` 校验；配置该 hash 后，请求必须通过 `?token=`、`?access_token=` 或 `Authorization: Bearer` 提交匹配 raw token。HTTP JSON/SSE 响应会移除 `accessTokenHash` / `tokenHash` 字段。
+- 公开订阅下载和门户支持可选 `accessTokenHash` 校验；配置该 hash 后，请求必须通过 `?token=`、`?access_token=` 或 `Authorization: Bearer` 提交匹配 raw token。HTTP task 创建/更新可接收一次性 `metadata.accessTokenRaw`，会在入队前转换为 `accessTokenHash` 并剔除 raw；HTTP JSON/SSE 响应会移除 `accessTokenHash` / `tokenHash` 字段。
 
 后续重点：
 
 - 完整独立用户订阅门户。
-- UI 一次性 raw token 签发、泄露撤销和设备级绑定。
+- UI 一次性 raw token 展示/交付、泄露撤销和设备级绑定。
 - 更完整的导入诊断报告：原始文件片段定位、格式转换 diff、节点不兼容修复建议。
 - proxy group / rule provider 模板化能力。
 
@@ -294,7 +294,7 @@ P0：
 
 P1：
 
-- 订阅门户、UI 一次性 raw token 签发、泄露撤销和设备级绑定。
+- 订阅门户、UI 一次性 raw token 展示/交付、泄露撤销和设备级绑定。
 - Tunnel entry/exit、质量探测、故障切换和运行状态面板。
 - SQLite v2 已提供可重建的领域实体索引表；完整强 schema、增量查询和 HA 仍需继续推进。
 - 更接近 3X-UI 的 Xray hot diff / reload 管线。

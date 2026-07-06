@@ -1312,6 +1312,10 @@ describe('OpenAPI v1 contract', () => {
       type: 'string',
       pattern: '^sha256:[a-f0-9]{64}$'
     });
+    expect(getSchemaProperty(document.components.schemas.TaskMetadata, 'accessTokenRaw')).toMatchObject({
+      type: 'string',
+      minLength: 1
+    });
     expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
       expect.arrayContaining([
         'id',

@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import {
   selectSubscriptionExportProfileForClient,
   type AuditLog,
+  type CreateTaskInput,
   type DeployTask,
   type DeployTaskStatus,
   type SystemAlert,
@@ -1705,6 +1706,26 @@ function verifyPublicSubscriptionAccessToken(client: SubscriptionClientIdentity,
   }
 }
 
+function normalizeCreateTaskSubscriptionAccessToken(input: CreateTaskInput): CreateTaskInput {
+  const rawToken = input.metadata?.accessTokenRaw;
+
+  if (typeof rawToken !== 'string') {
+    return input;
+  }
+
+  const metadata = { ...input.metadata };
+  delete metadata.accessTokenRaw;
+
+  if (rawToken.trim()) {
+    metadata.accessTokenHash = createPublicSubscriptionAccessTokenHash(rawToken.trim());
+  }
+
+  return {
+    ...input,
+    metadata
+  };
+}
+
 async function resolvePublicSubscriptionClient(
   api: ControlPlaneApi,
   path: { securePath: string; subId: string }
@@ -2961,7 +2982,7 @@ async function routeRequest(
 
   if (method === 'POST' && url.pathname === '/api/v1/tasks') {
     const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
-    const input = parseCreateTaskRequest(await readJsonBody(request));
+    const input = normalizeCreateTaskSubscriptionAccessToken(parseCreateTaskRequest(await readJsonBody(request)));
     const task = await api.createTask(input, context);
     logTaskEvent(options, request, 'task.created', task, context);
     sendData(response, context.requestId, task, 201, task.id);

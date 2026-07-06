@@ -2184,6 +2184,58 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('hashes raw subscription access tokens before task persistence', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const rawToken = 'ou_one_time_raw_token_2026';
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-raw-token-client',
+          'Idempotency-Key': 'idem-public-sub-raw-token-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-raw-token',
+          targetLabel: 'Raw Token Subscription',
+          summary: 'Create raw token subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-raw-token',
+            customerName: 'Raw Token Customer',
+            displayName: 'Raw Token Subscription',
+            subId: 'sub_raw_token',
+            email: 'raw-token@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            remainingDays: 30,
+            outputFormats: ['uri'],
+            formats: ['plain'],
+            accessTokenPreview: 'ou_one...2026',
+            accessTokenRaw: rawToken,
+            securePathPreview: '/rawTokenProtectedPath2026',
+            generatedNodeCount: 0
+          }
+        })
+      });
+      const createClientEnvelope = await createClientResponse.json();
+      const missingTokenResponse = await fetch(`${baseUrl}/sub/rawTokenProtectedPath2026/uri/sub_raw_token`);
+      const tokenResponse = await fetch(
+        `${baseUrl}/sub/rawTokenProtectedPath2026/uri/sub_raw_token?token=${encodeURIComponent(rawToken)}`
+      );
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
+      const snapshotEnvelope = await snapshotResponse.json();
+
+      expect(createClientResponse.status).toBe(201);
+      expect(JSON.stringify(createClientEnvelope.data)).not.toContain(rawToken);
+      expect(JSON.stringify(createClientEnvelope.data)).not.toContain('accessTokenRaw');
+      expect(missingTokenResponse.status).toBe(401);
+      expect(tokenResponse.status).toBe(200);
+      expect(JSON.stringify(snapshotEnvelope.data)).not.toContain(rawToken);
+      expect(JSON.stringify(snapshotEnvelope.data)).not.toContain('accessTokenRaw');
+      expect(JSON.stringify(snapshotEnvelope.data)).not.toContain(subscriptionAccessTokenHash(rawToken));
+    });
+  });
+
   it('rate limits public subscription downloads per subscription identity', async () => {
     await withServerApi(createMockApi(), async (baseUrl) => {
       const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
