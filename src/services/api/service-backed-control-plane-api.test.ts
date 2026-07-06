@@ -12,7 +12,7 @@ import {
   type SubscriptionSource,
   type XrayInbound
 } from '../../domain';
-import { seedAgents, seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
+import { seedAgents, seedForwardRules, seedInbounds, seedNodes, seedPermissionGrants } from '../mock/mock-data';
 import type { CommandOutboxItem } from './control-plane-api';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -606,6 +606,81 @@ describe('service-backed control plane read model hydration', () => {
         mutationContext('xray-capability-denied')
       )
     ).rejects.toThrow(/agent_runtime_capability\.unsupported/);
+  });
+
+  it('rejects Xray inbound tasks that reuse an Agent listener with a different protocol', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: [seedAgents[0]],
+        nodes: seedNodes,
+        inbounds: seedInbounds
+      }
+    });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'customer-node-trojan-conflict',
+          targetLabel: 'Trojan conflict',
+          summary: 'Create conflicting Trojan inbound',
+          metadata: {
+            agentId: 'agent-hkg-01',
+            customerNodeName: 'Trojan conflict',
+            customerName: 'Acme',
+            xrayProtocol: 'trojan',
+            listenPort: 443,
+            clientIdentity: 'acme-trojan',
+            streamNetwork: 'tcp',
+            security: 'tls'
+          }
+        },
+        mutationContext('xray-port-conflict')
+      )
+    ).rejects.toThrow(/xray\.port_conflict/);
+  });
+
+  it('allows same-Agent same-port Xray inbound tasks when the runtime protocol matches', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: [seedAgents[0]],
+        nodes: seedNodes,
+        inbounds: seedInbounds
+      }
+    });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'customer-node-vless-merge',
+          targetLabel: 'VLESS merge',
+          summary: 'Create mergeable VLESS inbound',
+          metadata: {
+            agentId: 'agent-hkg-01',
+            customerNodeName: 'VLESS merge',
+            customerName: 'Acme',
+            xrayProtocol: 'vless',
+            listenPort: 443,
+            clientIdentity: 'acme-vless',
+            streamNetwork: 'tcp',
+            security: 'tls'
+          }
+        },
+        mutationContext('xray-port-merge')
+      )
+    ).resolves.toMatchObject({
+      operation: 'inbound.create',
+      targetId: 'customer-node-vless-merge'
+    });
   });
 
   it('builds the full snapshot without replaying persisted tasks for every section', async () => {

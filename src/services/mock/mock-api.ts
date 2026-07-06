@@ -116,6 +116,7 @@ import {
 } from '../api/forwarding-telemetry-read-model';
 import { deriveForwardQuotaEnforcementTaskIntents } from '../api/forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from '../api/xray-guardrail-enforcement-tasks';
+import { findXrayInboundPortConflictDenial } from '../api/xray-inbound-port-conflicts';
 import { createQuotaPoliciesFromReadModels } from '../api/quota-policies';
 import {
   applyQuotaResetStateToAgentEvent,
@@ -4357,6 +4358,37 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         );
 
         throw new MockControlPlaneMutationError('agent_runtime_capability.unsupported', xrayCapabilityDenial);
+      }
+
+      const xrayPortConflictDenial = findXrayInboundPortConflictDenial(task, {
+        inbounds: state.inbounds,
+        tasks: state.tasks,
+        nodes: state.nodes
+      });
+
+      if (xrayPortConflictDenial) {
+        appendDeniedAudit(
+          taskInput,
+          resourceType,
+          mutationContext,
+          xrayPortConflictDenial.code,
+          xrayPortConflictDenial.denialReason,
+          requestBodyHash,
+          {
+            operation: taskInput.operation,
+            targetId: taskInput.targetId,
+            metadata: taskInput.metadata ?? {},
+            agentId: xrayPortConflictDenial.agentId,
+            listenAddress: xrayPortConflictDenial.listenAddress,
+            listenPort: xrayPortConflictDenial.listenPort,
+            requestedProtocol: xrayPortConflictDenial.requestedProtocol,
+            conflictingProtocol: xrayPortConflictDenial.conflictingProtocol,
+            conflictingInboundId: xrayPortConflictDenial.conflictingInboundId,
+            conflictingTaskId: xrayPortConflictDenial.conflictingTaskId
+          }
+        );
+
+        throw new MockControlPlaneMutationError(xrayPortConflictDenial.code, xrayPortConflictDenial);
       }
 
       state.tasks.unshift(task);

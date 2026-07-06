@@ -124,6 +124,7 @@ import {
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from './xray-guardrail-enforcement-tasks';
+import { findXrayInboundPortConflictDenial } from './xray-inbound-port-conflicts';
 import {
   applyQuotaResetStateToAgentEvent,
   applyQuotaResetStateToForwardingEvent,
@@ -7326,7 +7327,8 @@ export function createServiceBackedControlPlaneApi({
       const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
       const beforeInbounds = await listLiveInboundsForGuardrailEnforcement();
       const now = readModelNow();
-      const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
+      const persistedTasks = sortTasksForReadModelReplay(await repository.listTasks());
+      const quotaResetReplayState = createQuotaResetReplayState(persistedTasks);
       const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
       const liveSubscriptionClients = projectSubscriptionClientReadModels(
         subscriptionClients,
@@ -7351,6 +7353,16 @@ export function createServiceBackedControlPlaneApi({
 
       if (xrayCapabilityDenial) {
         throw new Error(`${xrayCapabilityDenial.code}: ${xrayCapabilityDenial.denialReason}`);
+      }
+
+      const xrayPortConflictDenial = findXrayInboundPortConflictDenial(resetAwareInput, {
+        inbounds: liveInbounds,
+        tasks: persistedTasks,
+        nodes: inventory.nodes ?? []
+      });
+
+      if (xrayPortConflictDenial) {
+        throw new Error(`${xrayPortConflictDenial.code}: ${xrayPortConflictDenial.denialReason}`);
       }
 
       const task = await service.createTask(resetAwareInput, resolveMutationContext(context));

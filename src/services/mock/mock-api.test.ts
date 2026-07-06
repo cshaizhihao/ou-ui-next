@@ -1226,6 +1226,76 @@ describe('mock API contract', () => {
     });
   });
 
+  it('rejects mock Xray inbound tasks that reuse an Agent listener with a different protocol', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await expect(
+      api.createTask({
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-trojan-conflict',
+        targetLabel: 'Trojan conflict',
+        summary: 'Create conflicting Trojan inbound',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          customerNodeName: 'Trojan conflict',
+          customerName: 'Acme',
+          xrayProtocol: 'trojan',
+          listenPort: 443,
+          clientIdentity: 'acme-trojan',
+          streamNetwork: 'tcp',
+          security: 'tls'
+        }
+      })
+    ).rejects.toMatchObject({
+      code: 'xray.port_conflict'
+    });
+
+    await expect(api.listTasks()).resolves.not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetId: 'customer-node-trojan-conflict'
+        })
+      ])
+    );
+    await expect(api.listAuditLogs()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'audit.denied',
+          denialCode: 'xray.port_conflict',
+          targetId: 'customer-node-trojan-conflict'
+        })
+      ])
+    );
+  });
+
+  it('allows mock Xray inbound tasks to share a listener when the runtime protocol matches', async () => {
+    const api = createMockApi({ seedInventory: true });
+
+    await expect(
+      api.createTask({
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-vless-merge',
+        targetLabel: 'VLESS merge',
+        summary: 'Create mergeable VLESS inbound',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          customerNodeName: 'VLESS merge',
+          customerName: 'Acme',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          clientIdentity: 'acme-vless',
+          streamNetwork: 'tcp',
+          security: 'tls'
+        }
+      })
+    ).resolves.toMatchObject({
+      operation: 'inbound.create',
+      targetId: 'customer-node-vless-merge'
+    });
+  });
+
   it('persists imported subscription sources into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
 

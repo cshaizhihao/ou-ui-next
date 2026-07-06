@@ -36,6 +36,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Customer-node create/edit forms now restrict selectable runtime targets to Agents with the `xray` capability, preventing non-Xray hosts from accepting customer-node submissions as if runtime apply were supported.
 - Mock and service-backed APIs now reject manual `inbound.*` submissions for known Agents that lack the `xray` capability with `agent_runtime_capability.unsupported`, while allowing automatic guardrail tasks derived from existing inbounds.
 - Customer-node runtime protocol handling now uses the shared `XRAY_RUNTIME_PROTOCOLS` boundary across UI, global quick actions, API schemas, read models, guardrail task derivation, and runtime artifacts; unsupported protocols such as Hysteria2/WireGuard/TUN remain subscription/Preview concepts and are not rendered as editable/applyable Xray runtime inbound actions.
+- Xray inbound create/update now rejects manual submissions before enqueue when the same Agent listener is already reserved by another runtime protocol, while still allowing same-port same-protocol fragments to merge into a multi-client inbound.
 - Xray inbound delete artifacts now emit `remove_inbound` with no active runtime clients while preserving disabled policy evidence, so delete tasks cannot look like an upsert in Agent evidence.
 - Customer-node delete now queues the bound `subscription.delete` task after `inbound.delete` is accepted, closing the normal UI-created Xray client and public subscription identity lifecycle.
 - Public subscription output now emits conversion diagnostic headers for selected, URI-converted, and unconverted node counts so format/rendering issues are visible without parsing the generated body.
@@ -181,6 +182,7 @@ Required outcomes:
 - Ensure deletion of the final inbound stops and removes the Xray service.
 - Keep runtime-supported protocols behind the shared `XRAY_RUNTIME_PROTOCOLS` boundary and avoid claiming Hysteria2, WireGuard, or TUN are production runtime features until actual Agent support exists.
 - Keep customer-node UI, API schemas, read models, guardrail tasks, and runtime artifacts aligned so unsupported protocols cannot become editable/applyable Xray runtime inbounds by accident.
+- Reject same-Agent Xray listener conflicts before enqueue when another inbound or in-flight task owns the same listen address/port with a different runtime protocol.
 - Add tests around runtime artifact output, Agent profile persistence, and rollback/evidence behavior.
 
 Acceptance criteria:
