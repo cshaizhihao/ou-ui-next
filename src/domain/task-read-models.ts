@@ -47,6 +47,11 @@ function readBoolean(metadata: Record<string, unknown> | undefined, key: string,
   return typeof value === 'boolean' ? value : fallback;
 }
 
+function readOptionalBoolean(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 function resolveXrayListenPort(metadata: Record<string, unknown> | undefined, seed: string) {
   const listenPort = readNumber(metadata, 'listenPort', 0);
 
@@ -367,6 +372,10 @@ function createXrayClientsFromTask(input: {
       readNumber(metadata, 'currentUsedTrafficGb', 0)
     );
     const monthlyResetDay = clampResetDay(readNumber(clientMetadata, 'monthlyResetDay', readNumber(metadata, 'monthlyResetDay', 1)));
+    const quotaExceeded = readOptionalBoolean(clientMetadata, 'quotaExceeded');
+    const clientExpired = readOptionalBoolean(clientMetadata, 'clientExpired');
+    const runtimeDisabledByPolicy = readOptionalBoolean(clientMetadata, 'runtimeDisabledByPolicy');
+    const guardrailReason = readString(clientMetadata, 'guardrailReason', '');
     const normalizedCredentials = normalizeXrayClientCredentials({
       protocol: input.protocol,
       clientIdentity,
@@ -378,7 +387,7 @@ function createXrayClientsFromTask(input: {
     return {
       id: normalizedCredentials.clientId,
       email: readString(clientMetadata, 'clientEmail', index === 0 ? input.customerName : `${clientIdentity}@ou-ui.local`),
-      enabled: input.enabled && readBoolean(clientMetadata, 'enabled', true),
+      enabled: input.enabled && readBoolean(clientMetadata, 'enabled', true) && runtimeDisabledByPolicy !== true,
       credentialType: normalizedCredentials.credentialType,
       password:
         input.protocol === 'trojan' || input.protocol === 'shadowsocks'
@@ -404,7 +413,11 @@ function createXrayClientsFromTask(input: {
       uplinkBytes: 0,
       downlinkBytes: 0,
       expiresAt: expiresAtFromTask(input.task, remainingDays),
-      ipLimit: readNumber(clientMetadata, 'ipLimit', 0)
+      ipLimit: readNumber(clientMetadata, 'ipLimit', 0),
+      ...(quotaExceeded !== undefined ? { quotaExceeded } : {}),
+      ...(clientExpired !== undefined ? { clientExpired } : {}),
+      ...(runtimeDisabledByPolicy !== undefined ? { runtimeDisabledByPolicy } : {}),
+      ...(guardrailReason ? { guardrailReason } : {})
     };
   });
 }
@@ -535,10 +548,10 @@ export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) 
             downlinkBytes: existingClient.downlinkBytes ?? nextClient.downlinkBytes,
             lastTrafficSampleAt: existingClient.lastTrafficSampleAt ?? nextClient.lastTrafficSampleAt,
             trafficBillingPeriod: existingClient.trafficBillingPeriod ?? nextClient.trafficBillingPeriod,
-            quotaExceeded: existingClient.quotaExceeded,
-            clientExpired: existingClient.clientExpired,
-            runtimeDisabledByPolicy: existingClient.runtimeDisabledByPolicy,
-            guardrailReason: existingClient.guardrailReason
+            quotaExceeded: nextClient.quotaExceeded ?? existingClient.quotaExceeded,
+            clientExpired: nextClient.clientExpired ?? existingClient.clientExpired,
+            runtimeDisabledByPolicy: nextClient.runtimeDisabledByPolicy ?? existingClient.runtimeDisabledByPolicy,
+            guardrailReason: nextClient.guardrailReason ?? existingClient.guardrailReason
           };
         })
       }

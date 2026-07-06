@@ -230,6 +230,70 @@ describe('task read models', () => {
     ]);
   });
 
+  it('applies explicit Xray client policy evidence from update tasks instead of keeping stale guardrail state', () => {
+    const initialInbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Guardrail Inbound',
+        xrayProtocol: 'vless',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            trafficLimitGb: 100,
+            currentUsedTrafficGb: 100,
+            quotaExceeded: true,
+            runtimeDisabledByPolicy: true,
+            guardrailReason: 'xray_client_monthly_quota_exceeded',
+            enabled: false
+          }
+        ]
+      })
+    );
+
+    expect(initialInbound).toBeDefined();
+
+    const [updatedInbound] = applyXrayInboundTask(
+      [initialInbound!],
+      {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Guardrail Inbound',
+          xrayProtocol: 'vless',
+          clients: [
+            {
+              clientIdentity: 'alice',
+              clientCredential: 'alice-token',
+              clientEmail: 'alice@example.com',
+              trafficLimitGb: 150,
+              currentUsedTrafficGb: 0,
+              quotaExceeded: false,
+              clientExpired: false,
+              runtimeDisabledByPolicy: false,
+              guardrailReason: 'ok',
+              enabled: true
+            }
+          ]
+        }),
+        operation: 'inbound.update'
+      }
+    );
+
+    expect(updatedInbound.clients[0]).toMatchObject({
+      email: 'alice@example.com',
+      enabled: true,
+      trafficLimitBytes: 150 * 1024 * 1024 * 1024,
+      usedTrafficBytes: 0,
+      quotaExceeded: false,
+      clientExpired: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok'
+    });
+  });
+
   it('auto-allocates a high listen port when customer-node metadata omits listenPort', () => {
     const inbound = createXrayInboundFromTask(
       createInboundTask({

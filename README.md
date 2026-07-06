@@ -31,6 +31,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 - Xray customer node 不再只按单 client 原型建模，runtime artifact 已支持 `metadata.clients[]` 编译为多 client inbound、逐 client policy 和逐 client share URI。
 - Xray inbound create/update 的 `metadata.clients[]` 已进入 API contract / OpenAPI，Control Plane 会拒绝重复的 client identity、email 或 subscription rule。
 - 客户节点 UI 发出的 Xray create/update 任务会同时携带结构化 `metadata.clients[]`，顶层 client 字段仅作为兼容层，并保留配额、到期、guardrail 和流量倍率证据。
+- Xray inbound read model 合并 update 任务时会优先采用任务里显式提交的 client policy evidence，避免恢复/启用操作被旧 guardrail 状态覆盖。
 - Xray inbound delete artifact 会生成 `remove_inbound`，并强制清空 runtime `settings.clients`，避免删除任务仍携带 active client evidence。
 - 客户节点删除流程会在 `inbound.delete` 入队成功后同步入队绑定订阅身份的 `subscription.delete`，避免残留可访问的 public subscription identity。
 - Agent 的 Xray profile 读取已兼容 `clientPolicies[]`，流量采集和 guardrail 评估可以逐 client 展开。
@@ -157,6 +158,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - TLS / Reality stream settings 编译。
 - 多 client inbound artifact：`metadata.clients[]` 会生成 Xray `settings.clients`、`clientPolicies[]` 和 `subscription.shareUris[]`。
 - 客户节点新增、编辑、启停、续期、加量等 UI 操作会提交结构化 `metadata.clients[]`，并保留 quota / expiry / guardrail / `trafficMultiplier` 证据。
+- read model 会优先应用 update task 中显式提交的 quota / expiry / guardrail 状态，旧遥测计数仍保留，但不会阻止恢复后的 policy 状态刷新。
 - 客户节点删除会同步入队绑定订阅身份删除；历史手工创建的订阅身份如果无法从客户节点 metadata 推导，仍需在订阅工作区独立清理。
 - 被 quota / expiry guardrail 标记为 `runtimeDisabledByPolicy` 的 client 会保留在 `clientPolicies[]` 和订阅诊断中，但不会进入实际 Xray `settings.clients`。
 - 自动 guardrail 任务会按 client 派生 disable / resume intent，多 client inbound 不再因为共享一个 inbound 而整体跳过。
