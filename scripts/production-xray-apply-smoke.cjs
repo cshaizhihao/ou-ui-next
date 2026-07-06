@@ -770,6 +770,104 @@ function extractXrayApplyEvidence(snapshot, taskId, targetId) {
   };
 }
 
+function findXrayReadModelInbound(snapshot, targetId) {
+  return readArray(snapshot?.inbounds).find((item) => item?.id === targetId);
+}
+
+function countRuntimeActiveReadModelClients(inbound) {
+  return readArray(inbound?.clients).filter(
+    (client) =>
+      client?.enabled !== false &&
+      client?.runtimeDisabledByPolicy !== true &&
+      client?.quotaExceeded !== true &&
+      client?.clientExpired !== true
+  ).length;
+}
+
+function validateXrayReadModelState(snapshot, expected = {}) {
+  const errors = [];
+  const targetId = expected.targetId;
+
+  if (!targetId) {
+    return errors;
+  }
+
+  const expectedPresent =
+    typeof expected.readModelPresent === 'boolean' ? expected.readModelPresent : expected.operation !== 'inbound.delete';
+  const inbound = findXrayReadModelInbound(snapshot, targetId);
+
+  if (!expectedPresent) {
+    if (inbound) {
+      errors.push(`Xray inbound read model ${targetId} is still present after runtime removal`);
+    }
+
+    return errors;
+  }
+
+  if (!inbound) {
+    errors.push(`Xray inbound read model ${targetId} is missing`);
+    return errors;
+  }
+
+  function pushMismatch(label, actual, expectedValue) {
+    if (expectedValue === undefined || expectedValue === null || expectedValue === '') {
+      return;
+    }
+
+    if (actual !== expectedValue) {
+      errors.push(`${label} is ${actual ?? 'missing'}; expected ${expectedValue}`);
+    }
+  }
+
+  pushMismatch('Xray inbound read model agentId', inbound.agentId, expected.agentId);
+  pushMismatch('Xray inbound read model listenPort', inbound.listenPort, expected.listenPort);
+  pushMismatch('Xray inbound read model protocol', inbound.protocol, expected.protocol ?? 'vless');
+
+  if (expected.readModelStatus) {
+    pushMismatch('Xray inbound read model status', inbound.status, expected.readModelStatus);
+  }
+
+  const clientCounters = readObject(expected.clientCounters);
+  const clients = readArray(inbound.clients);
+
+  if (clientCounters.total !== undefined && clients.length !== clientCounters.total) {
+    errors.push(`Xray inbound read model client count is ${clients.length}; expected ${clientCounters.total}`);
+  }
+
+  if (clientCounters.active !== undefined) {
+    const activeClients = countRuntimeActiveReadModelClients(inbound);
+
+    if (activeClients !== clientCounters.active) {
+      errors.push(`Xray inbound read model active client count is ${activeClients}; expected ${clientCounters.active}`);
+    }
+  }
+
+  if (expected.requireReadModelRuntimeDeployment !== false) {
+    const runtimeDeployment = readObject(inbound.runtimeDeployment);
+    const commandIds = readArray(runtimeDeployment.commandIds);
+    const agentIds = readArray(runtimeDeployment.agentIds);
+    const appliedConfigRevisions = readArray(runtimeDeployment.appliedConfigRevisions);
+
+    if (runtimeDeployment.source !== 'agent-result') {
+      errors.push('Xray inbound read model runtimeDeployment proof is missing');
+    }
+
+    if (expected.agentId && !agentIds.includes(expected.agentId)) {
+      errors.push(`Xray inbound read model runtimeDeployment agentIds do not include ${expected.agentId}`);
+    }
+
+    if (expected.commandId && !commandIds.includes(expected.commandId)) {
+      errors.push(`Xray inbound read model runtimeDeployment commandIds do not include ${expected.commandId}`);
+    }
+
+    if (expected.configRevisionId && !appliedConfigRevisions.includes(expected.configRevisionId)) {
+      errors.push(`Xray inbound read model runtimeDeployment config revisions do not include ${expected.configRevisionId}`);
+    }
+  }
+
+  return errors;
+}
+
 function validateXrayApplyEvidence(evidence, expected = {}) {
   const errors = [];
   const plannedInbound = readObject(evidence.runtimeDiagnosis.plannedInbound);
@@ -905,6 +1003,37 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
   return errors;
 }
 
+function summarizeXrayReadModelState(snapshot, targetId) {
+  const inbound = findXrayReadModelInbound(snapshot, targetId);
+
+  if (!inbound) {
+    return {
+      targetId,
+      present: false
+    };
+  }
+
+  const runtimeDeployment = readObject(inbound.runtimeDeployment);
+
+  return {
+    targetId,
+    present: true,
+    agentId: inbound.agentId,
+    listenPort: inbound.listenPort,
+    protocol: inbound.protocol,
+    status: inbound.status,
+    clientCount: readArray(inbound.clients).length,
+    activeClientCount: countRuntimeActiveReadModelClients(inbound),
+    runtimeDeployment: {
+      source: runtimeDeployment.source,
+      verifiedAt: runtimeDeployment.verifiedAt,
+      agentIds: readArray(runtimeDeployment.agentIds),
+      commandIds: readArray(runtimeDeployment.commandIds),
+      appliedConfigRevisions: readArray(runtimeDeployment.appliedConfigRevisions)
+    }
+  };
+}
+
 function summarizeXrayApplyEvidence(evidence) {
   const plannedInbound = readObject(evidence.runtimeDiagnosis.plannedInbound);
   const taskMetadata = readObject(evidence.task?.metadata);
@@ -984,7 +1113,13 @@ async function waitForXrayApplyEvidence(config, context, taskId, targetId, expec
     const snapshot = await readSnapshot(config, context);
     const evidence = extractXrayApplyEvidence(snapshot, taskId, targetId);
     const errors = validateXrayApplyEvidence(evidence, expected);
-    lastErrors = errors;
+    const readModelErrors = validateXrayReadModelState(snapshot, {
+      ...expected,
+      targetId,
+      commandId: evidence.commandOutboxItem?.commandId,
+      configRevisionId: evidence.configRevision?.id
+    });
+    lastErrors = [...errors, ...readModelErrors];
     lastEvidence = evidence;
 
     if (evidence.task?.status === 'failed') {
@@ -993,7 +1128,7 @@ async function waitForXrayApplyEvidence(config, context, taskId, targetId, expec
       );
     }
 
-    if (errors.length === 0) {
+    if (lastErrors.length === 0) {
       return {
         snapshot,
         evidence
@@ -1055,16 +1190,18 @@ async function runXrayApplySmoke(config) {
       taskId: createdTask.taskId
     });
 
-    const { evidence } = await waitForXrayApplyEvidence(config, context, createdTask.taskId, taskInput.targetId, {
+    const { snapshot: createSnapshot, evidence } = await waitForXrayApplyEvidence(config, context, createdTask.taskId, taskInput.targetId, {
       agentId: agent.id,
       listenPort,
       operation: 'inbound.create'
     });
     const evidenceSummary = summarizeXrayApplyEvidence(evidence);
+    const createReadModelSummary = summarizeXrayReadModelState(createSnapshot, taskInput.targetId);
     report.phases.push({
       name: 'create',
       taskId: createdTask.taskId,
-      evidence: evidenceSummary
+      evidence: evidenceSummary,
+      readModel: createReadModelSummary
     });
     logPass('create agent runtime evidence verified', `${evidenceSummary.configRevisionId} ${evidenceSummary.evidenceStage}`);
 
@@ -1074,7 +1211,7 @@ async function runXrayApplySmoke(config) {
     const updatedTask = await createTask(config, context, updateTaskInput, 'update Xray inbound task');
     logPass('xray update task created', updatedTask.taskId);
 
-    const { evidence: updateEvidence } = await waitForXrayApplyEvidence(
+    const { snapshot: updateSnapshot, evidence: updateEvidence } = await waitForXrayApplyEvidence(
       config,
       context,
       updatedTask.taskId,
@@ -1086,10 +1223,12 @@ async function runXrayApplySmoke(config) {
       }
     );
     const updateEvidenceSummary = summarizeXrayApplyEvidence(updateEvidence);
+    const updateReadModelSummary = summarizeXrayReadModelState(updateSnapshot, taskInput.targetId);
     report.phases.push({
       name: 'update',
       taskId: updatedTask.taskId,
-      evidence: updateEvidenceSummary
+      evidence: updateEvidenceSummary,
+      readModel: updateReadModelSummary
     });
     logPass(
       'update agent runtime evidence verified',
@@ -1106,7 +1245,7 @@ async function runXrayApplySmoke(config) {
       const addedClientTask = await createXrayClientActionTask(config, context, addClientRequest, 'add Xray client action task');
       logPass('xray add-client action task created', addedClientTask.taskId);
 
-      const { evidence: addClientEvidence } = await waitForXrayApplyEvidence(
+      const { snapshot: addClientSnapshot, evidence: addClientEvidence } = await waitForXrayApplyEvidence(
         config,
         context,
         addedClientTask.taskId,
@@ -1124,10 +1263,12 @@ async function runXrayApplySmoke(config) {
         }
       );
       addClientEvidenceSummary = summarizeXrayApplyEvidence(addClientEvidence);
+      const addClientReadModelSummary = summarizeXrayReadModelState(addClientSnapshot, taskInput.targetId);
       report.phases.push({
         name: 'add-client',
         taskId: addedClientTask.taskId,
-        evidence: addClientEvidenceSummary
+        evidence: addClientEvidenceSummary,
+        readModel: addClientReadModelSummary
       });
       logPass(
         'add-client agent runtime evidence verified',
@@ -1145,7 +1286,7 @@ async function runXrayApplySmoke(config) {
       );
       logPass('xray delete-client action task created', deletedClientTask.taskId);
 
-      const { evidence: deleteClientEvidence } = await waitForXrayApplyEvidence(
+      const { snapshot: deleteClientSnapshot, evidence: deleteClientEvidence } = await waitForXrayApplyEvidence(
         config,
         context,
         deletedClientTask.taskId,
@@ -1163,10 +1304,12 @@ async function runXrayApplySmoke(config) {
         }
       );
       deleteClientEvidenceSummary = summarizeXrayApplyEvidence(deleteClientEvidence);
+      const deleteClientReadModelSummary = summarizeXrayReadModelState(deleteClientSnapshot, taskInput.targetId);
       report.phases.push({
         name: 'delete-client',
         taskId: deletedClientTask.taskId,
-        evidence: deleteClientEvidenceSummary
+        evidence: deleteClientEvidenceSummary,
+        readModel: deleteClientReadModelSummary
       });
       logPass(
         'delete-client agent runtime evidence verified',
@@ -1179,7 +1322,7 @@ async function runXrayApplySmoke(config) {
       const deletedInboundTask = await createTask(config, context, deleteTaskInput, 'delete Xray smoke inbound task');
       logPass('xray cleanup delete task created', deletedInboundTask.taskId);
 
-      const { evidence: cleanupEvidence } = await waitForXrayApplyEvidence(
+      const { snapshot: cleanupSnapshot, evidence: cleanupEvidence } = await waitForXrayApplyEvidence(
         config,
         context,
         deletedInboundTask.taskId,
@@ -1198,10 +1341,12 @@ async function runXrayApplySmoke(config) {
         }
       );
       cleanupEvidenceSummary = summarizeXrayApplyEvidence(cleanupEvidence);
+      const cleanupReadModelSummary = summarizeXrayReadModelState(cleanupSnapshot, taskInput.targetId);
       report.phases.push({
         name: 'cleanup-delete',
         taskId: deletedInboundTask.taskId,
-        evidence: cleanupEvidenceSummary
+        evidence: cleanupEvidenceSummary,
+        readModel: cleanupReadModelSummary
       });
       logPass(
         'cleanup delete agent runtime evidence verified',
@@ -1309,5 +1454,7 @@ module.exports = {
   runXrayApplySmoke,
   selectXrayAgent,
   summarizeXrayApplyEvidence,
+  summarizeXrayReadModelState,
+  validateXrayReadModelState,
   validateXrayApplyEvidence
 };

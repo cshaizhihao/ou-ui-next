@@ -84,7 +84,9 @@ type XrayApplySmokeScript = {
   };
   selectXrayAgent(snapshot: Record<string, unknown>, preferredAgentId?: string): Record<string, unknown>;
   summarizeXrayApplyEvidence(evidence: Record<string, unknown>): Record<string, unknown>;
+  summarizeXrayReadModelState(snapshot: Record<string, unknown>, targetId: string): Record<string, unknown>;
   validateXrayApplyEvidence(evidence: Record<string, unknown>, expected?: Record<string, unknown>): string[];
+  validateXrayReadModelState(snapshot: Record<string, unknown>, expected?: Record<string, unknown>): string[];
 };
 
 const xraySmokeScript = require('../../../scripts/production-xray-apply-smoke.cjs') as XrayApplySmokeScript;
@@ -108,6 +110,27 @@ function createVerifiedSnapshot() {
         id: 'inbound-existing',
         agentId: 'agent-hkg-01',
         listenPort: 42000
+      },
+      {
+        id: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        protocol: 'vless',
+        status: 'enabled',
+        clients: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            email: 'smoke@example.test',
+            enabled: true
+          }
+        ],
+        runtimeDeployment: {
+          source: 'agent-result',
+          verifiedAt: '2026-07-07T00:01:01.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-update-01'],
+          appliedConfigRevisions: ['cfg-task-update-01']
+        }
       }
     ],
     tasks: [
@@ -252,6 +275,34 @@ function createVerifiedClientActionSnapshot() {
 
   return {
     ...snapshot,
+    inbounds: [
+      {
+        id: 'inbound-existing',
+        agentId: 'agent-hkg-01',
+        listenPort: 42000
+      },
+      {
+        id: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        protocol: 'vless',
+        status: 'enabled',
+        clients: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            email: 'smoke@example.test',
+            enabled: true
+          }
+        ],
+        runtimeDeployment: {
+          source: 'agent-result',
+          verifiedAt: '2026-07-07T00:04:01.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-delete-client-01'],
+          appliedConfigRevisions: ['cfg-task-delete-client-01']
+        }
+      }
+    ],
     tasks: [
       ...(snapshot.tasks as Array<Record<string, unknown>>),
       {
@@ -399,6 +450,13 @@ function createVerifiedCleanupSnapshot() {
 
   return {
     ...snapshot,
+    inbounds: [
+      {
+        id: 'inbound-existing',
+        agentId: 'agent-hkg-01',
+        listenPort: 42000
+      }
+    ],
     tasks: [
       ...(snapshot.tasks as Array<Record<string, unknown>>),
       {
@@ -771,6 +829,72 @@ describe('production Xray apply smoke script helpers', () => {
     );
   });
 
+  it('validates the Xray inbound read model together with Agent-result evidence', () => {
+    expect(
+      xraySmokeScript.validateXrayReadModelState(createVerifiedSnapshot(), {
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.update',
+        commandId: 'cmd-task-update-01',
+        configRevisionId: 'cfg-task-update-01',
+        clientCounters: {
+          total: 1,
+          active: 1
+        }
+      })
+    ).toEqual([]);
+
+    expect(xraySmokeScript.summarizeXrayReadModelState(createVerifiedSnapshot(), 'xray-live-smoke-42003')).toEqual(
+      expect.objectContaining({
+        targetId: 'xray-live-smoke-42003',
+        present: true,
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        protocol: 'vless',
+        status: 'enabled',
+        clientCount: 1,
+        activeClientCount: 1,
+        runtimeDeployment: expect.objectContaining({
+          source: 'agent-result',
+          commandIds: ['cmd-task-update-01'],
+          appliedConfigRevisions: ['cfg-task-update-01']
+        })
+      })
+    );
+    expect(JSON.stringify(xraySmokeScript.summarizeXrayReadModelState(createVerifiedSnapshot(), 'xray-live-smoke-42003'))).not.toContain(
+      '11111111-1111-4111-8111-111111111111'
+    );
+  });
+
+  it('rejects green Agent-result evidence when the Xray read model lacks deployment proof', () => {
+    const snapshot = createVerifiedSnapshot();
+    const inbounds = snapshot.inbounds as Array<Record<string, unknown>>;
+
+    inbounds[1] = {
+      ...inbounds[1],
+      runtimeDeployment: undefined
+    };
+
+    expect(
+      xraySmokeScript.validateXrayReadModelState(snapshot, {
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.update',
+        commandId: 'cmd-task-update-01',
+        configRevisionId: 'cfg-task-update-01'
+      })
+    ).toEqual(
+      expect.arrayContaining([
+        'Xray inbound read model runtimeDeployment proof is missing',
+        'Xray inbound read model runtimeDeployment agentIds do not include agent-hkg-01',
+        'Xray inbound read model runtimeDeployment commandIds do not include cmd-task-update-01',
+        'Xray inbound read model runtimeDeployment config revisions do not include cfg-task-update-01'
+      ])
+    );
+  });
+
   it('rejects Agent-result evidence that is not correlated to the same task, target, and Agent', () => {
     const snapshot = createVerifiedSnapshot();
 
@@ -944,6 +1068,43 @@ describe('production Xray apply smoke script helpers', () => {
         })
       })
     );
+    expect(
+      xraySmokeScript.validateXrayReadModelState(createVerifiedCleanupSnapshot(), {
+        targetId: 'xray-live-smoke-42003',
+        operation: 'inbound.delete'
+      })
+    ).toEqual([]);
+    expect(xraySmokeScript.summarizeXrayReadModelState(createVerifiedCleanupSnapshot(), 'xray-live-smoke-42003')).toEqual({
+      targetId: 'xray-live-smoke-42003',
+      present: false
+    });
+  });
+
+  it('rejects cleanup smoke evidence when the removed Xray inbound is still visible in the read model', () => {
+    const cleanupSnapshot = createVerifiedCleanupSnapshot();
+
+    expect(
+      xraySmokeScript.validateXrayReadModelState(
+        {
+          ...cleanupSnapshot,
+          inbounds: [
+            ...(cleanupSnapshot.inbounds as Array<Record<string, unknown>>),
+            {
+              id: 'xray-live-smoke-42003',
+              agentId: 'agent-hkg-01',
+              listenPort: 42003,
+              protocol: 'vless',
+              status: 'enabled',
+              clients: []
+            }
+          ]
+        },
+        {
+          targetId: 'xray-live-smoke-42003',
+          operation: 'inbound.delete'
+        }
+      )
+    ).toEqual(['Xray inbound read model xray-live-smoke-42003 is still present after runtime removal']);
   });
 
   it('returns operator-actionable evidence gaps while a task is still waiting for Agent result', () => {
