@@ -109,6 +109,42 @@ describe('forwarding task inputs', () => {
     expect(key.length).toBeLessThan(190);
   });
 
+  it('normalizes blocked runtime controls out of upsert task metadata', () => {
+    const input = createForwardingUpsertTaskInput(
+      {
+        ...createMetadata,
+        ipRateLimitMbps: 80,
+        maxConnections: 2048,
+        maxConnectionsPerIp: 32,
+        proxyProtocol: true
+      },
+      'update',
+      {
+        ruleId: 'forward-acme-2443',
+        createSummary: 'Create forwarding rule',
+        updateSummary: 'Update forwarding rule',
+        defaultTargetLabel: 'Forward 2443'
+      }
+    );
+
+    expect(createTaskRequestSchema.safeParse(input).success).toBe(true);
+    expect(input.metadata).toEqual(
+      expect.objectContaining({
+        ipRateLimitMbps: 0,
+        maxConnections: 0,
+        maxConnectionsPerIp: 0,
+        proxyProtocol: false,
+        blockedRuntimeControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+        blockedRuntimeControlValues: {
+          ipRateLimitMbps: 80,
+          maxConnections: 2048,
+          maxConnectionsPerIp: 32,
+          proxyProtocol: true
+        }
+      })
+    );
+  });
+
   it('preserves blocked runtime controls from existing rules for runtime diagnosis', () => {
     const metadata = createForwardingMetadataFromRule(rule);
     const applyInput = createForwardingRunTaskInput('forward-acme-2443', rule, 'apply', {

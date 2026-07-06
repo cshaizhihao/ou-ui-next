@@ -40,10 +40,36 @@ function withRiskConfirmation(input: CreateTaskInput): CreateTaskInput {
   };
 }
 
-export function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingTaskMetadata {
-  const blockedRuntimeControls = collectBlockedForwardingRuntimeControls(rule);
+function createForwardingTaskMetadata(metadata: ForwardingTaskMetadata): ForwardingTaskMetadata {
+  const blockedRuntimeControls = metadata.blockedRuntimeControls ?? collectBlockedForwardingRuntimeControls(metadata);
+  const blockedRuntimeControlValues =
+    metadata.blockedRuntimeControlValues ??
+    (blockedRuntimeControls.length > 0
+      ? {
+          ipRateLimitMbps: metadata.ipRateLimitMbps,
+          maxConnections: metadata.maxConnections,
+          maxConnectionsPerIp: metadata.maxConnectionsPerIp,
+          proxyProtocol: metadata.proxyProtocol
+        }
+      : undefined);
 
   return {
+    ...metadata,
+    ipRateLimitMbps: 0,
+    maxConnections: 0,
+    maxConnectionsPerIp: 0,
+    proxyProtocol: false,
+    ...(blockedRuntimeControls.length > 0
+      ? {
+          blockedRuntimeControls,
+          blockedRuntimeControlValues
+        }
+      : {})
+  };
+}
+
+export function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingTaskMetadata {
+  return createForwardingTaskMetadata({
     name: rule.name,
     ownerName: rule.ownerName,
     tunnelId: rule.tunnelId,
@@ -60,25 +86,14 @@ export function createForwardingMetadataFromRule(rule: ForwardingRuleView): Forw
     rateLimitMbps: rule.rateLimitMbps,
     rateLimitMode: rule.rateLimitMode,
     rateLimitDirection: rule.rateLimitDirection,
-    ipRateLimitMbps: 0,
-    maxConnections: 0,
-    maxConnectionsPerIp: 0,
-    proxyProtocol: false,
+    ipRateLimitMbps: rule.ipRateLimitMbps,
+    maxConnections: rule.maxConnections,
+    maxConnectionsPerIp: rule.maxConnectionsPerIp,
+    proxyProtocol: rule.proxyProtocol,
     billingDirection: rule.billingDirection,
     tunnelMode: rule.tunnelMode,
-    enabled: rule.enabled,
-    ...(blockedRuntimeControls.length > 0
-      ? {
-          blockedRuntimeControls,
-          blockedRuntimeControlValues: {
-            ipRateLimitMbps: rule.ipRateLimitMbps,
-            maxConnections: rule.maxConnections,
-            maxConnectionsPerIp: rule.maxConnectionsPerIp,
-            proxyProtocol: rule.proxyProtocol
-          }
-        }
-      : {})
-  };
+    enabled: rule.enabled
+  });
 }
 
 export function createForwardingIdempotencyKey(
@@ -90,32 +105,33 @@ export function createForwardingIdempotencyKey(
     return ['ui', operation, targetId, 'unknown'].join(':');
   }
 
+  const taskMetadata = createForwardingTaskMetadata(metadata);
   const identity = JSON.stringify({
-    name: metadata.name,
-    ownerName: metadata.ownerName,
-    tunnelId: metadata.tunnelId ?? '',
-    listenAddress: metadata.listenAddress,
-    listenPort: metadata.listenPort,
-    targetAddress: metadata.targetAddress,
-    targetPort: metadata.targetPort,
-    protocol: metadata.protocol,
-    entryNodeIds: metadata.entryNodeIds,
-    strategy: metadata.strategy,
-    quotaGb: metadata.quotaGb,
-    monthlyResetDay: metadata.monthlyResetDay,
-    currentUsedTrafficGb: metadata.currentUsedTrafficGb,
-    rateLimitMbps: metadata.rateLimitMbps,
-    rateLimitMode: metadata.rateLimitMode,
-    rateLimitDirection: metadata.rateLimitDirection,
-    ipRateLimitMbps: metadata.ipRateLimitMbps,
-    maxConnections: metadata.maxConnections,
-    maxConnectionsPerIp: metadata.maxConnectionsPerIp,
-    proxyProtocol: metadata.proxyProtocol,
-    blockedRuntimeControls: metadata.blockedRuntimeControls,
-    blockedRuntimeControlValues: metadata.blockedRuntimeControlValues,
-    billingDirection: metadata.billingDirection,
-    tunnelMode: metadata.tunnelMode,
-    enabled: metadata.enabled
+    name: taskMetadata.name,
+    ownerName: taskMetadata.ownerName,
+    tunnelId: taskMetadata.tunnelId ?? '',
+    listenAddress: taskMetadata.listenAddress,
+    listenPort: taskMetadata.listenPort,
+    targetAddress: taskMetadata.targetAddress,
+    targetPort: taskMetadata.targetPort,
+    protocol: taskMetadata.protocol,
+    entryNodeIds: taskMetadata.entryNodeIds,
+    strategy: taskMetadata.strategy,
+    quotaGb: taskMetadata.quotaGb,
+    monthlyResetDay: taskMetadata.monthlyResetDay,
+    currentUsedTrafficGb: taskMetadata.currentUsedTrafficGb,
+    rateLimitMbps: taskMetadata.rateLimitMbps,
+    rateLimitMode: taskMetadata.rateLimitMode,
+    rateLimitDirection: taskMetadata.rateLimitDirection,
+    ipRateLimitMbps: taskMetadata.ipRateLimitMbps,
+    maxConnections: taskMetadata.maxConnections,
+    maxConnectionsPerIp: taskMetadata.maxConnectionsPerIp,
+    proxyProtocol: taskMetadata.proxyProtocol,
+    blockedRuntimeControls: taskMetadata.blockedRuntimeControls,
+    blockedRuntimeControlValues: taskMetadata.blockedRuntimeControlValues,
+    billingDirection: taskMetadata.billingDirection,
+    tunnelMode: taskMetadata.tunnelMode,
+    enabled: taskMetadata.enabled
   });
 
   return ['ui', operation, targetId, createStableHash(identity)].join(':');
@@ -139,7 +155,7 @@ export function createForwardingUpsertTaskInput(
     targetId,
     targetLabel: metadata.name || options.defaultTargetLabel,
     summary: action === 'create' ? options.createSummary : options.updateSummary,
-    metadata
+    metadata: createForwardingTaskMetadata(metadata)
   };
 }
 
@@ -152,10 +168,10 @@ export function createForwardingRunTaskInput(
   const operation: ForwardingOperation =
     action === 'pause' ? 'forward.pause' : action === 'resume' ? 'forward.resume' : 'forward.apply';
   const metadata = rule
-    ? createForwardingMetadataFromRule({
+    ? createForwardingTaskMetadata(createForwardingMetadataFromRule({
         ...rule,
         enabled: action === 'pause' ? false : action === 'resume' ? true : rule.enabled
-      })
+      }))
     : undefined;
   const input: CreateTaskInput = {
     operation,
@@ -176,7 +192,7 @@ export function createForwardingDeleteTaskInput(rule: ForwardingRuleView, summar
     targetId: rule.id,
     targetLabel: rule.name,
     summary,
-    metadata: createForwardingMetadataFromRule(rule)
+    metadata: createForwardingTaskMetadata(createForwardingMetadataFromRule(rule))
   });
 }
 
