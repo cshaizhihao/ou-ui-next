@@ -1426,6 +1426,32 @@ function mapThrownError(error: unknown): HttpError {
   return createHttpError(500, 'bad_request', message);
 }
 
+function shouldRedactHttpResponseKey(key: string) {
+  return key === 'tokenHash' || key === 'accessTokenHash';
+}
+
+function redactHttpResponseSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactHttpResponseSecrets(item));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+
+  for (const [key, item] of Object.entries(value)) {
+    if (shouldRedactHttpResponseKey(key)) {
+      continue;
+    }
+
+    redacted[key] = redactHttpResponseSecrets(item);
+  }
+
+  return redacted;
+}
+
 function sendJson(response: ServerResponse, status: number, body: unknown, headers: Record<string, string | number> = {}) {
   const payload = JSON.stringify(body);
   response.writeHead(status, {
@@ -1438,7 +1464,7 @@ function sendJson(response: ServerResponse, status: number, body: unknown, heade
 
 function sendData(response: ServerResponse, requestId: string, data: unknown, status = 200, taskId?: string) {
   sendJson(response, status, {
-    data,
+    data: redactHttpResponseSecrets(data),
     requestId,
     ...(taskId ? { taskId } : {})
   });
@@ -1499,7 +1525,7 @@ function sendText(response: ServerResponse, status: number, contentType: string,
 function sendSseEvent(response: ServerResponse, event: string, id: string, data: unknown) {
   response.write(`event: ${event}\n`);
   response.write(`id: ${id}\n`);
-  response.write(`data: ${JSON.stringify(data)}\n\n`);
+  response.write(`data: ${JSON.stringify(redactHttpResponseSecrets(data))}\n\n`);
 }
 
 async function readJsonBody(request: IncomingMessage) {
@@ -1628,6 +1654,57 @@ function isSubscriptionQuotaExceeded(client: SubscriptionClientIdentity) {
   return client.quotaExceeded === true || (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes);
 }
 
+function createPublicSubscriptionAccessTokenHash(token: string) {
+  return `sha256:${createHash('sha256').update(token).digest('hex')}`;
+}
+
+function readBearerToken(headers: IncomingHttpHeaders) {
+  const authorization = Array.isArray(headers.authorization) ? headers.authorization[0] : headers.authorization;
+  const match = /^Bearer\s+(.+)$/i.exec(authorization ?? '');
+  return match?.[1]?.trim() || undefined;
+}
+
+function readPublicSubscriptionAccessToken(url: URL, headers: IncomingHttpHeaders) {
+  return url.searchParams.get('token')?.trim() || url.searchParams.get('access_token')?.trim() || readBearerToken(headers);
+}
+
+function timingSafeHashEqual(left: string, right: string) {
+  const leftDigest = left.replace(/^sha256:/i, '');
+  const rightDigest = right.replace(/^sha256:/i, '');
+
+  if (!/^[a-f0-9]{64}$/i.test(leftDigest) || !/^[a-f0-9]{64}$/i.test(rightDigest)) {
+    return false;
+  }
+
+  return timingSafeEqual(Buffer.from(leftDigest, 'hex'), Buffer.from(rightDigest, 'hex'));
+}
+
+function verifyPublicSubscriptionAccessToken(client: SubscriptionClientIdentity, token: string | undefined) {
+  const expectedHash = client.accessTokenHash;
+
+  if (!expectedHash) {
+    return;
+  }
+
+  if (!token) {
+    throw createHttpError(401, 'unauthorized', 'Subscription access token is required.', {
+      clientId: client.id,
+      subId: client.subId,
+      tokenRequired: true
+    });
+  }
+
+  const actualHash = createPublicSubscriptionAccessTokenHash(token);
+
+  if (!timingSafeHashEqual(actualHash, expectedHash)) {
+    throw createHttpError(401, 'unauthorized', 'Subscription access token is invalid.', {
+      clientId: client.id,
+      subId: client.subId,
+      tokenRequired: true
+    });
+  }
+}
+
 async function resolvePublicSubscriptionClient(
   api: ControlPlaneApi,
   path: { securePath: string; subId: string }
@@ -1723,12 +1800,17 @@ function formatPublicSubscriptionLabel(format: SubscriptionClientOutputFormat) {
   return format[0].toUpperCase() + format.slice(1);
 }
 
-function createPublicSubscriptionUrl(client: SubscriptionClientIdentity, format: SubscriptionClientOutputFormat) {
+function createPublicSubscriptionUrl(
+  client: SubscriptionClientIdentity,
+  format: SubscriptionClientOutputFormat,
+  accessToken?: string
+) {
   const securePath = (client.securePathPreview ?? '').replace(/^\/+/, '');
-  return `/sub/${encodeURIComponent(securePath)}/${encodeURIComponent(format)}/${encodeURIComponent(client.subId)}`;
+  const url = `/sub/${encodeURIComponent(securePath)}/${encodeURIComponent(format)}/${encodeURIComponent(client.subId)}`;
+  return accessToken ? `${url}?token=${encodeURIComponent(accessToken)}` : url;
 }
 
-function renderPublicSubscriptionPortal(client: SubscriptionClientIdentity) {
+function renderPublicSubscriptionPortal(client: SubscriptionClientIdentity, accessToken?: string) {
   const outputFormats = Array.from(resolveAllowedSubscriptionOutputFormats(client));
   const trafficLimitBytes = Math.max(client.trafficLimitBytes, 0);
   const usedTrafficBytes = Math.max(client.usedTrafficBytes, 0);
@@ -1736,7 +1818,7 @@ function renderPublicSubscriptionPortal(client: SubscriptionClientIdentity) {
   const links = outputFormats
     .map((format) => {
       const label = formatPublicSubscriptionLabel(format);
-      const href = createPublicSubscriptionUrl(client, format);
+      const href = createPublicSubscriptionUrl(client, format, accessToken);
 
       return `<li><a data-format="${escapeHtml(format)}" href="${escapeHtml(href)}">${escapeHtml(label)}</a><code>${escapeHtml(href)}</code></li>`;
     })
@@ -2492,6 +2574,8 @@ async function routeRequest(
     }
 
     const client = await resolvePublicSubscriptionClient(api, publicSubscriptionPath);
+    const accessToken = readPublicSubscriptionAccessToken(url, request.headers);
+    verifyPublicSubscriptionAccessToken(client, accessToken);
 
     if (!isSubscriptionFormatAllowed(client, publicSubscriptionFormat)) {
       throw createHttpError(403, 'permission.denied', `Subscription format is not enabled: ${publicSubscriptionPath.format}`);
@@ -2517,9 +2601,11 @@ async function routeRequest(
 
   if (method === 'GET' && publicSubscriptionPortalPath) {
     const client = await resolvePublicSubscriptionClient(api, publicSubscriptionPortalPath);
+    const accessToken = readPublicSubscriptionAccessToken(url, request.headers);
+    verifyPublicSubscriptionAccessToken(client, accessToken);
 
     consumePublicSubscriptionRequest(client, 'portal');
-    sendHtml(response, 200, renderPublicSubscriptionPortal(client));
+    sendHtml(response, 200, renderPublicSubscriptionPortal(client, accessToken));
     return;
   }
 

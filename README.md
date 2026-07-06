@@ -66,7 +66,7 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
 | Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、访问凭据轮换、二维码和 Shadowrocket/Stash 输出 |
-| 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、到期、用量和生成节点；独立客户门户、raw token/hash 校验、泄露撤销和设备级绑定仍需继续补齐 |
+| 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、到期、用量和生成节点；带 `accessTokenHash` 的身份会要求 raw token；独立客户门户、泄露撤销和设备级绑定仍需继续补齐 |
 | SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储 + schema v2 领域实体索引表，适合单 Master 部署、安装器闭环和后续强 schema 迁移起步 |
 | 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的完整强 schema、增量查询和 HA 仍是后续重点 |
 
@@ -213,11 +213,12 @@ Preview / blocked 能力：
 - 订阅身份和导出配置都可选择 public output formats，含 Shadowrocket / Stash。
 - 订阅链接抽屉支持门户链接、二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和访问凭据轮换；轮换会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL。
 - `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、到期、用量和生成节点，并与公开订阅下载共享 `requestLimitPerHour` 限流桶。
+- 公开订阅下载和门户支持可选 `accessTokenHash` 校验；配置该 hash 后，请求必须通过 `?token=`、`?access_token=` 或 `Authorization: Bearer` 提交匹配 raw token。HTTP JSON/SSE 响应会移除 `accessTokenHash` / `tokenHash` 字段。
 
 后续重点：
 
 - 完整独立用户订阅门户。
-- 独立 raw token/hash 校验、泄露撤销和设备级绑定。
+- UI 一次性 raw token 签发、泄露撤销和设备级绑定。
 - 更完整的导入诊断报告：原始文件片段定位、格式转换 diff、节点不兼容修复建议。
 - proxy group / rule provider 模板化能力。
 
@@ -293,7 +294,7 @@ P0：
 
 P1：
 
-- 订阅门户、raw token/hash 校验、泄露撤销和设备级绑定。
+- 订阅门户、UI 一次性 raw token 签发、泄露撤销和设备级绑定。
 - Tunnel entry/exit、质量探测、故障切换和运行状态面板。
 - SQLite v2 已提供可重建的领域实体索引表；完整强 schema、增量查询和 HA 仍需继续推进。
 - 更接近 3X-UI 的 Xray hot diff / reload 管线。

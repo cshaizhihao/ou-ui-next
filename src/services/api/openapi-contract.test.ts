@@ -1291,7 +1291,27 @@ describe('OpenAPI v1 contract', () => {
     expect(publicSubscriptionFormat?.schema).toMatchObject({
       enum: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
     });
+    expect(document.paths['/sub/{securePath}/{format}/{subId}'].get.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'token',
+          in: 'query'
+        })
+      ])
+    );
+    expect(document.paths['/portal/{securePath}/{subId}'].get.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'token',
+          in: 'query'
+        })
+      ])
+    );
     expect(document.paths['/portal/{securePath}/{subId}'].get.responses?.['200']?.content).toHaveProperty('text/html');
+    expect(getSchemaProperty(document.components.schemas.TaskMetadata, 'accessTokenHash')).toMatchObject({
+      type: 'string',
+      pattern: '^sha256:[a-f0-9]{64}$'
+    });
     expect(document.components.schemas.SubscriptionExportFile.required).toEqual(
       expect.arrayContaining([
         'id',

@@ -125,6 +125,7 @@ export type SubscriptionClientIdentity = {
   outputFormats?: SubscriptionClientOutputFormat[];
   templateName: string;
   accessTokenPreview: string;
+  accessTokenHash?: string;
   securePathPreview?: string;
   generatedNodeCount: number;
   lastOnlineAt?: string;
@@ -444,6 +445,11 @@ function readSecurePathPreview(metadata: Record<string, unknown> | undefined, ta
   }
 
   return `/${createStableSecret(`${task.id}:${task.requestId}:${subId}:secure-path`, 24)}`;
+}
+
+function readAccessTokenHash(metadata: Record<string, unknown> | undefined) {
+  const value = readString(metadata, 'accessTokenHash', '');
+  return /^sha256:[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : undefined;
 }
 
 export function createSubscriptionSourceFromTask(task: DeployTask): SubscriptionSource | undefined {
@@ -855,6 +861,7 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     outputFormats: readClientOutputFormats(metadata),
     templateName: readString(metadata, 'templateName', 'mihomo-compatible.yaml'),
     accessTokenPreview: readString(metadata, 'accessTokenPreview', createAccessTokenPreview(subId)),
+    accessTokenHash: readAccessTokenHash(metadata),
     securePathPreview: readSecurePathPreview(metadata, task, subId),
     generatedNodeCount: Math.max(Math.round(readNumber(metadata, 'generatedNodeCount', 0)), 0),
     lastOnlineAt: readString(metadata, 'lastOnlineAt', ''),

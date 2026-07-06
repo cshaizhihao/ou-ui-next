@@ -81,6 +81,30 @@ describe('subscription read models', () => {
     });
   });
 
+  it('keeps only valid subscription access token hashes in the client read model', () => {
+    const validClient = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-token-hash',
+        displayName: 'Token Hash Client Subscription',
+        subId: 'sub_token_hash_client',
+        protocol: 'vless',
+        accessTokenHash: `sha256:${'A'.repeat(64)}`
+      })
+    );
+    const invalidClient = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-token-hash-invalid',
+        displayName: 'Invalid Token Hash Client Subscription',
+        subId: 'sub_token_hash_client_invalid',
+        protocol: 'vless',
+        accessTokenHash: 'raw-token-should-not-be-kept'
+      })
+    );
+
+    expect(validClient?.accessTokenHash).toBe(`sha256:${'a'.repeat(64)}`);
+    expect(invalidClient?.accessTokenHash).toBeUndefined();
+  });
+
   it('maps subscription request limits into the public client read model', () => {
     const client = createSubscriptionClientFromTask(
       createSubscriptionTask({

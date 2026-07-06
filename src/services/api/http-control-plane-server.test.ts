@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, vi } from 'vitest';
 import { createMockApi } from '../mock/mock-api';
 import { createHttpControlPlaneServer, type ControlPlaneStructuredLogEvent } from './http-control-plane-server';
@@ -129,6 +130,10 @@ function mutationHeaders(overrides: Record<string, string> = {}) {
     'Idempotency-Key': 'idem-http-task-001',
     ...overrides
   };
+}
+
+function subscriptionAccessTokenHash(token: string) {
+  return `sha256:${createHash('sha256').update(token).digest('hex')}`;
 }
 
 async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = 2000) {
@@ -2096,6 +2101,86 @@ describe('HTTP control-plane server', () => {
       expect(restoredResponse.status).toBe(200);
       expect(restoredResponse.headers.get('subscription-userinfo')).toContain('download=0');
       expect(restoredBody).toContain('vless://33333333-3333-4333-8333-333333333333@quota-sub.example.com:2443');
+    });
+  });
+
+  it('requires matching access token hash for protected public subscription links and portal', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const rawToken = 'ou_raw_subscription_token_2026';
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-token-client',
+          'Idempotency-Key': 'idem-public-sub-token-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-token-protected',
+          targetLabel: 'Token Protected Subscription',
+          summary: 'Create token protected subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-token-protected',
+            customerName: 'Token Customer',
+            displayName: 'Token Protected Subscription',
+            subId: 'sub_token_protected',
+            email: 'token@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            remainingDays: 30,
+            outputFormats: ['uri', 'clash'],
+            formats: ['plain', 'clash'],
+            accessTokenPreview: 'ou_raw...2026',
+            accessTokenHash: subscriptionAccessTokenHash(rawToken),
+            securePathPreview: '/tokenProtectedPath2026',
+            generatedNodeCount: 0
+          }
+        })
+      });
+
+      expect(createClientResponse.status).toBe(201);
+
+      const missingTokenResponse = await fetch(`${baseUrl}/sub/tokenProtectedPath2026/uri/sub_token_protected`);
+      const missingTokenEnvelope = await missingTokenResponse.json();
+      const wrongTokenResponse = await fetch(`${baseUrl}/sub/tokenProtectedPath2026/uri/sub_token_protected?token=wrong`);
+      const wrongTokenEnvelope = await wrongTokenResponse.json();
+      const queryTokenResponse = await fetch(
+        `${baseUrl}/sub/tokenProtectedPath2026/uri/sub_token_protected?token=${encodeURIComponent(rawToken)}`
+      );
+      const bearerTokenResponse = await fetch(`${baseUrl}/sub/tokenProtectedPath2026/clash/sub_token_protected`, {
+        headers: {
+          Authorization: `Bearer ${rawToken}`
+        }
+      });
+      const portalResponse = await fetch(
+        `${baseUrl}/portal/tokenProtectedPath2026/sub_token_protected?token=${encodeURIComponent(rawToken)}`
+      );
+      const portal = await portalResponse.text();
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
+      const snapshotEnvelope = await snapshotResponse.json();
+
+      expect(missingTokenResponse.status).toBe(401);
+      expect(missingTokenEnvelope.error).toMatchObject({
+        code: 'unauthorized',
+        details: expect.objectContaining({
+          tokenRequired: true
+        })
+      });
+      expect(wrongTokenResponse.status).toBe(401);
+      expect(wrongTokenEnvelope.error).toMatchObject({
+        code: 'unauthorized',
+        details: expect.objectContaining({
+          tokenRequired: true
+        })
+      });
+      expect(queryTokenResponse.status).toBe(200);
+      expect(bearerTokenResponse.status).toBe(200);
+      expect(portalResponse.status).toBe(200);
+      expect(portal).toContain(
+        `href="/sub/tokenProtectedPath2026/uri/sub_token_protected?token=${encodeURIComponent(rawToken)}"`
+      );
+      expect(JSON.stringify(snapshotEnvelope.data)).not.toContain('accessTokenHash');
+      expect(JSON.stringify(snapshotEnvelope.data)).not.toContain(subscriptionAccessTokenHash(rawToken));
     });
   });
 

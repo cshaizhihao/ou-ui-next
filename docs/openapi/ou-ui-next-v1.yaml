@@ -1277,7 +1277,7 @@ paths:
         - Subscriptions
       operationId: getPublicSubscriptionPortal
       summary: Open a minimal customer-facing subscription portal by secure path and subId
-      description: Public customer portal page for enabled subscription identities. It lists enabled output links and subscription status without operator bearer authentication.
+      description: Public customer portal page for enabled subscription identities. It lists enabled output links and subscription status without operator bearer authentication. If the subscription identity has an accessTokenHash, callers must provide the raw token through the token query parameter or an Authorization bearer token.
       parameters:
         - name: securePath
           in: path
@@ -1289,6 +1289,13 @@ paths:
         - name: subId
           in: path
           required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: token
+          in: query
+          required: false
+          description: Raw subscription access token required when the identity stores accessTokenHash.
           schema:
             type: string
             minLength: 1
@@ -1307,7 +1314,7 @@ paths:
         - Subscriptions
       operationId: getPublicSubscriptionOutput
       summary: Download a generated client subscription by secure path and subId
-      description: Public subscription clients such as Clash, Mihomo, sing-box, Shadowrocket, Stash, and v2rayN call this endpoint without operator bearer authentication. Access is scoped by the generated secure path and the client subId.
+      description: Public subscription clients such as Clash, Mihomo, sing-box, Shadowrocket, Stash, and v2rayN call this endpoint without operator bearer authentication. Access is scoped by the generated secure path and the client subId. If the subscription identity has an accessTokenHash, callers must provide the raw token through the token query parameter or an Authorization bearer token.
       parameters:
         - name: securePath
           in: path
@@ -1332,6 +1339,13 @@ paths:
         - name: subId
           in: path
           required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: token
+          in: query
+          required: false
+          description: Raw subscription access token required when the identity stores accessTokenHash.
           schema:
             type: string
             minLength: 1
@@ -6376,6 +6390,10 @@ components:
         requestLimitPerHour:
           type: integer
           minimum: 0
+        accessTokenHash:
+          type: string
+          description: Optional sha256 hash of the raw public subscription access token. HTTP JSON and SSE responses redact this field.
+          pattern: '^sha256:[a-f0-9]{64}$'
         trafficLimitGb:
           type: integer
           minimum: 0
