@@ -1,4 +1,5 @@
 import type {
+  AgentAuthFailureThrottleOptions,
   HttpControlPlaneAuthOptions,
   OperatorAuthFailureThrottleOptions
 } from '../../services/api/http-control-plane-server';
@@ -33,6 +34,7 @@ export type HttpControlPlaneRuntimeConfig = {
     maxCommands: number;
   };
   operatorAuthFailureThrottle: Required<OperatorAuthFailureThrottleOptions>;
+  agentAuthFailureThrottle: Required<AgentAuthFailureThrottleOptions>;
   subscriptionSourceEgress?: {
     allowedHosts: string[];
   };
@@ -522,6 +524,18 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       20
     )
   };
+  const agentAuthFailureThrottle = {
+    windowMs: parsePositiveInteger(
+      env.OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS,
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS',
+      60_000
+    ),
+    maxFailures: parsePositiveInteger(
+      env.OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT,
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT',
+      5
+    )
+  };
   const allowedSubscriptionSourceHosts = parseCommaSeparatedList(env.OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST);
   const subscriptionSourceEgress =
     allowedSubscriptionSourceHosts.length > 0
@@ -682,6 +696,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       highFrequencyAgentEventPersistence,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
+      agentAuthFailureThrottle,
       storage: {
         type: 'memory'
       },
@@ -714,6 +729,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       highFrequencyAgentEventPersistence,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
+      agentAuthFailureThrottle,
       storage: {
         type: 'file',
         stateFilePath
@@ -749,6 +765,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       highFrequencyAgentEventPersistence,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
+      agentAuthFailureThrottle,
       storage: {
         type: 'sqlite',
         databaseFilePath,

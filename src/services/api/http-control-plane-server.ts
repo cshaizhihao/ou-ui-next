@@ -72,6 +72,7 @@ type HttpErrorCode =
   | 'idempotency.replay_unavailable'
   | 'identity.mismatch'
   | 'not_found'
+  | 'agent_auth.rate_limited'
   | 'operator_auth.rate_limited'
   | 'permission_change.required'
   | 'permission.denied'
@@ -101,6 +102,10 @@ const publicSubscriptionRequestBuckets = new Map<string, { windowStartedAt: numb
 const defaultOperatorAuthFailureThrottle = {
   windowMs: 60_000,
   maxFailures: 20
+};
+const defaultAgentAuthFailureThrottle = {
+  windowMs: 60_000,
+  maxFailures: 5
 };
 const defaultOperatorSessionCookieName = 'ou_ui_next_operator_session';
 const defaultOperatorSessionTtlMs = 8 * 60 * 60 * 1000;
@@ -177,6 +182,10 @@ export type OperatorAuthFailureThrottleOptions = {
   windowMs?: number;
   maxFailures?: number;
 };
+export type AgentAuthFailureThrottleOptions = {
+  windowMs?: number;
+  maxFailures?: number;
+};
 type OperatorAuthFailureThrottleConfig = Required<OperatorAuthFailureThrottleOptions>;
 type OperatorAuthFailureBucket = {
   windowStartedAt: number;
@@ -187,6 +196,20 @@ type OperatorAuthFailureThrottle = OperatorAuthFailureThrottleConfig & {
   buckets: Map<string, OperatorAuthFailureBucket>;
 };
 type OperatorAuthFailureThrottleResult = OperatorAuthFailureThrottleConfig & {
+  rateLimited: boolean;
+  shouldAudit: boolean;
+  retryAfterMs: number;
+};
+type AgentAuthFailureThrottleConfig = Required<AgentAuthFailureThrottleOptions>;
+type AgentAuthFailureBucket = {
+  windowStartedAt: number;
+  count: number;
+  rateLimitedAuditRecorded: boolean;
+};
+type AgentAuthFailureThrottle = AgentAuthFailureThrottleConfig & {
+  buckets: Map<string, AgentAuthFailureBucket>;
+};
+type AgentAuthFailureThrottleResult = AgentAuthFailureThrottleConfig & {
   rateLimited: boolean;
   shouldAudit: boolean;
   retryAfterMs: number;
@@ -272,11 +295,16 @@ export type CreateHttpControlPlaneServerOptions = {
   auth?: HttpControlPlaneAuthOptions;
   logger?: ControlPlaneStructuredLogger;
   operatorAuthFailureThrottle?: OperatorAuthFailureThrottleOptions | false;
+  agentAuthFailureThrottle?: AgentAuthFailureThrottleOptions | false;
   operatorSessionStore?: OperatorSessionStore;
   runtimeMetrics?: HttpRuntimeMetrics;
 };
 
-type ResolvedHttpControlPlaneServerOptions = CreateHttpControlPlaneServerOptions & {
+type ResolvedHttpControlPlaneServerOptions = Omit<
+  CreateHttpControlPlaneServerOptions,
+  'agentAuthFailureThrottle'
+> & {
+  agentAuthFailureThrottle?: AgentAuthFailureThrottle;
   runtimeMetrics: HttpRuntimeMetrics;
 };
 
@@ -575,6 +603,100 @@ function consumeOperatorAuthFailure(
   }
 
   const bucketKey = readRequestSourceIp(request);
+  const existingBucket = throttle.buckets.get(bucketKey);
+  const bucket =
+    !existingBucket || nowMs - existingBucket.windowStartedAt >= throttle.windowMs
+      ? {
+          windowStartedAt: nowMs,
+          count: 0,
+          rateLimitedAuditRecorded: false
+        }
+      : existingBucket;
+
+  bucket.count += 1;
+  throttle.buckets.set(bucketKey, bucket);
+
+  const retryAfterMs = Math.max(1, throttle.windowMs - (nowMs - bucket.windowStartedAt));
+
+  if (bucket.count <= throttle.maxFailures) {
+    return {
+      windowMs: throttle.windowMs,
+      maxFailures: throttle.maxFailures,
+      retryAfterMs,
+      rateLimited: false,
+      shouldAudit: true
+    };
+  }
+
+  if (!bucket.rateLimitedAuditRecorded) {
+    bucket.rateLimitedAuditRecorded = true;
+
+    return {
+      windowMs: throttle.windowMs,
+      maxFailures: throttle.maxFailures,
+      retryAfterMs,
+      rateLimited: true,
+      shouldAudit: true
+    };
+  }
+
+  return {
+    windowMs: throttle.windowMs,
+    maxFailures: throttle.maxFailures,
+    retryAfterMs,
+    rateLimited: true,
+    shouldAudit: false
+  };
+}
+
+function normalizeAgentAuthFailureThrottle(
+  options: CreateHttpControlPlaneServerOptions['agentAuthFailureThrottle']
+): AgentAuthFailureThrottle | undefined {
+  if (options === false) {
+    return undefined;
+  }
+
+  const windowMs = Math.round(options?.windowMs ?? defaultAgentAuthFailureThrottle.windowMs);
+  const maxFailures = Math.round(options?.maxFailures ?? defaultAgentAuthFailureThrottle.maxFailures);
+
+  if (windowMs <= 0 || maxFailures <= 0) {
+    return undefined;
+  }
+
+  return {
+    windowMs,
+    maxFailures,
+    buckets: new Map()
+  };
+}
+
+function createPresentedAgentTokenBucketKey(headers: IncomingHttpHeaders) {
+  const token = getBearerToken(headers);
+
+  if (!token) {
+    return 'missing-token';
+  }
+
+  return `sha256:${createHash('sha256').update(token).digest('hex').slice(0, 16)}`;
+}
+
+function consumeAgentAuthFailure(
+  throttle: AgentAuthFailureThrottle | undefined,
+  request: IncomingMessage,
+  nowMs = Date.now()
+): AgentAuthFailureThrottleResult {
+  const fallback = {
+    ...defaultAgentAuthFailureThrottle,
+    retryAfterMs: defaultAgentAuthFailureThrottle.windowMs,
+    rateLimited: false,
+    shouldAudit: true
+  };
+
+  if (!throttle) {
+    return fallback;
+  }
+
+  const bucketKey = `${readRequestSourceIp(request)}:${createPresentedAgentTokenBucketKey(request.headers)}`;
   const existingBucket = throttle.buckets.get(bucketKey);
   const bucket =
     !existingBucket || nowMs - existingBucket.windowStartedAt >= throttle.windowMs
@@ -1060,6 +1182,7 @@ async function recordDeniedAgentRequest(
   endpoint: 'poll' | 'events' | 'credential_rotate',
   requestId: string,
   error: HttpError,
+  throttle: AgentAuthFailureThrottle | undefined,
   options: {
     agentIds?: string[];
     sessionIds?: string[];
@@ -1067,31 +1190,44 @@ async function recordDeniedAgentRequest(
   } = {}
 ) {
   if (error.code !== 'unauthorized' && error.code !== 'identity.mismatch') {
-    return;
+    return error;
   }
 
-  try {
-    await api.recordAgentRequestDenied({
-      endpoint,
-      requestId,
-      sourceIp: readRequestSourceIp(request),
-      userAgent: getHeader(request.headers, 'user-agent'),
-      denialCode: error.code,
-      denialReason: error.message,
-      tokenPresented: Boolean(getBearerToken(request.headers)),
-      agentIds: options.agentIds,
-      sessionIds: options.sessionIds,
-      authenticatedAgentId: options.agentIdentity?.agentId,
-      authenticatedSessionId: options.agentIdentity?.sessionId,
-      credentialId: options.agentIdentity?.credentialId
-    });
-  } catch (auditError) {
-    recordAuditWriteFailure(serverOptions, runtimeMetrics, request, {
-      requestId,
-      auditKind: 'agent.denied',
-      error: auditError
-    });
+  const throttleResult = consumeAgentAuthFailure(throttle, request);
+  const effectiveError = throttleResult.rateLimited
+    ? createHttpError(429, 'agent_auth.rate_limited', 'Too many failed Agent authentication attempts.', {
+        retryAfterMs: throttleResult.retryAfterMs,
+        windowMs: throttleResult.windowMs,
+        maxFailures: throttleResult.maxFailures
+      })
+    : error;
+
+  if (throttleResult.shouldAudit) {
+    try {
+      await api.recordAgentRequestDenied({
+        endpoint,
+        requestId,
+        sourceIp: readRequestSourceIp(request),
+        userAgent: getHeader(request.headers, 'user-agent'),
+        denialCode: effectiveError.code === 'agent_auth.rate_limited' ? 'agent_auth.rate_limited' : error.code,
+        denialReason: effectiveError.message,
+        tokenPresented: Boolean(getBearerToken(request.headers)),
+        agentIds: options.agentIds,
+        sessionIds: options.sessionIds,
+        authenticatedAgentId: options.agentIdentity?.agentId,
+        authenticatedSessionId: options.agentIdentity?.sessionId,
+        credentialId: options.agentIdentity?.credentialId
+      });
+    } catch (auditError) {
+      recordAuditWriteFailure(serverOptions, runtimeMetrics, request, {
+        requestId,
+        auditKind: 'agent.denied',
+        error: auditError
+      });
+    }
   }
+
+  return effectiveError;
 }
 
 function isOperatorAuthBoundaryPath(pathname: string) {
@@ -3431,7 +3567,16 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'credential_rotate', requestId, httpError);
+        throw await recordDeniedAgentRequest(
+          api,
+          options,
+          options.runtimeMetrics,
+          request,
+          'credential_rotate',
+          requestId,
+          httpError,
+          options.agentAuthFailureThrottle
+        );
       }
 
       throw error;
@@ -3453,7 +3598,7 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(
+        throw await recordDeniedAgentRequest(
           api,
           options,
           options.runtimeMetrics,
@@ -3461,6 +3606,7 @@ async function routeRequest(
           'credential_rotate',
           body.requestId,
           httpError,
+          options.agentAuthFailureThrottle,
           {
             agentIds: [body.agentId],
             sessionIds: body.sessionId ? [body.sessionId] : [],
@@ -3514,7 +3660,16 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'poll', requestId, httpError);
+        throw await recordDeniedAgentRequest(
+          api,
+          options,
+          options.runtimeMetrics,
+          request,
+          'poll',
+          requestId,
+          httpError,
+          options.agentAuthFailureThrottle
+        );
       }
 
       throw error;
@@ -3527,11 +3682,21 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'poll', body.requestId, httpError, {
-          agentIds: [body.agentId],
-          sessionIds: body.sessionId ? [body.sessionId] : [],
-          agentIdentity
-        });
+        throw await recordDeniedAgentRequest(
+          api,
+          options,
+          options.runtimeMetrics,
+          request,
+          'poll',
+          body.requestId,
+          httpError,
+          options.agentAuthFailureThrottle,
+          {
+            agentIds: [body.agentId],
+            sessionIds: body.sessionId ? [body.sessionId] : [],
+            agentIdentity
+          }
+        );
       }
 
       throw error;
@@ -3568,7 +3733,16 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'events', requestId, httpError);
+        throw await recordDeniedAgentRequest(
+          api,
+          options,
+          options.runtimeMetrics,
+          request,
+          'events',
+          requestId,
+          httpError,
+          options.agentAuthFailureThrottle
+        );
       }
 
       throw error;
@@ -3584,11 +3758,21 @@ async function routeRequest(
       const httpError = readHttpError(error);
 
       if (httpError) {
-        await recordDeniedAgentRequest(api, options, options.runtimeMetrics, request, 'events', requestId, httpError, {
-          agentIds: eventAgentIds,
-          sessionIds: eventSessionIds,
-          agentIdentity
-        });
+        throw await recordDeniedAgentRequest(
+          api,
+          options,
+          options.runtimeMetrics,
+          request,
+          'events',
+          requestId,
+          httpError,
+          options.agentAuthFailureThrottle,
+          {
+            agentIds: eventAgentIds,
+            sessionIds: eventSessionIds,
+            agentIdentity
+          }
+        );
       }
 
       throw error;
@@ -3639,11 +3823,13 @@ async function routeRequest(
 
 export function createHttpControlPlaneServer(api: ControlPlaneApi, options: CreateHttpControlPlaneServerOptions = {}) {
   const operatorAuthFailureThrottle = normalizeOperatorAuthFailureThrottle(options.operatorAuthFailureThrottle);
+  const agentAuthFailureThrottle = normalizeAgentAuthFailureThrottle(options.agentAuthFailureThrottle);
   const operatorSessionStore =
     options.operatorSessionStore ?? (options.auth?.operatorSession ? createInMemoryOperatorSessionStore() : undefined);
   const runtimeMetrics = options.runtimeMetrics ?? createHttpRuntimeMetrics();
   const resolvedOptions: ResolvedHttpControlPlaneServerOptions = {
     ...options,
+    agentAuthFailureThrottle,
     operatorSessionStore,
     runtimeMetrics
   };

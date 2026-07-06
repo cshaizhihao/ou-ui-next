@@ -246,6 +246,8 @@ Preview / blocked 能力：
 | `OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON` | Agent install token 配置 |
 | `OU_UI_COMMAND_ACK_TIMEOUT_MS` | Agent ACK 超时 |
 | `OU_UI_COMMAND_RESULT_TIMEOUT_MS` | Agent result 超时 |
+| `OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS` | Agent 认证失败限流窗口，默认 `60000` |
+| `OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT` | 每个来源/token 在窗口内允许的 Agent 认证失败次数，默认 `5`，超限返回 `agent_auth.rate_limited` 并停止每次写 denied audit |
 | `OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS` | 流量历史保留天数 |
 | `OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE` | 每个 Agent / 转发规则 / Xray 客户端保留的 rollup 记录上限 |
 | `OU_UI_AGENT_LOG_RETENTION_DAYS` | Agent 日志保留天数 |

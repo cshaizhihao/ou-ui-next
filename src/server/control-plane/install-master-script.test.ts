@@ -2188,6 +2188,29 @@ function runOperatorAuthThrottleHealth(script: string, backendEnvLines: string[]
   }
 }
 
+function runAgentAuthThrottleHealth(script: string, backendEnvLines: string[]) {
+  const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-agent-auth-throttle-health-'));
+  const backendEnvFile = join(directory, 'master.env');
+
+  writeFileSync(backendEnvFile, backendEnvLines.join('\n'));
+
+  const healthScript = [
+    'set -Eeuo pipefail',
+    `BACKEND_ENV_FILE=${JSON.stringify(backendEnvFile)}`,
+    extractFunctionBefore(script, 'read_backend_env_value', 'read_credentials_env_value'),
+    extractFunctionBefore(script, 'count_csv_env_values', 'control_plane_backup_directory'),
+    'show_agent_auth_throttle_health'
+  ].join('\n');
+
+  try {
+    return execFileSync('bash', ['-c', healthScript], {
+      encoding: 'utf8'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function runOperatorSessionHealth(script: string, backendEnvLines: string[]) {
   const directory = mkdtempSync(join(tmpdir(), 'ou-ui-next-operator-session-health-'));
   const backendEnvFile = join(directory, 'master.env');
@@ -2565,6 +2588,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_ACK_TIMEOUT_MS 15000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 120000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS 60000');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT 5');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST ""');
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
     expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS=7');
@@ -2576,6 +2601,8 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_COMMAND_ACK_TIMEOUT_MS=15000');
     expect(script).toContain('OU_UI_COMMAND_RESULT_TIMEOUT_MS=120000');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=500');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS=60000');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT=5');
     expect(script).toContain('OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST=');
     expect(script).toContain('reconfigure|configure|config|port|cert|ssl|tls|m)');
     expect(script).toContain('force_reset_control_plane_state()');
@@ -7824,7 +7851,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
   it('reports external archive configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_external_archive_health()');
     expect(script).toContain(
-      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_browser_smoke_runtime_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_agent_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_browser_smoke_runtime_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_OBJECT_STORAGE_ENDPOINT');
     expect(script).toContain('外部归档对象存储: 配置不完整');
@@ -8129,6 +8156,32 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(invalid).toContain('Operator 登录失败限流阈值: abc（无效，必须是正整数；后端会拒绝启动）');
   });
 
+  it('reports Agent auth throttle configuration health during doctor diagnostics', () => {
+    expect(script).toContain('show_agent_auth_throttle_health()');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS');
+    expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT');
+    expect(script).toContain('Agent 认证失败限流窗口');
+    expect(script).toContain('Agent 认证失败限流阈值');
+
+    const configured = runAgentAuthThrottleHealth(script, [
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS=30000',
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT=3'
+    ]);
+    expect(configured).toContain('Agent 认证失败限流窗口: 30000ms');
+    expect(configured).toContain('Agent 认证失败限流阈值: 3');
+
+    const defaults = runAgentAuthThrottleHealth(script, []);
+    expect(defaults).toContain('Agent 认证失败限流窗口: 默认 60000ms');
+    expect(defaults).toContain('Agent 认证失败限流阈值: 默认 5');
+
+    const invalid = runAgentAuthThrottleHealth(script, [
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS=0',
+      'OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT=abc'
+    ]);
+    expect(invalid).toContain('Agent 认证失败限流窗口: 0（无效，必须是正整数；后端会拒绝启动）');
+    expect(invalid).toContain('Agent 认证失败限流阈值: abc（无效，必须是正整数；后端会拒绝启动）');
+  });
+
   it('reports operator session configuration health during doctor diagnostics without leaking the secret', () => {
     expect(script).toContain('show_operator_session_health()');
     expect(script).toContain('OU_UI_CONTROL_PLANE_OPERATOR_SESSION_SECRET');
@@ -8344,7 +8397,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
   it('reports system alert webhook configuration health during doctor diagnostics', () => {
     expect(script).toContain('show_system_alert_webhook_health()');
     expect(script).toContain(
-      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_browser_smoke_runtime_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
+      'show_systemd_service_health\n  show_runtime_filesystem_health\n  show_external_archive_health\n  show_agent_log_retention_health\n  show_traffic_rollup_retention_health\n  show_command_timeout_sweep_health\n  show_operator_auth_throttle_health\n  show_agent_auth_throttle_health\n  show_operator_session_health\n  show_operator_identity_health\n  show_operator_bearer_token_health\n  show_nginx_auth_proxy_health\n  show_frontend_static_secret_health\n  show_browser_smoke_runtime_health\n  show_agent_token_config_health\n  show_system_alert_webhook_health\n  show_subscription_source_health\n\n  if systemctl is-active'
     );
     expect(script).toContain('OU_UI_SYSTEM_ALERT_WEBHOOK_URL');
     expect(script).toContain('系统告警 webhook: 已配置 ${webhook_count} 个目标');

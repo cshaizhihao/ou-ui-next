@@ -37,6 +37,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         windowMs: 60_000,
         maxFailures: 20
       },
+      agentAuthFailureThrottle: {
+        windowMs: 60_000,
+        maxFailures: 5
+      },
       storage: {
         type: 'memory'
       }
@@ -62,7 +66,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_COMMAND_RESULT_TIMEOUT_MS: '30000',
         OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS: '50',
         OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS: '15000',
-        OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT: '5'
+        OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT: '5',
+        OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS: '45000',
+        OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT: '3'
       })
     ).toEqual({
       host: '0.0.0.0',
@@ -89,6 +95,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       operatorAuthFailureThrottle: {
         windowMs: 15_000,
         maxFailures: 5
+      },
+      agentAuthFailureThrottle: {
+        windowMs: 45_000,
+        maxFailures: 3
       },
       storage: {
         type: 'file',
@@ -432,6 +442,10 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         windowMs: 60_000,
         maxFailures: 20
       },
+      agentAuthFailureThrottle: {
+        windowMs: 60_000,
+        maxFailures: 5
+      },
       storage: {
         type: 'memory'
       },
@@ -615,6 +629,20 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT: '-1'
       })
     ).toThrow('OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT must be a positive integer.');
+  });
+
+  it('rejects invalid Agent auth failure throttle settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS: '0'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS must be a positive integer.');
+
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT: '-1'
+      })
+    ).toThrow('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT must be a positive integer.');
   });
 
   it('requires complete operator session settings when session auth is enabled', () => {

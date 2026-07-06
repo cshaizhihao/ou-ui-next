@@ -541,6 +541,8 @@ OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=30000
 OU_UI_COMMAND_ACK_TIMEOUT_MS=15000
 OU_UI_COMMAND_RESULT_TIMEOUT_MS=120000
 OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=500
+OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS=60000
+OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT=5
 OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST=
 EOF
 
@@ -5100,6 +5102,8 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_ACK_TIMEOUT_MS 15000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 120000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS 60000
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT 5
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST ""
   if [[ -f "${state_file}" ]]; then
     set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_LEGACY_STATE_FILE "${state_file}"
@@ -5732,6 +5736,25 @@ show_operator_auth_throttle_health() {
     show_positive_integer_config_health "Operator 登录失败限流阈值" "${max_failures}"
   else
     echo "  Operator 登录失败限流阈值: 默认 20"
+  fi
+}
+
+show_agent_auth_throttle_health() {
+  local window_ms max_failures
+
+  window_ms="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS)"
+  max_failures="$(read_backend_env_value OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT)"
+
+  if [[ -n "${window_ms}" ]]; then
+    show_positive_integer_config_health "Agent 认证失败限流窗口" "${window_ms}" "ms"
+  else
+    echo "  Agent 认证失败限流窗口: 默认 60000ms"
+  fi
+
+  if [[ -n "${max_failures}" ]]; then
+    show_positive_integer_config_health "Agent 认证失败限流阈值" "${max_failures}"
+  else
+    echo "  Agent 认证失败限流阈值: 默认 5"
   fi
 }
 
@@ -6382,6 +6405,7 @@ EOT
   show_traffic_rollup_retention_health
   show_command_timeout_sweep_health
   show_operator_auth_throttle_health
+  show_agent_auth_throttle_health
   show_operator_session_health
   show_operator_identity_health
   show_operator_bearer_token_health

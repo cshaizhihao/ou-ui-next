@@ -1025,6 +1025,102 @@ describe('HTTP control-plane authentication boundary', () => {
     });
   });
 
+  it('rate limits repeated Agent authentication failures and caps denied audit writes', async () => {
+    await withAuthenticatedServer(
+      async (baseUrl) => {
+        const responses = [];
+
+        for (let index = 1; index <= 4; index += 1) {
+          responses.push(
+            await fetch(`${baseUrl}/agent/v1/events`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer stale-agent-token',
+                'X-Forwarded-For': '198.51.100.55',
+                'X-Request-Id': `req-agent-auth-throttle-${index}`
+              },
+              body: JSON.stringify({
+                events: []
+              })
+            })
+          );
+        }
+
+        const envelopes = await Promise.all(responses.map((response) => response.json()));
+
+        expect(responses.map((response) => response.status)).toEqual([401, 401, 429, 429]);
+        expect(responses[2]?.headers.get('retry-after')).toBe('60');
+        expect(envelopes[2]).toMatchObject({
+          error: {
+            code: 'agent_auth.rate_limited',
+            details: {
+              maxFailures: 2,
+              windowMs: 60_000
+            }
+          },
+          requestId: 'req-agent-auth-throttle-3'
+        });
+        expect(envelopes[3]).toMatchObject({
+          error: {
+            code: 'agent_auth.rate_limited'
+          },
+          requestId: 'req-agent-auth-throttle-4'
+        });
+
+        const auditResponse = await fetch(`${baseUrl}/api/v1/audit-logs`, {
+          headers: {
+            Authorization: 'Bearer operator-token-001'
+          }
+        });
+        const auditEnvelope = await auditResponse.json();
+        const throttledDenials = auditEnvelope.data.filter(
+          (log: { action: string; operation: string; sourceIp: string }) =>
+            log.action === 'audit.denied' &&
+            log.operation === 'agent.events' &&
+            log.sourceIp === '198.51.100.55'
+        );
+
+        expect(throttledDenials).toHaveLength(3);
+        expect(throttledDenials).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              requestId: 'req-agent-auth-throttle-1',
+              denialCode: 'unauthorized',
+              after: expect.objectContaining({
+                endpoint: 'events',
+                tokenPresented: true
+              })
+            }),
+            expect.objectContaining({
+              requestId: 'req-agent-auth-throttle-2',
+              denialCode: 'unauthorized'
+            }),
+            expect.objectContaining({
+              requestId: 'req-agent-auth-throttle-3',
+              denialCode: 'agent_auth.rate_limited',
+              denialReason: 'Too many failed Agent authentication attempts.'
+            })
+          ])
+        );
+        expect(throttledDenials).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              requestId: 'req-agent-auth-throttle-4'
+            })
+          ])
+        );
+        expect(JSON.stringify(throttledDenials)).not.toContain('stale-agent-token');
+      },
+      {
+        agentAuthFailureThrottle: {
+          maxFailures: 2,
+          windowMs: 60_000
+        }
+      }
+    );
+  });
+
   it('does not allow operator and Agent tokens to cross runtime boundaries', async () => {
     await withAuthenticatedServer(async (baseUrl) => {
       const agentTokenMutationResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

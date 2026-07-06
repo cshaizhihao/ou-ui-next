@@ -308,7 +308,7 @@ export type AgentRequestDeniedAuditInput = {
   requestId: string;
   sourceIp: string;
   userAgent?: string;
-  denialCode: 'unauthorized' | 'identity.mismatch';
+  denialCode: 'unauthorized' | 'identity.mismatch' | 'agent_auth.rate_limited';
   denialReason: string;
   tokenPresented: boolean;
   agentIds?: string[];
