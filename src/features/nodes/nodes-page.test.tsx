@@ -2465,6 +2465,88 @@ describe('NodesPage', () => {
     expect(protocolOptions.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
   });
 
+  it('requires an Agent with Xray capability before creating customer nodes', async () => {
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-forward-only-01',
+            name: 'Forward Only Host',
+            capabilities: ['host-agent', 'port-forwarding']
+          }
+        ]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Add Customer Node' })).toBeDisabled();
+  });
+
+  it('limits new customer-node targets to Agents with Xray runtime capability', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            id: 'agent-forward-only-01',
+            name: 'Forward Only Host',
+            publicAddress: '203.0.113.10',
+            capabilities: ['host-agent', 'port-forwarding']
+          },
+          {
+            ...createAgent(),
+            id: 'agent-xray-02',
+            name: 'Xray Runtime Host',
+            publicAddress: '203.0.113.20',
+            capabilities: ['host-agent', 'xray']
+          }
+        ]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    const hostSelect = within(dialog).getByLabelText('Assigned Host');
+
+    expect(within(hostSelect).getByRole('option', { name: 'Xray Runtime Host' })).toBeInTheDocument();
+    expect(within(hostSelect).queryByRole('option', { name: 'Forward Only Host' })).not.toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText('Customer Name'), 'Acme');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(onSaveCustomerNode).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'agent-xray-02',
+          serverAddress: '203.0.113.20'
+        }),
+        'create'
+      );
+    });
+  });
+
   it('generates both single-node import and public subscription links for customer nodes', async () => {
     const user = userEvent.setup();
     render(

@@ -1035,6 +1035,10 @@ function hostMatchesRuntimeHealthFilter(agent: Agent, filter: HostRuntimeHealthF
   return !hasTelemetryReport(agent);
 }
 
+function agentSupportsXrayRuntime(agent: Agent) {
+  return agent.capabilities.includes('xray');
+}
+
 function filterManagedHosts(
   agents: Agent[],
   query: string,
@@ -2648,7 +2652,9 @@ export function NodesPage({
   const [bulkCustomerNodeResetPolicy, setBulkCustomerNodeResetPolicy] = useState<XrayClientResetPolicy>('monthly');
   const [bulkCustomerNodeDeleteConfirming, setBulkCustomerNodeDeleteConfirming] = useState(false);
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
-  const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() => createCustomerDraft(agents[0]));
+  const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() =>
+    createCustomerDraft(agents.find(agentSupportsXrayRuntime))
+  );
   const [customerQrDataUrl, setCustomerQrDataUrl] = useState('');
   const [customerLinkQrDataUrl, setCustomerLinkQrDataUrl] = useState('');
   const [customerAdvancedOpen, setCustomerAdvancedOpen] = useState(false);
@@ -2656,6 +2662,10 @@ export function NodesPage({
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
     [agents, removedAgentIds]
+  );
+  const xrayCapableAgents = useMemo(
+    () => visibleAgents.filter(agentSupportsXrayRuntime),
+    [visibleAgents]
   );
   const hostCapabilityOptions = useMemo(
     () => [...new Set(visibleAgents.flatMap((agent) => agent.capabilities))].sort(),
@@ -2888,20 +2898,20 @@ export function NodesPage({
   }, [drawer.type, metadata, onPreviewAgentInstallCommand]);
 
   useEffect(() => {
-    if (visibleAgents.length === 0) {
+    if (xrayCapableAgents.length === 0) {
       return;
     }
 
     setCustomerDraft((current) =>
-      visibleAgents.some((agent) => agent.id === current.agentId)
+      xrayCapableAgents.some((agent) => agent.id === current.agentId)
         ? current
         : {
             ...current,
-            agentId: visibleAgents[0].id,
-            serverAddress: visibleAgents[0].publicAddress || current.serverAddress
+            agentId: xrayCapableAgents[0].id,
+            serverAddress: xrayCapableAgents[0].publicAddress || current.serverAddress
           }
     );
-  }, [visibleAgents]);
+  }, [xrayCapableAgents]);
 
   function getHostEdit(agent: Agent) {
     return resolveHostEdit(agent, hostEdits[agent.id]);
@@ -2965,10 +2975,10 @@ export function NodesPage({
       return;
     }
 
-    setCustomerDraft(createCustomerDraft(visibleAgents[0]));
+    setCustomerDraft(createCustomerDraft(xrayCapableAgents[0]));
     setCustomerAdvancedOpen(false);
     setDrawer({ type: 'customerNode' });
-  }, [visibleAgents]);
+  }, [xrayCapableAgents]);
 
   function cloneCustomerNode(node: CustomerNodeRecord) {
     setCustomerDraft(createClonedCustomerDraftFromNode(node));
@@ -3052,7 +3062,12 @@ export function NodesPage({
       setCustomerDraft(preparedDraft);
     }
 
-    const selectedAgent = visibleAgents.find((agent) => agent.id === preparedDraft.agentId);
+    const selectedAgent = xrayCapableAgents.find((agent) => agent.id === preparedDraft.agentId);
+
+    if (!selectedAgent) {
+      return;
+    }
+
     const resolvedSni =
       preparedDraft.protocol === 'shadowsocks'
         ? ''
@@ -3859,7 +3874,7 @@ export function NodesPage({
             </div>
             <GlowButton
               className="gap-2 px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={visibleAgents.length === 0}
+              disabled={xrayCapableAgents.length === 0}
               onClick={() => openCustomerDrawer()}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -4488,7 +4503,7 @@ export function NodesPage({
                 unitDays: t.unitDays,
                 unitGb: t.unitGb
               }}
-              servers={visibleAgents.map((agent) => ({
+              servers={xrayCapableAgents.map((agent) => ({
                 address: agent.publicAddress,
                 label: getHostEdit(agent).name,
                 value: agent.id
@@ -4803,7 +4818,7 @@ export function NodesPage({
           </details>
           <div className="flex justify-end gap-3 pt-2">
             <GhostButton label={t.cancel} onClick={() => setDrawer({ type: 'closed' })} />
-            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || visibleAgents.length === 0} type="submit">
+            <GlowButton className="px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={taskMutationBusy || xrayCapableAgents.length === 0} type="submit">
               {t.save}
             </GlowButton>
           </div>
