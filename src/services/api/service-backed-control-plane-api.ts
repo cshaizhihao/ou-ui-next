@@ -119,6 +119,7 @@ import {
   selectAgentLogArchives,
   selectTrafficRollupCompactions,
   selectTrafficRollups,
+  summarizeRuntimeConfigRevisionForSnapshot,
   summarizeCommandOutboxItem,
   v1ApiBoundary
 } from './control-plane-api';
@@ -6046,7 +6047,7 @@ export function createServiceBackedControlPlaneApi({
         tuningProfiles,
         tasks: clone(tasks),
         commandOutbox: commandOutbox.map(summarizeCommandOutboxItem),
-        configRevisions,
+        configRevisions: configRevisions.map(summarizeRuntimeConfigRevisionForSnapshot),
         preflightPlans,
         runtimeSnapshots,
         trafficRollups,

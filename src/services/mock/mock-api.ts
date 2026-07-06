@@ -108,6 +108,7 @@ import {
   selectAgentLogArchives,
   selectTrafficRollupCompactions,
   selectTrafficRollups,
+  summarizeRuntimeConfigRevisionForSnapshot,
   summarizeCommandOutboxItem,
   v1ApiBoundary
 } from '../api/control-plane-api';
@@ -3069,7 +3070,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         tuningProfiles,
         tasks,
         commandOutbox: state.commandOutbox.map(summarizeCommandOutboxItem),
-        configRevisions,
+        configRevisions: configRevisions.map(summarizeRuntimeConfigRevisionForSnapshot),
         preflightPlans,
         runtimeSnapshots,
         trafficRollups,

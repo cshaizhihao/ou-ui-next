@@ -1002,6 +1002,35 @@ describe('service-backed control plane read model hydration', () => {
         })
       })
     ]);
+
+    const [fullConfigRevision] = await api.listConfigRevisions();
+    const snapshot = await api.getSnapshot();
+    const [snapshotConfigRevision] = snapshot.configRevisions;
+
+    expect(fullConfigRevision.artifact).toEqual(
+      expect.objectContaining({
+        xray: expect.any(Object),
+        clientPolicy: expect.any(Object),
+        runtimeDiagnosis: expect.objectContaining({
+          evidenceStage: 'agent-result-verified'
+        })
+      })
+    );
+    expect(snapshotConfigRevision).toMatchObject({
+      id: fullConfigRevision.id,
+      taskId: task.id,
+      artifact: expect.objectContaining({
+        snapshotArtifactSummary: true,
+        runtimeDiagnosis: expect.objectContaining({
+          evidenceStage: 'agent-result-verified',
+          plannedRuntimeServices: ['ou-ui-xray.service']
+        })
+      })
+    });
+    expect(snapshotConfigRevision.artifact).not.toHaveProperty('xray');
+    expect(snapshotConfigRevision.artifact).not.toHaveProperty('clientPolicy');
+    expect(snapshotConfigRevision.artifact).not.toHaveProperty('clientPolicies');
+    expect(snapshotConfigRevision.artifact).not.toHaveProperty('subscription');
   });
 
   it('builds the full snapshot without replaying persisted tasks for every section', async () => {

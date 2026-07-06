@@ -297,6 +297,44 @@ export type ControlPlaneSnapshotReadModel = {
   auditLogs: AuditLog[];
 };
 
+const snapshotRuntimeArtifactKeys = [
+  'artifactVersion',
+  'generatedBy',
+  'operation',
+  'moduleKind',
+  'action',
+  'agentId',
+  'targetId',
+  'targetLabel',
+  'runtimeDiagnosis',
+  'runtimeCapabilities'
+] as const;
+
+function cloneSnapshotArtifactValue(value: unknown): unknown {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
+export function summarizeRuntimeConfigRevisionForSnapshot(revision: RuntimeConfigRevision): RuntimeConfigRevision {
+  const artifact: Record<string, unknown> = {
+    snapshotArtifactSummary: true
+  };
+
+  for (const key of snapshotRuntimeArtifactKeys) {
+    if (Object.prototype.hasOwnProperty.call(revision.artifact, key)) {
+      artifact[key] = cloneSnapshotArtifactValue(revision.artifact[key]);
+    }
+  }
+
+  return {
+    ...revision,
+    artifact
+  };
+}
+
 export type TrafficRollupRetentionPolicyUpdateInput = {
   maxAgeDays: number;
   maxRecordsPerScope: number;
