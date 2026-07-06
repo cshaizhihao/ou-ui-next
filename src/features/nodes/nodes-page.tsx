@@ -2694,13 +2694,17 @@ function CustomerClientActionFeedbackBar({
   feedback,
   runtimeEvidence,
   onCopyDiagnostics,
+  onOpenWorkspace,
   onOpenEvidence,
+  onRollbackTask,
   t
 }: {
   feedback: CustomerClientActionFeedback;
   runtimeEvidence?: CustomerClientActionRuntimeEvidence;
   onCopyDiagnostics?: () => void;
+  onOpenWorkspace?: () => void;
   onOpenEvidence?: () => void;
+  onRollbackTask?: () => void;
   t: NodesCopy;
 }) {
   const failed = feedback.status === 'failed';
@@ -2756,7 +2760,7 @@ function CustomerClientActionFeedbackBar({
             </p>
           ) : null}
         </div>
-        {onOpenEvidence || onCopyDiagnostics ? (
+        {onOpenEvidence || onOpenWorkspace || onCopyDiagnostics || onRollbackTask ? (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             {onCopyDiagnostics ? (
               <button
@@ -2768,6 +2772,16 @@ function CustomerClientActionFeedbackBar({
                 {t.customerClientActionCopyDiagnostics}
               </button>
             ) : null}
+            {onOpenWorkspace ? (
+              <button
+                className="inline-flex items-center gap-1 border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+                onClick={onOpenWorkspace}
+                type="button"
+              >
+                <Terminal className="h-3 w-3" />
+                {t.customerRuntimeEvidenceWorkspace}
+              </button>
+            ) : null}
             {onOpenEvidence ? (
               <button
                 className="border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
@@ -2775,6 +2789,16 @@ function CustomerClientActionFeedbackBar({
                 type="button"
               >
                 {t.customerClientActionOpenEvidence}
+              </button>
+            ) : null}
+            {onRollbackTask ? (
+              <button
+                className="inline-flex items-center gap-1 border border-[#DC2626]/45 bg-[#DC2626]/10 px-2.5 py-1 text-[11px] font-black uppercase text-[#B91C1C] transition hover:border-[#DC2626]/65 hover:bg-[#DC2626]/15 dark:border-[#F87171]/30 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]"
+                onClick={onRollbackTask}
+                type="button"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {t.customerRuntimeEvidenceRollbackAction}
               </button>
             ) : null}
           </div>
@@ -4345,6 +4369,11 @@ export function NodesPage({
       tasks
     ]
   );
+  const activeCustomerClientActionRollbackTaskId =
+    activeCustomerClientActionRuntimeEvidence?.diagnosticPackage.task?.rollbackAvailable &&
+    !activeCustomerClientActionRuntimeEvidence.diagnosticPackage.task.rollbackTaskId
+      ? activeCustomerClientActionRuntimeEvidence.runtimeTaskId
+      : undefined;
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -6399,9 +6428,25 @@ export function NodesPage({
                         )
                     : undefined
                 }
+                onOpenWorkspace={
+                  activeCustomerClientActionRuntimeEvidence && onOpenRuntimeEvidenceWorkspace
+                    ? () => {
+                        setDrawer({ type: 'closed' });
+                        onOpenRuntimeEvidenceWorkspace();
+                      }
+                    : undefined
+                }
                 onOpenEvidence={
                   customerClientsNode
                     ? () => setDrawer({ type: 'customerRuntimeEvidence', nodeId: customerClientsNode.id })
+                    : undefined
+                }
+                onRollbackTask={
+                  activeCustomerClientActionRollbackTaskId && onRollbackRuntimeTask
+                    ? () => {
+                        setDrawer({ type: 'closed' });
+                        onRollbackRuntimeTask(activeCustomerClientActionRollbackTaskId);
+                      }
                     : undefined
                 }
               />

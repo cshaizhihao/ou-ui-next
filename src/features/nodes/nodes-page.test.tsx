@@ -2551,6 +2551,8 @@ describe('NodesPage', () => {
       targetClientId: input.clientId,
       targetClientEmail: input.clientEmail
     }));
+    const onOpenRuntimeEvidenceWorkspace = vi.fn();
+    const onRollbackRuntimeTask = vi.fn();
     const inbound = createInbound({
       clients: [
         {
@@ -2586,6 +2588,7 @@ describe('NodesPage', () => {
             id: 'task-runtime-bob-failed',
             status: 'failed',
             failureReason: 'xray preflight rejected generated config',
+            rollbackTaskId: undefined,
             metadata: {
               xrayClientAction: 'set-enabled',
               xrayClientActionTargetEmail: 'bob@example.com'
@@ -2650,7 +2653,9 @@ describe('NodesPage', () => {
         onDeleteCustomerNode={vi.fn()}
         onDeleteHost={vi.fn()}
         onDeployHostConfig={vi.fn()}
+        onOpenRuntimeEvidenceWorkspace={onOpenRuntimeEvidenceWorkspace}
         onPreviewAgentInstallCommand={vi.fn()}
+        onRollbackRuntimeTask={onRollbackRuntimeTask}
         onSaveCustomerNode={vi.fn()}
         onSaveHostConfig={vi.fn()}
       />
@@ -2667,6 +2672,8 @@ describe('NodesPage', () => {
     expect(within(dialog).getByText('Stage agent-result-failed')).toBeInTheDocument();
     expect(dialog.querySelector('[data-customer-client-action-evidence-step="task"]')).toHaveTextContent('failed');
     expect(dialog.querySelector('[data-customer-client-action-evidence-step="command"]')).toHaveTextContent('failed');
+    expect(within(dialog).getByRole('button', { name: /Open Task Evidence/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /Start Rollback/ })).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: /Copy Diagnostics/ }));
 
@@ -2692,6 +2699,17 @@ describe('NodesPage', () => {
     expect(JSON.stringify(copied)).not.toContain('bob-client-secret');
     expect(JSON.stringify(copied)).not.toContain('state":{}');
     expect(JSON.stringify(copied)).not.toContain('artifact');
+
+    await user.click(within(dialog).getByRole('button', { name: /Open Task Evidence/ }));
+    expect(onOpenRuntimeEvidenceWorkspace).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: /Inbound Clients/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Manage Clients' }));
+    const reopenedDialog = screen.getByRole('dialog', { name: /Inbound Clients/ });
+    await user.click(within(reopenedDialog).getByRole('button', { name: /Start Rollback/ }));
+
+    expect(onRollbackRuntimeTask).toHaveBeenCalledWith('task-runtime-bob-failed');
+    expect(screen.queryByRole('dialog', { name: /Inbound Clients/ })).not.toBeInTheDocument();
   });
 
   it('submits selected customer-node quick actions through the explicit client action mutation path', async () => {

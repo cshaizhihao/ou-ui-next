@@ -109,6 +109,7 @@ Post-V2.0.0 progress already landed on `main`:
 - The shared-inbound client drawer now receives the accepted Xray runtime task id and linked subscription task id from the operator mutation path, then shows a contextual action feedback bar after add/disable/renew/reset/delete so the operator can immediately trace queued work before Agent verification evidence refreshes.
 - The shared-inbound client action feedback bar now resolves the accepted runtime task back to task, command outbox, config revision, preflight, snapshot, and `agent-result-*` evidence in the same drawer, so add/disable/delete feedback reflects the real Agent apply stage instead of only a queued task id.
 - Failed shared-inbound client action feedback now surfaces the first runtime failure reason and can copy a safe task-scoped diagnostic package with task, command, config revision, preflight, and snapshot summaries while excluding command payloads, runtime snapshot state, artifact bodies, and client credentials.
+- Failed shared-inbound client action feedback now also provides direct release-evidence workspace and rollback actions from the same contextual bar, reusing the existing runtime evidence and rollback mutation paths instead of forcing operators to hunt through the task workspace after a failed client action.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 
