@@ -2348,14 +2348,24 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
-        commandOutbox={[createRuntimeCommand()]}
-        configRevisions={[createRuntimeConfigRevision()]}
         inbounds={[inbound]}
         language="en"
-        preflightPlans={[createRuntimePreflightPlan()]}
-        runtimeSnapshots={[createRuntimeSnapshot()]}
         tasks={[
           createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-runtime-bob',
+            metadata: {
+              xrayClientAction: 'set-enabled',
+              xrayClientActionTargetEmail: 'bob@example.com'
+            }
+          }),
+          createRuntimeTask({
+            id: 'task-runtime-carol',
+            metadata: {
+              xrayClientAction: 'add-client',
+              xrayClientActionTargetEmail: 'carol@example.com'
+            }
+          }),
           createRuntimeTask({
             id: 'task-subscription-alice',
             operation: 'subscription.generate',
@@ -2371,6 +2381,78 @@ describe('NodesPage', () => {
               protocol: 'vless',
               group: 'agent-metered-01'
             }
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand(),
+          createRuntimeCommand({
+            id: 'outbox-task-runtime-bob',
+            taskId: 'task-runtime-bob',
+            commandId: 'cmd-task-runtime-bob'
+          }),
+          createRuntimeCommand({
+            id: 'outbox-task-runtime-carol',
+            taskId: 'task-runtime-carol',
+            commandId: 'cmd-task-runtime-carol'
+          })
+        ]}
+        configRevisions={[
+          createRuntimeConfigRevision(),
+          createRuntimeConfigRevision({
+            id: 'cfg-task-runtime-bob',
+            taskId: 'task-runtime-bob',
+            preflightPlanId: 'preflight-task-runtime-bob',
+            snapshotBeforeId: 'snapshot-task-runtime-bob',
+            artifact: {
+              runtimeDiagnosis: {
+                state: 'ready',
+                evidenceStage: 'agent-result-verified',
+                clientCounters: {
+                  total: 2,
+                  active: 1
+                }
+              }
+            }
+          }),
+          createRuntimeConfigRevision({
+            id: 'cfg-task-runtime-carol',
+            taskId: 'task-runtime-carol',
+            preflightPlanId: 'preflight-task-runtime-carol',
+            snapshotBeforeId: 'snapshot-task-runtime-carol',
+            artifact: {
+              runtimeDiagnosis: {
+                state: 'ready',
+                evidenceStage: 'agent-result-verified',
+                clientCounters: {
+                  total: 3,
+                  active: 2
+                }
+              }
+            }
+          })
+        ]}
+        preflightPlans={[
+          createRuntimePreflightPlan(),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-runtime-bob',
+            taskId: 'task-runtime-bob',
+            configRevisionId: 'cfg-task-runtime-bob'
+          }),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-runtime-carol',
+            taskId: 'task-runtime-carol',
+            configRevisionId: 'cfg-task-runtime-carol'
+          })
+        ]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot(),
+          createRuntimeSnapshot({
+            id: 'snapshot-task-runtime-bob',
+            taskId: 'task-runtime-bob'
+          }),
+          createRuntimeSnapshot({
+            id: 'snapshot-task-runtime-carol',
+            taskId: 'task-runtime-carol'
           })
         ]}
         workspaceMode="customerNodes"
@@ -2399,6 +2481,12 @@ describe('NodesPage', () => {
     await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(1));
     expect(within(dialog).getByText('Disable Client queued · bob@example.com')).toBeInTheDocument();
     expect(within(dialog).getByText('Runtime task-runtime-bob')).toBeInTheDocument();
+    expect(within(dialog).getByText('Agent verified this client action.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Stage agent-result-verified')).toBeInTheDocument();
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="command"]')).toHaveTextContent('completed');
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="revision"]')).toHaveTextContent('applied');
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="preflight"]')).toHaveTextContent('passed');
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="snapshot"]')).toHaveTextContent('verified');
     expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, {
       inboundId: 'inbound-premium-vless',
       clientId: 'client-bob',
@@ -2424,6 +2512,8 @@ describe('NodesPage', () => {
     expect(within(dialog).getByText('Add Client queued · carol@example.com')).toBeInTheDocument();
     expect(within(dialog).getByText('Runtime task-runtime-carol')).toBeInTheDocument();
     expect(within(dialog).getByText('Subscription task-subscription-carol')).toBeInTheDocument();
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="task"]')).toHaveTextContent('succeeded');
+    expect(dialog.querySelector('[data-customer-client-action-evidence-step="command"]')).toHaveTextContent('completed');
     expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(2, {
       inboundId: 'inbound-premium-vless',
       action: expect.objectContaining({

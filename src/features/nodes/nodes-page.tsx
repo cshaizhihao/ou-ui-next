@@ -381,6 +381,19 @@ type CustomerClientActionFeedback = {
   runtimeTaskId?: string;
   subscriptionTaskId?: string;
 };
+type CustomerClientActionEvidenceState = 'verified' | 'waiting' | 'failed' | 'missing';
+type CustomerClientActionEvidenceStepId = 'task' | 'command' | 'revision' | 'preflight' | 'snapshot';
+type CustomerClientActionEvidenceStep = {
+  id: CustomerClientActionEvidenceStepId;
+  state: Exclude<CustomerClientActionEvidenceState, 'verified'> | 'confirmed';
+  value: string;
+};
+type CustomerClientActionRuntimeEvidence = {
+  state: CustomerClientActionEvidenceState;
+  runtimeTaskId: string;
+  evidenceStage: string;
+  steps: CustomerClientActionEvidenceStep[];
+};
 
 type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessTone = 'healthy' | 'command' | 'waiting' | 'blocked';
@@ -597,6 +610,18 @@ const copy = {
     customerClientActionRuntimeTask: (taskId: string) => `Runtime ${taskId}`,
     customerClientActionSubscriptionTask: (taskId: string) => `Subscription ${taskId}`,
     customerClientActionOpenEvidence: '查看证据',
+    customerClientActionEvidenceVerified: 'Agent 已验证此客户端动作。',
+    customerClientActionEvidenceWaiting: '正在等待此客户端动作的 Agent 证据。',
+    customerClientActionEvidenceMissing: 'Snapshot 暂未集齐此 runtime task 的证据。',
+    customerClientActionEvidenceFailed: '此客户端动作的运行时证据失败。',
+    customerClientActionEvidenceStage: (stage: string) => `阶段 ${stage || '-'}`,
+    customerClientActionEvidenceLabels: {
+      task: '任务',
+      command: '命令',
+      revision: '配置',
+      preflight: '预检',
+      snapshot: '快照'
+    },
     noCustomerClients: '暂无客户端',
     copyCustomerClientLink: '复制客户端链接',
     enableCustomerClient: '启用客户端',
@@ -1009,6 +1034,18 @@ const copy = {
     customerClientActionRuntimeTask: (taskId: string) => `Runtime ${taskId}`,
     customerClientActionSubscriptionTask: (taskId: string) => `Subscription ${taskId}`,
     customerClientActionOpenEvidence: 'View Evidence',
+    customerClientActionEvidenceVerified: 'Agent verified this client action.',
+    customerClientActionEvidenceWaiting: 'Waiting for Agent evidence for this client action.',
+    customerClientActionEvidenceMissing: 'The snapshot has not collected all evidence for this runtime task yet.',
+    customerClientActionEvidenceFailed: 'Runtime evidence failed for this client action.',
+    customerClientActionEvidenceStage: (stage: string) => `Stage ${stage || '-'}`,
+    customerClientActionEvidenceLabels: {
+      task: 'Task',
+      command: 'Command',
+      revision: 'Revision',
+      preflight: 'Preflight',
+      snapshot: 'Snapshot'
+    },
     noCustomerClients: 'No clients yet',
     copyCustomerClientLink: 'Copy Client Link',
     enableCustomerClient: 'Enable Client',
@@ -2598,15 +2635,37 @@ function CustomerClientSubscriptionEvidenceRow({
 
 function CustomerClientActionFeedbackBar({
   feedback,
+  runtimeEvidence,
   onOpenEvidence,
   t
 }: {
   feedback: CustomerClientActionFeedback;
+  runtimeEvidence?: CustomerClientActionRuntimeEvidence;
   onOpenEvidence?: () => void;
   t: NodesCopy;
 }) {
   const failed = feedback.status === 'failed';
-  const Icon = failed ? AlertTriangle : Send;
+  const verified = runtimeEvidence?.state === 'verified';
+  const runtimeFailed = runtimeEvidence?.state === 'failed';
+  const Icon = failed || runtimeFailed ? AlertTriangle : verified ? CheckCircle2 : Send;
+  const runtimeSummary =
+    failed
+      ? t.customerClientActionEvidenceFailed
+      : verified
+        ? t.customerClientActionEvidenceVerified
+        : runtimeFailed
+          ? t.customerClientActionEvidenceFailed
+          : runtimeEvidence?.state === 'missing'
+            ? t.customerClientActionEvidenceMissing
+            : runtimeEvidence
+              ? t.customerClientActionEvidenceWaiting
+              : t.customerClientActionEvidenceHint;
+  const stepClass = {
+    confirmed: 'border-[#00A878]/30 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    waiting: 'border-[#FFB020]/35 bg-[#FFF3C4]/55 text-[#8A5A00] dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    failed: 'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]',
+    missing: 'border-[#07111F]/14 bg-[#FFFDF5]/70 text-[#35405A] dark:border-[#6B7CFF]/16 dark:bg-white/[0.035] dark:text-white/55'
+  } satisfies Record<CustomerClientActionEvidenceStep['state'], string>;
 
   return (
     <div
@@ -2630,7 +2689,7 @@ function CustomerClientActionFeedbackBar({
             </span>
           </div>
           <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
-            {t.customerClientActionEvidenceHint}
+            {runtimeSummary}
           </p>
         </div>
         {onOpenEvidence ? (
@@ -2647,6 +2706,25 @@ function CustomerClientActionFeedbackBar({
         <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/60">
           {feedback.runtimeTaskId ? <span>{t.customerClientActionRuntimeTask(feedback.runtimeTaskId)}</span> : null}
           {feedback.subscriptionTaskId ? <span>{t.customerClientActionSubscriptionTask(feedback.subscriptionTaskId)}</span> : null}
+          {runtimeEvidence?.evidenceStage ? <span>{t.customerClientActionEvidenceStage(runtimeEvidence.evidenceStage)}</span> : null}
+        </div>
+      ) : null}
+      {runtimeEvidence ? (
+        <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+          {runtimeEvidence.steps.map((step) => (
+            <div
+              aria-label={`${t.customerClientActionEvidenceLabels[step.id]} ${step.value}`}
+              className={cn('min-h-12 border px-2 py-1.5', stepClass[step.state])}
+              data-customer-client-action-evidence-step={step.id}
+              data-customer-client-action-evidence-state={step.state}
+              key={step.id}
+            >
+              <p className="text-[9px] font-black uppercase tracking-[0.08em]">
+                {t.customerClientActionEvidenceLabels[step.id]}
+              </p>
+              <p className="mt-1 break-all font-mono text-[10px] font-bold leading-4">{step.value}</p>
+            </div>
+          ))}
         </div>
       ) : null}
     </div>
@@ -3689,6 +3767,104 @@ function createCustomerClientActionFeedback({
   };
 }
 
+function readRuntimeDiagnosisEvidenceStage(configRevision: RuntimeConfigRevision | undefined) {
+  const diagnosis = configRevision?.artifact.runtimeDiagnosis;
+
+  if (!diagnosis || typeof diagnosis !== 'object' || Array.isArray(diagnosis)) {
+    return '';
+  }
+
+  const stage = (diagnosis as Record<string, unknown>).evidenceStage;
+
+  return typeof stage === 'string' ? stage : '';
+}
+
+function isFailedEvidenceStatus(status: string | undefined) {
+  return Boolean(status && ['failed', 'expired', 'dead_letter', 'cancelled', 'canceled'].includes(status));
+}
+
+function createCustomerClientActionEvidenceStep(
+  id: CustomerClientActionEvidenceStepId,
+  value: string | undefined,
+  expectedValue: string
+): CustomerClientActionEvidenceStep {
+  if (!value) {
+    return {
+      id,
+      state: 'missing',
+      value: '-'
+    };
+  }
+
+  if (value === expectedValue) {
+    return {
+      id,
+      state: 'confirmed',
+      value
+    };
+  }
+
+  return {
+    id,
+    state: isFailedEvidenceStatus(value) ? 'failed' : 'waiting',
+    value
+  };
+}
+
+function resolveCustomerClientActionRuntimeEvidence({
+  commandOutbox,
+  configRevisions,
+  preflightPlans,
+  runtimeSnapshots,
+  runtimeTaskId,
+  tasks
+}: {
+  commandOutbox: CommandOutboxSummary[];
+  configRevisions: RuntimeConfigRevision[];
+  preflightPlans: RuntimePreflightPlan[];
+  runtimeSnapshots: RuntimeSnapshot[];
+  runtimeTaskId: string;
+  tasks: DeployTask[];
+}): CustomerClientActionRuntimeEvidence {
+  const task = tasks.find((item) => item.id === runtimeTaskId);
+  const command = commandOutbox.find((item) => item.taskId === runtimeTaskId);
+  const configRevision = configRevisions.find((item) => item.taskId === runtimeTaskId);
+  const preflightPlan =
+    (configRevision?.preflightPlanId
+      ? preflightPlans.find((item) => item.id === configRevision.preflightPlanId)
+      : undefined) ?? preflightPlans.find((item) => item.taskId === runtimeTaskId);
+  const runtimeSnapshot =
+    (configRevision?.snapshotBeforeId
+      ? runtimeSnapshots.find((item) => item.id === configRevision.snapshotBeforeId)
+      : undefined) ?? runtimeSnapshots.find((item) => item.taskId === runtimeTaskId);
+  const evidenceStage = readRuntimeDiagnosisEvidenceStage(configRevision);
+  const steps: CustomerClientActionEvidenceStep[] = [
+    createCustomerClientActionEvidenceStep('task', task?.status, 'succeeded'),
+    createCustomerClientActionEvidenceStep('command', command?.status, 'completed'),
+    createCustomerClientActionEvidenceStep('revision', configRevision?.status, 'applied'),
+    createCustomerClientActionEvidenceStep('preflight', preflightPlan?.status, 'passed'),
+    createCustomerClientActionEvidenceStep('snapshot', runtimeSnapshot?.status, 'verified')
+  ];
+  const hasFailedStep = steps.some((step) => step.state === 'failed');
+  const taskMissing = steps[0]?.state === 'missing';
+  const allConfirmed = steps.every((step) => step.state === 'confirmed');
+  const state: CustomerClientActionEvidenceState =
+    hasFailedStep || evidenceStage === 'agent-result-failed'
+      ? 'failed'
+      : allConfirmed && evidenceStage === 'agent-result-verified'
+        ? 'verified'
+        : taskMissing
+          ? 'missing'
+          : 'waiting';
+
+  return {
+    state,
+    runtimeTaskId,
+    evidenceStage,
+    steps
+  };
+}
+
 export function NodesPage({
   agents,
   focusIntent,
@@ -3917,6 +4093,27 @@ export function NodesPage({
     customerClientsInbound && customerClientActionFeedback?.inboundId === customerClientsInbound.id
       ? customerClientActionFeedback
       : undefined;
+  const activeCustomerClientActionRuntimeEvidence = useMemo(
+    () =>
+      activeCustomerClientActionFeedback?.runtimeTaskId
+        ? resolveCustomerClientActionRuntimeEvidence({
+            commandOutbox,
+            configRevisions,
+            preflightPlans,
+            runtimeSnapshots,
+            runtimeTaskId: activeCustomerClientActionFeedback.runtimeTaskId,
+            tasks
+          })
+        : undefined,
+    [
+      activeCustomerClientActionFeedback?.runtimeTaskId,
+      commandOutbox,
+      configRevisions,
+      preflightPlans,
+      runtimeSnapshots,
+      tasks
+    ]
+  );
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -5961,6 +6158,7 @@ export function NodesPage({
             {activeCustomerClientActionFeedback ? (
               <CustomerClientActionFeedbackBar
                 feedback={activeCustomerClientActionFeedback}
+                runtimeEvidence={activeCustomerClientActionRuntimeEvidence}
                 t={t}
                 onOpenEvidence={
                   customerClientsNode
