@@ -534,6 +534,7 @@ OU_UI_CONTROL_PLANE_AGENT_TOKENS_JSON={"${AGENT_BOOTSTRAP_ID}":"${AGENT_BOOTSTRA
 OU_UI_CONTROL_PLANE_INITIAL_STATE=empty
 OU_UI_AGENT_LOG_RETENTION_DAYS=7
 OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000
+OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=5
 OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${STATE_DIR}/external-archives
 OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true
 OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=30000
@@ -5092,6 +5093,7 @@ ensure_runtime_env_defaults() {
   set_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_SQLITE_FILE "${sqlite_file}"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY 5
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_EXTERNAL_ARCHIVE_DIRECTORY "${STATE_DIR}/external-archives"
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS 30000
@@ -5630,10 +5632,11 @@ show_boolean_config_health() {
 }
 
 show_agent_log_retention_health() {
-  local retention_days max_events_per_agent
+  local retention_days max_events_per_agent high_frequency_persist_every
 
   retention_days="$(read_backend_env_value OU_UI_AGENT_LOG_RETENTION_DAYS)"
   max_events_per_agent="$(read_backend_env_value OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT)"
+  high_frequency_persist_every="$(read_backend_env_value OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY)"
 
   if [[ -n "${retention_days}" ]]; then
     show_positive_number_config_health "Agent 日志留存天数" "${retention_days}" " 天"
@@ -5645,6 +5648,12 @@ show_agent_log_retention_health() {
     show_non_negative_integer_config_health "Agent 日志每台 Agent 最大事件数" "${max_events_per_agent}"
   else
     echo "  Agent 日志每台 Agent 最大事件数: 默认 5000"
+  fi
+
+  if [[ -n "${high_frequency_persist_every}" ]]; then
+    show_positive_integer_config_health "Agent 高频事件 raw evidence 采样间隔" "${high_frequency_persist_every}"
+  else
+    echo "  Agent 高频事件 raw evidence 采样间隔: 默认 5"
   fi
 }
 

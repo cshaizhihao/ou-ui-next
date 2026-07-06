@@ -249,6 +249,7 @@ Preview / blocked 能力：
 | `OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS` | 流量历史保留天数 |
 | `OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE` | 每个 Agent / 转发规则 / Xray 客户端保留的 rollup 记录上限 |
 | `OU_UI_AGENT_LOG_RETENTION_DAYS` | Agent 日志保留天数 |
+| `OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY` | heartbeat / telemetry_sample 原始事件留证采样间隔，默认 `5`；session liveness 与流量 rollup 仍逐条更新 |
 | `OU_UI_SQLITE_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE` | SQLite 对 heartbeat / telemetry_sample 的每 Agent 每类型保留上限，默认 `30` |
 | `OU_UI_SUBSCRIPTION_SOURCE_EGRESS_ALLOWLIST` | 订阅源出站 allowlist |
 | `OU_UI_SYSTEM_ALERT_WEBHOOK_URLS` | 系统告警 webhook |

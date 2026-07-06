@@ -7,6 +7,7 @@ import {
   DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
   DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
 } from './traffic-rollup-retention';
+import { DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY } from './control-plane-service';
 
 describe('resolveHttpControlPlaneRuntimeConfig', () => {
   it('defaults to localhost memory storage', () => {
@@ -21,6 +22,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       trafficRollupRetention: {
         maxAgeMs: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
         maxRecordsPerScope: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
+      },
+      highFrequencyAgentEventPersistence: {
+        persistEvery: DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
       },
       commandTimeoutSweep: {
         enabled: true,
@@ -51,6 +55,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '250',
         OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS: '31',
         OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE: '5000',
+        OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY: '10',
         OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED: 'false',
         OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS: '10000',
         OU_UI_COMMAND_ACK_TIMEOUT_MS: '20000',
@@ -70,6 +75,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       trafficRollupRetention: {
         maxAgeMs: 31 * 24 * 60 * 60 * 1000,
         maxRecordsPerScope: 5000
+      },
+      highFrequencyAgentEventPersistence: {
+        persistEvery: 10
       },
       commandTimeoutSweep: {
         enabled: false,
@@ -410,6 +418,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         maxAgeMs: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_AGE_MS,
         maxRecordsPerScope: DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
       },
+      highFrequencyAgentEventPersistence: {
+        persistEvery: DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
+      },
       commandTimeoutSweep: {
         enabled: true,
         intervalMs: 30_000,
@@ -568,6 +579,14 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT: '-1'
       })
     ).toThrow('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT must be a non-negative integer.');
+  });
+
+  it('rejects invalid high-frequency Agent event persistence settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY: '0'
+      })
+    ).toThrow('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY must be a positive integer.');
   });
 
   it('rejects invalid command timeout sweep settings', () => {

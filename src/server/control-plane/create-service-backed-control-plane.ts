@@ -23,7 +23,11 @@ import {
 import type { ControlPlaneArchiveSink } from './archive-sink';
 import type { AgentLogRetentionPolicy } from './agent-log-retention';
 import type { ControlPlaneRepository, ControlPlaneRepositoryState } from './control-plane-repository';
-import { createControlPlaneService, type ControlPlaneArchiveSinkErrorHandler } from './control-plane-service';
+import {
+  createControlPlaneService,
+  type ControlPlaneArchiveSinkErrorHandler,
+  type HighFrequencyAgentEventPersistencePolicy
+} from './control-plane-service';
 import { createFileControlPlaneRepository } from './file-control-plane-repository';
 import { createInMemoryControlPlaneRepository } from './in-memory-control-plane-repository';
 import { createRepositoryBackedOperatorSessionStore } from './operator-session-store';
@@ -95,6 +99,7 @@ type CreateServiceBackedControlPlaneOptions = (
   operatorAuthFailureThrottle?: CreateHttpControlPlaneServerOptions['operatorAuthFailureThrottle'];
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
+  highFrequencyAgentEventPersistence?: Partial<HighFrequencyAgentEventPersistencePolicy>;
   commandTimeoutSweep?: CommandTimeoutSweepJobOptions;
   now?: () => string;
   inventory?: Parameters<typeof createServiceBackedControlPlaneApi>[0]['inventory'];
@@ -438,6 +443,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     repository,
     agentLogRetention: options.agentLogRetention,
     trafficRollupRetention: options.trafficRollupRetention,
+    highFrequencyAgentEventPersistence: options.highFrequencyAgentEventPersistence,
     ...(options.archiveSink ? { archiveSink: options.archiveSink } : {}),
     ...(onArchiveSinkError ? { onArchiveSinkError } : {}),
     now: options.now

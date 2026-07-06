@@ -67,6 +67,12 @@ import {
   type TrafficRollupRetentionPolicy
 } from './traffic-rollup-retention';
 
+export const DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY = 5;
+
+export type HighFrequencyAgentEventPersistencePolicy = {
+  persistEvery: number;
+};
+
 export type ArchiveSinkBatch =
   | {
       kind: 'agent-log-archive';
@@ -85,6 +91,7 @@ type CreateControlPlaneServiceInput = {
   repository: ControlPlaneRepository;
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
+  highFrequencyAgentEventPersistence?: Partial<HighFrequencyAgentEventPersistencePolicy>;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
   now?: () => string;
@@ -169,6 +176,36 @@ class ControlPlaneMutationError extends Error {
 const AUDIT_GENESIS_HASH = `sha256:${'0'.repeat(64)}`;
 const DEFAULT_RUNTIME_CREDENTIAL_TTL_MS = 30 * 24 * 60 * 60_000;
 const BYTES_PER_GB = 1024 * 1024 * 1024;
+
+function normalizeHighFrequencyAgentEventPersistencePolicy(
+  policy: Partial<HighFrequencyAgentEventPersistencePolicy> | undefined
+): HighFrequencyAgentEventPersistencePolicy {
+  const persistEvery = policy?.persistEvery ?? DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY;
+
+  return {
+    persistEvery: Number.isInteger(persistEvery) && persistEvery > 0 ? persistEvery : DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
+  };
+}
+
+function isHighFrequencyAgentEvent(event: AgentEventEnvelope) {
+  return event.type === 'heartbeat' || event.type === 'telemetry_sample';
+}
+
+function shouldPersistAgentEventRawEvidence(
+  event: AgentEventEnvelope,
+  existingSession: AgentSessionState | undefined,
+  policy: HighFrequencyAgentEventPersistencePolicy
+) {
+  if (!isHighFrequencyAgentEvent(event)) {
+    return true;
+  }
+
+  if (!existingSession || policy.persistEvery <= 1) {
+    return true;
+  }
+
+  return event.seq % policy.persistEvery === 0;
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -1816,6 +1853,7 @@ export function createControlPlaneService({
   repository,
   agentLogRetention: agentLogRetentionInput,
   trafficRollupRetention: trafficRollupRetentionInput,
+  highFrequencyAgentEventPersistence: highFrequencyAgentEventPersistenceInput,
   archiveSink,
   onArchiveSinkError,
   now: readClock = () => new Date().toISOString()
@@ -1823,6 +1861,9 @@ export function createControlPlaneService({
   let sequence = 1;
   const agentLogRetention = normalizeAgentLogRetentionPolicy(agentLogRetentionInput);
   const trafficRollupRetention = normalizeTrafficRollupRetentionPolicy(trafficRollupRetentionInput);
+  const highFrequencyAgentEventPersistence = normalizeHighFrequencyAgentEventPersistencePolicy(
+    highFrequencyAgentEventPersistenceInput
+  );
   const readNow = () => readClock();
   const nextObservedAt = () => {
     sequence += 1;
@@ -2500,6 +2541,12 @@ export function createControlPlaneService({
     const existingSession = await transaction.findAgentSession(agentEvent.agentId, agentEvent.sessionId);
 
     if (existingSession && agentEvent.seq <= existingSession.lastSeq) {
+      if (isHighFrequencyAgentEvent(agentEvent)) {
+        return {
+          duplicate: true
+        };
+      }
+
       throw new Error('agent_event.sequence_replay');
     }
 
@@ -2521,7 +2568,10 @@ export function createControlPlaneService({
           ? existingSession.capabilities
           : credentialCapabilities;
 
-    await transaction.insertAgentEvent(agentEvent);
+    if (shouldPersistAgentEventRawEvidence(agentEvent, existingSession, highFrequencyAgentEventPersistence)) {
+      await transaction.insertAgentEvent(agentEvent);
+    }
+
     await transaction.upsertAgentSession({
       agentId: agentEvent.agentId,
       sessionId: agentEvent.sessionId,

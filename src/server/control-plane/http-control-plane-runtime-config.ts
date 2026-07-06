@@ -12,6 +12,10 @@ import {
   DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE,
   type TrafficRollupRetentionPolicy
 } from './traffic-rollup-retention';
+import {
+  DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY,
+  type HighFrequencyAgentEventPersistencePolicy
+} from './control-plane-service';
 import type { RuntimeObjectStorageSinkConfig } from './object-storage-sink';
 
 export type HttpControlPlaneRuntimeConfig = {
@@ -20,6 +24,7 @@ export type HttpControlPlaneRuntimeConfig = {
   initialState: 'seeded' | 'empty';
   agentLogRetention: AgentLogRetentionPolicy;
   trafficRollupRetention: TrafficRollupRetentionPolicy;
+  highFrequencyAgentEventPersistence: HighFrequencyAgentEventPersistencePolicy;
   commandTimeoutSweep: {
     enabled: boolean;
     intervalMs: number;
@@ -479,6 +484,13 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       DEFAULT_TRAFFIC_ROLLUP_RETENTION_MAX_RECORDS_PER_SCOPE
     )
   };
+  const highFrequencyAgentEventPersistence = {
+    persistEvery: parsePositiveInteger(
+      env.OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY,
+      'OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY',
+      DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
+    )
+  };
   const commandTimeoutSweep = {
     enabled: parseBoolean(env.OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED, true),
     intervalMs: parsePositiveInteger(
@@ -667,6 +679,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       initialState,
       agentLogRetention,
       trafficRollupRetention,
+      highFrequencyAgentEventPersistence,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       storage: {
@@ -698,6 +711,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       initialState,
       agentLogRetention,
       trafficRollupRetention,
+      highFrequencyAgentEventPersistence,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       storage: {
@@ -732,6 +746,7 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       initialState,
       agentLogRetention,
       trafficRollupRetention,
+      highFrequencyAgentEventPersistence,
       commandTimeoutSweep,
       operatorAuthFailureThrottle,
       storage: {

@@ -3015,6 +3015,97 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('samples routine heartbeat raw evidence while preserving Agent session liveness', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    const service = createControlPlaneService({
+      repository,
+      now: createControlPlaneTestClock(),
+      highFrequencyAgentEventPersistence: {
+        persistEvery: 3
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-sampled-heartbeat-001',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-sampled',
+      observedAt: '2026-06-02T00:00:01.000Z',
+      payload: {
+        version: '1.0.0',
+        capabilities: ['xray'],
+        lastSeenCommandSeq: 0
+      }
+    });
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-sampled-heartbeat-002',
+      agentId: 'agent-hkg-01',
+      seq: 2,
+      sessionId: 'sess-agent-hkg-sampled',
+      observedAt: '2026-06-02T00:00:02.000Z',
+      payload: {
+        version: '1.0.1',
+        capabilities: ['xray', 'telemetry'],
+        lastSeenCommandSeq: 1
+      }
+    });
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-sampled-heartbeat-003',
+      agentId: 'agent-hkg-01',
+      seq: 3,
+      sessionId: 'sess-agent-hkg-sampled',
+      observedAt: '2026-06-02T00:00:03.000Z',
+      payload: {
+        version: '1.0.2',
+        capabilities: ['xray', 'telemetry', 'command-channel'],
+        lastSeenCommandSeq: 2
+      }
+    });
+
+    const agentEvents = await repository.listAgentEvents();
+    expect(agentEvents).toHaveLength(2);
+    expect(agentEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: 'evt-sampled-heartbeat-001', seq: 1 }),
+        expect.objectContaining({ eventId: 'evt-sampled-heartbeat-003', seq: 3 })
+      ])
+    );
+    expect(agentEvents.some((event) => event.eventId === 'evt-sampled-heartbeat-002')).toBe(false);
+    await expect(repository.listAgentSessions()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-sampled',
+        lastSeq: 3,
+        lastSeenCommandSeq: 2,
+        lastHeartbeatAt: '2026-06-02T00:00:03.000Z',
+        version: '1.0.2',
+        capabilities: ['xray', 'telemetry', 'command-channel']
+      })
+    ]);
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'heartbeat',
+        eventId: 'evt-sampled-heartbeat-002',
+        agentId: 'agent-hkg-01',
+        seq: 2,
+        sessionId: 'sess-agent-hkg-sampled',
+        observedAt: '2026-06-02T00:00:02.000Z',
+        payload: {
+          version: '1.0.1',
+          capabilities: ['xray', 'telemetry'],
+          lastSeenCommandSeq: 1
+        }
+      })
+    ).resolves.toBeUndefined();
+  });
+
   it('persists Agent telemetry traffic rollups without duplicating replayed events', async () => {
     const { repository, service } = createService();
     const telemetryEvent = {
@@ -3081,6 +3172,92 @@ describe('control-plane service', () => {
       })
     ]);
     await expect(repository.listAgentEvents()).resolves.toHaveLength(1);
+  });
+
+  it('samples routine telemetry raw evidence while preserving traffic rollups', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    const service = createControlPlaneService({
+      repository,
+      now: createControlPlaneTestClock(),
+      highFrequencyAgentEventPersistence: {
+        persistEvery: 3
+      }
+    });
+
+    for (const seq of [1, 2, 3]) {
+      await service.receiveAgentEvent({
+        type: 'telemetry_sample',
+        eventId: `evt-sampled-telemetry-00${seq}`,
+        agentId: 'agent-hkg-01',
+        seq,
+        sessionId: 'sess-agent-hkg-telemetry-sampled',
+        observedAt: `2026-06-02T00:00:0${seq}.000Z`,
+        payload: {
+          trafficAccountingMode: 'both',
+          monthlyResetDay: 15,
+          monthlyIngressBytes: seq * 1000,
+          monthlyEgressBytes: seq * 2000,
+          trafficBillingPeriod: '2026-06-reset-15'
+        }
+      });
+    }
+
+    const agentEvents = await repository.listAgentEvents();
+    expect(agentEvents).toHaveLength(2);
+    expect(agentEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: 'evt-sampled-telemetry-001', seq: 1 }),
+        expect.objectContaining({ eventId: 'evt-sampled-telemetry-003', seq: 3 })
+      ])
+    );
+    expect(agentEvents.some((event) => event.eventId === 'evt-sampled-telemetry-002')).toBe(false);
+    const trafficRollups = await repository.listTrafficRollups();
+    expect(trafficRollups).toHaveLength(3);
+    expect(trafficRollups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'traffic-evt-sampled-telemetry-001-agent',
+          meteredBytes: 3000
+        }),
+        expect.objectContaining({
+          id: 'traffic-evt-sampled-telemetry-002-agent',
+          meteredBytes: 6000
+        }),
+        expect.objectContaining({
+          id: 'traffic-evt-sampled-telemetry-003-agent',
+          meteredBytes: 9000
+        })
+      ])
+    );
+    await expect(repository.listAgentSessions()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-telemetry-sampled',
+        lastSeq: 3
+      })
+    ]);
+
+    await expect(
+      service.receiveAgentEvent({
+        type: 'telemetry_sample',
+        eventId: 'evt-sampled-telemetry-002',
+        agentId: 'agent-hkg-01',
+        seq: 2,
+        sessionId: 'sess-agent-hkg-telemetry-sampled',
+        observedAt: '2026-06-02T00:00:02.000Z',
+        payload: {
+          trafficAccountingMode: 'both',
+          monthlyResetDay: 15,
+          monthlyIngressBytes: 2000,
+          monthlyEgressBytes: 4000,
+          trafficBillingPeriod: '2026-06-reset-15'
+        }
+      })
+    ).resolves.toBeUndefined();
+    await expect(repository.listTrafficRollups()).resolves.toHaveLength(3);
   });
 
   it('rejects stale Agent events for the same session sequence window', async () => {

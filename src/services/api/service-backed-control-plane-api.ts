@@ -243,6 +243,7 @@ const SYSTEM_ALERT_NOTIFICATION_RETRY_DELAY_MS = 60_000;
 const SYSTEM_ALERT_NOTIFICATION_MAX_ATTEMPTS = 3;
 const SYSTEM_ALERT_NOTIFICATION_MAX_DELIVERIES_PER_SWEEP = 25;
 const DEFAULT_SYSTEM_ALERT_NOTIFICATION_CHANNEL_ID = 'default-webhook';
+const RECENT_HIGH_FREQUENCY_AGENT_EVENT_REPLAY_LIMIT = 500;
 const SNAPSHOT_TRAFFIC_ROLLUP_LIMIT = 500;
 
 type SubscriptionSourceFetchPolicy = {
@@ -1000,6 +1001,10 @@ function sortAgentEventsForReadModelReplay(events: AgentEventEnvelope[]) {
 
     return timeDelta || left.agentId.localeCompare(right.agentId) || left.seq - right.seq || left.eventId.localeCompare(right.eventId);
   });
+}
+
+function isHighFrequencyAgentEvent(event: AgentEventEnvelope) {
+  return event.type === 'heartbeat' || event.type === 'telemetry_sample';
 }
 
 function readTaskMetadataString(task: DeployTask, key: string, fallback: string) {
@@ -2443,6 +2448,8 @@ export function createServiceBackedControlPlaneApi({
   let inbounds = clone(seedInbounds);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
   let deletedAgentIds = new Set<string>();
+  const recentHighFrequencyAgentEvents = new Map<string, AgentEventEnvelope>();
+  const lastHighFrequencyAgentEventSeqBySession = new Map<string, number>();
   let readModelsHydrated = false;
   let readModelTasks: DeployTask[] = [];
 
@@ -2452,6 +2459,61 @@ export function createServiceBackedControlPlaneApi({
 
   function upsertReadModelTask(task: DeployTask) {
     updateReadModelTasks([task, ...readModelTasks.filter((item) => item.id !== task.id)]);
+  }
+
+  function createHighFrequencyAgentSessionKey(event: AgentEventEnvelope) {
+    return `${event.agentId}:${event.sessionId}`;
+  }
+
+  function syncHighFrequencyAgentEventSeqsFromSessions(sessions: AgentSessionState[]) {
+    for (const session of sessions) {
+      const sessionKey = `${session.agentId}:${session.sessionId}`;
+      const currentSeq = lastHighFrequencyAgentEventSeqBySession.get(sessionKey);
+
+      if (currentSeq === undefined || session.lastSeq > currentSeq) {
+        lastHighFrequencyAgentEventSeqBySession.set(sessionKey, session.lastSeq);
+      }
+    }
+  }
+
+  function rememberRecentHighFrequencyAgentEvent(event: AgentEventEnvelope) {
+    if (!isHighFrequencyAgentEvent(event)) {
+      return;
+    }
+
+    const sessionKey = createHighFrequencyAgentSessionKey(event);
+    const currentSeq = lastHighFrequencyAgentEventSeqBySession.get(sessionKey);
+
+    if (currentSeq !== undefined && event.seq < currentSeq) {
+      return;
+    }
+
+    if (currentSeq !== undefined && event.seq === currentSeq && !recentHighFrequencyAgentEvents.has(event.eventId)) {
+      return;
+    }
+
+    lastHighFrequencyAgentEventSeqBySession.set(sessionKey, event.seq);
+    recentHighFrequencyAgentEvents.set(event.eventId, clone(event));
+
+    while (recentHighFrequencyAgentEvents.size > RECENT_HIGH_FREQUENCY_AGENT_EVENT_REPLAY_LIMIT) {
+      const oldestEventId = recentHighFrequencyAgentEvents.keys().next().value;
+
+      if (!oldestEventId) {
+        break;
+      }
+
+      recentHighFrequencyAgentEvents.delete(oldestEventId);
+    }
+  }
+
+  function mergePersistedAndRecentAgentEvents(events: AgentEventEnvelope[]) {
+    const byEventId = new Map(events.map((event) => [event.eventId, event] as const));
+
+    for (const event of recentHighFrequencyAgentEvents.values()) {
+      byEventId.set(event.eventId, event);
+    }
+
+    return sortAgentEventsForReadModelReplay([...byEventId.values()]);
   }
 
   async function readEffectiveAgentLogRetentionPolicy() {
@@ -5231,10 +5293,11 @@ export function createServiceBackedControlPlaneApi({
 
   async function projectRuntimeCredentialAgents(
     baseAgents: Agent[],
-    deletedAgentIdsForProjection: Set<string>
+    deletedAgentIdsForProjection: Set<string>,
+    knownSessions?: AgentSessionState[]
   ) {
     const credentials = await service.listAgentCredentials();
-    const sessions = await repository.listAgentSessions();
+    const sessions = knownSessions ?? (await repository.listAgentSessions());
     let nextAgents = clone(baseAgents);
 
     for (const credential of credentials) {
@@ -5277,7 +5340,9 @@ export function createServiceBackedControlPlaneApi({
     const hasPersistedSubscriptionClients = persistedSubscriptionClients.length > 0;
     const hasPersistedSubscriptionExportProfiles = persistedSubscriptionExportProfiles.length > 0;
     const nextDeletedAgentIds = new Set<string>();
-    let nextAgents = await projectRuntimeCredentialAgents(seedAgents, nextDeletedAgentIds);
+    const persistedAgentSessions = await repository.listAgentSessions();
+    syncHighFrequencyAgentEventSeqsFromSessions(persistedAgentSessions);
+    let nextAgents = await projectRuntimeCredentialAgents(seedAgents, nextDeletedAgentIds, persistedAgentSessions);
     let nextInbounds = clone(seedInbounds);
     let nextSubscriptionSources = hasPersistedSubscriptionSources ? persistedSubscriptionSources : clone(seedSubscriptionSources);
     let nextSubscriptionInventoryNodes = hasPersistedSubscriptionInventoryNodes
@@ -5319,7 +5384,7 @@ export function createServiceBackedControlPlaneApi({
 
     const quotaResetReplayState = createQuotaResetReplayState(tasks);
 
-    for (const rawEvent of sortAgentEventsForReadModelReplay(await repository.listAgentEvents())) {
+    for (const rawEvent of mergePersistedAndRecentAgentEvents(await repository.listAgentEvents())) {
       const event = applyQuotaResetStateToForwardingEvent(
         applyQuotaResetStateToXrayEvent(applyQuotaResetStateToAgentEvent(rawEvent, quotaResetReplayState), quotaResetReplayState),
         quotaResetReplayState
@@ -5334,7 +5399,7 @@ export function createServiceBackedControlPlaneApi({
       nextForwardRules = applyForwardingTelemetryToReadModel(nextForwardRules, event);
     }
 
-    nextAgents = await projectRuntimeCredentialAgents(nextAgents, nextDeletedAgentIds);
+    nextAgents = await projectRuntimeCredentialAgents(nextAgents, nextDeletedAgentIds, persistedAgentSessions);
 
     agents = nextAgents;
     inbounds = nextInbounds;
@@ -7714,6 +7779,7 @@ export function createServiceBackedControlPlaneApi({
         }
 
         const result = await service.receiveAgentEvent(event);
+        rememberRecentHighFrequencyAgentEvent(event);
 
         if (!deletedAgentIds.has(event.agentId)) {
           agents = applyAgentEventToReadModel(agents, event);
@@ -7734,6 +7800,7 @@ export function createServiceBackedControlPlaneApi({
         ? listLiveInboundsForGuardrailEnforcementFromReadModel()
         : await listLiveInboundsForGuardrailEnforcement();
       const result = await service.receiveAgentEvent(event);
+      rememberRecentHighFrequencyAgentEvent(event);
       const replayTasks = useTelemetryFastPath ? readModelTasks : sortTasksForReadModelReplay(await repository.listTasks());
       const quotaResetReplayState = createQuotaResetReplayState(replayTasks);
       const resetAwareEvent = applyQuotaResetStateToForwardingEvent(

@@ -2556,6 +2556,9 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_PORT "${BACKEND_PORT_DEFAULT}"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_RETENTION_DAYS 7');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT 5000');
+    expect(script).toContain(
+      'ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY 5'
+    );
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_EXTERNAL_ARCHIVE_DIRECTORY "${STATE_DIR}/external-archives"');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS 30000');
@@ -2566,6 +2569,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_CONTROL_PLANE_RESOURCE_GROUP_ID group-premium');
     expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS=7');
     expect(script).toContain('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=5000');
+    expect(script).toContain('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=5');
     expect(script).toContain('OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${STATE_DIR}/external-archives');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=30000');
@@ -7999,26 +8003,35 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(script).toContain('show_agent_log_retention_health()');
     expect(script).toContain('OU_UI_AGENT_LOG_RETENTION_DAYS');
     expect(script).toContain('OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT');
+    expect(script).toContain('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY');
     expect(script).toContain('Agent 日志留存天数');
     expect(script).toContain('Agent 日志每台 Agent 最大事件数');
+    expect(script).toContain('Agent 高频事件 raw evidence 采样间隔');
 
     const configured = runAgentLogRetentionHealth(script, [
       'OU_UI_AGENT_LOG_RETENTION_DAYS=0.5',
-      'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=0'
+      'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=0',
+      'OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=8'
     ]);
     expect(configured).toContain('Agent 日志留存天数: 0.5 天');
     expect(configured).toContain('Agent 日志每台 Agent 最大事件数: 0');
+    expect(configured).toContain('Agent 高频事件 raw evidence 采样间隔: 8');
 
     const defaults = runAgentLogRetentionHealth(script, []);
     expect(defaults).toContain('Agent 日志留存天数: 默认 7 天');
     expect(defaults).toContain('Agent 日志每台 Agent 最大事件数: 默认 5000');
+    expect(defaults).toContain('Agent 高频事件 raw evidence 采样间隔: 默认 5');
 
     const invalid = runAgentLogRetentionHealth(script, [
       'OU_UI_AGENT_LOG_RETENTION_DAYS=0',
-      'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=-1'
+      'OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT=-1',
+      'OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY=0'
     ]);
     expect(invalid).toContain('Agent 日志留存天数: 0（无效，必须是正数；后端会拒绝启动）');
     expect(invalid).toContain('Agent 日志每台 Agent 最大事件数: -1（无效，必须是非负整数；后端会拒绝启动）');
+    expect(invalid).toContain(
+      'Agent 高频事件 raw evidence 采样间隔: 0（无效，必须是正整数；后端会拒绝启动）'
+    );
   });
 
   it('reports traffic rollup retention configuration health during doctor diagnostics', () => {
