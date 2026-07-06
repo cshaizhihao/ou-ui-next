@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CustomerNodeConfigMetadata } from './nodes-page';
 import {
+  createCustomerNodeClientActionUpdate,
   createCustomerNodeEnabledUpdate,
   createCustomerNodeRenewalUpdate,
   createCustomerNodeTrafficUpdate
@@ -66,7 +67,108 @@ describe('customer node task actions', () => {
       createCustomerNodeRenewalUpdate(baseMetadata, 15, new Date('2026-06-01T00:00:00.000Z'))
     ).toMatchObject({
       remainingDays: 45,
-      expiresAt: '2026-07-16T00:00:00.000Z'
+      expiresAt: '2026-07-16T00:00:00.000Z',
+      clients: [
+        expect.objectContaining({
+          clientIdentity: 'acme-client',
+          clientEmail: 'acme@example.com',
+          remainingDays: 45,
+          expiresAt: '2026-07-16T00:00:00.000Z'
+        })
+      ]
+    });
+  });
+
+  it('updates the targeted client metadata without dropping peer clients', () => {
+    const metadata: CustomerNodeConfigMetadata = {
+      ...baseMetadata,
+      remainingDays: 0,
+      expiresAt: '2026-05-01T00:00:00.000Z',
+      clientExpired: true,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'xray_client_expired',
+      clients: [
+        {
+          clientIdentity: 'acme-client',
+          clientEmail: 'acme@example.com',
+          clientCredential: 'acme-client',
+          enabled: false,
+          remainingDays: 0,
+          expiresAt: '2026-05-01T00:00:00.000Z',
+          clientExpired: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'xray_client_expired'
+        },
+        {
+          clientIdentity: 'peer-client',
+          clientEmail: 'peer@example.com',
+          clientCredential: 'peer-client',
+          enabled: true,
+          trafficLimitGb: 200,
+          remainingDays: 90,
+          expiresAt: '2026-09-01T00:00:00.000Z'
+        }
+      ]
+    };
+
+    const result = createCustomerNodeClientActionUpdate(metadata, {
+      kind: 'renew',
+      addedDays: 30,
+      now: new Date('2026-06-01T00:00:00.000Z')
+    });
+
+    expect(result).toMatchObject({
+      remainingDays: 30,
+      expiresAt: '2026-07-01T00:00:00.000Z',
+      clientExpired: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok'
+    });
+    expect(result.clients).toEqual([
+      expect.objectContaining({
+        clientIdentity: 'acme-client',
+        clientEmail: 'acme@example.com',
+        remainingDays: 30,
+        expiresAt: '2026-07-01T00:00:00.000Z',
+        clientExpired: false,
+        runtimeDisabledByPolicy: false,
+        guardrailReason: 'ok'
+      }),
+      expect.objectContaining({
+        clientIdentity: 'peer-client',
+        clientEmail: 'peer@example.com',
+        enabled: true,
+        trafficLimitGb: 200,
+        remainingDays: 90,
+        expiresAt: '2026-09-01T00:00:00.000Z'
+      })
+    ]);
+  });
+
+  it('clears quota guardrail evidence when resetting targeted client traffic', () => {
+    const metadata: CustomerNodeConfigMetadata = {
+      ...baseMetadata,
+      currentUsedTrafficGb: 120,
+      quotaExceeded: true,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'xray_client_monthly_quota_exceeded'
+    };
+
+    const result = createCustomerNodeClientActionUpdate(metadata, { kind: 'reset-used-traffic' });
+
+    expect(result).toMatchObject({
+      currentUsedTrafficGb: 0,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok',
+      clients: [
+        expect.objectContaining({
+          currentUsedTrafficGb: 0,
+          quotaExceeded: false,
+          runtimeDisabledByPolicy: false,
+          guardrailReason: 'ok'
+        })
+      ]
     });
   });
 });

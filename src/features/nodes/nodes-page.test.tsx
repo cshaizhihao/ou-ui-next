@@ -2132,14 +2132,27 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        enabled: false
+        enabled: false,
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'client-acme-premium',
+            clientEmail: 'acme-premium@example.com',
+            enabled: false
+          })
+        ]
       }),
       'update'
     );
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        trafficLimitGb: 150
+        trafficLimitGb: 150,
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'client-acme-premium',
+            trafficLimitGb: 150
+          })
+        ]
       }),
       'update'
     );
@@ -2147,14 +2160,27 @@ describe('NodesPage', () => {
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
         remainingDays: 45,
-        expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+        expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'client-acme-premium',
+            remainingDays: 45,
+            expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+          })
+        ]
       }),
       'update'
     );
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        enabled: true
+        enabled: true,
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'client-acme-premium',
+            enabled: true
+          })
+        ]
       }),
       'update'
     );
@@ -2252,14 +2278,27 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        currentUsedTrafficGb: 0
+        currentUsedTrafficGb: 0,
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'client-acme-premium',
+            currentUsedTrafficGb: 0,
+            quotaExceeded: false
+          })
+        ]
       }),
       'update'
     );
     expect(onSaveCustomerNode).toHaveBeenCalledWith(
       expect.objectContaining({
         nodeId: 'inbound-premium-vless',
-        resetPolicy: 'monthly'
+        resetPolicy: 'monthly',
+        clients: [
+          expect.objectContaining({
+            clientIdentity: 'client-acme-premium',
+            resetPolicy: 'monthly'
+          })
+        ]
       }),
       'update'
     );

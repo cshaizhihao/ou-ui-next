@@ -65,6 +65,7 @@ import { cn } from '../../lib/cn';
 import { copyText } from '../../lib/copy';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import {
+  createCustomerNodeClientActionUpdate,
   createCustomerNodeEnabledUpdate,
   createCustomerNodeRenewalUpdate,
   createCustomerNodeTrafficUpdate
@@ -4116,10 +4117,9 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) => ({
-      ...metadata,
-      enabled
-    }));
+    updateSelectedCustomerNodeMetadata((metadata) =>
+      createCustomerNodeClientActionUpdate(metadata, { kind: 'set-enabled', enabled })
+    );
   }
 
   function addTrafficToSelectedCustomerNodes() {
@@ -4141,10 +4141,9 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) => ({
-      ...metadata,
-      trafficLimitGb: metadata.trafficLimitGb + trafficGb
-    }));
+    updateSelectedCustomerNodeMetadata((metadata) =>
+      createCustomerNodeClientActionUpdate(metadata, { kind: 'add-traffic', addedTrafficGb: trafficGb })
+    );
   }
 
   function renewSelectedCustomerNodes() {
@@ -4182,10 +4181,9 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) => ({
-      ...metadata,
-      currentUsedTrafficGb: 0
-    }));
+    updateSelectedCustomerNodeMetadata((metadata) =>
+      createCustomerNodeClientActionUpdate(metadata, { kind: 'reset-used-traffic' })
+    );
   }
 
   function applySelectedCustomerNodeResetPolicy() {
@@ -4202,10 +4200,12 @@ export function NodesPage({
       return;
     }
 
-    updateSelectedCustomerNodeMetadata((metadata) => ({
-      ...metadata,
-      resetPolicy: bulkCustomerNodeResetPolicy
-    }));
+    updateSelectedCustomerNodeMetadata((metadata) =>
+      createCustomerNodeClientActionUpdate(metadata, {
+        kind: 'set-reset-policy',
+        resetPolicy: bulkCustomerNodeResetPolicy
+      })
+    );
   }
 
   function deleteSelectedCustomerNodes() {
