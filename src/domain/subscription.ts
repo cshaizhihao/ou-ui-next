@@ -452,6 +452,10 @@ function readAccessTokenHash(metadata: Record<string, unknown> | undefined) {
   return /^sha256:[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : undefined;
 }
 
+function hasAccessTokenHashMetadata(metadata: Record<string, unknown> | undefined) {
+  return metadata ? Object.prototype.hasOwnProperty.call(metadata, 'accessTokenHash') : false;
+}
+
 export function createSubscriptionSourceFromTask(task: DeployTask): SubscriptionSource | undefined {
   if (task.operation !== 'subscription.import') {
     return undefined;
@@ -889,5 +893,14 @@ export function applySubscriptionClientTask(clients: SubscriptionClientIdentity[
     return clients;
   }
 
-  return [nextClient, ...clients.filter((client) => client.id !== nextClient.id)];
+  const existingClient = clients.find((client) => client.id === nextClient.id);
+  const mergedClient =
+    existingClient && !hasAccessTokenHashMetadata(task.metadata) && !nextClient.accessTokenHash
+      ? {
+          ...nextClient,
+          accessTokenHash: existingClient.accessTokenHash
+        }
+      : nextClient;
+
+  return [mergedClient, ...clients.filter((client) => client.id !== mergedClient.id)];
 }

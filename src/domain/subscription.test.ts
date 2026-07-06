@@ -105,6 +105,65 @@ describe('subscription read models', () => {
     expect(invalidClient?.accessTokenHash).toBeUndefined();
   });
 
+  it('preserves subscription access token hashes when an update omits accessTokenHash metadata', () => {
+    const [updatedClient] = applySubscriptionClientTask(
+      [
+        {
+          ...createSubscriptionClientFromTask(
+            createSubscriptionTask({
+              subscriptionClientId: 'sub-client-token-hash',
+              displayName: 'Token Hash Client Subscription',
+              subId: 'sub_token_hash_client',
+              protocol: 'vless',
+              accessTokenHash: `sha256:${'b'.repeat(64)}`
+            })
+          )!
+        }
+      ],
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-token-hash',
+        displayName: 'Updated Token Hash Client Subscription',
+        subId: 'sub_token_hash_client',
+        protocol: 'vless'
+      })
+    );
+
+    expect(updatedClient).toMatchObject({
+      displayName: 'Updated Token Hash Client Subscription',
+      accessTokenHash: `sha256:${'b'.repeat(64)}`
+    });
+  });
+
+  it('clears subscription access token hashes when an update explicitly submits an empty hash', () => {
+    const [updatedClient] = applySubscriptionClientTask(
+      [
+        {
+          ...createSubscriptionClientFromTask(
+            createSubscriptionTask({
+              subscriptionClientId: 'sub-client-token-hash',
+              displayName: 'Token Hash Client Subscription',
+              subId: 'sub_token_hash_client',
+              protocol: 'vless',
+              accessTokenHash: `sha256:${'c'.repeat(64)}`
+            })
+          )!
+        }
+      ],
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-token-hash',
+        displayName: 'Cleared Token Hash Client Subscription',
+        subId: 'sub_token_hash_client',
+        protocol: 'vless',
+        accessTokenHash: ''
+      })
+    );
+
+    expect(updatedClient).toMatchObject({
+      displayName: 'Cleared Token Hash Client Subscription'
+    });
+    expect(updatedClient?.accessTokenHash).toBeUndefined();
+  });
+
   it('maps subscription request limits into the public client read model', () => {
     const client = createSubscriptionClientFromTask(
       createSubscriptionTask({
