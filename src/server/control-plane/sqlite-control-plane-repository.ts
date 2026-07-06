@@ -665,6 +665,18 @@ function createEntityIndexMutationTracker(state: ControlPlaneRepositoryState) {
     },
     trafficRollup(trafficRollupId: string) {
       upsert((fallbackUpdatedAt) => createTrafficRollupEntityIndexRow(state, trafficRollupId, fallbackUpdatedAt));
+    },
+    trafficRollupIds() {
+      return new Set(state.trafficRollups.map((rollup) => rollup.id));
+    },
+    prunedTrafficRollups(previousRollupIds: Set<string>) {
+      const retainedRollupIds = new Set(state.trafficRollups.map((rollup) => rollup.id));
+
+      for (const rollupId of previousRollupIds) {
+        if (!retainedRollupIds.has(rollupId)) {
+          mutations.push({ kind: 'delete', entityType: 'traffic-rollup', entityId: rollupId });
+        }
+      }
     }
   };
 }
@@ -823,8 +835,9 @@ function createEntityIndexingTransaction(
       tracker.replaceSubscriptionInventoryNodes(sourceId, nodes);
     },
     async pruneTrafficRollups(policy, now) {
+      const previousRollupIds = tracker.trafficRollupIds();
       const result = await transaction.pruneTrafficRollups(policy, now);
-      tracker.rebuild();
+      tracker.prunedTrafficRollups(previousRollupIds);
       return result;
     },
     async insertConfigRevision(configRevision) {

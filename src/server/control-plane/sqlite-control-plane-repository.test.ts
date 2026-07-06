@@ -112,6 +112,23 @@ function installEntityIndexFullRebuildFailureTrigger(databaseFilePath: string) {
   }
 }
 
+function installEntityIndexFullRebuildFailureTriggerExceptTrafficRollups(databaseFilePath: string) {
+  const database = new Database(databaseFilePath);
+
+  try {
+    database.exec(`
+      CREATE TRIGGER fail_entity_index_full_rebuild_except_traffic_rollups
+      BEFORE DELETE ON control_plane_entity_index
+      WHEN OLD.entity_type <> 'traffic-rollup'
+      BEGIN
+        SELECT RAISE(FAIL, 'entity index full rebuild is not allowed in this test');
+      END;
+    `);
+  } finally {
+    database.close();
+  }
+}
+
 function createIndexedTask(taskId = 'task-sqlite-index-stable') {
   return {
     id: taskId,
@@ -350,6 +367,91 @@ describe('sqlite control-plane repository', () => {
         expect.objectContaining({
           id: 'traffic-rollup-fast-agent-001',
           meteredBytes: 3072
+        })
+      ]);
+    });
+  });
+
+  it('prunes traffic rollup entity index rows incrementally without a full sqlite index rebuild', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTask(createIndexedTask('task-sqlite-traffic-prune-anchor'));
+        await transaction.insertTrafficRollup({
+          id: 'traffic-rollup-prune-old',
+          dimension: 'agent',
+          subjectId: 'agent-fast-events-01',
+          subjectLabel: 'Fast Agent',
+          agentId: 'agent-fast-events-01',
+          observedAt: '2026-06-05T00:02:00.000Z',
+          sampledAt: '2026-06-05T00:02:00.000Z',
+          periodKey: '2026-06',
+          monthlyResetDay: 1,
+          accountingMode: 'both',
+          ingressBytes: 1024,
+          egressBytes: 2048,
+          meteredBytes: 3072,
+          source: 'agent-telemetry'
+        });
+        await transaction.insertTrafficRollup({
+          id: 'traffic-rollup-prune-new',
+          dimension: 'agent',
+          subjectId: 'agent-fast-events-01',
+          subjectLabel: 'Fast Agent',
+          agentId: 'agent-fast-events-01',
+          observedAt: '2026-06-05T00:03:00.000Z',
+          sampledAt: '2026-06-05T00:03:00.000Z',
+          periodKey: '2026-06',
+          monthlyResetDay: 1,
+          accountingMode: 'both',
+          ingressBytes: 4096,
+          egressBytes: 8192,
+          meteredBytes: 12288,
+          source: 'agent-telemetry'
+        });
+      });
+
+      installEntityIndexFullRebuildFailureTriggerExceptTrafficRollups(databaseFilePath);
+
+      await repository.transaction(async (transaction) => {
+        const result = await transaction.pruneTrafficRollups(
+          {
+            maxAgeMs: 62 * 24 * 60 * 60 * 1000,
+            maxRecordsPerScope: 1
+          },
+          '2026-06-05T00:04:00.000Z'
+        );
+
+        expect(result).toEqual(expect.objectContaining({ removed: 1, retained: 1 }));
+      });
+
+      const rows = readEntityIndexRows(databaseFilePath);
+
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            entity_type: 'task',
+            entity_id: 'task-sqlite-traffic-prune-anchor'
+          }),
+          expect.objectContaining({
+            entity_type: 'traffic-rollup',
+            entity_id: 'traffic-rollup-prune-new'
+          })
+        ])
+      );
+      expect(rows).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            entity_type: 'traffic-rollup',
+            entity_id: 'traffic-rollup-prune-old'
+          })
+        ])
+      );
+      await expect(repository.listTrafficRollups()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'traffic-rollup-prune-new',
+          meteredBytes: 12288
         })
       ]);
     });
