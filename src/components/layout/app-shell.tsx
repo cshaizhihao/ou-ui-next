@@ -42,6 +42,26 @@ import type {
   SubscriptionExportProfileMetadata,
   SubscriptionSourceImportMetadata
 } from '../../features/subscriptions/subscription-mixer-page';
+import {
+  createSubscriptionClientDeleteIdempotencyKey,
+  createSubscriptionClientDeleteTaskInput,
+  createSubscriptionClientGenerateIdempotencyKey,
+  createSubscriptionClientGenerateTaskInput,
+  createSubscriptionExportIdempotencyKey,
+  createSubscriptionExportProfileDeleteIdempotencyKey,
+  createSubscriptionExportProfileDeleteTaskInput,
+  createSubscriptionExportProfileUpsertIdempotencyKey,
+  createSubscriptionExportProfileUpsertTaskInput,
+  createSubscriptionExportTaskInput,
+  createSubscriptionSourceDeleteIdempotencyKey,
+  createSubscriptionSourceDeleteTaskInput,
+  createSubscriptionSourceImportIdempotencyKey,
+  createSubscriptionSourceImportSyncTaskInput,
+  createSubscriptionSourceImportTargetId,
+  createSubscriptionSourceImportTaskInput,
+  createSubscriptionSourceSyncIdempotencyKey,
+  createSubscriptionSourceSyncTaskInput
+} from '../../features/subscriptions/subscription-task-inputs';
 import type { TuningProfile } from '../../features/tuning/tuning-page';
 import {
   createBoundedMutationKey,
@@ -1943,23 +1963,12 @@ export function AppShell({ ready }: AppShellProps) {
         }
 
         await runTask(
+          createSubscriptionClientGenerateTaskInput(subscriptionMetadata, action, {
+            create: t.createSubscriptionClientSummary,
+            update: t.updateSubscriptionClientSummary
+          }),
           {
-            operation: 'subscription.generate',
-            resourceType: 'subscription',
-            targetId: subscriptionMetadata.subscriptionClientId,
-            targetLabel: subscriptionMetadata.displayName,
-            summary: action === 'create' ? t.createSubscriptionClientSummary : t.updateSubscriptionClientSummary,
-            metadata: subscriptionMetadata
-          },
-          {
-            idempotencyKey: [
-              'ui',
-              'subscription.generate',
-              subscriptionMetadata.subscriptionClientId,
-              subscriptionMetadata.subId,
-              subscriptionMetadata.protocol,
-              targetId
-            ].join(':')
+            idempotencyKey: createSubscriptionClientGenerateIdempotencyKey(subscriptionMetadata, action)
           }
         );
       })();
@@ -1998,24 +2007,14 @@ export function AppShell({ ready }: AppShellProps) {
         }
 
         await runTask(
-          withRiskConfirmation({
-            operation: 'subscription.delete',
-            resourceType: 'subscription',
-            targetId: subscriptionMetadata.subscriptionClientId,
-            targetLabel: subscriptionMetadata.displayName,
-            summary: t.deleteSubscriptionClientSummary,
-            metadata: {
-              ...subscriptionMetadata,
-              deletedWithCustomerNodeId: metadata.nodeId
-            }
+          createSubscriptionClientDeleteTaskInput(subscriptionMetadata, t.deleteSubscriptionClientSummary, {
+            deletedWithCustomerNodeId: metadata.nodeId
           }),
           {
-            idempotencyKey: [
-              'ui',
-              'subscription.delete.customer-node',
-              metadata.nodeId,
-              subscriptionMetadata.subscriptionClientId
-            ].join(':')
+            idempotencyKey: createSubscriptionClientDeleteIdempotencyKey(
+              subscriptionMetadata,
+              `customer-node:${metadata.nodeId}`
+            )
           }
         );
       })();
@@ -2106,33 +2105,19 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleImportSubscriptionSource = useCallback(
     (metadata: SubscriptionSourceImportMetadata) => {
-      const targetId = metadata.sourceId || `subscription-source-${createStableSlug(metadata.name, 'external-source')}`;
+      const targetId = createSubscriptionSourceImportTargetId(metadata);
 
       return (async () => {
-        const importInput: CreateTaskInput = {
-          operation: 'subscription.import',
-          resourceType: 'subscription',
-          targetId,
-          targetLabel: metadata.name,
-          summary: t.importSubscriptionSourceSummary,
-          metadata
-        };
+        const importInput = createSubscriptionSourceImportTaskInput(metadata, t.importSubscriptionSourceSummary);
         const task = await runTask(importInput, {
-          idempotencyKey: ['ui', 'subscription.import', metadata.kind, metadata.url].join(':')
+          idempotencyKey: createSubscriptionSourceImportIdempotencyKey(metadata)
         });
 
         if (!task) {
           return false;
         }
 
-        const syncInput: CreateTaskInput = {
-          operation: 'subscription.sync',
-          resourceType: 'subscription',
-          targetId,
-          targetLabel: metadata.name,
-          summary: t.subscriptionSyncPending,
-          metadata
-        };
+        const syncInput = createSubscriptionSourceImportSyncTaskInput(metadata, t.subscriptionSyncPending);
 
         setTaskMutationState({ status: 'pending', message: t.subscriptionSyncPending });
 
@@ -2141,7 +2126,7 @@ export function AppShell({ ready }: AppShellProps) {
             targetId,
             createUiMutationContext(
               syncInput,
-              ['ui', 'subscription.sync', targetId, Date.now()].join(':'),
+              createSubscriptionSourceSyncIdempotencyKey(targetId, 'import', Date.now()),
               runtimeConfig
             )
           );
@@ -2169,25 +2154,12 @@ export function AppShell({ ready }: AppShellProps) {
   const handleSaveSubscriptionClient = useCallback(
     (metadata: SubscriptionClientRuleMetadata, action: 'create' | 'update') => {
       void runTask(
+        createSubscriptionClientGenerateTaskInput(metadata, action, {
+          create: t.createSubscriptionClientSummary,
+          update: t.updateSubscriptionClientSummary
+        }),
         {
-          operation: 'subscription.generate',
-          resourceType: 'subscription',
-          targetId: metadata.subscriptionClientId,
-          targetLabel: metadata.displayName,
-          summary: action === 'create' ? t.createSubscriptionClientSummary : t.updateSubscriptionClientSummary,
-          metadata
-        },
-        {
-          idempotencyKey: [
-            'ui',
-            'subscription.generate',
-            metadata.subscriptionClientId,
-            metadata.subId,
-            metadata.protocol,
-            metadata.sourceIds.join(','),
-            metadata.selectedTags.join(','),
-            metadata.formats.join(',')
-          ].join(':')
+          idempotencyKey: createSubscriptionClientGenerateIdempotencyKey(metadata, action)
         }
       );
     },
@@ -2197,16 +2169,9 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteSubscriptionClient = useCallback(
     (metadata: SubscriptionClientRuleMetadata) => {
       void runTask(
-        withRiskConfirmation({
-          operation: 'subscription.delete',
-          resourceType: 'subscription',
-          targetId: metadata.subscriptionClientId,
-          targetLabel: metadata.displayName,
-          summary: t.deleteSubscriptionClientSummary,
-          metadata
-        }),
+        createSubscriptionClientDeleteTaskInput(metadata, t.deleteSubscriptionClientSummary),
         {
-          idempotencyKey: ['ui', 'subscription.delete', metadata.subscriptionClientId].join(':')
+          idempotencyKey: createSubscriptionClientDeleteIdempotencyKey(metadata)
         }
       );
     },
@@ -2215,32 +2180,10 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleSaveSubscriptionExportProfile = useCallback(
     (metadata: SubscriptionExportProfileMetadata, action: 'create' | 'update') => {
-      const targetId = metadata.profileId || `subscription-profile-${createStableSlug(metadata.name, 'export-profile')}`;
-
       void runTask(
+        createSubscriptionExportProfileUpsertTaskInput(metadata, t.saveSubscriptionProfileSummary),
         {
-          operation: 'subscription.profile.upsert',
-          resourceType: 'subscription',
-          targetId,
-          targetLabel: metadata.name,
-          summary: t.saveSubscriptionProfileSummary,
-          metadata: {
-            ...metadata,
-            profileId: targetId
-          }
-        },
-        {
-          idempotencyKey: [
-            'ui',
-            'subscription.profile.upsert',
-            action,
-            targetId,
-            metadata.client,
-            metadata.templateName,
-            metadata.outputFormats.join(','),
-            metadata.sourceIds.join(','),
-            metadata.proxyGroups.map((group) => `${group.name}:${group.strategy}:${group.filterTags.join('|')}`).join(',')
-          ].join(':')
+          idempotencyKey: createSubscriptionExportProfileUpsertIdempotencyKey(metadata, action)
         }
       );
     },
@@ -2250,19 +2193,9 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteSubscriptionExportProfile = useCallback(
     (metadata: SubscriptionExportProfileMetadata) => {
       void runTask(
-        withRiskConfirmation({
-          operation: 'subscription.profile.delete',
-          resourceType: 'subscription',
-          targetId: metadata.profileId,
-          targetLabel: metadata.name,
-          summary: t.deleteSubscriptionProfileSummary,
-          metadata: {
-            profileId: metadata.profileId,
-            name: metadata.name
-          }
-        }),
+        createSubscriptionExportProfileDeleteTaskInput(metadata, t.deleteSubscriptionProfileSummary),
         {
-          idempotencyKey: ['ui', 'subscription.profile.delete', metadata.profileId].join(':')
+          idempotencyKey: createSubscriptionExportProfileDeleteIdempotencyKey(metadata.profileId)
         }
       );
     },
@@ -2272,20 +2205,9 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteSubscriptionSource = useCallback(
     (source: SubscriptionSource) => {
       return runTask(
-        withRiskConfirmation({
-          operation: 'subscription.delete',
-          resourceType: 'subscription',
-          targetId: source.id,
-          targetLabel: source.name,
-          summary: t.deleteSubscriptionSourceSummary,
-          metadata: {
-            sourceId: source.id,
-            name: source.name,
-            url: source.url
-          }
-        }),
+        createSubscriptionSourceDeleteTaskInput(source, t.deleteSubscriptionSourceSummary),
         {
-          idempotencyKey: ['ui', 'subscription.delete.source', source.id].join(':')
+          idempotencyKey: createSubscriptionSourceDeleteIdempotencyKey(source.id)
         }
       ).then(Boolean);
     },
@@ -2295,23 +2217,7 @@ export function AppShell({ ready }: AppShellProps) {
   const handleSyncSubscriptionSource = useCallback(
     (source: SubscriptionSource) => {
       return (async () => {
-        const syncInput: CreateTaskInput = {
-          operation: 'subscription.sync',
-          resourceType: 'subscription',
-          targetId: source.id,
-          targetLabel: source.name,
-          summary: t.subscriptionSyncPending,
-          metadata: {
-            sourceId: source.id,
-            name: source.name,
-            url: source.url,
-            kind: source.kind,
-            includeFilter: source.includeFilter ?? '',
-            excludeFilter: source.excludeFilter ?? '',
-            dedupeKey: source.dedupeKey,
-            refreshIntervalMinutes: source.refreshIntervalMinutes ?? source.rateLimitPerMinute
-          }
-        };
+        const syncInput = createSubscriptionSourceSyncTaskInput(source, t.subscriptionSyncPending);
 
         setTaskMutationState({ status: 'pending', message: t.subscriptionSyncPending });
 
@@ -2320,7 +2226,7 @@ export function AppShell({ ready }: AppShellProps) {
             source.id,
             createUiMutationContext(
               syncInput,
-              ['ui', 'subscription.sync.manual', source.id, Date.now()].join(':'),
+              createSubscriptionSourceSyncIdempotencyKey(source.id, 'manual', Date.now()),
               runtimeConfig
             )
           );
@@ -2548,25 +2454,9 @@ export function AppShell({ ready }: AppShellProps) {
       };
 
       void runTask(
+        createSubscriptionExportTaskInput(file, exportMetadata, t.generateSubscriptionSummary),
         {
-          operation: 'subscription.export',
-          resourceType: 'subscription',
-          targetId: file.subscriptionClientId,
-          targetLabel: file.name,
-          summary: t.generateSubscriptionSummary,
-          metadata: exportMetadata
-        },
-        {
-          idempotencyKey: [
-            'ui',
-            'subscription.export',
-            file.subscriptionClientId,
-            file.templateName,
-            file.formats.join(','),
-            exportProfile?.id ?? 'default',
-            client.sourceIds.join(','),
-            client.selectedTags.join(',')
-          ].join(':')
+          idempotencyKey: createSubscriptionExportIdempotencyKey(file, exportMetadata)
         }
       );
     },

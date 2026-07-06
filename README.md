@@ -214,6 +214,7 @@ Preview / blocked 能力：
 - 订阅链接抽屉支持门户链接、二维码、复制各格式链接、`Subscription-Userinfo`、诊断文本和访问凭据轮换；轮换会生成新的 token preview 与 secure path，并重写该身份的公开订阅 URL。
 - `/portal/{securePath}/{subId}` 提供最小客户门户 HTML，按当前订阅身份的启用输出格式展示链接、到期、用量和生成节点，并与公开订阅下载共享 `requestLimitPerHour` 限流桶。
 - 公开订阅下载和门户支持可选 `accessTokenHash` 校验；配置该 hash 后，请求必须通过 `?token=`、`?access_token=` 或 `Authorization: Bearer` 提交匹配 raw token。HTTP task 创建/更新可接收一次性 `metadata.accessTokenRaw`，会在入队前转换为 `accessTokenHash` 并剔除 raw；HTTP JSON/SSE 响应会移除 `accessTokenHash` / `tokenHash` 字段。
+- 订阅身份、订阅源、导出 Profile 和导出文件的 UI mutation 由 feature 级 task input helper 统一生成；导入源会规范化 `sourceId`，幂等 key 覆盖启用状态、过滤规则、限额、输出格式、模板和代理组等会影响运行时的字段。
 
 后续重点：
 
