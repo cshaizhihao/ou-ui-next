@@ -7866,7 +7866,6 @@ export function createServiceBackedControlPlaneApi({
 
         if (!deletedAgentIds.has(event.agentId)) {
           agents = applyAgentEventToReadModel(agents, event);
-          bumpSnapshotReadModelRevision();
         }
 
         return result;
@@ -7906,7 +7905,6 @@ export function createServiceBackedControlPlaneApi({
         agents = applyAgentEventToReadModel(agents, resetAwareEvent);
         inbounds = applyXrayTelemetryToReadModel(inbounds, resetAwareEvent);
         forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), resetAwareEvent);
-        bumpSnapshotReadModelRevision();
       }
       if (result) {
         upsertReadModelTask(result);
