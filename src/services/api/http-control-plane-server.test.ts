@@ -1956,7 +1956,12 @@ describe('HTTP control-plane server', () => {
 
       expect(createClientResponse.status).toBe(201);
 
-      const portalResponse = await fetch(`${baseUrl}/portal/x7K2mP9vL4qR1wDz/sub_public_acme`);
+      const portalResponse = await fetch(`${baseUrl}/portal/x7K2mP9vL4qR1wDz/sub_public_acme`, {
+        headers: {
+          'X-Forwarded-Host': 'panel.example.com',
+          'X-Forwarded-Proto': 'https'
+        }
+      });
       const portal = await portalResponse.text();
 
       expect(portalResponse.status).toBe(200);
@@ -1969,6 +1974,11 @@ describe('HTTP control-plane server', () => {
       expect(portal).toContain('href="/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme"');
       expect(portal).toContain('data-format="clash"');
       expect(portal).toContain('data-format="sing-box"');
+      expect(portal).toContain('data-format-qr="uri"');
+      expect(portal).toContain('data-format-qr="clash"');
+      expect(portal).toContain('data-format-qr="sing-box"');
+      expect(portal).toContain('data-qr-href="https://panel.example.com/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme"');
+      expect(portal).toContain('<svg');
       expect(portal).not.toContain('/mihomo/sub_public_acme');
 
       const uriResponse = await fetch(`${baseUrl}/sub/x7K2mP9vL4qR1wDz/uri/sub_public_acme`);
@@ -2226,6 +2236,11 @@ describe('HTTP control-plane server', () => {
       expect(portalResponse.status).toBe(200);
       expect(portal).toContain(
         `href="/sub/tokenProtectedPath2026/uri/sub_token_protected?token=${encodeURIComponent(rawToken)}"`
+      );
+      expect(portal).toMatch(
+        new RegExp(
+          `data-qr-href="http://127\\.0\\.0\\.1:\\d+/sub/tokenProtectedPath2026/uri/sub_token_protected\\?token=${encodeURIComponent(rawToken)}"`
+        )
       );
       expect(JSON.stringify(snapshotEnvelope.data)).not.toContain('accessTokenHash');
       expect(JSON.stringify(snapshotEnvelope.data)).not.toContain(subscriptionAccessTokenHash(rawToken));

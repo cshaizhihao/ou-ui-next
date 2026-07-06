@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import QRCode from 'qrcode';
 import {
   selectSubscriptionExportProfileForClient,
   type AuditLog,
@@ -327,6 +328,30 @@ function readRequestSourceIp(request: IncomingMessage) {
     .find((item) => item.length > 0);
 
   return forwardedFor ?? request.socket.remoteAddress ?? '127.0.0.1';
+}
+
+function readForwardedHeaderValue(headers: IncomingHttpHeaders, name: string) {
+  return getHeader(headers, name)
+    ?.split(',')
+    .map((item) => item.trim())
+    .find((item) => item.length > 0);
+}
+
+function createPublicRequestBaseUrl(request: IncomingMessage) {
+  const host = readForwardedHeaderValue(request.headers, 'x-forwarded-host') ?? getHeader(request.headers, 'host')?.trim();
+
+  if (!host) {
+    return undefined;
+  }
+
+  const forwardedProto = readForwardedHeaderValue(request.headers, 'x-forwarded-proto')?.toLowerCase();
+  const protocol = forwardedProto === 'https' ? 'https' : 'http';
+
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 function createOperatorSessionObservationContext(request: IncomingMessage): OperatorSessionObservationContext {
@@ -1835,18 +1860,65 @@ function createPublicSubscriptionUrl(
   return accessToken ? `${url}?token=${encodeURIComponent(accessToken)}` : url;
 }
 
-function renderPublicSubscriptionPortal(client: SubscriptionClientIdentity, accessToken?: string) {
+function createPublicSubscriptionQrUrl(relativeUrl: string, publicBaseUrl: string | undefined) {
+  if (!publicBaseUrl) {
+    return relativeUrl;
+  }
+
+  try {
+    return new URL(relativeUrl, publicBaseUrl).toString();
+  } catch {
+    return relativeUrl;
+  }
+}
+
+async function createPublicSubscriptionQrSvg(value: string) {
+  try {
+    return await QRCode.toString(value, {
+      type: 'svg',
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 148,
+      color: {
+        dark: '#07111F',
+        light: '#FFFFFF'
+      }
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+async function renderPublicSubscriptionPortal(
+  client: SubscriptionClientIdentity,
+  options: { accessToken?: string; publicBaseUrl?: string } = {}
+) {
   const outputFormats = Array.from(resolveAllowedSubscriptionOutputFormats(client));
   const trafficLimitBytes = Math.max(client.trafficLimitBytes, 0);
   const usedTrafficBytes = Math.max(client.usedTrafficBytes, 0);
   const remainingBytes = trafficLimitBytes > 0 ? Math.max(trafficLimitBytes - usedTrafficBytes, 0) : undefined;
-  const links = outputFormats
-    .map((format) => {
-      const label = formatPublicSubscriptionLabel(format);
-      const href = createPublicSubscriptionUrl(client, format, accessToken);
+  const links = (
+    await Promise.all(
+      outputFormats.map(async (format) => {
+        const label = formatPublicSubscriptionLabel(format);
+        const href = createPublicSubscriptionUrl(client, format, options.accessToken);
+        const qrHref = createPublicSubscriptionQrUrl(href, options.publicBaseUrl);
+        const qrSvg = await createPublicSubscriptionQrSvg(qrHref);
 
-      return `<li><a data-format="${escapeHtml(format)}" href="${escapeHtml(href)}">${escapeHtml(label)}</a><code>${escapeHtml(href)}</code></li>`;
-    })
+        return `<li>
+        <div class="link-copy">
+          <a data-format="${escapeHtml(format)}" href="${escapeHtml(href)}">${escapeHtml(label)}</a>
+          <code>${escapeHtml(href)}</code>
+        </div>
+        ${
+          qrSvg
+            ? `<div class="qr" data-format-qr="${escapeHtml(format)}" data-qr-href="${escapeHtml(qrHref)}" aria-label="${escapeHtml(label)} QR code">${qrSvg}</div>`
+            : ''
+        }
+      </li>`;
+      })
+    )
+  )
     .join('');
 
   return `<!doctype html>
@@ -1863,9 +1935,13 @@ function renderPublicSubscriptionPortal(client: SubscriptionClientIdentity, acce
     .cell{border:1px solid rgba(7,17,31,.14);background:#fff;padding:14px}
     .label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;color:#35405a;margin-bottom:6px}
     ul{list-style:none;padding:0;margin:0;display:grid;gap:10px}
-    li{border:1px solid rgba(30,58,255,.25);background:#dce1ff66;padding:12px;display:grid;gap:8px}
+    li{border:1px solid rgba(30,58,255,.25);background:#dce1ff66;padding:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+    .link-copy{display:grid;gap:8px;min-width:0}
     a{font-weight:800;color:#1e3aff;text-decoration:none}
     code{overflow-wrap:anywhere;font-size:12px;color:#35405a}
+    .qr{width:148px;height:148px;background:#fff;border:1px solid rgba(7,17,31,.12);padding:8px}
+    .qr svg{display:block;width:100%;height:100%}
+    @media (max-width:560px){li{grid-template-columns:1fr}.qr{width:132px;height:132px}}
   </style>
 </head>
 <body>
@@ -2630,7 +2706,14 @@ async function routeRequest(
     verifyPublicSubscriptionAccessToken(client, accessToken);
 
     consumePublicSubscriptionRequest(client, 'portal');
-    sendHtml(response, 200, renderPublicSubscriptionPortal(client, accessToken));
+    sendHtml(
+      response,
+      200,
+      await renderPublicSubscriptionPortal(client, {
+        accessToken,
+        publicBaseUrl: createPublicRequestBaseUrl(request)
+      })
+    );
     return;
   }
 
