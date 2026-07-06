@@ -35,7 +35,11 @@ import type {
   HostConfigMetadata,
   NodesFocusIntent
 } from '../../features/nodes/nodes-page';
-import { createCustomerNodeTaskMetadata } from '../../features/nodes/customer-node-task-metadata';
+import {
+  createCustomerNodeDeleteTaskInput,
+  createCustomerNodeInboundIdempotencyKey,
+  createCustomerNodeInboundTaskInput
+} from '../../features/nodes/customer-node-task-inputs';
 import type {
   SubscriptionClientRuleMetadata,
   SubscriptionMixerFocusIntent,
@@ -1931,30 +1935,17 @@ export function AppShell({ ready }: AppShellProps) {
   const handleSaveCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => {
       const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
-      const targetId = metadata.nodeId || `inbound-${createStableSlug(metadata.customerNodeName, 'customer-node')}`;
       const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
-      const taskMetadata = createCustomerNodeTaskMetadata(metadata, operation);
+      const inboundInput = createCustomerNodeInboundTaskInput(metadata, action, {
+        create: t.createCustomerNodeSummary,
+        update: t.updateCustomerNodeSummary
+      });
 
       void (async () => {
         const inboundTask = await runTask(
+          inboundInput,
           {
-            operation,
-            resourceType: 'inbound',
-            targetId,
-            targetLabel: metadata.customerNodeName,
-            summary: action === 'create' ? t.createCustomerNodeSummary : t.updateCustomerNodeSummary,
-            metadata: taskMetadata
-          },
-          {
-            idempotencyKey: [
-              'ui',
-              operation,
-              metadata.agentId,
-              metadata.nodeId,
-              metadata.listenPort,
-              metadata.xrayProtocol,
-              metadata.customerName
-            ].join(':')
+            idempotencyKey: createCustomerNodeInboundIdempotencyKey(metadata, operation)
           }
         );
 
@@ -1984,21 +1975,13 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
-      const taskMetadata = createCustomerNodeTaskMetadata(metadata, 'inbound.delete');
       const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
 
       void (async () => {
         const inboundTask = await runTask(
-          withRiskConfirmation({
-            operation: 'inbound.delete',
-            resourceType: 'inbound',
-            targetId: metadata.nodeId,
-            targetLabel: metadata.customerNodeName,
-            summary: t.deleteCustomerNodeSummary,
-            metadata: taskMetadata
-          }),
+          createCustomerNodeDeleteTaskInput(metadata, t.deleteCustomerNodeSummary),
           {
-            idempotencyKey: ['ui', 'inbound.delete', metadata.agentId, metadata.nodeId].join(':')
+            idempotencyKey: createCustomerNodeInboundIdempotencyKey(metadata, 'inbound.delete')
           }
         );
 

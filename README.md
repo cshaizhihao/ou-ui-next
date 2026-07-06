@@ -163,6 +163,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - 客户节点新增、编辑、启停、续期、加量等 UI 操作会提交结构化 `metadata.clients[]`，并保留 quota / expiry / guardrail / `trafficMultiplier` 证据。
 - read model 会优先应用 update task 中显式提交的 quota / expiry / guardrail 状态，旧遥测计数仍保留，但不会阻止恢复后的 policy 状态刷新。
 - 客户节点删除会同步入队绑定订阅身份删除；历史手工创建的订阅身份如果无法从客户节点 metadata 推导，仍需在订阅工作区独立清理。
+- 客户节点 inbound create/update/delete 的 UI mutation 由 feature 级 task input helper 统一生成，保留 delete 风险确认，并让幂等 key 随启用状态、限额、到期、传输配置和 guardrail evidence 等非敏感运行时字段变化。
 - 客户节点创建目标会按 Agent `xray` capability 过滤，没有 Xray runtime 的主机不会出现在可提交目标里。
 - API 层会拒绝已知非 Xray Agent 的人工 inbound 任务，避免绕过 UI 后制造不会落地的 Xray runtime 任务。
 - 客户节点工作台、全局 quick actions 和 runtime artifact 共用 `XRAY_RUNTIME_PROTOCOLS` 边界，当前只允许 `vless`、`vmess`、`trojan`、`shadowsocks` 进入可编辑/可下发 runtime inbound。
