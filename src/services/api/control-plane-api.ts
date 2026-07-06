@@ -276,6 +276,7 @@ export type ControlPlaneSnapshotReadModel = {
   routingPolicies: RoutingPolicy[];
   tuningProfiles: TuningProfile[];
   tasks: DeployTask[];
+  commandOutbox: CommandOutboxSummary[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
@@ -368,6 +369,18 @@ export type CommandOutboxItem = {
   resultAt?: string;
   lastError?: string;
 };
+
+export type CommandOutboxSummary = Omit<CommandOutboxItem, 'command'> & {
+  commandType: AgentCommandEnvelope['type'];
+};
+
+export function summarizeCommandOutboxItem(item: CommandOutboxItem): CommandOutboxSummary {
+  const { command, ...summary } = item;
+  return {
+    ...summary,
+    commandType: command.type
+  };
+}
 
 export type AgentCommandLeaseOptions = {
   requestId: string;

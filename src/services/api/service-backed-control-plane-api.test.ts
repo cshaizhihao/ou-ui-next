@@ -50,7 +50,7 @@ function createCommandOutboxItem(overrides: Partial<CommandOutboxItem> = {}): Co
     seq: 1,
     status: 'pending',
     transport: 'http-pull',
-    command: {} as CommandOutboxItem['command'],
+    command: { type: 'apply' } as CommandOutboxItem['command'],
     attempts: 1,
     createdAt: '2026-06-04T04:00:00.000Z',
     updatedAt: '2026-06-04T04:00:10.000Z',
@@ -685,7 +685,19 @@ describe('service-backed control plane read model hydration', () => {
   });
 
   it('builds the full snapshot without replaying persisted tasks for every section', async () => {
-    const repository = createInMemoryControlPlaneRepository();
+    const repository = createInMemoryControlPlaneRepository({
+      commandOutbox: [
+        createCommandOutboxItem({
+          id: 'outbox-snapshot-apply-001',
+          taskId: 'task-snapshot-apply-001',
+          commandId: 'cmd-snapshot-apply-001',
+          agentId: 'agent-snapshot-fast-01',
+          status: 'completed',
+          ackedAt: '2026-06-05T10:00:05.000Z',
+          resultAt: '2026-06-05T10:00:08.000Z'
+        })
+      ]
+    });
     const listTasks = vi.spyOn(repository, 'listTasks');
     const api = createServiceBackedControlPlaneApi({
       repository,
@@ -754,6 +766,19 @@ describe('service-backed control plane read model hydration', () => {
       })
     ]);
     expect(snapshot.agentLogChunks).toEqual([]);
+    expect(snapshot.commandOutbox).toEqual([
+      expect.objectContaining({
+        id: 'outbox-snapshot-apply-001',
+        taskId: 'task-snapshot-apply-001',
+        commandId: 'cmd-snapshot-apply-001',
+        agentId: 'agent-snapshot-fast-01',
+        status: 'completed',
+        commandType: 'apply',
+        ackedAt: '2026-06-05T10:00:05.000Z',
+        resultAt: '2026-06-05T10:00:08.000Z'
+      })
+    ]);
+    expect(snapshot.commandOutbox[0]).not.toHaveProperty('command');
     expect(snapshot.telegramBotSettings).toEqual(expect.objectContaining({ id: 'telegram-bot' }));
     expect(listTasks).toHaveBeenCalledTimes(1);
   });

@@ -785,9 +785,17 @@ describe('OpenAPI v1 contract', () => {
         'telegramNotificationPolicies',
         'telegramNotificationDeliveries',
         'tasks',
+        'commandOutbox',
         'auditLogs'
       ])
     );
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.commandOutbox.items).toEqual({
+      $ref: '#/components/schemas/CommandOutboxSummary'
+    });
+    expect(document.components.schemas.CommandOutboxSummary.required).toEqual(
+      expect.arrayContaining(['id', 'taskId', 'commandId', 'agentId', 'status', 'transport', 'commandType'])
+    );
+    expect(document.components.schemas.CommandOutboxSummary.properties).not.toHaveProperty('command');
     expect(document.components.schemas.ControlPlaneSnapshot.properties?.telegramBotSettings).toEqual({
       $ref: '#/components/schemas/TelegramBotSettings'
     });

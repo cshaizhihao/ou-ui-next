@@ -234,6 +234,7 @@ function withSnapshotFromLists(api: ControlPlaneApi) {
         routingPolicies,
         tuningProfiles,
         tasks,
+        commandOutbox: [],
         configRevisions,
         preflightPlans,
         runtimeSnapshots,

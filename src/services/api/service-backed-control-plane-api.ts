@@ -119,6 +119,7 @@ import {
   selectAgentLogArchives,
   selectTrafficRollupCompactions,
   selectTrafficRollups,
+  summarizeCommandOutboxItem,
   v1ApiBoundary
 } from './control-plane-api';
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
@@ -5939,6 +5940,7 @@ export function createServiceBackedControlPlaneApi({
         routingPolicies,
         tuningProfiles,
         tasks: clone(tasks),
+        commandOutbox: commandOutbox.map(summarizeCommandOutboxItem),
         configRevisions,
         preflightPlans,
         runtimeSnapshots,

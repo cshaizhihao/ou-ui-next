@@ -20,7 +20,8 @@ import type { DeployTask } from '../../domain/task';
 import type {
   AgentLogChunk,
   AgentLogRetentionPolicyReadModel,
-  AgentLogRetentionPolicyUpdateInput
+  AgentLogRetentionPolicyUpdateInput,
+  CommandOutboxSummary
 } from '../../services/api/control-plane-api';
 import { copyText as copyToClipboard } from '../../lib/copy';
 import { formatDateTime, formatNumber } from '../shared/format';
@@ -33,6 +34,7 @@ type TasksPageProps = {
   agentLogRetentionBusy?: boolean;
   agentLogExportBusy?: boolean;
   agentLogArchiveExportBusy?: boolean;
+  commandOutbox?: CommandOutboxSummary[];
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
@@ -50,6 +52,7 @@ type RuntimeReleaseBundle = {
   configRevision?: RuntimeConfigRevision;
   preflightPlan?: RuntimePreflightPlan;
   runtimeSnapshot?: RuntimeSnapshot;
+  commandOutboxItems: CommandOutboxSummary[];
 };
 
 type TaskRemediationPlan = {
@@ -273,6 +276,13 @@ const copy = {
     rollback: '发起回滚',
     confirmRollback: (taskId: string) => `确认回滚任务 ${taskId}？`,
     runtimeRelease: '运行时发布',
+    agentCommand: 'Agent 命令',
+    agentCommandDetail: (commandType: string, agentId: string, commandId: string) =>
+      `${commandType} · ${agentId} · ${commandId}`,
+    agentCommandTiming: (ackedAt?: string, resultAt?: string, deadlineAt?: string) =>
+      `ACK ${ackedAt ? formatDateTime(ackedAt) : '等待'} · Result ${
+        resultAt ? formatDateTime(resultAt) : '等待'
+      } · Deadline ${deadlineAt ? formatDateTime(deadlineAt) : '未记录'}`,
     forwardingRuntimeDiagnosis: '转发运行诊断',
     runtimeDiagnosisEvidenceStage: '证据阶段',
     runtimeDiagnosisPlannedBinding: '计划绑定',
@@ -391,6 +401,10 @@ const copy = {
       captured: '已捕获',
       verified: '已验证',
       restored: '已恢复',
+      dispatched: '已派发',
+      acknowledged: '已确认',
+      completed: '已完成',
+      dead_letter: '死信',
       expired: '已过期',
       not_generated: '未生成'
     },
@@ -568,6 +582,13 @@ const copy = {
     rollback: 'Start Rollback',
     confirmRollback: (taskId: string) => `Start rollback for ${taskId}?`,
     runtimeRelease: 'Runtime Release',
+    agentCommand: 'Agent Command',
+    agentCommandDetail: (commandType: string, agentId: string, commandId: string) =>
+      `${commandType} · ${agentId} · ${commandId}`,
+    agentCommandTiming: (ackedAt?: string, resultAt?: string, deadlineAt?: string) =>
+      `ACK ${ackedAt ? formatDateTime(ackedAt) : 'Waiting'} · Result ${
+        resultAt ? formatDateTime(resultAt) : 'Waiting'
+      } · Deadline ${deadlineAt ? formatDateTime(deadlineAt) : 'Not recorded'}`,
     forwardingRuntimeDiagnosis: 'Forwarding Runtime Diagnosis',
     runtimeDiagnosisEvidenceStage: 'Evidence Stage',
     runtimeDiagnosisPlannedBinding: 'Planned Binding',
@@ -686,6 +707,10 @@ const copy = {
       captured: 'Captured',
       verified: 'Verified',
       restored: 'Restored',
+      dispatched: 'Dispatched',
+      acknowledged: 'Acknowledged',
+      completed: 'Completed',
+      dead_letter: 'Dead Letter',
       expired: 'Expired',
       not_generated: 'Not Generated'
     },
@@ -1290,6 +1315,7 @@ function createAgentLogArchiveContextPayload(archives: AgentLogArchive[]) {
 
 function createReleaseBundles(
   tasks: DeployTask[],
+  commandOutbox: CommandOutboxSummary[],
   configRevisions: RuntimeConfigRevision[],
   preflightPlans: RuntimePreflightPlan[],
   runtimeSnapshots: RuntimeSnapshot[]
@@ -1311,6 +1337,7 @@ function createReleaseBundles(
 
     return {
       task,
+      commandOutboxItems: commandOutbox.filter((item) => item.taskId === task.id),
       configRevision,
       preflightPlan,
       runtimeSnapshot
@@ -1659,6 +1686,64 @@ function ForwardingRuntimeDiagnosisEvidenceCard({
   );
 }
 
+function AgentCommandEvidenceCard({
+  commands,
+  language,
+  t
+}: {
+  commands: CommandOutboxSummary[];
+  language: AppLanguage;
+  t: (typeof copy)[AppLanguage];
+}) {
+  if (commands.length === 0) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label={t.agentCommand}
+      className="tasks-agent-command-evidence mt-3 border border-[#07111F]/20 bg-[#EAF3D1]/60 p-2.5 dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]"
+      role="group"
+    >
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">
+          {t.agentCommand}
+        </span>
+        <span className="border border-[#07111F]/18 bg-white/70 px-2 py-0.5 text-[10px] font-bold uppercase text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60">
+          {formatNumber(commands.length, language)}
+        </span>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {commands.map((command) => (
+          <article
+            aria-label={`${t.agentCommand} ${command.commandId}`}
+            className="min-w-0 border border-[#07111F]/15 bg-white/72 p-2 dark:border-white/10 dark:bg-black/10"
+            key={command.id}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="break-all font-mono text-[10px] font-black text-[#07111F] dark:text-white/80">
+                {command.id}
+              </p>
+              <StatusPill status={command.status} language={language} />
+            </div>
+            <p className="mt-1 break-all font-mono text-[10px] font-semibold text-[#35405A] dark:text-white/55">
+              {t.agentCommandDetail(command.commandType, command.agentId, command.commandId)}
+            </p>
+            <p className="mt-1 text-[10px] font-semibold text-[#35405A] dark:text-white/50">
+              {t.agentCommandTiming(command.ackedAt, command.resultAt, command.deadlineAt)}
+            </p>
+            {command.lastError ? (
+              <p className="mt-2 rounded border border-red-200 bg-red-50/70 p-2 text-[10px] font-bold text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">
+                {command.lastError}
+              </p>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function RuntimeReleaseTimeline({
   bundle,
   className = '',
@@ -1669,11 +1754,11 @@ function RuntimeReleaseTimeline({
   language: AppLanguage;
 }) {
   const t = copy[language];
-  const { configRevision, preflightPlan, runtimeSnapshot } = bundle;
+  const { commandOutboxItems, configRevision, preflightPlan, runtimeSnapshot } = bundle;
   const moduleKind = configRevision?.moduleKind ?? preflightPlan?.moduleKind ?? runtimeSnapshot?.moduleKind;
   const forwardingRuntimeDiagnosis = readForwardingRuntimeDiagnosis(bundle);
 
-  if (!configRevision && !preflightPlan && !runtimeSnapshot) {
+  if (!configRevision && !preflightPlan && !runtimeSnapshot && commandOutboxItems.length === 0) {
     return null;
   }
 
@@ -1728,6 +1813,7 @@ function RuntimeReleaseTimeline({
           value={runtimeSnapshot?.id}
         />
       </div>
+      <AgentCommandEvidenceCard commands={commandOutboxItems} language={language} t={t} />
       {forwardingRuntimeDiagnosis ? (
         <ForwardingRuntimeDiagnosisEvidenceCard
           diagnosis={forwardingRuntimeDiagnosis}
@@ -2635,6 +2721,7 @@ export function TasksPage({
   agentLogRetentionBusy = false,
   agentLogExportBusy = false,
   agentLogArchiveExportBusy = false,
+  commandOutbox = [],
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
@@ -2659,12 +2746,12 @@ export function TasksPage({
     [taskOperationFilter, taskSearch, taskStatusFilter, tasks, t]
   );
   const allReleaseBundles = useMemo(
-    () => createReleaseBundles(tasks, configRevisions, preflightPlans, runtimeSnapshots),
-    [configRevisions, preflightPlans, runtimeSnapshots, tasks]
+    () => createReleaseBundles(tasks, commandOutbox, configRevisions, preflightPlans, runtimeSnapshots),
+    [commandOutbox, configRevisions, preflightPlans, runtimeSnapshots, tasks]
   );
   const releaseBundles = useMemo(
-    () => createReleaseBundles(filteredTasks, configRevisions, preflightPlans, runtimeSnapshots),
-    [configRevisions, filteredTasks, preflightPlans, runtimeSnapshots]
+    () => createReleaseBundles(filteredTasks, commandOutbox, configRevisions, preflightPlans, runtimeSnapshots),
+    [commandOutbox, configRevisions, filteredTasks, preflightPlans, runtimeSnapshots]
   );
   const selectedBundles = useMemo(
     () => allReleaseBundles.filter((bundle) => selectedTaskIds.includes(bundle.task.id)),

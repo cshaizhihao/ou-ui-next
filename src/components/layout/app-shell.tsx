@@ -146,6 +146,7 @@ const EMPTY_QUOTA_POLICIES: ControlPlaneSnapshot['quotaPolicies'] = [];
 const EMPTY_ROUTING_POLICIES: ControlPlaneSnapshot['routingPolicies'] = [];
 const EMPTY_TUNING_PROFILES: ControlPlaneSnapshot['tuningProfiles'] = [];
 const EMPTY_TASKS: ControlPlaneSnapshot['tasks'] = [];
+const EMPTY_COMMAND_OUTBOX: ControlPlaneSnapshot['commandOutbox'] = [];
 const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
@@ -1234,6 +1235,7 @@ export function AppShell({ ready }: AppShellProps) {
   const routingPolicies = snapshot.data?.routingPolicies ?? EMPTY_ROUTING_POLICIES;
   const tuningProfiles = snapshot.data?.tuningProfiles ?? EMPTY_TUNING_PROFILES;
   const tasks = snapshot.data?.tasks ?? EMPTY_TASKS;
+  const commandOutbox = snapshot.data?.commandOutbox ?? EMPTY_COMMAND_OUTBOX;
   const configRevisions = snapshot.data?.configRevisions ?? EMPTY_CONFIG_REVISIONS;
   const preflightPlans = snapshot.data?.preflightPlans ?? EMPTY_PREFLIGHT_PLANS;
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
@@ -3066,6 +3068,7 @@ export function AppShell({ ready }: AppShellProps) {
             agentLogExportBusy={taskMutationBusy}
             agentLogRetentionPolicy={agentLogRetentionPolicy}
             agentLogRetentionBusy={taskMutationBusy}
+            commandOutbox={commandOutbox}
             configRevisions={configRevisions}
             language={language}
             preflightPlans={preflightPlans}
@@ -3119,6 +3122,7 @@ export function AppShell({ ready }: AppShellProps) {
     agentLogRetentionPolicy,
     agents,
     auditLogs,
+    commandOutbox,
     configRevisions,
     customers,
     customerFocusIntent,

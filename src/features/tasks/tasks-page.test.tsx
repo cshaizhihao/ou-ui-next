@@ -4,7 +4,7 @@ import { TasksPage } from './tasks-page';
 import type { AgentLogArchive } from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
-import type { AgentLogChunk } from '../../services/api/control-plane-api';
+import type { AgentLogChunk, CommandOutboxSummary } from '../../services/api/control-plane-api';
 
 const task: DeployTask = {
   id: 'task-release-001',
@@ -148,6 +148,23 @@ const agentLogChunk: AgentLogChunk = {
   content: 'failed to apply port-forwarding unit'
 };
 
+const commandOutboxSummary: CommandOutboxSummary = {
+  id: 'outbox-release-001',
+  taskId: task.id,
+  commandId: 'cmd-forward-apply-001',
+  agentId: 'agent-hkg-01',
+  seq: 42,
+  status: 'completed',
+  transport: 'http-pull',
+  commandType: 'apply',
+  attempts: 1,
+  createdAt: '2026-06-02T00:00:01.000Z',
+  updatedAt: '2026-06-02T00:00:08.000Z',
+  deadlineAt: '2026-06-02T00:05:00.000Z',
+  ackedAt: '2026-06-02T00:00:03.000Z',
+  resultAt: '2026-06-02T00:00:08.000Z'
+};
+
 const agentLogArchive: AgentLogArchive = {
   id: 'agent-log-archive-test',
   agentId: 'agent-hkg-01',
@@ -177,6 +194,7 @@ describe('TasksPage', () => {
         tasks={[task]}
         agentLogArchives={[agentLogArchive]}
         agentLogChunks={[agentLogChunk]}
+        commandOutbox={[commandOutboxSummary]}
         configRevisions={[configRevision]}
         preflightPlans={[currentPreflightPlan]}
         runtimeSnapshots={[currentRuntimeSnapshot]}
@@ -188,6 +206,12 @@ describe('TasksPage', () => {
 
     const overview = screen.getByRole('region', { name: 'Operational Overview' });
     expect(within(overview).getByText('Execution Log')).toBeInTheDocument();
+    const commandEvidence = screen.getByRole('group', { name: 'Agent Command' });
+    expect(commandEvidence).toHaveTextContent('outbox-release-001');
+    expect(commandEvidence).toHaveTextContent('Completed');
+    expect(commandEvidence).toHaveTextContent('apply · agent-hkg-01 · cmd-forward-apply-001');
+    expect(commandEvidence).toHaveTextContent('ACK');
+    expect(commandEvidence).toHaveTextContent('Result');
     expect(
       within(overview).queryByText(
         'Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.'

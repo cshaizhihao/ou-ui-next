@@ -4480,6 +4480,7 @@ components:
         - telegramNotificationPolicies
         - telegramNotificationDeliveries
         - tasks
+        - commandOutbox
         - auditLogs
       properties:
         apiBoundary:
@@ -4614,6 +4615,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DeployTask'
+        commandOutbox:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommandOutboxSummary'
         auditLogs:
           type: array
           items:
@@ -8888,6 +8893,75 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+      additionalProperties: false
+    CommandOutboxSummary:
+      type: object
+      required:
+        - id
+        - taskId
+        - commandId
+        - agentId
+        - seq
+        - status
+        - transport
+        - commandType
+        - attempts
+        - createdAt
+        - updatedAt
+        - deadlineAt
+      properties:
+        id:
+          type: string
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        agentId:
+          $ref: '#/components/schemas/AgentId'
+        seq:
+          type: integer
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/CommandOutboxStatus'
+        transport:
+          type: string
+          enum:
+            - websocket
+            - http-pull
+            - grpc
+        commandType:
+          $ref: '#/components/schemas/AgentCommandType'
+        attempts:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deadlineAt:
+          type: string
+          format: date-time
+        leaseOwnerId:
+          type: string
+          description: Safe lease owner identifier, usually the authenticated Agent credential ID or the agentId when Agent auth is disabled.
+        leaseSessionId:
+          $ref: '#/components/schemas/SessionId'
+        leasedAt:
+          type: string
+          format: date-time
+        leaseExpiresAt:
+          type: string
+          format: date-time
+        ackedAt:
+          type: string
+          format: date-time
+        resultAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
       additionalProperties: false
     CommandOutboxItem:
       type: object
