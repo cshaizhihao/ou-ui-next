@@ -1657,6 +1657,70 @@ describe('AppShell', () => {
     expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
   });
 
+  it('disables one shared Xray client without dropping peer clients from submitted metadata', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn(() => true);
+    const sharedInbounds: XrayInbound[] = seedInbounds.map((inbound) =>
+      inbound.id === 'inbound-vless-hkg-443'
+        ? {
+            ...inbound,
+            clients: [
+              inbound.clients[0],
+              {
+                ...inbound.clients[0],
+                id: 'client-peer-hkg',
+                email: 'peer-hkg',
+                enabled: true,
+                trafficLimitBytes: 2 * 1024 * 1024 * 1024 * 1024,
+                usedTrafficBytes: 0.4 * 1024 * 1024 * 1024 * 1024,
+                expiresAt: '2026-11-30T23:59:59.000Z',
+                ipLimit: 2
+              }
+            ]
+          }
+        : inbound
+    );
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      listInbounds: vi.fn().mockResolvedValue(sharedInbounds),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    vi.stubGlobal('confirm', confirm);
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'ops-hkg');
+    await user.click(await screen.findByRole('button', { name: '停用 ops-hkg' }));
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'inbound.update',
+          targetId: 'inbound-vless-hkg-443'
+        }),
+        expect.anything()
+      );
+    });
+
+    const [input] = api.createTask.mock.calls.find(([request]) => request.operation === 'inbound.update') ?? [];
+
+    expect(input?.metadata).toMatchObject({
+      enabled: true,
+      clients: [
+        expect.objectContaining({
+          clientIdentity: 'client-ops-hkg',
+          clientEmail: 'ops-hkg',
+          enabled: false
+        }),
+        expect.objectContaining({
+          clientIdentity: 'client-peer-hkg',
+          clientEmail: 'peer-hkg',
+          enabled: true
+        })
+      ]
+    });
+  });
+
   it('disables a matched Xray client with a short quick action alias', async () => {
     const user = userEvent.setup();
     const confirm = vi.fn(() => true);

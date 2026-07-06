@@ -3,6 +3,7 @@ import type { CustomerNodeConfigMetadata } from './nodes-page';
 type CustomerNodeTaskOperation = 'inbound.create' | 'inbound.update' | 'inbound.delete';
 type MetadataValue = string | number | boolean | string[] | undefined;
 export type CustomerNodeTaskMetadata = Record<string, unknown>;
+type CustomerNodeClientMetadata = CustomerNodeConfigMetadata | NonNullable<CustomerNodeConfigMetadata['clients']>[number];
 
 function compactMetadata(input: Record<string, MetadataValue>): CustomerNodeTaskMetadata {
   return Object.fromEntries(
@@ -40,7 +41,7 @@ function createDeleteMetadata(metadata: CustomerNodeConfigMetadata) {
   });
 }
 
-function createClientMetadata(metadata: CustomerNodeConfigMetadata) {
+function createClientMetadata(metadata: CustomerNodeClientMetadata, xrayProtocol: CustomerNodeConfigMetadata['xrayProtocol']) {
   return {
     ...compactMetadata({
       clientIdentity: metadata.clientIdentity,
@@ -66,14 +67,14 @@ function createClientMetadata(metadata: CustomerNodeConfigMetadata) {
       enabled: metadata.enabled
     }),
     ...compactMetadata(
-      metadata.xrayProtocol === 'vmess'
+      xrayProtocol === 'vmess'
         ? {
             vmessSecurity: metadata.vmessSecurity
           }
         : {}
     ),
     ...compactMetadata(
-      metadata.xrayProtocol === 'shadowsocks'
+      xrayProtocol === 'shadowsocks'
         ? {
             shadowsocksMethod: metadata.shadowsocksMethod
           }
@@ -83,6 +84,11 @@ function createClientMetadata(metadata: CustomerNodeConfigMetadata) {
 }
 
 function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
+  const clientMetadataList = metadata.clients && metadata.clients.length > 0 ? metadata.clients : [metadata];
+  const inboundEnabled =
+    clientMetadataList.length > 1
+      ? clientMetadataList.some((client) => client.enabled !== false)
+      : metadata.enabled;
   const common = compactMetadata({
     nodeId: metadata.nodeId,
     agentId: metadata.agentId,
@@ -121,7 +127,7 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
     runtimeDisabledByPolicy: metadata.runtimeDisabledByPolicy,
     guardrailReason: metadata.guardrailReason,
     subscriptionRule: metadata.subscriptionRule,
-    enabled: metadata.enabled
+    enabled: inboundEnabled
   });
 
   return {
@@ -150,7 +156,7 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
           }
         : {}
     ),
-    clients: [createClientMetadata(metadata)]
+    clients: clientMetadataList.map((clientMetadata) => createClientMetadata(clientMetadata, metadata.xrayProtocol))
   };
 }
 

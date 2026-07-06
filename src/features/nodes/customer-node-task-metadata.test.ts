@@ -100,6 +100,50 @@ describe('customer node task metadata', () => {
     expect(request.metadata).not.toHaveProperty('subscriptionRule');
   });
 
+  it('keeps shared Xray inbounds enabled when one client is disabled but peers remain active', () => {
+    const metadata = createCustomerNodeTaskMetadata(
+      {
+        ...baseMetadata,
+        enabled: false,
+        clients: [
+          {
+            clientIdentity: 'acme-client',
+            clientEmail: 'acme@example.com',
+            clientCredential: 'not-a-uuid',
+            enabled: false
+          },
+          {
+            clientIdentity: 'peer-client',
+            clientEmail: 'peer@example.com',
+            clientCredential: 'peer-token',
+            trafficLimitGb: 200,
+            currentUsedTrafficGb: 25,
+            enabled: true
+          }
+        ]
+      },
+      'inbound.update'
+    );
+
+    expect(metadata).toMatchObject({
+      enabled: true,
+      clients: [
+        expect.objectContaining({
+          clientIdentity: 'acme-client',
+          clientEmail: 'acme@example.com',
+          enabled: false
+        }),
+        expect.objectContaining({
+          clientIdentity: 'peer-client',
+          clientEmail: 'peer@example.com',
+          trafficLimitGb: 200,
+          currentUsedTrafficGb: 25,
+          enabled: true
+        })
+      ]
+    });
+  });
+
   it('builds minimal delete metadata that still passes createTask validation', () => {
     const request = createTaskRequest('inbound.delete');
 

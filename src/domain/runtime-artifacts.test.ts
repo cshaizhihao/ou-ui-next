@@ -348,6 +348,68 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('keeps shared Xray inbounds upsertable when only one client is operator-disabled', () => {
+    const artifact = buildRuntimeArtifact({
+      task: {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Shared Inbound',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          security: 'tls',
+          sni: 'edge.example.com',
+          enabled: true,
+          clients: [
+            {
+              clientIdentity: 'alice',
+              clientCredential: 'alice-token',
+              clientEmail: 'alice@example.com',
+              enabled: false
+            },
+            {
+              clientIdentity: 'bob',
+              clientCredential: 'bob-token',
+              clientEmail: 'bob@example.com',
+              enabled: true
+            }
+          ]
+        }),
+        operation: 'inbound.update'
+      },
+      agentId: 'agent-hkg-01',
+      moduleKind: 'xray'
+    }) as XrayArtifactFixture & {
+      action: string;
+      clientPolicies: Array<{ clientEmail: string; enabled: boolean; operatorEnabled: boolean; clientId: string }>;
+      runtimeCapabilities: { activeClientCount: number; totalClientCount: number };
+    };
+
+    expect(artifact.action).toBe('upsert_inbound');
+    expect(artifact.runtimeCapabilities).toMatchObject({
+      activeClientCount: 1,
+      totalClientCount: 2
+    });
+    expect(artifact.clientPolicies).toMatchObject([
+      {
+        clientEmail: 'alice@example.com',
+        enabled: false,
+        operatorEnabled: false
+      },
+      {
+        clientEmail: 'bob@example.com',
+        enabled: true,
+        operatorEnabled: true
+      }
+    ]);
+    expect(artifact.xray.inbound.settings.clients).toEqual([
+      expect.objectContaining({
+        id: artifact.clientPolicies[1].clientId
+      })
+    ]);
+  });
+
   it('excludes policy-disabled Xray clients from active settings while preserving quota and expiry evidence', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({

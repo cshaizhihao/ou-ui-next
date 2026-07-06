@@ -180,6 +180,32 @@ export type CustomerNodeConfigMetadata = {
   securePathPreview?: string;
   subscriptionUrlPreview?: Partial<Record<'uri' | 'v2ray' | 'clash' | 'mihomo' | 'sing-box' | 'shadowrocket' | 'stash', string>>;
   enabled?: boolean;
+  clients?: Array<{
+    clientIdentity: string;
+    clientEmail: string;
+    clientCredential: string;
+    clientLevel?: number;
+    clientComment?: string;
+    telegramId?: string;
+    resetPolicy?: XrayClientResetPolicy;
+    vmessSecurity?: string;
+    shadowsocksMethod?: string;
+    hysteriaAuth?: string;
+    flow?: string;
+    ipLimit?: number;
+    trafficMultiplier?: CustomerNodeTrafficMultiplier;
+    trafficLimitGb?: number;
+    monthlyResetDay?: number;
+    currentUsedTrafficGb?: number;
+    remainingDays?: number;
+    expiresAt?: string;
+    quotaExceeded?: boolean;
+    clientExpired?: boolean;
+    runtimeDisabledByPolicy?: boolean;
+    guardrailReason?: string;
+    subscriptionRule?: string;
+    enabled?: boolean;
+  }>;
 };
 
 type CustomerNodeRecord = {

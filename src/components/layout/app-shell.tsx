@@ -293,6 +293,14 @@ function gbFromBytes(bytes: number) {
   return Math.round((bytes / 1024 / 1024 / 1024) * 10) / 10;
 }
 
+function readCustomerNodeClientIdentity(inbound: XrayInbound, client: XrayInbound['clients'][number]) {
+  return inbound.clients.length > 1 ? client.id : inbound.clientIdentity ?? client.id;
+}
+
+function readCustomerNodeClientCredential(inbound: XrayInbound, client: XrayInbound['clients'][number]) {
+  return client.password ?? client.auth ?? readCustomerNodeClientIdentity(inbound, client);
+}
+
 function createCustomerNodeShareLink(metadata: CustomerNodeConfigMetadata) {
   return buildXrayShareLink({
     protocol: metadata.xrayProtocol as Parameters<typeof buildXrayShareLink>[0]['protocol'],
@@ -368,6 +376,7 @@ function createCustomerNodeMetadataFromInbound(
   const remainingDays =
     inbound.remainingDays
     ?? Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
+  const usedTrafficBytes = client.manualUsedTrafficBytes ?? client.usedTrafficBytes ?? 0;
 
   if (!isXrayRuntimeProtocol(inbound.protocol)) {
     throw new Error(`Unsupported Xray inbound protocol: ${inbound.protocol}`);
@@ -381,9 +390,9 @@ function createCustomerNodeMetadataFromInbound(
     serverAddress: (inbound.serverAddress ?? nodeAddress) || agentAddress,
     xrayProtocol: inbound.protocol,
     listenPort: inbound.listenPort,
-    clientIdentity: inbound.clientIdentity ?? client.id,
+    clientIdentity: readCustomerNodeClientIdentity(inbound, client),
     clientEmail: client.email,
-    clientCredential: client.password ?? client.auth ?? inbound.clientIdentity ?? client.id,
+    clientCredential: readCustomerNodeClientCredential(inbound, client),
     clientLevel: client.level ?? 0,
     clientComment: client.comment ?? '',
     telegramId: client.tgId ?? '',
@@ -410,7 +419,7 @@ function createCustomerNodeMetadataFromInbound(
     trafficMultiplier: client.trafficMultiplier ?? 1,
     trafficLimitGb: gbFromBytes(client.trafficLimitBytes),
     monthlyResetDay: client.monthlyResetDay ?? 1,
-    currentUsedTrafficGb: gbFromBytes(client.manualUsedTrafficBytes ?? 0),
+    currentUsedTrafficGb: gbFromBytes(usedTrafficBytes),
     remainingDays,
     expiresAt: client.expiresAt,
     quotaExceeded: client.quotaExceeded,
@@ -420,6 +429,46 @@ function createCustomerNodeMetadataFromInbound(
     subscriptionRule: inbound.subscriptionRule ?? 'manual',
     enabled
   };
+}
+
+function createCustomerNodeClientMetadataListFromInbound(
+  inbound: XrayInbound,
+  targetClient: XrayInbound['clients'][number],
+  targetEnabled: boolean
+): NonNullable<CustomerNodeConfigMetadata['clients']> {
+  return inbound.clients.map((client) => {
+    const remainingDays =
+      inbound.remainingDays
+      ?? Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
+    const usedTrafficBytes = client.manualUsedTrafficBytes ?? client.usedTrafficBytes ?? 0;
+
+    return {
+      clientIdentity: readCustomerNodeClientIdentity(inbound, client),
+      clientEmail: client.email,
+      clientCredential: readCustomerNodeClientCredential(inbound, client),
+      clientLevel: client.level ?? 0,
+      clientComment: client.comment ?? '',
+      telegramId: client.tgId ?? '',
+      resetPolicy: client.resetPolicy ?? 'never',
+      vmessSecurity: client.security ?? 'auto',
+      shadowsocksMethod: client.method ?? '2022-blake3-aes-128-gcm',
+      hysteriaAuth: client.auth ?? '',
+      flow: client.flow ?? inbound.flow ?? '',
+      ipLimit: client.ipLimit,
+      trafficMultiplier: client.trafficMultiplier ?? 1,
+      trafficLimitGb: gbFromBytes(client.trafficLimitBytes),
+      monthlyResetDay: client.monthlyResetDay ?? 1,
+      currentUsedTrafficGb: gbFromBytes(usedTrafficBytes),
+      remainingDays,
+      expiresAt: client.expiresAt,
+      quotaExceeded: client.quotaExceeded,
+      clientExpired: client.clientExpired,
+      runtimeDisabledByPolicy: client.runtimeDisabledByPolicy,
+      guardrailReason: client.guardrailReason,
+      subscriptionRule: client.subId ?? inbound.subscriptionRule ?? 'manual',
+      enabled: client.id === targetClient.id || client.email === targetClient.email ? targetEnabled : client.enabled
+    };
+  });
 }
 
 function createQuickActionItems({
@@ -2134,7 +2183,13 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          handleSaveCustomerNode(createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, enabled), 'update');
+          handleSaveCustomerNode(
+            {
+              ...createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, enabled),
+              clients: createCustomerNodeClientMetadataListFromInbound(inbound, client, enabled)
+            },
+            'update'
+          );
           break;
         }
         case 'customer-node.reset-traffic': {
