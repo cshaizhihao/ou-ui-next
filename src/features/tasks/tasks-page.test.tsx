@@ -690,9 +690,9 @@ describe('TasksPage', () => {
     expect(within(dialog).getByText('task-release-001')).toBeInTheDocument();
     expect(within(dialog).getByText('req-release-001')).toBeInTheDocument();
     expect(within(dialog).getByText(/"targetEndpoint": "10\.0\.0\.7:8443"/)).toBeInTheDocument();
-    expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
-    expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
-    expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('cfg-current').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('preflight-current').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('snapshot-current').length).toBeGreaterThanOrEqual(1);
     expect(dialogDiagnosis).toHaveTextContent('Forwarding Runtime Diagnosis');
     expect(dialogDiagnosis).toHaveTextContent('Degraded');
     expect(dialogDiagnosis).toHaveTextContent('ipRateLimitMbps');
@@ -733,8 +733,13 @@ describe('TasksPage', () => {
 
     const pipeline = screen.getByRole('group', { name: 'Release Pipeline' });
     const taskRow = within(pipeline).getByRole('article', { name: 'Update shared Xray inbound' });
+    const runtimeVerification = within(taskRow).getByRole('group', { name: 'Runtime Verification' });
     const rowDiagnosis = within(taskRow).getByRole('group', { name: 'Xray Runtime Diagnosis' });
 
+    expect(runtimeVerification).toHaveAttribute('data-runtime-verification-state', 'waiting');
+    expect(runtimeVerification).toHaveTextContent('Awaiting Evidence');
+    expect(runtimeVerification).toHaveTextContent('Agent Result');
+    expect(runtimeVerification).toHaveTextContent('control-plane-compiled');
     expect(rowDiagnosis).toHaveClass('tasks-xray-runtime-diagnosis');
     expect(rowDiagnosis).toHaveAttribute('data-runtime-diagnosis-state', 'degraded');
     expect(rowDiagnosis).toHaveTextContent('control-plane-compiled');
@@ -752,9 +757,9 @@ describe('TasksPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Task Details' });
     const dialogDiagnosis = within(dialog).getByRole('group', { name: 'Xray Runtime Diagnosis' });
 
-    expect(within(dialog).getByText('cfg-xray-current')).toBeInTheDocument();
-    expect(within(dialog).getByText('preflight-xray-current')).toBeInTheDocument();
-    expect(within(dialog).getByText('snapshot-xray-current')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('cfg-xray-current').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('preflight-xray-current').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('snapshot-xray-current').length).toBeGreaterThanOrEqual(1);
     expect(dialogDiagnosis).toHaveTextContent('Shared inbound');
     expect(dialogDiagnosis).toHaveTextContent('Review TLS/Reality');
 
@@ -764,6 +769,61 @@ describe('TasksPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"runtimeDiagnosis": {'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"plannedInbound": {'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"clientCounters": {'));
+  });
+
+  it('marks an Xray release as Agent verified only after result, config, preflight, and snapshot evidence align', async () => {
+    const user = userEvent.setup();
+    const verifiedXrayDiagnosis = {
+      ...xrayRuntimeDiagnosisArtifact,
+      state: 'ready',
+      reasons: ['multi-client'],
+      nextActions: ['inspect-agent'],
+      hasRuntimeEvidence: true,
+      evidenceStage: 'agent-result-verified',
+      plannedBindingStatus: 'applied'
+    };
+
+    render(
+      <TasksPage
+        tasks={[{ ...xrayTask, status: 'succeeded' }]}
+        commandOutbox={[xrayCommandOutboxSummary]}
+        configRevisions={[
+          {
+            ...xrayConfigRevision,
+            status: 'applied',
+            artifact: {
+              runtimeDiagnosis: verifiedXrayDiagnosis
+            }
+          }
+        ]}
+        preflightPlans={[{ ...xrayPreflightPlan, status: 'passed' }]}
+        runtimeSnapshots={[{ ...xrayRuntimeSnapshot, status: 'verified' }]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const pipeline = screen.getByRole('group', { name: 'Release Pipeline' });
+    const taskRow = within(pipeline).getByRole('article', { name: 'Update shared Xray inbound' });
+    const runtimeVerification = within(taskRow).getByRole('group', { name: 'Runtime Verification' });
+
+    expect(runtimeVerification).toHaveAttribute('data-runtime-verification-state', 'verified');
+    expect(runtimeVerification).toHaveTextContent('Agent Verified');
+    expect(runtimeVerification).toHaveTextContent('Agent result, config, preflight, and snapshot are aligned.');
+    expect(runtimeVerification).toHaveTextContent('1/1 Completed');
+    expect(runtimeVerification).toHaveTextContent('agent-result-verified');
+    expect(runtimeVerification).toHaveTextContent('cfg-xray-current');
+    expect(runtimeVerification).toHaveTextContent('preflight-xray-current');
+    expect(runtimeVerification).toHaveTextContent('snapshot-xray-current');
+
+    await user.click(screen.getByRole('button', { name: 'View Task Details' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Details' });
+    const detailVerification = within(dialog).getByRole('group', { name: 'Runtime Verification' });
+
+    expect(detailVerification).toHaveAttribute('data-runtime-verification-state', 'verified');
+    expect(detailVerification).toHaveTextContent('Agent Verified');
   });
 
   it('includes Xray runtime diagnosis in the failure evidence drawer and package', async () => {
@@ -844,6 +904,77 @@ describe('TasksPage', () => {
         disabled: 1
       }
     });
+  });
+
+  it('shows failed Xray Agent result and rollback evidence as the top failure verdict', async () => {
+    const user = userEvent.setup();
+    const failedXrayTask: DeployTask = {
+      ...xrayTask,
+      status: 'failed',
+      failureReason: 'post-apply health check failed: xray api probe failed',
+      rollbackTaskId: 'task-auto-rollback-xray-001',
+      steps: [
+        { id: 'compile', label: 'Compile Xray config', status: 'succeeded' },
+        { id: 'agent-result', label: 'Wait for Agent result', status: 'failed' }
+      ]
+    };
+    const failedAgentResultDiagnosis = {
+      ...xrayRuntimeDiagnosisArtifact,
+      state: 'failed',
+      reasons: ['xray-config-preflight'],
+      nextActions: ['rollback', 'inspect-agent'],
+      hasRuntimeEvidence: true,
+      evidenceStage: 'agent-result-failed',
+      plannedBindingStatus: 'failed'
+    };
+
+    render(
+      <TasksPage
+        tasks={[failedXrayTask]}
+        commandOutbox={[
+          {
+            ...xrayCommandOutboxSummary,
+            taskId: failedXrayTask.id,
+            status: 'completed',
+            resultAt: '2026-06-02T00:00:18.000Z'
+          }
+        ]}
+        configRevisions={[
+          {
+            ...xrayConfigRevision,
+            taskId: failedXrayTask.id,
+            status: 'failed',
+            failureReason: failedXrayTask.failureReason,
+            artifact: {
+              runtimeDiagnosis: failedAgentResultDiagnosis
+            }
+          }
+        ]}
+        preflightPlans={[
+          {
+            ...xrayPreflightPlan,
+            taskId: failedXrayTask.id,
+            status: 'failed',
+            failureReason: failedXrayTask.failureReason
+          }
+        ]}
+        runtimeSnapshots={[{ ...xrayRuntimeSnapshot, taskId: failedXrayTask.id, status: 'verified' }]}
+        language="en"
+        onRollbackTask={vi.fn()}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View Failure Evidence' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Task Failure Evidence' });
+    const runtimeVerification = within(dialog).getByRole('group', { name: 'Runtime Verification' });
+
+    expect(runtimeVerification).toHaveAttribute('data-runtime-verification-state', 'failed');
+    expect(runtimeVerification).toHaveTextContent('Agent Failed');
+    expect(runtimeVerification).toHaveTextContent('agent-result-failed');
+    expect(runtimeVerification).toHaveTextContent('Rollback Task: task-auto-rollback-xray-001');
+    expect(within(dialog).getByRole('group', { name: 'Xray Runtime Diagnosis' })).toHaveTextContent('Rollback');
   });
 
   it('renders structured evidence for system tuning task details instead of raw JSON only', async () => {
@@ -953,7 +1084,7 @@ describe('TasksPage', () => {
       />
     );
 
-    expect(screen.getByText('cfg-current')).toBeInTheDocument();
+    expect(screen.getAllByText('cfg-current').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('preflight-stale')).not.toBeInTheDocument();
     expect(screen.queryByText('snapshot-stale')).not.toBeInTheDocument();
   });
@@ -1617,9 +1748,9 @@ describe('TasksPage', () => {
     expect(diagnosis).toHaveTextContent('proxyProtocol');
     expect(diagnosis).toHaveTextContent('Apply');
     expect(diagnosis).toHaveTextContent('Inspect Agent');
-    expect(within(dialog).getByText('cfg-current')).toBeInTheDocument();
-    expect(within(dialog).getByText('preflight-current')).toBeInTheDocument();
-    expect(within(dialog).getByText('snapshot-current')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('cfg-current').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('preflight-current').length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getAllByText('snapshot-current').length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).getByText('Preflight Checks')).toBeInTheDocument();
     expect(within(dialog).getByText('port-conflict')).toBeInTheDocument();
     expect(within(dialog).getByText('Critical')).toBeInTheDocument();
@@ -1748,9 +1879,9 @@ describe('TasksPage', () => {
     expect(dialogHtml).not.toContain('cyan-');
     expect(dialogHtml).not.toContain('rose-');
     expect(within(dialog).getByText(failedTask.failureReason!)).toHaveClass('break-words');
-    expect(within(dialog).getByText(failedConfigRevision.id)).toHaveClass('break-all');
-    expect(within(dialog).getByText(failedPreflightPlan.id)).toHaveClass('break-all');
-    expect(within(dialog).getByText(verifiedSnapshot.id)).toHaveClass('break-all');
+    expect(within(dialog).getAllByText(failedConfigRevision.id)[0]).toHaveClass('break-all');
+    expect(within(dialog).getAllByText(failedPreflightPlan.id)[0]).toHaveClass('break-all');
+    expect(within(dialog).getAllByText(verifiedSnapshot.id)[0]).toHaveClass('break-all');
     expect(within(dialog).getByText(longAgentLogArchive.id)).toHaveClass('break-all');
   });
 

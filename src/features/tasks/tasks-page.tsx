@@ -69,12 +69,29 @@ type TaskStatusFilter = 'all' | DeployTask['status'];
 type TaskOperationFilter = 'all' | DeployTask['operation'];
 type AgentLogStreamFilter = 'all' | AgentLogChunk['stream'];
 type ExecutionReleaseGateState = 'ready' | 'issues' | 'waiting';
+type RuntimeVerificationState = 'verified' | 'failed' | 'waiting';
+type RuntimeVerificationStepState = 'confirmed' | 'failed' | 'waiting';
+type RuntimeVerificationStepId = 'command' | 'agentResult' | 'configRevision' | 'preflight' | 'snapshot';
 
 type ExecutionReleaseGate = {
   label: string;
   detail: string;
   state: ExecutionReleaseGateState;
   value: string;
+};
+
+type RuntimeVerificationStep = {
+  id: RuntimeVerificationStepId;
+  state: RuntimeVerificationStepState;
+  value?: string;
+  detail?: string;
+};
+
+type RuntimeVerificationEvidence = {
+  state: RuntimeVerificationState;
+  description: string;
+  steps: RuntimeVerificationStep[];
+  rollbackTaskId?: string;
 };
 
 type ForwardingRuntimeDiagnosisEvidence = {
@@ -203,6 +220,7 @@ const xrayRuntimeDiagnosisActions = new Set<XrayRuntimeDiagnosisAction>([
   'rollback',
   'remove-runtime'
 ]);
+const commandFailureStatuses = new Set<CommandOutboxSummary['status']>(['failed', 'expired', 'dead_letter']);
 
 type ExecutionMetric = {
   label: string;
@@ -338,6 +356,31 @@ const copy = {
     rollback: '发起回滚',
     confirmRollback: (taskId: string) => `确认回滚任务 ${taskId}？`,
     runtimeRelease: '运行时发布',
+    runtimeVerification: '运行验证',
+    runtimeVerificationStateLabels: {
+      verified: 'Agent 已验证',
+      failed: '运行失败',
+      waiting: '等待证据'
+    },
+    runtimeVerificationStateDescriptions: {
+      verified: 'Agent result、配置、预检和快照已对齐。',
+      failed: '证据链包含失败项，按失败证据或回滚任务处理。',
+      waiting: 'Master 已有发布记录，但还缺 Agent result 或验证产物。'
+    },
+    runtimeVerificationStepLabels: {
+      command: '命令',
+      agentResult: 'Agent Result',
+      configRevision: '配置',
+      preflight: '预检',
+      snapshot: '快照'
+    },
+    runtimeVerificationStepStateLabels: {
+      confirmed: '已确认',
+      failed: '失败',
+      waiting: '等待'
+    },
+    runtimeVerificationCommandProgress: (completedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(completedCount, language)}/${formatNumber(totalCount, language)} 已完成`,
     agentCommand: 'Agent 命令',
     agentCommandDetail: (commandType: string, agentId: string, commandId: string) =>
       `${commandType} · ${agentId} · ${commandId}`,
@@ -682,6 +725,31 @@ const copy = {
     rollback: 'Start Rollback',
     confirmRollback: (taskId: string) => `Start rollback for ${taskId}?`,
     runtimeRelease: 'Runtime Release',
+    runtimeVerification: 'Runtime Verification',
+    runtimeVerificationStateLabels: {
+      verified: 'Agent Verified',
+      failed: 'Agent Failed',
+      waiting: 'Awaiting Evidence'
+    },
+    runtimeVerificationStateDescriptions: {
+      verified: 'Agent result, config, preflight, and snapshot are aligned.',
+      failed: 'The evidence chain contains a failed stage; use the failure package or rollback task.',
+      waiting: 'Master has release records, but Agent result or verification artifacts are still missing.'
+    },
+    runtimeVerificationStepLabels: {
+      command: 'Command',
+      agentResult: 'Agent Result',
+      configRevision: 'Config',
+      preflight: 'Preflight',
+      snapshot: 'Snapshot'
+    },
+    runtimeVerificationStepStateLabels: {
+      confirmed: 'Confirmed',
+      failed: 'Failed',
+      waiting: 'Waiting'
+    },
+    runtimeVerificationCommandProgress: (completedCount: number, totalCount: number, language: AppLanguage) =>
+      `${formatNumber(completedCount, language)}/${formatNumber(totalCount, language)} Completed`,
     agentCommand: 'Agent Command',
     agentCommandDetail: (commandType: string, agentId: string, commandId: string) =>
       `${commandType} · ${agentId} · ${commandId}`,
@@ -1052,6 +1120,88 @@ function readXrayRuntimeDiagnosis(bundle: RuntimeReleaseBundle): XrayRuntimeDiag
       expired: readFiniteNumber(clientCounters.expired),
       runtimeDisabledByPolicy: readFiniteNumber(clientCounters.runtimeDisabledByPolicy)
     }
+  };
+}
+
+function createRuntimeVerificationEvidence(
+  bundle: RuntimeReleaseBundle,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+): RuntimeVerificationEvidence {
+  const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle) ?? readXrayRuntimeDiagnosis(bundle);
+  const commandCount = bundle.commandOutboxItems.length;
+  const completedCommandCount = bundle.commandOutboxItems.filter((item) => item.status === 'completed').length;
+  const failedCommand = bundle.commandOutboxItems.find((item) => commandFailureStatuses.has(item.status));
+  const firstCommand = bundle.commandOutboxItems[0];
+  const commandStep: RuntimeVerificationStep = {
+    id: 'command',
+    state: failedCommand ? 'failed' : commandCount > 0 && completedCommandCount === commandCount ? 'confirmed' : 'waiting',
+    value:
+      commandCount > 0
+        ? t.runtimeVerificationCommandProgress(completedCommandCount, commandCount, language)
+        : t.pendingArtifact,
+    detail: failedCommand
+      ? failedCommand.lastError ?? failedCommand.commandId
+      : firstCommand
+        ? t.agentCommandDetail(firstCommand.commandType, firstCommand.agentId, firstCommand.commandId)
+        : undefined
+  };
+  const agentResultStep: RuntimeVerificationStep = {
+    id: 'agentResult',
+    state:
+      runtimeDiagnosis?.evidenceStage === 'agent-result-failed'
+        ? 'failed'
+        : runtimeDiagnosis?.evidenceStage === 'agent-result-verified'
+          ? 'confirmed'
+          : 'waiting',
+    value: runtimeDiagnosis?.evidenceStage ?? t.pendingArtifact,
+    detail: runtimeDiagnosis?.plannedBindingStatus
+  };
+  const configRevisionStep: RuntimeVerificationStep = {
+    id: 'configRevision',
+    state:
+      bundle.configRevision?.status === 'failed' || bundle.configRevision?.status === 'rolled_back'
+        ? 'failed'
+        : bundle.configRevision?.status === 'applied'
+          ? 'confirmed'
+          : 'waiting',
+    value: bundle.configRevision?.id ?? t.pendingArtifact,
+    detail: bundle.configRevision?.status
+  };
+  const preflightStep: RuntimeVerificationStep = {
+    id: 'preflight',
+    state:
+      bundle.preflightPlan?.status === 'failed'
+        ? 'failed'
+        : bundle.preflightPlan?.status === 'passed'
+          ? 'confirmed'
+          : 'waiting',
+    value: bundle.preflightPlan?.id ?? t.pendingArtifact,
+    detail: bundle.preflightPlan?.status
+  };
+  const snapshotStep: RuntimeVerificationStep = {
+    id: 'snapshot',
+    state:
+      bundle.runtimeSnapshot?.status === 'expired'
+        ? 'failed'
+        : bundle.runtimeSnapshot?.status === 'verified' || bundle.runtimeSnapshot?.status === 'restored'
+          ? 'confirmed'
+          : 'waiting',
+    value: bundle.runtimeSnapshot?.id ?? t.pendingArtifact,
+    detail: bundle.runtimeSnapshot?.status
+  };
+  const steps = [commandStep, agentResultStep, configRevisionStep, preflightStep, snapshotStep];
+  const state = steps.some((step) => step.state === 'failed')
+    ? 'failed'
+    : steps.every((step) => step.state === 'confirmed')
+      ? 'verified'
+      : 'waiting';
+
+  return {
+    state,
+    description: t.runtimeVerificationStateDescriptions[state],
+    steps,
+    rollbackTaskId: bundle.task.rollbackTaskId
   };
 }
 
@@ -1789,6 +1939,80 @@ function ReleaseStep({
   );
 }
 
+function RuntimeVerificationStrip({
+  bundle,
+  language,
+  t
+}: {
+  bundle: RuntimeReleaseBundle;
+  language: AppLanguage;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const evidence = createRuntimeVerificationEvidence(bundle, language, t);
+  const stateClass = {
+    verified:
+      'border-[#00A878]/35 bg-[#00A878]/[0.10] text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.12] dark:text-[#7FF3C9]',
+    failed:
+      'border-[#DC2626]/40 bg-[#DC2626]/[0.10] text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]',
+    waiting:
+      'border-[#1E3AFF]/30 bg-[#DCE1FF]/65 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-primary/10 dark:text-primary'
+  } satisfies Record<RuntimeVerificationState, string>;
+  const stepClass = {
+    confirmed:
+      'border-[#00A878]/25 bg-white/80 text-[#006B50] dark:border-[#00D49A]/20 dark:bg-white/[0.04] dark:text-[#7FF3C9]',
+    failed:
+      'border-[#DC2626]/30 bg-[#FFF1F1]/80 text-[#B91C1C] dark:border-[#F87171]/20 dark:bg-[#DC2626]/10 dark:text-[#FCA5A5]',
+    waiting:
+      'border-[#07111F]/14 bg-white/65 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/62'
+  } satisfies Record<RuntimeVerificationStepState, string>;
+
+  return (
+    <section
+      aria-label={t.runtimeVerification}
+      className="tasks-runtime-verification-strip mb-3 border border-[#07111F]/18 bg-[#FFFDF5]/82 p-3 shadow-[0_14px_34px_-30px_rgba(7,17,31,0.34)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.035]"
+      data-runtime-verification-state={evidence.state}
+      role="group"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#35405A] dark:text-white/45">
+            {t.runtimeVerification}
+          </p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-[#35405A] dark:text-white/62">
+            {evidence.description}
+          </p>
+        </div>
+        <span className={`border px-2.5 py-1 text-[10px] font-black uppercase ${stateClass[evidence.state]}`}>
+          {t.runtimeVerificationStateLabels[evidence.state]}
+        </span>
+      </div>
+      {evidence.rollbackTaskId ? (
+        <p className="mt-2 break-all border border-[#1E3AFF]/20 bg-[#DCE1FF]/50 px-2 py-1 font-mono text-[10px] font-bold text-[#1E3AFF] dark:border-primary/20 dark:bg-primary/10 dark:text-primary">
+          {t.rollbackTask}: {evidence.rollbackTaskId}
+        </p>
+      ) : null}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {evidence.steps.map((step) => (
+          <article className={`min-w-0 border p-2 ${stepClass[step.state]}`} key={step.id}>
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <p className="text-[9px] font-black uppercase tracking-widest">
+                {t.runtimeVerificationStepLabels[step.id]}
+              </p>
+              <span className="border border-current/20 px-1.5 py-0.5 text-[9px] font-black uppercase">
+                {t.runtimeVerificationStepStateLabels[step.state]}
+              </span>
+            </div>
+            <p className="mt-1 break-all font-mono text-[10px] font-bold">{step.value ?? t.pendingArtifact}</p>
+            {step.detail ? (
+              <p className="mt-1 break-all font-mono text-[9px] font-semibold opacity-75">{step.detail}</p>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ForwardingRuntimeDiagnosisEvidenceCard({
   diagnosis,
   language,
@@ -2074,6 +2298,7 @@ function RuntimeReleaseTimeline({
           {moduleKind ? t.moduleKind[moduleKind] : ''}
         </span>
       </div>
+      <RuntimeVerificationStrip bundle={bundle} language={language} t={t} />
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
         <ReleaseStep
           detail={
