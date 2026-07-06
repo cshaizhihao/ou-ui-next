@@ -193,6 +193,46 @@ describe('subscription read models', () => {
     expect(client?.requestLimitPerHour).toBe(120);
   });
 
+  it('derives subscription client guardrail state from quota usage when metadata omits runtime disable flags', () => {
+    const client = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-quota-derived',
+        displayName: 'Quota Derived Client Subscription',
+        subId: 'sub_quota_derived_client',
+        protocol: 'vless',
+        trafficLimitGb: 10,
+        usedTrafficGb: 10
+      })
+    );
+
+    expect(client).toMatchObject({
+      quotaExceeded: true,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'subscription_client_quota_exceeded'
+    });
+  });
+
+  it('preserves explicit subscription runtime-disabled guardrail reasons without quota overage', () => {
+    const client = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-policy-disabled',
+        displayName: 'Policy Disabled Client Subscription',
+        subId: 'sub_policy_disabled_client',
+        protocol: 'vless',
+        trafficLimitGb: 10,
+        usedTrafficGb: 1,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'manual_subscription_suspend'
+      })
+    );
+
+    expect(client).toMatchObject({
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'manual_subscription_suspend'
+    });
+  });
+
   it('maps external subscription source fetch policy into the source read model', () => {
     const task = createSubscriptionTask({
       sourceId: 'source-fetch-policy',

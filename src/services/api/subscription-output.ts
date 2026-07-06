@@ -943,7 +943,7 @@ export function projectSubscriptionClientRuntimeState({
   )?.guardrailReason;
   const guardrailReason =
     matchedGuardrailReason ??
-    (quotaExceeded && client.guardrailReason && client.guardrailReason !== 'ok'
+    (runtimeDisabledByPolicy && client.guardrailReason && client.guardrailReason !== 'ok'
       ? client.guardrailReason
       : quotaExceeded
         ? matchedQuotaExceeded
@@ -951,6 +951,8 @@ export function projectSubscriptionClientRuntimeState({
           : 'subscription_client_quota_exceeded'
         : matchedClientExpired
           ? 'xray_client_expired'
+          : runtimeDisabledByPolicy
+            ? 'subscription_client_runtime_disabled_by_policy'
           : 'ok');
 
   return {

@@ -151,8 +151,16 @@ function readCustomerNodePolicy(inbound: XrayInbound, client: XrayClient): Quota
 function readUserPolicy(client: SubscriptionClientIdentity, existingPolicy?: QuotaPolicy): QuotaPolicy {
   const limitBytes = clampBytes(client.trafficLimitBytes || existingPolicy?.limitBytes);
   const usedBytes = clampBytes(client.usedTrafficBytes);
-  const quotaExceeded = client.quotaExceeded ?? (limitBytes > 0 && usedBytes >= limitBytes);
-  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) && quotaExceeded;
+  const quotaExceeded = client.quotaExceeded === true || (limitBytes > 0 && usedBytes >= limitBytes);
+  const runtimeDisabledByPolicy = Boolean(client.runtimeDisabledByPolicy) || quotaExceeded;
+  const guardrailReason =
+    runtimeDisabledByPolicy && client.guardrailReason && client.guardrailReason !== 'ok'
+      ? client.guardrailReason
+      : quotaExceeded
+        ? 'subscription_client_quota_exceeded'
+        : runtimeDisabledByPolicy
+          ? 'subscription_client_runtime_disabled_by_policy'
+          : undefined;
   const detailParts = [client.customerName, client.email].filter((value) => typeof value === 'string' && value.trim() !== '');
 
   return {
@@ -168,7 +176,7 @@ function readUserPolicy(client: SubscriptionClientIdentity, existingPolicy?: Quo
     detail: detailParts.join(' · ') || client.subId || client.id,
     reportedAt: client.lastGeneratedAt ?? client.lastOnlineAt,
     runtimeDisabledByPolicy,
-    guardrailReason: quotaExceeded ? client.guardrailReason : undefined
+    guardrailReason
   };
 }
 

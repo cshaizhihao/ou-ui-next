@@ -283,6 +283,11 @@ function readBoolean(metadata: Record<string, unknown> | undefined, key: string,
   return typeof value === 'boolean' ? value : fallback;
 }
 
+function readOptionalBoolean(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 function readStringArray(metadata: Record<string, unknown> | undefined, key: string, fallback: string[] = []) {
   const value = metadata?.[key];
 
@@ -843,7 +848,18 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
   const remainingDays = readNumber(metadata, 'remainingDays', 30);
   const selectedTags = readStringArray(metadata, 'selectedTags');
   const regionFilter = readStringArray(metadata, 'regionFilter');
-  const guardrailReason = readString(metadata, 'guardrailReason', '');
+  const trafficLimitBytes = bytesFromGb(readNumber(metadata, 'trafficLimitGb', 0));
+  const usedTrafficBytes = bytesFromGb(readNumber(metadata, 'usedTrafficGb', 0));
+  const quotaExceeded =
+    readOptionalBoolean(metadata, 'quotaExceeded') ?? (trafficLimitBytes > 0 && usedTrafficBytes >= trafficLimitBytes);
+  const runtimeDisabledByPolicy = readBoolean(metadata, 'runtimeDisabledByPolicy', false) || quotaExceeded;
+  const guardrailReason =
+    readString(metadata, 'guardrailReason', '') ||
+    (quotaExceeded
+      ? 'subscription_client_quota_exceeded'
+      : runtimeDisabledByPolicy
+        ? 'subscription_client_runtime_disabled_by_policy'
+        : '');
 
   return {
     id: readString(metadata, 'subscriptionClientId', task.targetId),
@@ -855,8 +871,8 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     enabled: readBoolean(metadata, 'enabled', true),
     protocol: readString(metadata, 'protocol', readString(metadata, 'xrayProtocol', 'vless')),
     group: readString(metadata, 'group', 'default'),
-    trafficLimitBytes: bytesFromGb(readNumber(metadata, 'trafficLimitGb', 0)),
-    usedTrafficBytes: bytesFromGb(readNumber(metadata, 'usedTrafficGb', 0)),
+    trafficLimitBytes,
+    usedTrafficBytes,
     expiresAt: expiresAtFromTask(task, remainingDays, metadata),
     ipLimit: Math.max(Math.round(readNumber(metadata, 'ipLimit', 0)), 0),
     requestLimitPerHour: Math.max(Math.round(readNumber(metadata, 'requestLimitPerHour', 360)), 0),
@@ -877,8 +893,8 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     generatedNodeCount: Math.max(Math.round(readNumber(metadata, 'generatedNodeCount', 0)), 0),
     lastOnlineAt: readString(metadata, 'lastOnlineAt', ''),
     lastGeneratedAt: task.createdAt,
-    quotaExceeded: readBoolean(metadata, 'quotaExceeded', false),
-    runtimeDisabledByPolicy: readBoolean(metadata, 'runtimeDisabledByPolicy', false),
+    quotaExceeded,
+    runtimeDisabledByPolicy,
     guardrailReason: guardrailReason || undefined
   };
 }

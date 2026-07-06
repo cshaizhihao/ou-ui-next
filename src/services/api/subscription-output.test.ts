@@ -250,6 +250,32 @@ describe('subscription-output', () => {
     });
   });
 
+  it('keeps subscription runtime-disabled guardrail reasons in public projection', () => {
+    const policyDisabledClient: SubscriptionClientIdentity = {
+      ...client,
+      usedTrafficBytes: 1 * 1024 * 1024 * 1024,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'manual_subscription_suspend'
+    };
+    const projection = projectSubscriptionClientRuntimeState({
+      client: policyDisabledClient,
+      inbounds: []
+    });
+    const output = renderPublicSubscriptionOutput({
+      client: policyDisabledClient,
+      format: 'uri',
+      inbounds: []
+    });
+
+    expect(output.headers['subscription-userinfo']).toContain(`download=${1 * 1024 * 1024 * 1024}`);
+    expect(projection.client).toMatchObject({
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'manual_subscription_suspend'
+    });
+  });
+
   it('subtracts subscription-client quota reset baseline from public traffic headers', () => {
     const resetAt = '2026-06-05T10:00:00.000Z';
     const postResetInbound: XrayInbound = {

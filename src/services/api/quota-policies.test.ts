@@ -351,6 +351,62 @@ describe('createQuotaPoliciesFromReadModels', () => {
     ]);
   });
 
+  it('derives subscription-user quota disablement from usage even when the client flag is absent', () => {
+    const subscriptionClient = {
+      ...createSubscriptionClient(),
+      usedTrafficBytes: 25 * GB,
+      quotaExceeded: undefined,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: undefined
+    };
+    const quotaPolicies = createQuotaPoliciesFromReadModels({
+      agents: [],
+      inbounds: [],
+      forwardRules: [],
+      subscriptionClients: [subscriptionClient]
+    });
+
+    expect(quotaPolicies).toEqual([
+      expect.objectContaining({
+        id: 'user:sub-client-acme-premium',
+        scope: 'user',
+        limitBytes: 20 * GB,
+        usedBytes: 25 * GB,
+        enforcementState: 'disabled_by_quota',
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'subscription_client_quota_exceeded'
+      })
+    ]);
+  });
+
+  it('preserves subscription-user runtime-disabled policy state without quota overage', () => {
+    const subscriptionClient = {
+      ...createSubscriptionClient(),
+      usedTrafficBytes: 1 * GB,
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: true,
+      guardrailReason: 'manual_subscription_suspend'
+    };
+    const quotaPolicies = createQuotaPoliciesFromReadModels({
+      agents: [],
+      inbounds: [],
+      forwardRules: [],
+      subscriptionClients: [subscriptionClient]
+    });
+
+    expect(quotaPolicies).toEqual([
+      expect.objectContaining({
+        id: 'user:sub-client-acme-premium',
+        scope: 'user',
+        limitBytes: 20 * GB,
+        usedBytes: 1 * GB,
+        enforcementState: 'disabled_by_quota',
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'manual_subscription_suspend'
+      })
+    ]);
+  });
+
   it('keeps uncovered explicit quota policies when no live read model is attached', () => {
     expect(
       createQuotaPoliciesFromReadModels({
