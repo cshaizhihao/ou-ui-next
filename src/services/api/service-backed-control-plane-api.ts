@@ -2442,6 +2442,7 @@ export function createServiceBackedControlPlaneApi({
   let inbounds = clone(seedInbounds);
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
   let deletedAgentIds = new Set<string>();
+  let readModelsHydrated = false;
 
   async function readEffectiveAgentLogRetentionPolicy() {
     const persistedPolicy = await repository.getAgentLogRetentionPolicy();
@@ -5332,6 +5333,7 @@ export function createServiceBackedControlPlaneApi({
     subscriptionExportProfiles = nextSubscriptionExportProfiles;
     forwardRulesReadModel = nextForwardRules;
     deletedAgentIds = nextDeletedAgentIds;
+    readModelsHydrated = true;
     return tasks;
   }
 
@@ -7642,6 +7644,20 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async receiveAgentEvent(event: AgentEventEnvelope) {
+      if (event.type === 'heartbeat') {
+        if (!readModelsHydrated) {
+          await hydrateReadModelsFromPersistedTasks();
+        }
+
+        const result = await service.receiveAgentEvent(event);
+
+        if (!deletedAgentIds.has(event.agentId)) {
+          agents = applyAgentEventToReadModel(agents, event);
+        }
+
+        return result;
+      }
+
       const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
       const beforeInbounds = await listLiveInboundsForGuardrailEnforcement();
       const result = await service.receiveAgentEvent(event);

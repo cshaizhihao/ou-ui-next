@@ -852,6 +852,49 @@ describe('service-backed control plane read model hydration', () => {
     expect(listTasks).toHaveBeenCalledTimes(1);
   });
 
+  it('processes high-frequency Agent heartbeat events without replaying persisted tasks after hydration', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const listTasks = vi.spyOn(repository, 'listTasks');
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: seedAgents
+      },
+      readModelNow: () => '2026-06-05T10:30:30.000Z'
+    });
+
+    await api.getSnapshot();
+    await api.leaseAgentCommands('agent-hkg-01', { requestId: 'req-fast-heartbeat-prewarm' });
+    listTasks.mockClear();
+
+    await api.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-agent-hkg-fast-heartbeat-001',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-fast-heartbeat',
+      observedAt: '2026-06-05T10:30:00.000Z',
+      payload: {
+        version: '1.0.1-runtime',
+        uptimeSeconds: 3600,
+        lastSeenCommandSeq: 42,
+        capabilities: ['host-agent', 'xray', 'telemetry']
+      }
+    });
+
+    expect(listTasks).not.toHaveBeenCalled();
+
+    const agents = await api.listAgents();
+
+    expect(agents.find((agent) => agent.id === 'agent-hkg-01')).toMatchObject({
+      status: 'online',
+      version: '1.0.1-runtime',
+      lastHeartbeatAt: '2026-06-05T10:30:00.000Z',
+      capabilities: ['host-agent', 'xray', 'telemetry']
+    });
+  });
+
   it('caps traffic rollups in the full snapshot while preserving the full traffic history endpoint', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({
