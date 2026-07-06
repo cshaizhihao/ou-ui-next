@@ -1635,6 +1635,105 @@ describe('AppShell', () => {
     });
   });
 
+  it('removes the matching subscription binding when deleting a shared-inbound Xray client', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn(() => true);
+    const sharedInbound: XrayInbound = {
+      ...seedInbounds[0],
+      subscriptionRule: 'premium-hk',
+      clients: [
+        seedInbounds[0].clients[0],
+        {
+          id: 'client-carol',
+          email: 'carol@example.com',
+          enabled: true,
+          subId: 'premium-hk:carol',
+          password: 'carol-secret',
+          trafficLimitBytes: 50 * 1024 ** 3,
+          usedTrafficBytes: 5 * 1024 ** 3,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          ipLimit: 1
+        }
+      ]
+    };
+    const api = {
+      ...createMockApi({ seedInventory: true }),
+      listInbounds: vi.fn().mockResolvedValue([sharedInbound]),
+      listSubscriptionClients: vi.fn().mockResolvedValue([
+        ...seedSubscriptionClients,
+        {
+          ...seedSubscriptionClients[0],
+          id: 'sub-client-carol-existing',
+          displayName: 'Carol Premium 订阅',
+          subId: 'premium-hk:carol',
+          email: 'carol@example.com',
+          protocol: 'vless',
+          group: 'node-hkg-edge-01',
+          securePathPreview: '/ExistingCarolSecurePath',
+          routingRule: 'premium-hk:carol',
+          sourceIds: [],
+          selectedTags: [],
+          includeFilter: '',
+          excludeFilter: '',
+          regionFilter: [],
+          outputFormats: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
+        }
+      ]),
+      applyXrayClientAction: vi.fn().mockResolvedValue(rollbackReadyTask),
+      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+    };
+    vi.stubGlobal('confirm', confirm);
+    renderShell(api);
+
+    await clickNavigation(user, '节点');
+    await user.click((await screen.findAllByRole('button', { name: '管理客户端' }))[0]);
+
+    const dialog = await screen.findByRole('dialog', { name: /入站客户端/ });
+    await user.click(within(dialog).getAllByRole('button', { name: '删除客户端' })[1]);
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('carol@example.com'));
+    await waitFor(() => {
+      expect(api.applyXrayClientAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inboundId: 'inbound-vless-hkg-443',
+          clientId: 'client-carol',
+          clientEmail: 'carol@example.com',
+          action: {
+            kind: 'delete-client'
+          },
+          reason: 'customer-node-client:delete'
+        }),
+        expect.objectContaining({
+          requestId: 'ui:xray.client.action:inbound-vless-hkg-443',
+          idempotencyKey: undefined
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.delete',
+          resourceType: 'subscription',
+          targetId: 'sub-client-carol-existing',
+          metadata: expect.objectContaining({
+            subscriptionClientId: 'sub-client-carol-existing',
+            subId: 'premium-hk:carol',
+            deletedWithXrayInboundId: 'inbound-vless-hkg-443',
+            deletedWithXrayClientId: 'client-carol',
+            deletedWithXrayClientEmail: 'carol@example.com',
+            deletedWithXrayClientAction: true
+          })
+        }),
+        expect.objectContaining({
+          idempotencyKey: expect.stringContaining(
+            'ui:subscription.delete:xray-client:inbound-vless-hkg-443:premium-hk:carol:sub-client-carol-existing'
+          )
+        })
+      );
+    });
+  });
+
   it('resets matched Xray client traffic with a short quick action alias', async () => {
     const user = userEvent.setup();
     const confirm = vi.fn(() => true);

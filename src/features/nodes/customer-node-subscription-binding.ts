@@ -1,8 +1,10 @@
 import type { SubscriptionClientFormat } from '../../domain';
 import {
   isXrayRuntimeProtocol,
+  type XrayClient,
   type XrayInbound
 } from '../../domain/protocol';
+import type { SubscriptionClientIdentity } from '../../domain/subscription';
 import type { XrayClientAction } from '../../services/api/xray-client-action-tasks';
 import type { SubscriptionClientRuleMetadata } from '../subscriptions/subscription-mixer-page';
 import type { CustomerNodeConfigMetadata } from './nodes-page';
@@ -69,6 +71,42 @@ function createRemainingDays(action: Extract<XrayClientAction, { kind: 'add-clie
   }
 
   return fallbackDays;
+}
+
+function gbFromBytes(value: number | undefined) {
+  return Math.max(value ?? 0, 0) / 1024 / 1024 / 1024;
+}
+
+function readClientIdentity(inbound: XrayInbound, client: XrayClient) {
+  return inbound.clients.length > 1 ? client.id : inbound.clientIdentity ?? client.id;
+}
+
+function readClientCredential(inbound: XrayInbound, client: XrayClient) {
+  return client.password ?? client.auth ?? readClientIdentity(inbound, client);
+}
+
+function readClientSubscriptionRule(inbound: XrayInbound, client: XrayClient) {
+  const baseRule = inbound.subscriptionRule?.trim() || 'manual';
+
+  if (client.subId?.trim()) {
+    return client.subId.trim();
+  }
+
+  return inbound.clients.length > 1 ? `${baseRule}:${client.id}` : baseRule;
+}
+
+function readClientRemainingDays(inbound: XrayInbound, client: XrayClient) {
+  if (Number.isFinite(inbound.remainingDays)) {
+    return Math.max(Math.round(inbound.remainingDays ?? 0), 0);
+  }
+
+  const expiresAtMs = Date.parse(client.expiresAt);
+
+  if (!Number.isNaN(expiresAtMs)) {
+    return Math.max(Math.ceil((expiresAtMs - Date.now()) / 24 / 60 / 60 / 1000), 0);
+  }
+
+  return 0;
 }
 
 const customerNodeOutputFormats: SubscriptionClientRuleMetadata['outputFormats'] = [
@@ -241,6 +279,80 @@ export function createAddedCustomerNodeClientSubscriptionMetadata(input: {
       subscriptionRule,
       subId: subscriptionRule,
       enabled: (input.action.enabled ?? true) && !quotaExceeded && !clientExpired
+    },
+    input.publicBaseUrl
+  );
+}
+
+export function createCustomerNodeClientSubscriptionMetadata(input: {
+  inbound: XrayInbound;
+  client: XrayClient;
+  publicBaseUrl: string;
+  existingSubscriptionClient?: Pick<SubscriptionClientIdentity, 'id' | 'subId' | 'securePathPreview'>;
+}): SubscriptionClientRuleMetadata {
+  if (!isXrayRuntimeProtocol(input.inbound.protocol)) {
+    throw new Error(`Unsupported Xray inbound protocol: ${input.inbound.protocol}`);
+  }
+
+  const fallback = input.inbound.fallbacks[0];
+  const usedTrafficBytes = input.client.manualUsedTrafficBytes ?? input.client.usedTrafficBytes ?? 0;
+  const subscriptionRule = input.existingSubscriptionClient?.subId || readClientSubscriptionRule(input.inbound, input.client);
+  const customerName = input.inbound.customerName ?? input.client.email;
+
+  return createCustomerNodeSubscriptionMetadata(
+    {
+      nodeId: input.inbound.id,
+      agentId: input.inbound.agentId ?? input.inbound.nodeId,
+      customerNodeName: `${input.inbound.label} / ${customerName}`,
+      customerName,
+      serverAddress: input.inbound.serverAddress ?? '',
+      xrayProtocol: input.inbound.protocol,
+      listenPort: input.inbound.listenPort,
+      clientIdentity: readClientIdentity(input.inbound, input.client),
+      clientEmail: input.client.email,
+      clientCredential: readClientCredential(input.inbound, input.client),
+      clientLevel: input.client.level ?? 0,
+      clientComment: input.client.comment ?? '',
+      telegramId: input.client.tgId ?? '',
+      resetPolicy: input.client.resetPolicy ?? 'never',
+      vmessSecurity: input.client.security ?? 'auto',
+      shadowsocksMethod: input.client.method ?? '2022-blake3-aes-128-gcm',
+      hysteriaAuth: input.client.auth ?? readClientCredential(input.inbound, input.client),
+      streamNetwork: input.inbound.streamSettings.network,
+      security: input.inbound.streamSettings.security,
+      sni: input.inbound.streamSettings.sni ?? input.inbound.reality.serverNames[0] ?? '',
+      path: input.inbound.streamSettings.path ?? input.inbound.streamSettings.serviceName ?? input.inbound.path ?? '',
+      flow: input.client.flow ?? input.inbound.flow ?? '',
+      fingerprint: input.inbound.streamSettings.fingerprint ?? input.inbound.reality.fingerprint ?? 'chrome',
+      alpn: input.inbound.tls.alpn,
+      realityPublicKey: input.inbound.reality.publicKey ?? '',
+      realityPrivateKey: input.inbound.reality.privateKey ?? '',
+      realityTarget: input.inbound.reality.target ?? '',
+      realityShortId: input.inbound.reality.shortIds[0] ?? '',
+      fallbackName: fallback?.name ?? '',
+      fallbackDestination: fallback?.destination ?? '',
+      fallbackXver: fallback?.xver ?? 0,
+      sniffingEnabled: input.inbound.sniffingEnabled,
+      ipLimit: input.client.ipLimit,
+      trafficMultiplier: input.client.trafficMultiplier ?? 1,
+      trafficLimitGb: gbFromBytes(input.client.trafficLimitBytes),
+      monthlyResetDay: input.client.monthlyResetDay ?? 1,
+      currentUsedTrafficGb: gbFromBytes(usedTrafficBytes),
+      remainingDays: readClientRemainingDays(input.inbound, input.client),
+      expiresAt: input.client.expiresAt,
+      quotaExceeded: input.client.quotaExceeded,
+      clientExpired: input.client.clientExpired,
+      runtimeDisabledByPolicy: input.client.runtimeDisabledByPolicy,
+      guardrailReason: input.client.guardrailReason,
+      subscriptionClientId: input.existingSubscriptionClient?.id,
+      subId: input.existingSubscriptionClient?.subId,
+      securePathPreview: input.existingSubscriptionClient?.securePathPreview,
+      subscriptionRule,
+      enabled:
+        input.client.enabled &&
+        input.client.quotaExceeded !== true &&
+        input.client.clientExpired !== true &&
+        input.client.runtimeDisabledByPolicy !== true
     },
     input.publicBaseUrl
   );

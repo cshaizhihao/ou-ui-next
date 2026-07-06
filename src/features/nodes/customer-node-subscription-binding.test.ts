@@ -3,6 +3,7 @@ import type { XrayInbound } from '../../domain/protocol';
 import type { CustomerNodeConfigMetadata } from './nodes-page';
 import {
   createAddedCustomerNodeClientSubscriptionMetadata,
+  createCustomerNodeClientSubscriptionMetadata,
   createCustomerNodeAllSubscriptionText,
   createCustomerNodeSubscriptionMetadata
 } from './customer-node-subscription-binding';
@@ -207,5 +208,56 @@ describe('customer node subscription binding', () => {
     expect(metadata.trafficLimitGb).toBe(100);
     expect(metadata.remainingDays).toBe(30);
     expect(metadata.clientRule.routingRule).toBe('premium-hk:client-dave');
+  });
+
+  it('creates subscription metadata from an existing shared-inbound Xray client and preserves existing binding identity', () => {
+    const client = {
+      id: 'client-carol',
+      email: 'carol@example.com',
+      enabled: true,
+      subId: 'premium-hk:carol',
+      password: 'carol-secret',
+      trafficLimitBytes: 50 * 1024 ** 3,
+      usedTrafficBytes: 5 * 1024 ** 3,
+      expiresAt: '2026-08-15T00:00:00.000Z',
+      ipLimit: 1
+    };
+    const metadata = createCustomerNodeClientSubscriptionMetadata({
+      inbound: {
+        ...inbound,
+        clients: [
+          {
+            id: 'client-alice',
+            email: 'alice@example.com',
+            enabled: true,
+            trafficLimitBytes: 100 * 1024 ** 3,
+            usedTrafficBytes: 8 * 1024 ** 3,
+            expiresAt: '2026-09-01T00:00:00.000Z',
+            ipLimit: 2
+          },
+          client
+        ]
+      },
+      client,
+      publicBaseUrl: 'https://panel.example.com',
+      existingSubscriptionClient: {
+        id: 'sub-client-carol-existing',
+        subId: 'premium-hk:carol',
+        securePathPreview: '/ExistingCarolSecurePath'
+      }
+    });
+
+    expect(metadata).toMatchObject({
+      subscriptionClientId: 'sub-client-carol-existing',
+      subId: 'premium-hk:carol',
+      email: 'carol@example.com',
+      trafficLimitGb: 50,
+      usedTrafficGb: 5,
+      ipLimit: 1,
+      securePathPreview: '/ExistingCarolSecurePath'
+    });
+    expect(metadata.subscriptionUrlPreview.uri).toBe(
+      'https://panel.example.com/sub/ExistingCarolSecurePath/uri/premium-hk%3Acarol'
+    );
   });
 });

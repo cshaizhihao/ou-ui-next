@@ -50,6 +50,7 @@ import {
 } from '../../features/nodes/customer-node-task-inputs';
 import {
   createAddedCustomerNodeClientSubscriptionMetadata,
+  createCustomerNodeClientSubscriptionMetadata,
   createCustomerNodeAllSubscriptionText,
   createCustomerNodeSubscriptionMetadata
 } from '../../features/nodes/customer-node-subscription-binding';
@@ -1004,6 +1005,70 @@ function createSubscriptionClientExportMetadata(
   };
 }
 
+function normalizeSubscriptionBindingKey(value: string | undefined) {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function isCustomerNodeClientActionTarget(
+  client: XrayInbound['clients'][number],
+  input: Pick<CustomerNodeClientActionMutation, 'clientId' | 'clientEmail'>
+) {
+  const inputClientId = normalizeSubscriptionBindingKey(input.clientId);
+  const inputClientEmail = normalizeSubscriptionBindingKey(input.clientEmail);
+
+  return (
+    (inputClientId !== '' && normalizeSubscriptionBindingKey(client.id) === inputClientId) ||
+    (inputClientEmail !== '' && normalizeSubscriptionBindingKey(client.email) === inputClientEmail)
+  );
+}
+
+function findExistingCustomerNodeSubscriptionClient(input: {
+  subscriptionClients: ControlPlaneSnapshot['subscriptionClients'];
+  inbound: XrayInbound;
+  client: XrayInbound['clients'][number];
+  fallbackMetadata: SubscriptionClientRuleMetadata;
+}) {
+  const fallbackId = normalizeSubscriptionBindingKey(input.fallbackMetadata.subscriptionClientId);
+  const fallbackSubId = normalizeSubscriptionBindingKey(input.fallbackMetadata.subId);
+  const clientSubId = normalizeSubscriptionBindingKey(input.client.subId);
+  const clientEmail = normalizeSubscriptionBindingKey(input.client.email);
+  const protocol = normalizeSubscriptionBindingKey(input.inbound.protocol);
+  const expectedGroups = new Set(
+    [
+      input.fallbackMetadata.group,
+      input.inbound.agentId,
+      input.inbound.nodeId
+    ].map(normalizeSubscriptionBindingKey).filter(Boolean)
+  );
+
+  return input.subscriptionClients.find((subscriptionClient) => {
+    const subscriptionId = normalizeSubscriptionBindingKey(subscriptionClient.id);
+    const subscriptionSubId = normalizeSubscriptionBindingKey(subscriptionClient.subId);
+    const subscriptionEmail = normalizeSubscriptionBindingKey(subscriptionClient.email);
+    const subscriptionProtocol = normalizeSubscriptionBindingKey(subscriptionClient.protocol);
+    const subscriptionGroup = normalizeSubscriptionBindingKey(subscriptionClient.group);
+
+    if (fallbackId && subscriptionId === fallbackId) {
+      return true;
+    }
+
+    if (fallbackSubId && subscriptionSubId === fallbackSubId) {
+      return true;
+    }
+
+    if (clientSubId && subscriptionSubId === clientSubId) {
+      return true;
+    }
+
+    return (
+      clientEmail !== '' &&
+      subscriptionEmail === clientEmail &&
+      subscriptionProtocol === protocol &&
+      expectedGroups.has(subscriptionGroup)
+    );
+  });
+}
+
 const shellCopy = {
   zh: {
     taskMutationPending: '变更提交中',
@@ -1887,21 +1952,57 @@ export function AppShell({ ready }: AppShellProps) {
       setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
 
       try {
-        const addedClientInbound =
-          input.action.kind === 'add-client' ? inbounds.find((inbound) => inbound.id === input.inboundId) : undefined;
+        const xrayClientActionInbound =
+          input.action.kind === 'add-client' || input.action.kind === 'delete-client'
+            ? inbounds.find((inbound) => inbound.id === input.inboundId)
+            : undefined;
 
-        if (input.action.kind === 'add-client' && !addedClientInbound) {
+        if ((input.action.kind === 'add-client' || input.action.kind === 'delete-client') && !xrayClientActionInbound) {
           throw new Error(`Xray inbound not found for ${input.inboundId}.`);
         }
 
         const addedClientSubscriptionMetadata =
-          input.action.kind === 'add-client' && addedClientInbound
+          input.action.kind === 'add-client' && xrayClientActionInbound
             ? createAddedCustomerNodeClientSubscriptionMetadata({
-                inbound: addedClientInbound,
+                inbound: xrayClientActionInbound,
                 action: input.action,
                 publicBaseUrl: createBrowserPublicBaseUrl(),
                 observedAt: input.observedAt
               })
+            : undefined;
+        const deletedClient =
+          input.action.kind === 'delete-client' && xrayClientActionInbound
+            ? xrayClientActionInbound.clients.find((client) => isCustomerNodeClientActionTarget(client, input))
+            : undefined;
+
+        if (input.action.kind === 'delete-client' && !deletedClient) {
+          throw new Error(`Xray client not found for inbound ${input.inboundId}.`);
+        }
+
+        const deletedClientSubscriptionMetadata =
+          input.action.kind === 'delete-client' && xrayClientActionInbound && deletedClient
+            ? (() => {
+                const fallbackMetadata = createCustomerNodeClientSubscriptionMetadata({
+                  inbound: xrayClientActionInbound,
+                  client: deletedClient,
+                  publicBaseUrl: createBrowserPublicBaseUrl()
+                });
+                const existingSubscriptionClient = findExistingCustomerNodeSubscriptionClient({
+                  subscriptionClients,
+                  inbound: xrayClientActionInbound,
+                  client: deletedClient,
+                  fallbackMetadata
+                });
+
+                return existingSubscriptionClient
+                  ? createCustomerNodeClientSubscriptionMetadata({
+                      inbound: xrayClientActionInbound,
+                      client: deletedClient,
+                      publicBaseUrl: createBrowserPublicBaseUrl(),
+                      existingSubscriptionClient
+                    })
+                  : fallbackMetadata;
+              })()
             : undefined;
 
         await api.applyXrayClientAction(input, {
@@ -1924,6 +2025,35 @@ export function AppShell({ ready }: AppShellProps) {
             createUiMutationContext(
               subscriptionInput,
               createSubscriptionClientGenerateIdempotencyKey(addedClientSubscriptionMetadata, 'create'),
+              runtimeConfig
+            )
+          );
+        }
+
+        if (deletedClientSubscriptionMetadata && deletedClient) {
+          const deleteInput = createSubscriptionClientDeleteTaskInput(
+            deletedClientSubscriptionMetadata,
+            t.deleteSubscriptionClientSummary,
+            {
+              ...(input.reason === 'operator-delete-customer-node'
+                ? { deletedWithCustomerNodeId: input.inboundId }
+                : {}),
+              deletedWithXrayInboundId: input.inboundId,
+              deletedWithXrayClientId: deletedClient.id,
+              deletedWithXrayClientEmail: deletedClient.email,
+              deletedWithXrayClientAction: true
+            }
+          );
+          const deleteScope =
+            input.reason === 'operator-delete-customer-node'
+              ? `customer-node:${input.inboundId}`
+              : `xray-client:${input.inboundId}:${deletedClientSubscriptionMetadata.subId}`;
+
+          await api.createTask(
+            deleteInput,
+            createUiMutationContext(
+              deleteInput,
+              createSubscriptionClientDeleteIdempotencyKey(deletedClientSubscriptionMetadata, deleteScope),
               runtimeConfig
             )
           );
@@ -1955,7 +2085,9 @@ export function AppShell({ ready }: AppShellProps) {
       language,
       runtimeConfig,
       snapshot,
+      subscriptionClients,
       t.createSubscriptionClientSummary,
+      t.deleteSubscriptionClientSummary,
       t.taskMutationFailed,
       t.taskMutationPending,
       t.taskQueued,
@@ -1966,10 +2098,8 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
-      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
-
       void (async () => {
-        const inboundTask = await handleApplyCustomerNodeClientAction({
+        await handleApplyCustomerNodeClientAction({
           inboundId: metadata.nodeId,
           clientId: metadata.clientIdentity,
           clientEmail: metadata.clientEmail,
@@ -1978,25 +2108,9 @@ export function AppShell({ ready }: AppShellProps) {
           },
           reason: 'operator-delete-customer-node'
         });
-
-        if (!inboundTask) {
-          return;
-        }
-
-        await runTask(
-          createSubscriptionClientDeleteTaskInput(subscriptionMetadata, t.deleteSubscriptionClientSummary, {
-            deletedWithCustomerNodeId: metadata.nodeId
-          }),
-          {
-            idempotencyKey: createSubscriptionClientDeleteIdempotencyKey(
-              subscriptionMetadata,
-              `customer-node:${metadata.nodeId}`
-            )
-          }
-        );
       })();
     },
-    [handleApplyCustomerNodeClientAction, runTask, t.deleteSubscriptionClientSummary]
+    [handleApplyCustomerNodeClientAction]
   );
 
   const handleCreateForwarding = useCallback(
