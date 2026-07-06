@@ -421,8 +421,16 @@ function createXrayClientsFromTask(input: {
     const monthlyResetDay = clampResetDay(readNumber(clientMetadata, 'monthlyResetDay', readNumber(metadata, 'monthlyResetDay', 1)));
     const quotaExceeded = readOptionalBoolean(clientMetadata, 'quotaExceeded');
     const clientExpired = readOptionalBoolean(clientMetadata, 'clientExpired');
-    const runtimeDisabledByPolicy = readOptionalBoolean(clientMetadata, 'runtimeDisabledByPolicy');
-    const guardrailReason = readString(clientMetadata, 'guardrailReason', '');
+    const explicitRuntimeDisabledByPolicy = readOptionalBoolean(clientMetadata, 'runtimeDisabledByPolicy');
+    const runtimeDisabledByPolicy =
+      explicitRuntimeDisabledByPolicy === true || quotaExceeded === true || clientExpired === true;
+    const guardrailReason =
+      readString(clientMetadata, 'guardrailReason', '') ||
+      (clientExpired === true
+        ? 'xray_client_expired'
+        : quotaExceeded === true
+          ? 'xray_client_monthly_quota_exceeded'
+          : '');
     const normalizedCredentials = normalizeXrayClientCredentials({
       protocol: input.protocol,
       clientIdentity,
@@ -463,7 +471,7 @@ function createXrayClientsFromTask(input: {
       ipLimit: readNumber(clientMetadata, 'ipLimit', 0),
       ...(quotaExceeded !== undefined ? { quotaExceeded } : {}),
       ...(clientExpired !== undefined ? { clientExpired } : {}),
-      ...(runtimeDisabledByPolicy !== undefined ? { runtimeDisabledByPolicy } : {}),
+      ...(explicitRuntimeDisabledByPolicy !== undefined || runtimeDisabledByPolicy ? { runtimeDisabledByPolicy } : {}),
       ...(guardrailReason ? { guardrailReason } : {})
     };
   });

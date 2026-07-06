@@ -191,6 +191,49 @@ describe('task read models', () => {
     expect(inbound?.clients[1].expiresAt).toBe('2026-06-14T00:00:00.000Z');
   });
 
+  it('derives runtime-disabled Xray read-model state from quota and expiry evidence', () => {
+    const inbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Guardrail Inbound',
+        xrayProtocol: 'vless',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com',
+            quotaExceeded: true
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com',
+            clientExpired: true
+          }
+        ]
+      })
+    );
+
+    expect(inbound?.status).toBe('disabled');
+    expect(inbound?.clients).toEqual([
+      expect.objectContaining({
+        email: 'alice@example.com',
+        enabled: false,
+        quotaExceeded: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_monthly_quota_exceeded'
+      }),
+      expect.objectContaining({
+        email: 'bob@example.com',
+        enabled: false,
+        clientExpired: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_expired'
+      })
+    ]);
+  });
+
   it('preserves per-client telemetry when multi-client Xray inbounds are updated', () => {
     const initialInbound = createXrayInboundFromTask(
       createInboundTask({
