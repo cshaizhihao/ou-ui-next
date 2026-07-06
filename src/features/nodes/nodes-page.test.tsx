@@ -119,6 +119,8 @@ function createInbound(overrides: Partial<XrayInbound> = {}): XrayInbound {
     reality: {
       enabled: true,
       publicKey: 'public-key',
+      privateKey: 'private-key',
+      target: 'acme.example.com:443',
       shortIds: ['a1b2c3d4'],
       serverNames: ['acme.example.com']
     },
@@ -3852,13 +3854,20 @@ describe('NodesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    const savePreflight = within(dialog).getByRole('group', { name: 'Save Preflight' });
     const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
 
+    expect(savePreflight).toHaveAttribute('data-customer-runtime-preflight-summary-state', 'ready');
+    expect(within(savePreflight).getByText('Ready to Apply')).toBeInTheDocument();
+    expect(within(savePreflight).getByText('Next Action')).toBeInTheDocument();
+    expect(within(savePreflight).getByText(/Save submits inbound apply/)).toBeInTheDocument();
+    expect(within(savePreflight).getAllByText('No blocking gates')).toHaveLength(2);
     expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'ready');
-    expect(within(readiness).getByText('Ready to Apply')).toBeInTheDocument();
+    expect(within(readiness).getAllByText('Ready to Apply')).toHaveLength(2);
     expect(within(readiness).getByText('Agent Runtime')).toBeInTheDocument();
     expect(within(readiness).getByText('Protocol Boundary')).toBeInTheDocument();
     expect(within(readiness).getByText('Listener Binding')).toBeInTheDocument();
+    expect(within(readiness).getByText('Security Material')).toBeInTheDocument();
     expect(within(readiness).getByText('Runtime Evidence')).toBeInTheDocument();
     expect(within(readiness).getByText(/agent-result-verified/)).toBeInTheDocument();
     expect(within(readiness).getByText('command + preflight + snapshot')).toBeInTheDocument();
@@ -3894,11 +3903,54 @@ describe('NodesPage', () => {
     const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
     await user.type(within(dialog).getAllByLabelText('Inbound Port')[0], '443');
 
+    const savePreflight = within(dialog).getByRole('group', { name: 'Save Preflight' });
     const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
 
+    expect(savePreflight).toHaveAttribute('data-customer-runtime-preflight-summary-state', 'blocked');
+    expect(within(savePreflight).getByText('Fix the blocked gates first; Save stays disabled.')).toBeInTheDocument();
+    expect(within(savePreflight).getByText(/Listener Binding/)).toBeInTheDocument();
     expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'blocked');
-    expect(within(readiness).getByText('Blocked')).toBeInTheDocument();
+    expect(within(readiness).getAllByText('Blocked')).toHaveLength(2);
     expect(within(readiness).getByText(/443 is already owned by Existing Trojan TLS's TROJAN inbound/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(onSaveCustomerNode).not.toHaveBeenCalled();
+  });
+
+  it('blocks customer-node save when Reality material is missing before runtime apply', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.click(screen.getByText('Advanced Config'));
+    await user.selectOptions(screen.getByLabelText('Protocol Template'), 'vless-tls-ws');
+    await user.selectOptions(screen.getByLabelText('Security'), 'reality');
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    await user.clear(within(dialog).getByLabelText('Reality Private Key'));
+
+    const savePreflight = within(dialog).getByRole('group', { name: 'Save Preflight' });
+    const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
+
+    expect(savePreflight).toHaveAttribute('data-customer-runtime-preflight-summary-state', 'blocked');
+    expect(within(savePreflight).getByText(/Security Material/)).toBeInTheDocument();
+    expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'blocked');
+    expect(within(readiness).getByText(/Reality runtime is missing Reality Private Key/)).toBeInTheDocument();
+    expect(within(readiness).getByText('Material missing')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(onSaveCustomerNode).not.toHaveBeenCalled();
   });

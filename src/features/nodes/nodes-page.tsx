@@ -458,7 +458,7 @@ type CustomerClientActionRuntimeEvidence = {
 type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessTone = 'healthy' | 'command' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessItem = {
-  id: 'agent' | 'protocol' | 'listener' | 'evidence';
+  id: 'agent' | 'protocol' | 'listener' | 'security' | 'evidence';
   detail: string;
   icon: typeof Activity;
   label: string;
@@ -701,9 +701,18 @@ const copy = {
     customerRuntimeReadinessReadySummary: '保存后会进入 Agent apply，并期望返回命令完成、预检、快照和 Agent 验证证据。',
     customerRuntimeReadinessWaitingSummary: '任务可以提交，但需要 Agent 恢复在线或补齐遥测后才能看到完整运行时证据。',
     customerRuntimeReadinessBlockedSummary: '当前参数会被运行时拒绝，请先修正阻断项再保存。',
+    customerRuntimePreflightSummaryTitle: '保存前预检',
+    customerRuntimePreflightNextAction: '下一步',
+    customerRuntimePreflightBlockingGates: '阻断项',
+    customerRuntimePreflightWaitingGates: '等待项',
+    customerRuntimePreflightNoBlockingGates: '无阻断项',
+    customerRuntimePreflightReadyAction: '保存会提交 inbound apply，并等待 command、preflight、snapshot、Agent result 证据。',
+    customerRuntimePreflightWaitingAction: '可以保存，但请在运行时证据中跟踪等待项。',
+    customerRuntimePreflightBlockedAction: '先修复阻断项，保存按钮保持禁用。',
     customerRuntimeAgentGate: 'Agent 运行时',
     customerRuntimeProtocolGate: '协议边界',
     customerRuntimeListenerGate: '监听端口',
+    customerRuntimeSecurityGate: '安全材料',
     customerRuntimeEvidenceGate: '应用证据',
     customerRuntimeAgentReady: (name: string) => `${name} 在线且声明 xray 能力。`,
     customerRuntimeAgentWaiting: (name: string, status: string) => `${name} 当前为 ${status}，保存后需要等待 Agent 恢复后才会产生完整证据。`,
@@ -714,6 +723,16 @@ const copy = {
     customerRuntimeListenerExclusive: (port: string) => `${port} 当前没有冲突，将作为独立监听应用。`,
     customerRuntimeListenerShared: (port: string, count: string) => `${port} 会复用同协议入站并追加为第 ${count} 个客户端。`,
     customerRuntimeListenerConflict: (port: string, protocol: string, node: string) => `${port} 已被 ${node} 的 ${protocol} 入站占用。`,
+    customerRuntimeSecurityNone: '未启用 TLS/Reality，运行时不会要求证书或 Reality 密钥。',
+    customerRuntimeSecurityTlsReady: (sni: string) => `TLS 会使用 ${sni} 作为 SNI/Host。`,
+    customerRuntimeSecurityTlsWaiting: 'TLS 当前没有显式 SNI，将使用服务器地址或运行时默认值。',
+    customerRuntimeSecurityRealityReady: (sni: string) => `Reality 材料完整，SNI ${sni}、public/private key 会随任务提交。`,
+    customerRuntimeSecurityRealityMissing: (fields: string) => `Reality 运行时缺少 ${fields}，请补齐或重新生成材料。`,
+    customerRuntimeSecurityValueNone: '无需安全材料',
+    customerRuntimeSecurityValueTls: 'TLS SNI 就绪',
+    customerRuntimeSecurityValueTlsWaiting: 'TLS SNI 待确认',
+    customerRuntimeSecurityValueReality: 'Reality keypair 就绪',
+    customerRuntimeSecurityValueBlocked: '材料缺失',
     customerRuntimeEvidenceReady: '预期证据：command completed、agent-result-verified、config revision applied、preflight passed、snapshot verified。',
     customerRuntimeEvidenceWaiting: 'Agent 未完全就绪时，任务 evidence 会保持 waiting，直到 command/result/preflight/snapshot 回传。',
     customerRuntimeEvidenceBlocked: '阻断项存在时不会提交 runtime apply，避免 UI 显示假成功。',
@@ -1151,9 +1170,18 @@ const copy = {
     customerRuntimeReadinessReadySummary: 'Saving will enqueue Agent apply and should return command completion, preflight, snapshot, and Agent verification evidence.',
     customerRuntimeReadinessWaitingSummary: 'The task can be submitted, but complete runtime evidence waits for the Agent to recover online or report telemetry.',
     customerRuntimeReadinessBlockedSummary: 'These settings would be rejected by the runtime. Fix the blocked gate before saving.',
+    customerRuntimePreflightSummaryTitle: 'Save Preflight',
+    customerRuntimePreflightNextAction: 'Next Action',
+    customerRuntimePreflightBlockingGates: 'Blocking Gates',
+    customerRuntimePreflightWaitingGates: 'Waiting Gates',
+    customerRuntimePreflightNoBlockingGates: 'No blocking gates',
+    customerRuntimePreflightReadyAction: 'Save submits inbound apply and waits for command, preflight, snapshot, and Agent result evidence.',
+    customerRuntimePreflightWaitingAction: 'Saving is allowed; track the waiting gates in runtime evidence.',
+    customerRuntimePreflightBlockedAction: 'Fix the blocked gates first; Save stays disabled.',
     customerRuntimeAgentGate: 'Agent Runtime',
     customerRuntimeProtocolGate: 'Protocol Boundary',
     customerRuntimeListenerGate: 'Listener Binding',
+    customerRuntimeSecurityGate: 'Security Material',
     customerRuntimeEvidenceGate: 'Runtime Evidence',
     customerRuntimeAgentReady: (name: string) => `${name} is online and advertises xray.`,
     customerRuntimeAgentWaiting: (name: string, status: string) => `${name} is ${status}; full evidence waits until the Agent recovers.`,
@@ -1164,6 +1192,16 @@ const copy = {
     customerRuntimeListenerExclusive: (port: string) => `${port} has no conflict and will be applied as a dedicated listener.`,
     customerRuntimeListenerShared: (port: string, count: string) => `${port} will reuse a same-protocol inbound as client ${count}.`,
     customerRuntimeListenerConflict: (port: string, protocol: string, node: string) => `${port} is already owned by ${node}'s ${protocol} inbound.`,
+    customerRuntimeSecurityNone: 'TLS/Reality is disabled; the runtime does not require certificates or Reality keys.',
+    customerRuntimeSecurityTlsReady: (sni: string) => `TLS will use ${sni} as SNI/Host.`,
+    customerRuntimeSecurityTlsWaiting: 'TLS has no explicit SNI; it will fall back to the server address or runtime default.',
+    customerRuntimeSecurityRealityReady: (sni: string) => `Reality material is complete; SNI ${sni} and the public/private keys will be submitted.`,
+    customerRuntimeSecurityRealityMissing: (fields: string) => `Reality runtime is missing ${fields}. Fill it in or regenerate material.`,
+    customerRuntimeSecurityValueNone: 'No security material',
+    customerRuntimeSecurityValueTls: 'TLS SNI ready',
+    customerRuntimeSecurityValueTlsWaiting: 'TLS SNI pending',
+    customerRuntimeSecurityValueReality: 'Reality keypair ready',
+    customerRuntimeSecurityValueBlocked: 'Material missing',
     customerRuntimeEvidenceReady: 'Expected evidence: command completed, agent-result-verified, config revision applied, preflight passed, snapshot verified.',
     customerRuntimeEvidenceWaiting: 'When the Agent is not fully ready, task evidence remains waiting until command/result/preflight/snapshot data returns.',
     customerRuntimeEvidenceBlocked: 'Runtime apply is not submitted while a gate is blocked, preventing a fake-success UI state.',
@@ -1672,7 +1710,69 @@ function createCustomerRuntimeReadiness({
           value: listenerValue
         };
 
-  const baseItems = [agentItem, protocolItem, listenerItem];
+  const resolvedSecuritySni = draft.sni.trim() || extractHostLabel(draft.serverAddress);
+  const missingRealityFields =
+    draft.security === 'reality'
+      ? ([
+          [t.sni, resolvedSecuritySni],
+          [t.realityPublicKey, draft.realityPublicKey.trim()],
+          [t.realityPrivateKey, draft.realityPrivateKey.trim()]
+        ] as const)
+          .filter(([, value]) => value === '')
+          .map(([label]) => label)
+      : [];
+  const securityItem: CustomerRuntimeReadinessItem =
+    draft.security === 'reality'
+      ? missingRealityFields.length > 0
+        ? {
+            id: 'security',
+            detail: t.customerRuntimeSecurityRealityMissing(missingRealityFields.join(', ')),
+            icon: KeyRound,
+            label: t.customerRuntimeSecurityGate,
+            state: 'blocked',
+            tone: 'blocked',
+            value: t.customerRuntimeSecurityValueBlocked
+          }
+        : {
+            id: 'security',
+            detail: t.customerRuntimeSecurityRealityReady(resolvedSecuritySni),
+            icon: KeyRound,
+            label: t.customerRuntimeSecurityGate,
+            state: 'ready',
+            tone: 'healthy',
+            value: t.customerRuntimeSecurityValueReality
+          }
+      : draft.security === 'tls'
+        ? resolvedSecuritySni
+          ? {
+              id: 'security',
+              detail: t.customerRuntimeSecurityTlsReady(resolvedSecuritySni),
+              icon: KeyRound,
+              label: t.customerRuntimeSecurityGate,
+              state: 'ready',
+              tone: 'healthy',
+              value: t.customerRuntimeSecurityValueTls
+            }
+          : {
+              id: 'security',
+              detail: t.customerRuntimeSecurityTlsWaiting,
+              icon: KeyRound,
+              label: t.customerRuntimeSecurityGate,
+              state: 'waiting',
+              tone: 'waiting',
+              value: t.customerRuntimeSecurityValueTlsWaiting
+            }
+        : {
+            id: 'security',
+            detail: t.customerRuntimeSecurityNone,
+            icon: KeyRound,
+            label: t.customerRuntimeSecurityGate,
+            state: 'ready',
+            tone: 'command',
+            value: t.customerRuntimeSecurityValueNone
+          };
+
+  const baseItems = [agentItem, protocolItem, listenerItem, securityItem];
   const baseBlocked = baseItems.some((item) => item.state === 'blocked');
   const baseWaiting = baseItems.some((item) => item.state === 'waiting');
   const evidenceItem: CustomerRuntimeReadinessItem = baseBlocked
@@ -5203,13 +5303,7 @@ export function NodesPage({
 
     const reusableNode = findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id });
     const draftWithReusablePortProfile = applyReusableCustomerNodePortProfile(customerDraft, reusableNode);
-    const preparedDraft =
-      draftWithReusablePortProfile.security === 'reality'
-      && (!draftWithReusablePortProfile.realityPublicKey.trim()
-        || !draftWithReusablePortProfile.realityPrivateKey.trim()
-        || !draftWithReusablePortProfile.realityShortId.trim())
-        ? ensureRealityMaterial(draftWithReusablePortProfile)
-        : draftWithReusablePortProfile;
+    const preparedDraft = draftWithReusablePortProfile;
 
     if (preparedDraft !== customerDraft) {
       setCustomerDraft(preparedDraft);
@@ -7318,6 +7412,7 @@ export function NodesPage({
         onClose={() => setDrawer({ type: 'closed' })}
       >
         <form className="space-y-4" onSubmit={handleCustomerSubmit}>
+          <CustomerRuntimeReadinessPanel readiness={customerRuntimeReadiness} t={t} />
           <DrawerSection hint={t.operatorCreateHint || undefined} title={t.customerBasics}>
             <SimpleNodeWizard
               labels={{
@@ -7357,7 +7452,6 @@ export function NodesPage({
               }
             />
           </DrawerSection>
-          <CustomerRuntimeReadinessPanel readiness={customerRuntimeReadiness} t={t} />
           <DrawerSection title={t.generatedResult}>
             <InfoField
               label={t.generatedProtocolMaterial}
@@ -7912,6 +8006,22 @@ function CustomerRuntimeReadinessPanel({
   readiness: CustomerRuntimeReadiness;
   t: NodesCopy;
 }) {
+  const blockingItems = readiness.items.filter((item) => item.state === 'blocked');
+  const waitingItems = readiness.items.filter((item) => item.state === 'waiting');
+  const summaryItems = blockingItems.length > 0 ? blockingItems : waitingItems;
+  const summaryLabel =
+    blockingItems.length > 0
+      ? t.customerRuntimePreflightBlockingGates
+      : waitingItems.length > 0
+        ? t.customerRuntimePreflightWaitingGates
+        : t.customerRuntimePreflightNoBlockingGates;
+  const nextAction =
+    readiness.state === 'blocked'
+      ? t.customerRuntimePreflightBlockedAction
+      : readiness.state === 'waiting'
+        ? t.customerRuntimePreflightWaitingAction
+        : t.customerRuntimePreflightReadyAction;
+
   return (
     <section
       aria-label={t.customerRuntimeReadinessTitle}
@@ -7927,6 +8037,56 @@ function CustomerRuntimeReadinessPanel({
       data-customer-runtime-readiness-state={readiness.state}
       role="group"
     >
+      <div
+        aria-label={t.customerRuntimePreflightSummaryTitle}
+        className={cn(
+          'grid gap-3 border p-3 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]',
+          readiness.state === 'blocked'
+            ? 'border-[#DC2626]/35 bg-[#DC2626]/[0.07]'
+            : readiness.state === 'waiting'
+              ? 'border-[#D9FF00]/55 bg-[#D9FF00]/[0.12]'
+              : 'border-[#00A878]/35 bg-[#00A878]/[0.07]'
+        )}
+        data-customer-runtime-preflight-summary-state={readiness.state}
+        role="group"
+      >
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#35405A] dark:text-white/45">
+            {t.customerRuntimePreflightSummaryTitle}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                'rounded-full border px-2.5 py-1 text-[11px] font-black',
+                readiness.state === 'blocked'
+                  ? 'border-[#DC2626]/45 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#FF8A8A]/35 dark:bg-[#DC2626]/12 dark:text-[#FFB4B4]'
+                  : readiness.state === 'waiting'
+                    ? 'border-[#D9FF00] bg-[#D9FF00]/[0.24] text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]'
+                    : 'border-[#00A878] bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]'
+              )}
+            >
+              {readiness.label}
+            </span>
+            <span className="text-xs font-semibold text-[#35405A] dark:text-white/58">{readiness.summary}</span>
+          </div>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-1">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#35405A] dark:text-white/45">
+              {t.customerRuntimePreflightNextAction}
+            </p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[#07111F] dark:text-white">{nextAction}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#35405A] dark:text-white/45">
+              {summaryLabel}
+            </p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[#07111F] dark:text-white">
+              {summaryItems.length > 0 ? summaryItems.map((item) => item.label).join(' / ') : t.customerRuntimePreflightNoBlockingGates}
+            </p>
+          </div>
+        </div>
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-black text-[#07111F] dark:text-white">{t.customerRuntimeReadinessTitle}</p>
@@ -7945,7 +8105,7 @@ function CustomerRuntimeReadinessPanel({
           {readiness.label}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-5">
         {readiness.items.map((item) => (
           <CustomerRuntimeReadinessGate item={item} key={item.id} />
         ))}
