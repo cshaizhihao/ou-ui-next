@@ -2305,7 +2305,11 @@ describe('NodesPage', () => {
 
   it('surfaces selected customer-node context actions tied to runtime evidence and clients', async () => {
     const user = userEvent.setup();
-    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const onApplyCustomerNodeClientAction = vi.fn(async () => ({
+      accepted: true,
+      runtimeTaskId: 'task-context-renew-01',
+      targetClientEmail: 'acme-premium@example.com'
+    }));
 
     render(
       <NodesPage
@@ -2324,11 +2328,51 @@ describe('NodesPage', () => {
         ]}
         language="en"
         workspaceMode="customerNodes"
-        tasks={[createRuntimeTask()]}
-        commandOutbox={[createRuntimeCommand()]}
-        configRevisions={[createRuntimeConfigRevision()]}
-        preflightPlans={[createRuntimePreflightPlan()]}
-        runtimeSnapshots={[createRuntimeSnapshot()]}
+        tasks={[
+          createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-context-renew-01',
+            requestId: 'req-task-context-renew-01',
+            rollbackAvailable: false,
+            rollbackTaskId: undefined,
+            summary: 'Renew Acme Premium VLESS'
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand(),
+          createRuntimeCommand({
+            id: 'outbox-task-context-renew-01',
+            taskId: 'task-context-renew-01',
+            commandId: 'cmd-task-context-renew-01'
+          })
+        ]}
+        configRevisions={[
+          createRuntimeConfigRevision(),
+          createRuntimeConfigRevision({
+            id: 'cfg-task-context-renew-01',
+            taskId: 'task-context-renew-01',
+            checksum: 'sha256:cfg-task-context-renew-01',
+            signature: 'sig-task-context-renew-01',
+            preflightPlanId: 'preflight-task-context-renew-01',
+            snapshotBeforeId: 'snapshot-task-context-renew-01'
+          })
+        ]}
+        preflightPlans={[
+          createRuntimePreflightPlan(),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-context-renew-01',
+            taskId: 'task-context-renew-01',
+            configRevisionId: 'cfg-task-context-renew-01'
+          })
+        ]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot(),
+          createRuntimeSnapshot({
+            id: 'snapshot-task-context-renew-01',
+            taskId: 'task-context-renew-01',
+            checksum: 'sha256:snapshot-task-context-renew-01'
+          })
+        ]}
         onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
         onDeleteCustomerNode={vi.fn()}
         onDeleteHost={vi.fn()}
@@ -2359,6 +2403,10 @@ describe('NodesPage', () => {
       },
       reason: 'customer-node:renew'
     }));
+    expect(within(contextBar).getByText('Renew queued · acme-premium@example.com')).toBeInTheDocument();
+    expect(within(contextBar).getByText('Agent verified this client action.')).toBeInTheDocument();
+    expect(within(contextBar).getByText('Runtime task-context-renew-01')).toBeInTheDocument();
+    expect(within(contextBar).getByText('Stage agent-result-verified')).toBeInTheDocument();
 
     await user.click(within(contextBar).getByRole('button', { name: 'Manage Clients' }));
     expect(screen.getByRole('dialog', { name: /Inbound Clients/ })).toBeInTheDocument();

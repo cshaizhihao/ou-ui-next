@@ -2692,6 +2692,8 @@ function CustomerNodeRuntimeEvidenceStrip({
 }
 
 function CustomerNodeContextActionBar({
+  actionFeedback,
+  actionRuntimeEvidence,
   bulkImpactSummary,
   bulkRenewDays,
   bulkTrafficGb,
@@ -2699,6 +2701,10 @@ function CustomerNodeContextActionBar({
   evidence,
   node,
   onAddTraffic,
+  onActionCopyDiagnostics,
+  onActionOpenEvidence,
+  onActionOpenWorkspace,
+  onActionRollbackTask,
   onBulkAddTraffic,
   onBulkDisable,
   onBulkEnable,
@@ -2718,6 +2724,8 @@ function CustomerNodeContextActionBar({
   selectedCount,
   t
 }: {
+  actionFeedback?: CustomerClientActionFeedback;
+  actionRuntimeEvidence?: CustomerClientActionRuntimeEvidence;
   bulkImpactSummary: CustomerNodeBulkImpactSummary;
   bulkRenewDays: string;
   bulkTrafficGb: string;
@@ -2725,6 +2733,10 @@ function CustomerNodeContextActionBar({
   evidence?: CustomerNodeRuntimeEvidenceBundle;
   node?: CustomerNodeRecord;
   onAddTraffic: () => void;
+  onActionCopyDiagnostics?: () => void;
+  onActionOpenEvidence?: () => void;
+  onActionOpenWorkspace?: () => void;
+  onActionRollbackTask?: () => void;
   onBulkAddTraffic: () => void;
   onBulkDisable: () => void;
   onBulkEnable: () => void;
@@ -2861,6 +2873,19 @@ function CustomerNodeContextActionBar({
           </>
         )}
       </div>
+      {singleSelection && actionFeedback ? (
+        <div className="mt-3">
+          <CustomerClientActionFeedbackBar
+            feedback={actionFeedback}
+            runtimeEvidence={actionRuntimeEvidence}
+            t={t}
+            onCopyDiagnostics={onActionCopyDiagnostics}
+            onOpenEvidence={onActionOpenEvidence}
+            onOpenWorkspace={onActionOpenWorkspace}
+            onRollbackTask={onActionRollbackTask}
+          />
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -4663,6 +4688,36 @@ export function NodesPage({
     !activeCustomerClientActionRuntimeEvidence.diagnosticPackage.task.rollbackTaskId
       ? activeCustomerClientActionRuntimeEvidence.runtimeTaskId
       : undefined;
+  const selectedCustomerNodeActionFeedback =
+    primarySelectedCustomerNode && customerClientActionFeedback?.inboundId === primarySelectedCustomerNode.id
+      ? customerClientActionFeedback
+      : undefined;
+  const selectedCustomerNodeActionRuntimeEvidence = useMemo(
+    () =>
+      selectedCustomerNodeActionFeedback?.runtimeTaskId
+        ? resolveCustomerClientActionRuntimeEvidence({
+            commandOutbox,
+            configRevisions,
+            preflightPlans,
+            runtimeSnapshots,
+            runtimeTaskId: selectedCustomerNodeActionFeedback.runtimeTaskId,
+            tasks
+          })
+        : undefined,
+    [
+      commandOutbox,
+      configRevisions,
+      preflightPlans,
+      runtimeSnapshots,
+      selectedCustomerNodeActionFeedback?.runtimeTaskId,
+      tasks
+    ]
+  );
+  const selectedCustomerNodeActionRollbackTaskId =
+    selectedCustomerNodeActionRuntimeEvidence?.diagnosticPackage.task?.rollbackAvailable &&
+    !selectedCustomerNodeActionRuntimeEvidence.diagnosticPackage.task.rollbackTaskId
+      ? selectedCustomerNodeActionRuntimeEvidence.runtimeTaskId
+      : undefined;
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -5329,6 +5384,49 @@ export function NodesPage({
     };
   }
 
+  function findRuntimeInboundForCustomerNode(node: CustomerNodeRecord) {
+    return inbounds.find(
+      (inbound): inbound is RuntimeXrayInbound => inbound.id === node.id && isXrayRuntimeProtocol(inbound.protocol)
+    );
+  }
+
+  function findRuntimeClientForCustomerNode(inbound: RuntimeXrayInbound, node: CustomerNodeRecord) {
+    return inbound.clients.find(
+      (client) =>
+        (node.clientIdentity && client.id === node.clientIdentity) ||
+        (node.clientEmail && client.email === node.clientEmail)
+    );
+  }
+
+  function updateCustomerNodeClientActionFeedback({
+    action,
+    node,
+    result,
+    status
+  }: {
+    action: XrayClientAction;
+    node: CustomerNodeRecord;
+    result: CustomerNodeClientActionSettled;
+    status: CustomerClientActionFeedbackStatus;
+  }) {
+    const inbound = findRuntimeInboundForCustomerNode(node);
+
+    if (!inbound) {
+      return;
+    }
+
+    setCustomerClientActionFeedback(
+      createCustomerClientActionFeedback({
+        action,
+        client: findRuntimeClientForCustomerNode(inbound, node),
+        inbound,
+        result,
+        status,
+        t
+      })
+    );
+  }
+
   async function applyInboundClientAction(
     inbound: RuntimeXrayInbound,
     client: XrayClient,
@@ -5516,7 +5614,24 @@ export function NodesPage({
       return;
     }
 
-    await onApplyCustomerNodeClientAction(createCustomerNodeClientActionMutation(node, action, reason));
+    try {
+      const result = await onApplyCustomerNodeClientAction(createCustomerNodeClientActionMutation(node, action, reason));
+      const failed = result === false || (isCustomerNodeClientActionResult(result) && !result.accepted);
+
+      updateCustomerNodeClientActionFeedback({
+        action,
+        node,
+        result,
+        status: failed ? 'failed' : 'queued'
+      });
+    } catch {
+      updateCustomerNodeClientActionFeedback({
+        action,
+        node,
+        result: false,
+        status: 'failed'
+      });
+    }
   }
 
   async function applySelectedCustomerNodeClientAction(
@@ -5532,7 +5647,24 @@ export function NodesPage({
     }
 
     for (const node of selectedCustomerNodes) {
-      await onApplyCustomerNodeClientAction(createCustomerNodeClientActionMutation(node, action, reason));
+      try {
+        const result = await onApplyCustomerNodeClientAction(createCustomerNodeClientActionMutation(node, action, reason));
+        const failed = result === false || (isCustomerNodeClientActionResult(result) && !result.accepted);
+
+        updateCustomerNodeClientActionFeedback({
+          action,
+          node,
+          result,
+          status: failed ? 'failed' : 'queued'
+        });
+      } catch {
+        updateCustomerNodeClientActionFeedback({
+          action,
+          node,
+          result: false,
+          status: 'failed'
+        });
+      }
     }
   }
 
@@ -6327,6 +6459,8 @@ export function NodesPage({
                 ) : null}
               </details>
               <CustomerNodeContextActionBar
+                actionFeedback={selectedCustomerNodeActionFeedback}
+                actionRuntimeEvidence={selectedCustomerNodeActionRuntimeEvidence}
                 bulkImpactSummary={customerNodeBulkImpactSummary}
                 bulkRenewDays={bulkCustomerNodeRenewDays}
                 bulkTrafficGb={bulkCustomerNodeTrafficGb}
@@ -6336,6 +6470,29 @@ export function NodesPage({
                 selectedCount={selectedCustomerNodes.length}
                 t={t}
                 onAddTraffic={() => primarySelectedCustomerNode && addTrafficToCustomerNode(primarySelectedCustomerNode)}
+                onActionCopyDiagnostics={
+                  selectedCustomerNodeActionRuntimeEvidence
+                    ? () =>
+                        void copyText(
+                          JSON.stringify(selectedCustomerNodeActionRuntimeEvidence.diagnosticPackage, null, 2)
+                        )
+                    : undefined
+                }
+                onActionOpenEvidence={
+                  primarySelectedCustomerNode && selectedCustomerNodeActionFeedback
+                    ? () => setDrawer({ type: 'customerRuntimeEvidence', nodeId: primarySelectedCustomerNode.id })
+                    : undefined
+                }
+                onActionOpenWorkspace={
+                  selectedCustomerNodeActionRuntimeEvidence && onOpenRuntimeEvidenceWorkspace
+                    ? onOpenRuntimeEvidenceWorkspace
+                    : undefined
+                }
+                onActionRollbackTask={
+                  selectedCustomerNodeActionRollbackTaskId && onRollbackRuntimeTask
+                    ? () => onRollbackRuntimeTask(selectedCustomerNodeActionRollbackTaskId)
+                    : undefined
+                }
                 onBulkAddTraffic={addTrafficToSelectedCustomerNodes}
                 onBulkDisable={() => updateSelectedCustomerNodesEnabled(false)}
                 onBulkEnable={() => updateSelectedCustomerNodesEnabled(true)}
