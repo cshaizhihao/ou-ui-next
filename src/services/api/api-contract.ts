@@ -575,6 +575,31 @@ export const createTaskRequestSchema = z
 const xrayClientActionSchema = z.discriminatedUnion('kind', [
   z
     .object({
+      kind: z.literal('add-client'),
+      clientIdentity: z.string().trim().min(1).max(255).optional(),
+      clientEmail: z.string().trim().min(1).max(255),
+      clientCredential: z.string().trim().min(1).max(512).optional(),
+      clientLevel: z.number().int().nonnegative().optional(),
+      clientComment: z.string().trim().max(500).optional(),
+      telegramId: z.string().trim().max(120).optional(),
+      resetPolicy: xrayClientResetPolicySchema.optional(),
+      vmessSecurity: z.string().trim().min(1).max(80).optional(),
+      shadowsocksMethod: z.string().trim().min(1).max(120).optional(),
+      hysteriaAuth: z.string().trim().min(1).max(512).optional(),
+      flow: z.string().trim().max(120).optional(),
+      ipLimit: z.number().int().nonnegative().optional(),
+      trafficMultiplier: z.union([z.literal(0.5), z.literal(1), z.literal(1.5), z.literal(2)]).optional(),
+      trafficLimitGb: z.number().int().nonnegative().optional(),
+      monthlyResetDay: z.number().int().min(1).max(31).optional(),
+      currentUsedTrafficGb: z.number().nonnegative().optional(),
+      remainingDays: z.number().int().nonnegative().optional(),
+      expiresAt: optionalUtcDateTimeSchema,
+      subscriptionRule: z.string().trim().min(1).max(255).optional(),
+      enabled: z.boolean().optional()
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('set-enabled'),
       enabled: z.boolean()
     })
@@ -632,7 +657,7 @@ export const xrayClientActionRequestSchema = z
   })
   .strict()
   .superRefine((request, context) => {
-    if (!request.clientId && !request.clientEmail) {
+    if (request.action.kind !== 'add-client' && !request.clientId && !request.clientEmail) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Xray client action requires clientId or clientEmail.',

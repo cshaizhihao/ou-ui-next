@@ -733,6 +733,75 @@ describe('service-backed control plane read model hydration', () => {
       ]
     });
 
+    const addTask = await api.applyXrayClientAction(
+      {
+        inboundId: 'customer-node-client-action-01',
+        action: {
+          kind: 'add-client',
+          clientIdentity: 'client-carol',
+          clientEmail: 'carol@example.com',
+          trafficLimitGb: 20,
+          remainingDays: 60,
+          ipLimit: 1,
+          subscriptionRule: 'manual:client-carol'
+        },
+        observedAt: '2026-06-05T11:02:00.000Z'
+      },
+      mutationContext('xray-client-action-add')
+    );
+
+    expect(addTask).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-client-action-01',
+      summary: 'Xray client add: carol@example.com',
+      metadata: expect.objectContaining({
+        xrayReplaceClients: true,
+        xrayClientAction: 'add-client',
+        xrayClientActionTargetEmail: 'carol@example.com',
+        clientEmail: 'carol@example.com',
+        trafficLimitGb: 20,
+        remainingDays: 60
+      })
+    });
+    expect(addTask.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientEmail: 'alice@example.com'
+      }),
+      expect.objectContaining({
+        clientEmail: 'bob@example.com'
+      }),
+      expect.objectContaining({
+        clientIdentity: 'client-carol',
+        clientEmail: 'carol@example.com',
+        enabled: true
+      })
+    ]);
+    expect((await api.listCommandOutbox()).find((item) => item.taskId === addTask.id)).toMatchObject({
+      taskId: addTask.id,
+      agentId: 'agent-hkg-01',
+      command: {
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'xray'
+        })
+      }
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-client-action-01')).toMatchObject({
+      status: 'applying',
+      clients: [
+        expect.objectContaining({
+          email: 'alice@example.com'
+        }),
+        expect.objectContaining({
+          email: 'bob@example.com'
+        }),
+        expect.objectContaining({
+          email: 'carol@example.com',
+          enabled: true
+        })
+      ]
+    });
+
     const deleteTask = await api.applyXrayClientAction(
       {
         inboundId: 'customer-node-client-action-01',
@@ -759,6 +828,10 @@ describe('service-backed control plane read model hydration', () => {
       expect.objectContaining({
         clientEmail: 'alice@example.com',
         enabled: true
+      }),
+      expect.objectContaining({
+        clientEmail: 'carol@example.com',
+        enabled: true
       })
     ]);
     expect(JSON.stringify(deleteTask.metadata?.clients)).not.toContain('bob@example.com');
@@ -777,6 +850,10 @@ describe('service-backed control plane read model hydration', () => {
       clients: [
         expect.objectContaining({
           email: 'alice@example.com',
+          enabled: true
+        }),
+        expect.objectContaining({
+          email: 'carol@example.com',
           enabled: true
         })
       ]

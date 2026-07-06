@@ -2,6 +2,29 @@ import type { XrayClient, XrayClientResetPolicy, XrayInbound } from '../../domai
 import type { CreateTaskInput } from '../../domain/task';
 
 export type XrayClientAction =
+  | {
+      kind: 'add-client';
+      clientIdentity?: string;
+      clientEmail: string;
+      clientCredential?: string;
+      clientLevel?: number;
+      clientComment?: string;
+      telegramId?: string;
+      resetPolicy?: XrayClientResetPolicy;
+      vmessSecurity?: string;
+      shadowsocksMethod?: string;
+      hysteriaAuth?: string;
+      flow?: string;
+      ipLimit?: number;
+      trafficMultiplier?: XrayClient['trafficMultiplier'];
+      trafficLimitGb?: number;
+      monthlyResetDay?: number;
+      currentUsedTrafficGb?: number;
+      remainingDays?: number;
+      expiresAt?: string;
+      subscriptionRule?: string;
+      enabled?: boolean;
+    }
   | { kind: 'set-enabled'; enabled: boolean }
   | { kind: 'add-traffic'; addedTrafficGb: number }
   | { kind: 'set-traffic-limit'; trafficLimitGb: number }
@@ -175,6 +198,8 @@ function normalizeForHash(value: unknown): unknown {
 
 function actionLabel(action: XrayClientAction) {
   switch (action.kind) {
+    case 'add-client':
+      return 'add';
     case 'set-enabled':
       return action.enabled ? 'enable' : 'disable';
     case 'add-traffic':
@@ -205,6 +230,32 @@ function compactMetadata<T extends Record<string, unknown>>(metadata: T): T {
       return true;
     })
   ) as T;
+}
+
+function readStringFromMetadata(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function slugClientIdentity(value: string, fallback: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_.@-]+/g, '-').replace(/^-|-$/g, '') || fallback;
+}
+
+function createNewClientIdentity(action: Extract<XrayClientAction, { kind: 'add-client' }>) {
+  const explicitIdentity = action.clientIdentity?.trim();
+
+  if (explicitIdentity) {
+    return explicitIdentity;
+  }
+
+  const email = action.clientEmail.trim();
+  const emailLocalPart = email.split('@')[0] ?? '';
+
+  return `client-${slugClientIdentity(emailLocalPart || email, createStableHash(email))}`;
+}
+
+function createExpiresAtFromRemainingDays(observedAt: string, remainingDays: number) {
+  return new Date(Date.parse(observedAt) + Math.max(remainingDays, 0) * DAY_MS).toISOString();
 }
 
 function createClientTaskMetadata(inbound: XrayInbound, client: XrayClient, observedAt: string): XrayClientTaskMetadata {
@@ -244,6 +295,56 @@ function createClientTaskMetadata(inbound: XrayInbound, client: XrayClient, obse
   };
 
   return metadata;
+}
+
+function createNewClientTaskMetadata(input: {
+  inbound: XrayInbound;
+  action: Extract<XrayClientAction, { kind: 'add-client' }>;
+  observedAt: string;
+}): XrayClientTaskMetadata {
+  const clientIdentity = createNewClientIdentity(input.action);
+  const clientEmail = input.action.clientEmail.trim();
+  const trafficLimitGb = roundNonNegative(input.action.trafficLimitGb ?? 100);
+  const currentUsedTrafficGb = bytesToGb((input.action.currentUsedTrafficGb ?? 0) * GB);
+  const remainingDays = roundNonNegative(input.action.remainingDays ?? 30);
+  const expiresAt = input.action.expiresAt?.trim() || createExpiresAtFromRemainingDays(input.observedAt, remainingDays);
+  const clientExpired = computeRemainingDays(expiresAt, input.observedAt, remainingDays) <= 0;
+  const quotaExceeded = isQuotaExceeded(currentUsedTrafficGb, trafficLimitGb);
+  const runtimeDisabledByPolicy = quotaExceeded || clientExpired;
+  const baseSubscriptionRule = input.inbound.subscriptionRule?.trim() || 'manual';
+  const subscriptionRule = input.action.subscriptionRule?.trim() || `${baseSubscriptionRule}:${clientIdentity}`;
+
+  return {
+    clientIdentity,
+    clientEmail,
+    clientCredential: input.action.clientCredential?.trim() || clientIdentity,
+    clientLevel: roundNonNegative(input.action.clientLevel ?? 0),
+    clientComment: input.action.clientComment?.trim() ?? '',
+    telegramId: input.action.telegramId?.trim() ?? '',
+    resetPolicy: input.action.resetPolicy ?? 'monthly',
+    shadowsocksMethod: input.action.shadowsocksMethod?.trim() || '2022-blake3-aes-128-gcm',
+    hysteriaAuth: input.action.hysteriaAuth?.trim() || input.action.clientCredential?.trim() || clientIdentity,
+    flow: input.action.flow?.trim() || input.inbound.flow || '',
+    ipLimit: roundNonNegative(input.action.ipLimit ?? 0),
+    trafficMultiplier: input.action.trafficMultiplier ?? 1,
+    trafficLimitGb,
+    monthlyResetDay: Math.min(Math.max(roundNonNegative(input.action.monthlyResetDay ?? 1), 1), 31),
+    currentUsedTrafficGb,
+    remainingDays: computeRemainingDays(expiresAt, input.observedAt, remainingDays),
+    expiresAt,
+    subscriptionRule,
+    enabled: input.action.enabled ?? true,
+    quotaExceeded,
+    clientExpired,
+    runtimeDisabledByPolicy,
+    guardrailReason: readGuardrailReason({
+      guardrailReason: '',
+      quotaExceeded,
+      clientExpired,
+      runtimeDisabledByPolicy
+    }),
+    ...(input.action.vmessSecurity?.trim() ? { vmessSecurity: input.action.vmessSecurity.trim() } : {})
+  };
 }
 
 function normalizePatchGuardrailState(
@@ -357,6 +458,10 @@ function isSameActionTarget(client: XrayClient, request: XrayClientActionRequest
 }
 
 export function findXrayClientForAction(inbound: XrayInbound, request: XrayClientActionRequest) {
+  if (request.action.kind === 'add-client') {
+    throw new Error('Xray add-client action does not target an existing client.');
+  }
+
   if (!request.clientId?.trim() && !request.clientEmail?.trim()) {
     throw new Error('Xray client action requires clientId or clientEmail.');
   }
@@ -368,6 +473,37 @@ export function findXrayClientForAction(inbound: XrayInbound, request: XrayClien
   }
 
   return client;
+}
+
+function createClientMetadataLookupKey(value: string | undefined) {
+  return normalizeClientLookup(value);
+}
+
+function assertCanAddXrayClient(inbound: XrayInbound, newClient: XrayClientTaskMetadata) {
+  const identityKey = createClientMetadataLookupKey(newClient.clientIdentity);
+  const emailKey = createClientMetadataLookupKey(newClient.clientEmail);
+  const subscriptionRuleKey = createClientMetadataLookupKey(newClient.subscriptionRule);
+
+  if (identityKey === '' && emailKey === '') {
+    throw new Error('Xray add-client action requires clientIdentity or clientEmail.');
+  }
+
+  for (const client of inbound.clients) {
+    if (identityKey !== '' && createClientMetadataLookupKey(client.id) === identityKey) {
+      throw new Error(`Xray client identity already exists for inbound ${inbound.id}.`);
+    }
+
+    if (emailKey !== '' && createClientMetadataLookupKey(client.email) === emailKey) {
+      throw new Error(`Xray client email already exists for inbound ${inbound.id}.`);
+    }
+
+    if (
+      subscriptionRuleKey !== '' &&
+      createClientMetadataLookupKey(readClientSubscriptionRule(inbound, client)) === subscriptionRuleKey
+    ) {
+      throw new Error(`Xray client subscription rule already exists for inbound ${inbound.id}.`);
+    }
+  }
 }
 
 function createPatchedClientMetadata(input: {
@@ -396,27 +532,55 @@ function createPatchedClientMetadata(input: {
 
 function createXrayClientActionMetadata(input: {
   inbound: XrayInbound;
-  targetClient: XrayClient;
+  targetClient?: XrayClient;
   action: XrayClientAction;
   observedAt: string;
   reason?: string;
 }) {
-  const patchedTargetClientMetadata = createPatchedClientMetadata({
-    inbound: input.inbound,
-    client: input.targetClient,
-    targetClient: input.targetClient,
-    action: input.action,
-    observedAt: input.observedAt
-  });
+  const newClientMetadata =
+    input.action.kind === 'add-client'
+      ? createNewClientTaskMetadata({
+          inbound: input.inbound,
+          action: input.action,
+          observedAt: input.observedAt
+        })
+      : undefined;
+  const patchedTargetClientMetadata =
+    input.targetClient && input.action.kind !== 'add-client'
+      ? createPatchedClientMetadata({
+          inbound: input.inbound,
+          client: input.targetClient,
+          targetClient: input.targetClient,
+          action: input.action,
+          observedAt: input.observedAt
+        })
+      : newClientMetadata;
+
+  if (newClientMetadata) {
+    assertCanAddXrayClient(input.inbound, newClientMetadata);
+  }
+
+  const existingTargetClient = input.action.kind === 'add-client' ? undefined : input.targetClient;
+
+  if (input.action.kind !== 'add-client' && !existingTargetClient) {
+    throw new Error('Xray client action requires an existing target client.');
+  }
+  const requiredTargetClient = existingTargetClient as XrayClient;
+
   const clients =
-    input.action.kind === 'delete-client' && input.inbound.clients.length > 1
+    input.action.kind === 'add-client' && newClientMetadata
+      ? [
+          ...input.inbound.clients.map((client) => createClientTaskMetadata(input.inbound, client, input.observedAt)),
+          newClientMetadata
+        ]
+      : input.action.kind === 'delete-client' && existingTargetClient && input.inbound.clients.length > 1
       ? input.inbound.clients
           .filter(
             (client) =>
               !isSameActionTarget(client, {
                 inboundId: input.inbound.id,
-                clientId: input.targetClient.id,
-                clientEmail: input.targetClient.email,
+                clientId: existingTargetClient.id,
+                clientEmail: existingTargetClient.email,
                 action: input.action
               })
           )
@@ -425,7 +589,7 @@ function createXrayClientActionMetadata(input: {
           createPatchedClientMetadata({
             inbound: input.inbound,
             client,
-            targetClient: input.targetClient,
+            targetClient: requiredTargetClient,
             action: input.action,
             observedAt: input.observedAt
           })
@@ -433,9 +597,15 @@ function createXrayClientActionMetadata(input: {
   const targetClientMetadata =
     clients.find(
       (client) =>
-        client.clientIdentity === readClientTaskIdentity(input.inbound, input.targetClient) ||
-        normalizeClientLookup(client.clientEmail) === normalizeClientLookup(input.targetClient.email)
+        (existingTargetClient && client.clientIdentity === readClientTaskIdentity(input.inbound, existingTargetClient)) ||
+        (existingTargetClient && normalizeClientLookup(client.clientEmail) === normalizeClientLookup(existingTargetClient.email)) ||
+        (newClientMetadata && client.clientIdentity === newClientMetadata.clientIdentity) ||
+        (newClientMetadata && normalizeClientLookup(client.clientEmail) === normalizeClientLookup(newClientMetadata.clientEmail))
     ) ?? patchedTargetClientMetadata;
+
+  if (!targetClientMetadata) {
+    throw new Error('Xray client action could not resolve target metadata.');
+  }
   const primaryClientMetadata =
     input.action.kind === 'delete-client' && clients.length > 0 ? clients[0] : targetClientMetadata;
   const activeClientCount = clients.filter(
@@ -474,7 +644,10 @@ function createXrayClientActionMetadata(input: {
     ...primaryClientMetadata,
     enabled: activeClientCount > 0,
     clients,
-    xrayReplaceClients: input.action.kind === 'delete-client' && input.inbound.clients.length > 1 ? true : undefined,
+    xrayReplaceClients:
+      input.action.kind === 'add-client' || (input.action.kind === 'delete-client' && input.inbound.clients.length > 1)
+        ? true
+        : undefined,
     xrayClientAction: input.action.kind,
     xrayClientActionLabel: actionLabel(input.action),
     xrayClientActionTargetIdentity: targetClientMetadata.clientIdentity,
@@ -523,7 +696,7 @@ export function createXrayClientActionTaskPlan(input: {
   request: XrayClientActionRequest;
   observedAt: string;
 }): XrayClientActionTaskPlan {
-  const targetClient = findXrayClientForAction(input.inbound, input.request);
+  const targetClient = input.request.action.kind === 'add-client' ? undefined : findXrayClientForAction(input.inbound, input.request);
   const operation =
     input.request.action.kind === 'delete-client' && input.inbound.clients.length <= 1 ? 'inbound.delete' : 'inbound.update';
   const metadata = createXrayClientActionMetadata({
@@ -533,11 +706,22 @@ export function createXrayClientActionTaskPlan(input: {
     observedAt: input.observedAt,
     reason: input.request.reason
   });
+  const idempotencyClient: XrayClient =
+    targetClient ??
+    {
+      id: readStringFromMetadata(metadata, 'xrayClientActionTargetIdentity'),
+      email: readStringFromMetadata(metadata, 'xrayClientActionTargetEmail'),
+      enabled: true,
+      trafficLimitBytes: 0,
+      usedTrafficBytes: 0,
+      expiresAt: input.observedAt,
+      ipLimit: 0
+    };
 
   return {
     idempotencyKey: createXrayClientActionIdempotencyKey({
       inbound: input.inbound,
-      client: targetClient,
+      client: idempotencyClient,
       action: input.request.action
     }),
     input: {
@@ -545,7 +729,11 @@ export function createXrayClientActionTaskPlan(input: {
       resourceType: 'inbound',
       targetId: input.inbound.id,
       targetLabel: input.inbound.label,
-      summary: `Xray client ${actionLabel(input.request.action)}: ${targetClient.email || targetClient.id}`,
+      summary: `Xray client ${actionLabel(input.request.action)}: ${
+        targetClient?.email ||
+        readStringFromMetadata(metadata, 'xrayClientActionTargetEmail') ||
+        readStringFromMetadata(metadata, 'xrayClientActionTargetIdentity')
+      }`,
       metadata,
       ...(operation === 'inbound.delete'
         ? {

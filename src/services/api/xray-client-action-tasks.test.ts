@@ -85,6 +85,88 @@ function createTaskFromPlan(plan: ReturnType<typeof createXrayClientActionTaskPl
 }
 
 describe('xray client action tasks', () => {
+  it('adds a client to an existing inbound with a replacement multi-client update', () => {
+    const plan = createXrayClientActionTaskPlan({
+      inbound: createInbound(),
+      request: {
+        inboundId: 'inbound-shared',
+        action: {
+          kind: 'add-client',
+          clientIdentity: 'client-carol',
+          clientEmail: 'carol@example.com',
+          clientCredential: 'carol-secret',
+          trafficLimitGb: 50,
+          remainingDays: 45,
+          ipLimit: 1,
+          subscriptionRule: 'premium:client-carol'
+        },
+        reason: 'operator add shared client'
+      },
+      observedAt
+    });
+
+    expect(plan.input).toMatchObject({
+      operation: 'inbound.update',
+      resourceType: 'inbound',
+      targetId: 'inbound-shared',
+      summary: 'Xray client add: carol@example.com',
+      metadata: expect.objectContaining({
+        enabled: true,
+        clientIdentity: 'client-carol',
+        clientEmail: 'carol@example.com',
+        clientCredential: 'carol-secret',
+        trafficLimitGb: 50,
+        remainingDays: 45,
+        ipLimit: 1,
+        subscriptionRule: 'premium:client-carol',
+        xrayReplaceClients: true,
+        xrayClientAction: 'add-client',
+        xrayClientActionTargetIdentity: 'client-carol',
+        xrayClientActionTargetEmail: 'carol@example.com',
+        xrayClientActionReason: 'operator add shared client'
+      })
+    });
+    expect(plan.input.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientIdentity: 'client-alice',
+        clientEmail: 'alice@example.com'
+      }),
+      expect.objectContaining({
+        clientIdentity: 'client-bob',
+        clientEmail: 'bob@example.com'
+      }),
+      expect.objectContaining({
+        clientIdentity: 'client-carol',
+        clientEmail: 'carol@example.com',
+        enabled: true
+      })
+    ]);
+
+    const [updatedInbound] = applyXrayInboundTask([createInbound()], createTaskFromPlan(plan));
+    expect(updatedInbound.clients.map((client) => client.email)).toEqual([
+      'alice@example.com',
+      'bob@example.com',
+      'carol@example.com'
+    ]);
+  });
+
+  it('rejects add-client requests that duplicate an existing client email', () => {
+    expect(() =>
+      createXrayClientActionTaskPlan({
+        inbound: createInbound(),
+        request: {
+          inboundId: 'inbound-shared',
+          action: {
+            kind: 'add-client',
+            clientIdentity: 'client-carol',
+            clientEmail: 'bob@example.com'
+          }
+        },
+        observedAt
+      })
+    ).toThrow(/client email already exists/);
+  });
+
   it('creates a full peer-preserving inbound.update for a single client disable', () => {
     const plan = createXrayClientActionTaskPlan({
       inbound: createInbound(),

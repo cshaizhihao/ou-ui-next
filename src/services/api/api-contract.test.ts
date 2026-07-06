@@ -1729,6 +1729,32 @@ describe('v1 API runtime contract', () => {
     expect(
       parseXrayClientActionRequest({
         inboundId: 'customer-node-hkg-01',
+        action: {
+          kind: 'add-client',
+          clientIdentity: 'client-b',
+          clientEmail: 'new-client@example.com',
+          trafficLimitGb: 80,
+          remainingDays: 45,
+          trafficMultiplier: 1.5
+        },
+        reason: 'new customer'
+      })
+    ).toEqual({
+      inboundId: 'customer-node-hkg-01',
+      action: {
+        kind: 'add-client',
+        clientIdentity: 'client-b',
+        clientEmail: 'new-client@example.com',
+        trafficLimitGb: 80,
+        remainingDays: 45,
+        trafficMultiplier: 1.5
+      },
+      reason: 'new customer'
+    });
+
+    expect(
+      parseXrayClientActionRequest({
+        inboundId: 'customer-node-hkg-01',
         clientEmail: 'acme@example.com',
         action: {
           kind: 'renew',

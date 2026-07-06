@@ -548,6 +548,53 @@ describe('HTTP control-plane server', () => {
           enabled: false
         })
       ]);
+
+      const addClientResponse = await fetch(`${baseUrl}/api/v1/xray-client-actions`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-xray-client-action-add',
+          'Idempotency-Key': 'idem-http-xray-client-action-add'
+        }),
+        body: JSON.stringify({
+          inboundId: 'inbound-http-client-action',
+          action: {
+            kind: 'add-client',
+            clientIdentity: '33333333-3333-4333-8333-333333333333',
+            clientCredential: '33333333-3333-4333-8333-333333333333',
+            clientEmail: 'carol@example.com',
+            trafficLimitGb: 50,
+            remainingDays: 90,
+            subscriptionRule: 'premium:carol'
+          }
+        })
+      });
+      const addClientEnvelope = await addClientResponse.json();
+
+      expect(addClientResponse.status).toBe(202);
+      expect(addClientEnvelope.data).toMatchObject({
+        operation: 'inbound.update',
+        targetId: 'inbound-http-client-action',
+        metadata: expect.objectContaining({
+          xrayReplaceClients: true,
+          xrayClientAction: 'add-client',
+          xrayClientActionTargetEmail: 'carol@example.com',
+          subscriptionRule: 'premium:carol'
+        })
+      });
+      expect(addClientEnvelope.data.metadata.clients).toEqual([
+        expect.objectContaining({
+          clientEmail: 'alice@example.com'
+        }),
+        expect.objectContaining({
+          clientEmail: 'bob@example.com',
+          enabled: false
+        }),
+        expect.objectContaining({
+          clientEmail: 'carol@example.com',
+          enabled: true,
+          trafficLimitGb: 50
+        })
+      ]);
     });
   });
 
