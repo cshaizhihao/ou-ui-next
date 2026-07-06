@@ -19,6 +19,7 @@ import {
   type XrayClient,
   type XrayClientResetPolicy,
   type XrayInbound,
+  type XrayInboundStatus,
   type XrayRuntimeProtocol,
   type XrayStreamSettings
 } from './protocol';
@@ -477,6 +478,14 @@ function createXrayClientsFromTask(input: {
   });
 }
 
+function resolveXrayInboundStatus(task: DeployTask, clients: XrayClient[], inboundEnabled: boolean): XrayInboundStatus {
+  if (!inboundEnabled || clients.every((client) => !client.enabled)) {
+    return 'disabled';
+  }
+
+  return task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task) ? 'enabled' : 'applying';
+}
+
 export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undefined {
   if (task.operation !== 'inbound.create' && task.operation !== 'inbound.update') {
     return undefined;
@@ -520,12 +529,7 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
     label: readString(metadata, 'customerNodeName', task.targetLabel),
     listenAddress: readString(metadata, 'listenAddress', '0.0.0.0'),
     listenPort,
-    status:
-      !enabled || clients.every((client) => !client.enabled)
-        ? 'disabled'
-        : task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task)
-          ? 'enabled'
-          : 'applying',
+    status: resolveXrayInboundStatus(task, clients, enabled),
     clients,
     streamSettings: {
       network: readStreamNetwork(metadata),
@@ -566,6 +570,53 @@ export function createXrayInboundFromTask(task: DeployTask): XrayInbound | undef
   };
 }
 
+function isSameXrayClient(left: XrayClient, right: XrayClient) {
+  return (
+    (left.id.trim() !== '' && left.id === right.id)
+    || (left.email.trim() !== '' && left.email === right.email)
+  );
+}
+
+function mergeXrayClientReadModel(nextClient: XrayClient, existingClient: XrayClient | undefined): XrayClient {
+  if (!existingClient) {
+    return nextClient;
+  }
+
+  return {
+    ...nextClient,
+    usedTrafficBytes: nextClient.usedTrafficBytes,
+    manualUsedTrafficBytes: nextClient.manualUsedTrafficBytes,
+    uplinkBytes: existingClient.uplinkBytes ?? nextClient.uplinkBytes,
+    downlinkBytes: existingClient.downlinkBytes ?? nextClient.downlinkBytes,
+    lastTrafficSampleAt: existingClient.lastTrafficSampleAt ?? nextClient.lastTrafficSampleAt,
+    trafficBillingPeriod: existingClient.trafficBillingPeriod ?? nextClient.trafficBillingPeriod,
+    quotaExceeded: nextClient.quotaExceeded ?? existingClient.quotaExceeded,
+    clientExpired: nextClient.clientExpired ?? existingClient.clientExpired,
+    runtimeDisabledByPolicy: nextClient.runtimeDisabledByPolicy ?? existingClient.runtimeDisabledByPolicy,
+    guardrailReason: nextClient.guardrailReason ?? existingClient.guardrailReason
+  };
+}
+
+function shouldPatchSingleExistingXrayClient(input: {
+  task: DeployTask;
+  existingInbound: XrayInbound;
+  nextInbound: XrayInbound;
+}) {
+  if (input.task.operation !== 'inbound.update') {
+    return false;
+  }
+
+  if (readBoolean(input.task.metadata, 'xrayReplaceClients', false) || readBoolean(input.task.metadata, 'replaceClients', false)) {
+    return false;
+  }
+
+  if (input.existingInbound.clients.length <= 1 || input.nextInbound.clients.length !== 1) {
+    return false;
+  }
+
+  return input.existingInbound.clients.some((client) => isSameXrayClient(client, input.nextInbound.clients[0]));
+}
+
 export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) {
   if (task.operation === 'inbound.delete') {
     return inbounds.filter((inbound) => inbound.id !== task.targetId);
@@ -585,32 +636,27 @@ export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) 
     existingClientsByKey.set(client.email, client);
   });
 
-  const mergedInbound = existingInbound
-    ? {
-        ...nextInbound,
-        clients: nextInbound.clients.map((nextClient) => {
-          const existingClient = existingClientsByKey.get(nextClient.id) ?? existingClientsByKey.get(nextClient.email);
+  if (!existingInbound) {
+    return [nextInbound, ...inbounds.filter((inbound) => inbound.id !== nextInbound.id)];
+  }
 
-          if (!existingClient) {
-            return nextClient;
-          }
-
-          return {
-            ...nextClient,
-            usedTrafficBytes: nextClient.usedTrafficBytes,
-            manualUsedTrafficBytes: nextClient.manualUsedTrafficBytes,
-            uplinkBytes: existingClient.uplinkBytes ?? nextClient.uplinkBytes,
-            downlinkBytes: existingClient.downlinkBytes ?? nextClient.downlinkBytes,
-            lastTrafficSampleAt: existingClient.lastTrafficSampleAt ?? nextClient.lastTrafficSampleAt,
-            trafficBillingPeriod: existingClient.trafficBillingPeriod ?? nextClient.trafficBillingPeriod,
-            quotaExceeded: nextClient.quotaExceeded ?? existingClient.quotaExceeded,
-            clientExpired: nextClient.clientExpired ?? existingClient.clientExpired,
-            runtimeDisabledByPolicy: nextClient.runtimeDisabledByPolicy ?? existingClient.runtimeDisabledByPolicy,
-            guardrailReason: nextClient.guardrailReason ?? existingClient.guardrailReason
-          };
-        })
-      }
-    : nextInbound;
+  const nextClients = nextInbound.clients.map((nextClient) =>
+    mergeXrayClientReadModel(nextClient, existingClientsByKey.get(nextClient.id) ?? existingClientsByKey.get(nextClient.email))
+  );
+  const shouldPatchSingleClient = shouldPatchSingleExistingXrayClient({ task, existingInbound, nextInbound });
+  const mergedClients = shouldPatchSingleClient
+    ? existingInbound.clients.map((existingClient) =>
+        isSameXrayClient(existingClient, nextInbound.clients[0]) ? nextClients[0] : existingClient
+      )
+    : nextClients;
+  const inboundEnabled = shouldPatchSingleClient
+    ? mergedClients.some((client) => client.enabled)
+    : readBoolean(task.metadata, 'enabled', true);
+  const mergedInbound = {
+    ...nextInbound,
+    status: resolveXrayInboundStatus(task, mergedClients, inboundEnabled),
+    clients: mergedClients
+  };
 
   return [mergedInbound, ...inbounds.filter((inbound) => inbound.id !== mergedInbound.id)];
 }

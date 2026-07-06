@@ -303,6 +303,130 @@ describe('task read models', () => {
     ]);
   });
 
+  it('patches a single existing Xray client without dropping peers from a multi-client inbound', () => {
+    const initialInbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Shared Inbound',
+        xrayProtocol: 'vless',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com'
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com'
+          }
+        ]
+      })
+    );
+
+    expect(initialInbound).toBeDefined();
+
+    const existingInbound = {
+      ...initialInbound!,
+      status: 'enabled' as const,
+      clients: initialInbound!.clients.map((client, index) => ({
+        ...client,
+        uplinkBytes: index === 0 ? 1024 : 2048,
+        downlinkBytes: index === 0 ? 4096 : 8192,
+        lastTrafficSampleAt: '2026-06-04T00:10:00.000Z',
+        trafficBillingPeriod: '2026-06'
+      }))
+    };
+    const [updatedInbound] = applyXrayInboundTask(
+      [existingInbound],
+      {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Shared Inbound',
+          xrayProtocol: 'vless',
+          enabled: false,
+          clients: [
+            {
+              clientIdentity: 'alice',
+              clientCredential: 'alice-token',
+              clientEmail: 'alice@example.com',
+              trafficLimitGb: 300,
+              enabled: false
+            }
+          ]
+        }),
+        operation: 'inbound.update'
+      }
+    );
+
+    expect(updatedInbound.status).toBe('applying');
+    expect(updatedInbound.clients).toHaveLength(2);
+    expect(updatedInbound.clients[0]).toMatchObject({
+      email: 'alice@example.com',
+      enabled: false,
+      uplinkBytes: 1024,
+      downlinkBytes: 4096,
+      trafficLimitBytes: 300 * 1024 * 1024 * 1024
+    });
+    expect(updatedInbound.clients[1]).toMatchObject({
+      email: 'bob@example.com',
+      enabled: true,
+      uplinkBytes: 2048,
+      downlinkBytes: 8192,
+      trafficBillingPeriod: '2026-06'
+    });
+  });
+
+  it('allows explicit Xray client list replacement when requested', () => {
+    const initialInbound = createXrayInboundFromTask(
+      createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Shared Inbound',
+        xrayProtocol: 'vless',
+        clients: [
+          {
+            clientIdentity: 'alice',
+            clientCredential: 'alice-token',
+            clientEmail: 'alice@example.com'
+          },
+          {
+            clientIdentity: 'bob',
+            clientCredential: 'bob-token',
+            clientEmail: 'bob@example.com'
+          }
+        ]
+      })
+    );
+
+    expect(initialInbound).toBeDefined();
+
+    const [updatedInbound] = applyXrayInboundTask(
+      [initialInbound!],
+      {
+        ...createInboundTask({
+          agentId: 'agent-hkg-01',
+          customerName: 'Acme',
+          customerNodeName: 'Acme Shared Inbound',
+          xrayProtocol: 'vless',
+          xrayReplaceClients: true,
+          clients: [
+            {
+              clientIdentity: 'alice',
+              clientCredential: 'alice-token',
+              clientEmail: 'alice@example.com'
+            }
+          ]
+        }),
+        operation: 'inbound.update'
+      }
+    );
+
+    expect(updatedInbound.clients.map((client) => client.email)).toEqual(['alice@example.com']);
+  });
+
   it('applies explicit Xray client policy evidence from update tasks instead of keeping stale guardrail state', () => {
     const initialInbound = createXrayInboundFromTask(
       createInboundTask({
