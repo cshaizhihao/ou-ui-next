@@ -1910,6 +1910,7 @@ export function createControlPlaneService({
     }
   >();
   const agentCredentialLastUsedPersistedAt = new Map<string, number>();
+  const agentSessionHotLastSeq = new Map<string, number>();
   const readNow = () => readClock();
   const nextObservedAt = () => {
     sequence += 1;
@@ -2653,11 +2654,16 @@ export function createControlPlaneService({
     }
 
     const existingSession = await transaction.findAgentSession(agentEvent.agentId, agentEvent.sessionId);
+    const sessionKey = `${agentEvent.agentId}\0${agentEvent.sessionId}`;
+    const hotLastSeq = agentSessionHotLastSeq.get(sessionKey);
+    const lastAcceptedSeq = Math.max(existingSession?.lastSeq ?? 0, hotLastSeq ?? 0);
 
-    if (existingSession && agentEvent.seq <= existingSession.lastSeq) {
+    if (lastAcceptedSeq > 0 && agentEvent.seq <= lastAcceptedSeq) {
       if (isHighFrequencyAgentEvent(agentEvent)) {
         return {
-          duplicate: true
+          duplicate: true,
+          persistedRawEvidence: false,
+          persistedSession: false
         };
       }
 
@@ -2680,24 +2686,37 @@ export function createControlPlaneService({
       nextCapabilities = readAgentCredentialRuntimeCapabilities(runtimeCredential);
     }
 
-    if (shouldPersistAgentEventRawEvidence(agentEvent, existingSession, highFrequencyAgentEventPersistence)) {
+    const shouldPersistRawAgentEvent = shouldPersistAgentEventRawEvidence(
+      agentEvent,
+      existingSession,
+      highFrequencyAgentEventPersistence
+    );
+
+    if (shouldPersistRawAgentEvent) {
       await transaction.insertAgentEvent(agentEvent);
     }
 
-    await transaction.upsertAgentSession({
-      agentId: agentEvent.agentId,
-      sessionId: agentEvent.sessionId,
-      status: 'online',
-      lastSeq: agentEvent.seq,
-      lastSeenCommandSeq:
-        agentEvent.type === 'heartbeat'
-          ? agentEvent.payload.lastSeenCommandSeq
-          : existingSession?.lastSeenCommandSeq,
-      version: agentEvent.type === 'heartbeat' ? agentEvent.payload.version : existingSession?.version,
-      capabilities: nextCapabilities,
-      lastHeartbeatAt: agentEvent.type === 'heartbeat' ? agentEvent.observedAt : existingSession?.lastHeartbeatAt,
-      updatedAt: agentEvent.observedAt
-    });
+    const shouldPersistAgentSession =
+      !existingSession || !isHighFrequencyAgentEvent(agentEvent) || shouldPersistRawAgentEvent;
+
+    if (shouldPersistAgentSession) {
+      await transaction.upsertAgentSession({
+        agentId: agentEvent.agentId,
+        sessionId: agentEvent.sessionId,
+        status: 'online',
+        lastSeq: agentEvent.seq,
+        lastSeenCommandSeq:
+          agentEvent.type === 'heartbeat'
+            ? agentEvent.payload.lastSeenCommandSeq
+            : existingSession?.lastSeenCommandSeq,
+        version: agentEvent.type === 'heartbeat' ? agentEvent.payload.version : existingSession?.version,
+        capabilities: nextCapabilities,
+        lastHeartbeatAt: agentEvent.type === 'heartbeat' ? agentEvent.observedAt : existingSession?.lastHeartbeatAt,
+        updatedAt: agentEvent.observedAt
+      });
+    }
+
+    agentSessionHotLastSeq.set(sessionKey, Math.max(agentEvent.seq, lastAcceptedSeq));
 
     if (agentEvent.type === 'log_chunk') {
       const persistedAgentLogRetention = await transaction.getAgentLogRetentionPolicy();
@@ -2716,7 +2735,9 @@ export function createControlPlaneService({
     }
 
     return {
-      duplicate: false
+      duplicate: false,
+      persistedRawEvidence: shouldPersistRawAgentEvent,
+      persistedSession: shouldPersistAgentSession
     };
   }
 
@@ -3978,7 +3999,7 @@ export function createControlPlaneService({
         if (agentEvent.type === 'heartbeat' || agentEvent.type === 'telemetry_sample') {
           const recorded = await recordAgentEventSession(transaction, agentEvent, archiveSinkBatches);
 
-          if (!recorded.duplicate && agentEvent.type === 'telemetry_sample') {
+          if (!recorded.duplicate && recorded.persistedRawEvidence && agentEvent.type === 'telemetry_sample') {
             for (const trafficRollup of createTrafficRollupsFromAgentTelemetry(agentEvent)) {
               await transaction.insertTrafficRollup(trafficRollup);
             }

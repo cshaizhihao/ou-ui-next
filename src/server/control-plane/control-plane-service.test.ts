@@ -3218,7 +3218,7 @@ describe('control-plane service', () => {
       expect.objectContaining({
         agentId: 'agent-hkg-01',
         sessionId: 'sess-agent-hkg-known-capabilities',
-        lastSeq: 2,
+        lastSeq: 1,
         capabilities: ['xray', 'telemetry']
       })
     ]);
@@ -3263,6 +3263,17 @@ describe('control-plane service', () => {
         lastSeenCommandSeq: 1
       }
     });
+    await expect(repository.listAgentSessions()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-sampled',
+        lastSeq: 1,
+        lastSeenCommandSeq: 0,
+        lastHeartbeatAt: '2026-06-02T00:00:01.000Z',
+        version: '1.0.0',
+        capabilities: ['xray']
+      })
+    ]);
     await service.receiveAgentEvent({
       type: 'heartbeat',
       eventId: 'evt-sampled-heartbeat-003',
@@ -3383,7 +3394,7 @@ describe('control-plane service', () => {
     await expect(repository.listAgentEvents()).resolves.toHaveLength(1);
   });
 
-  it('samples routine telemetry raw evidence while preserving traffic rollups', async () => {
+  it('samples routine telemetry raw evidence and rollup writes', async () => {
     const repository = createInMemoryControlPlaneRepository({
       forwardRules: seedForwardRules,
       permissionGrants: seedPermissionGrants
@@ -3424,16 +3435,12 @@ describe('control-plane service', () => {
     );
     expect(agentEvents.some((event) => event.eventId === 'evt-sampled-telemetry-002')).toBe(false);
     const trafficRollups = await repository.listTrafficRollups();
-    expect(trafficRollups).toHaveLength(3);
+    expect(trafficRollups).toHaveLength(2);
     expect(trafficRollups).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'traffic-evt-sampled-telemetry-001-agent',
           meteredBytes: 3000
-        }),
-        expect.objectContaining({
-          id: 'traffic-evt-sampled-telemetry-002-agent',
-          meteredBytes: 6000
         }),
         expect.objectContaining({
           id: 'traffic-evt-sampled-telemetry-003-agent',
@@ -3466,7 +3473,7 @@ describe('control-plane service', () => {
         }
       })
     ).resolves.toBeUndefined();
-    await expect(repository.listTrafficRollups()).resolves.toHaveLength(3);
+    await expect(repository.listTrafficRollups()).resolves.toHaveLength(2);
   });
 
   it('rejects stale Agent events for the same session sequence window', async () => {

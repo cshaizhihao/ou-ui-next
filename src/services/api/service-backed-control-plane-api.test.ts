@@ -2892,18 +2892,24 @@ describe('service-backed control plane read model hydration', () => {
       }
     });
 
-    for (const index of [0, 1, 2]) {
+    const telemetrySamples = [
+      { sample: 1, seq: 1 },
+      { sample: 2, seq: 5 },
+      { sample: 3, seq: 10 }
+    ];
+
+    for (const { sample, seq } of telemetrySamples) {
       await restartedApi.receiveAgentEvent({
         type: 'telemetry_sample',
-        eventId: `evt-agent-hkg-traffic-rollup-retention-${index + 1}`,
+        eventId: `evt-agent-hkg-traffic-rollup-retention-${sample}`,
         agentId: 'agent-hkg-01',
-        seq: index + 1,
+        seq,
         sessionId: 'sess-agent-hkg-traffic-retention',
-        observedAt: new Date(Date.parse('2026-06-05T00:00:00.000Z') + index * 10_000).toISOString(),
+        observedAt: new Date(Date.parse('2026-06-05T00:00:00.000Z') + (sample - 1) * 10_000).toISOString(),
         payload: {
           monthlyResetDay: 1,
-          monthlyIngressBytes: 1024 * (index + 1),
-          monthlyEgressBytes: 2048 * (index + 1),
+          monthlyIngressBytes: 1024 * sample,
+          monthlyEgressBytes: 2048 * sample,
           trafficBillingPeriod: '2026-06-reset-01'
         }
       });

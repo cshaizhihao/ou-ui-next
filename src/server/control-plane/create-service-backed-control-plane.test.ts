@@ -721,7 +721,7 @@ describe('createServiceBackedControlPlane', () => {
         });
       }
 
-      for (const index of [0, 1]) {
+      for (const index of [0, 4]) {
         await controlPlane.api.receiveAgentEvent({
           type: 'telemetry_sample',
           eventId: `evt-external-archive-traffic-${index + 1}`,

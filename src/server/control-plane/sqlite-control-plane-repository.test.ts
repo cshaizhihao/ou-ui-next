@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
 import { AGENT_INSTALL_PROFILE } from '../../domain';
+import { createControlPlaneTestClock } from '../../test/control-plane-clock';
 import { createAgentCredentialTokenHash } from './agent-credentials';
+import { createControlPlaneService } from './control-plane-service';
 import { createSqliteControlPlaneRepository } from './sqlite-control-plane-repository';
 import { createEmptyControlPlaneRepositoryState } from './stateful-control-plane-repository';
 
@@ -122,6 +124,22 @@ function installEntityIndexFullRebuildFailureTriggerExceptTrafficRollups(databas
       WHEN OLD.entity_type <> 'traffic-rollup'
       BEGIN
         SELECT RAISE(FAIL, 'entity index full rebuild is not allowed in this test');
+      END;
+    `);
+  } finally {
+    database.close();
+  }
+}
+
+function installStatePayloadUpdateFailureTrigger(databaseFilePath: string) {
+  const database = new Database(databaseFilePath);
+
+  try {
+    database.exec(`
+      CREATE TRIGGER fail_control_plane_state_update
+      BEFORE UPDATE ON control_plane_state
+      BEGIN
+        SELECT RAISE(FAIL, 'control_plane_state update is not allowed in this test');
       END;
     `);
   } finally {
@@ -306,6 +324,67 @@ describe('sqlite control-plane repository', () => {
           agentId: 'agent-fast-events-01',
           sessionId: 'sess-fast-events',
           status: 'online'
+        })
+      ]);
+    });
+  });
+
+  it('skips sqlite state writes for unsampled routine Agent heartbeats', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+      const service = createControlPlaneService({
+        repository,
+        now: createControlPlaneTestClock(),
+        highFrequencyAgentEventPersistence: {
+          persistEvery: 3
+        }
+      });
+
+      await service.receiveAgentEvent({
+        type: 'heartbeat',
+        eventId: 'evt-sqlite-sampled-heartbeat-001',
+        agentId: 'agent-sqlite-sampled',
+        seq: 1,
+        sessionId: 'sess-sqlite-sampled',
+        observedAt: '2026-06-05T00:01:00.000Z',
+        payload: {
+          version: '1.0.0',
+          capabilities: ['host-agent', 'xray'],
+          lastSeenCommandSeq: 0
+        }
+      });
+
+      installStatePayloadUpdateFailureTrigger(databaseFilePath);
+
+      await expect(
+        service.receiveAgentEvent({
+          type: 'heartbeat',
+          eventId: 'evt-sqlite-sampled-heartbeat-002',
+          agentId: 'agent-sqlite-sampled',
+          seq: 2,
+          sessionId: 'sess-sqlite-sampled',
+          observedAt: '2026-06-05T00:01:01.000Z',
+          payload: {
+            version: '1.0.1',
+            capabilities: ['host-agent', 'xray', 'telemetry'],
+            lastSeenCommandSeq: 1
+          }
+        })
+      ).resolves.toBeUndefined();
+
+      await expect(repository.listAgentEvents()).resolves.toEqual([
+        expect.objectContaining({
+          eventId: 'evt-sqlite-sampled-heartbeat-001',
+          seq: 1
+        })
+      ]);
+      await expect(repository.listAgentSessions()).resolves.toEqual([
+        expect.objectContaining({
+          agentId: 'agent-sqlite-sampled',
+          sessionId: 'sess-sqlite-sampled',
+          lastSeq: 1,
+          lastSeenCommandSeq: 0,
+          version: '1.0.0'
         })
       ]);
     });

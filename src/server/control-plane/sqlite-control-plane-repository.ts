@@ -871,6 +871,68 @@ function createEntityIndexingTransaction(
   };
 }
 
+const CONTROL_PLANE_MUTATION_METHODS: Array<keyof ControlPlaneTransaction> = [
+  'insertTask',
+  'updateTask',
+  'insertAuditLog',
+  'updateCommandOutboxItem',
+  'insertCommandOutbox',
+  'insertAgentEvent',
+  'setAgentLogRetentionPolicy',
+  'pruneAgentLogEvents',
+  'setTrafficRollupRetentionPolicy',
+  'pruneTrafficRollups',
+  'upsertAgentSession',
+  'upsertOperatorSession',
+  'upsertAgentCredential',
+  'insertIdempotencyRecord',
+  'upsertSubscriptionSource',
+  'deleteSubscriptionSource',
+  'upsertSubscriptionClient',
+  'deleteSubscriptionClient',
+  'upsertSubscriptionExportProfile',
+  'deleteSubscriptionExportProfile',
+  'replaceSubscriptionInventoryNodesForSource',
+  'replaceSystemAlertRecords',
+  'replaceSystemAlertNotificationDeliveries',
+  'setTelegramBotSettings',
+  'setTelegramBotSecrets',
+  'upsertTelegramChatBinding',
+  'upsertTelegramCustomerBinding',
+  'upsertTelegramBindingChallenge',
+  'upsertTelegramBindingChallengeSecret',
+  'upsertTelegramNotificationPolicy',
+  'replaceTelegramNotificationDeliveries',
+  'upsertTelegramNotificationDelivery',
+  'upsertPermissionGrant',
+  'insertConfigRevision',
+  'updateConfigRevision',
+  'insertPreflightPlan',
+  'updatePreflightPlan',
+  'insertRuntimeSnapshot',
+  'updateRuntimeSnapshot',
+  'insertTrafficRollup',
+  'upsertTrafficRollupCompactions'
+];
+
+function createDirtyTrackingTransaction(
+  transaction: ControlPlaneTransaction,
+  markDirty: () => void
+): ControlPlaneTransaction {
+  const tracked = { ...transaction } as Record<keyof ControlPlaneTransaction, unknown>;
+
+  for (const methodName of CONTROL_PLANE_MUTATION_METHODS) {
+    const method = transaction[methodName] as (...args: unknown[]) => Promise<unknown>;
+
+    tracked[methodName] = async (...args: unknown[]) => {
+      markDirty();
+      return method(...args);
+    };
+  }
+
+  return tracked as ControlPlaneTransaction;
+}
+
 function readMaxHighFrequencyAgentEventsPerType() {
   const rawValue = process.env[SQLITE_MAX_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE_ENV];
   const parsedValue = rawValue ? Number.parseInt(rawValue, 10) : NaN;
@@ -1021,9 +1083,15 @@ export async function createSqliteControlPlaneRepository(
         try {
           const draft = readStateFromDatabase(database, input.databaseFilePath);
           const tracker = createEntityIndexMutationTracker(draft);
-          const result = await run(createEntityIndexingTransaction(createControlPlaneTransaction(draft), tracker));
+          let dirty = false;
+          const transaction = createDirtyTrackingTransaction(createControlPlaneTransaction(draft), () => {
+            dirty = true;
+          });
+          const result = await run(createEntityIndexingTransaction(transaction, tracker));
 
-          writeStateToDatabase(database, draft, input.databaseFilePath, tracker.mutations);
+          if (dirty) {
+            writeStateToDatabase(database, draft, input.databaseFilePath, tracker.mutations);
+          }
           database.exec('COMMIT');
 
           return clone(result);

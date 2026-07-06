@@ -164,6 +164,7 @@ describe('HTTP control-plane service-backed API', () => {
         })
       });
 
+      const sampledHeartbeatSeq = Math.ceil((pendingCommand.seq + 1) / 5) * 5;
       const heartbeatResponse = await fetch(`${baseUrl}/agent/v1/events`, {
         method: 'POST',
         headers: {
@@ -175,7 +176,7 @@ describe('HTTP control-plane service-backed API', () => {
               type: 'heartbeat',
               eventId: 'evt-service-api-agent-session-heartbeat',
               agentId: pendingCommand.agentId,
-              seq: pendingCommand.seq + 10,
+              seq: sampledHeartbeatSeq,
               sessionId: 'sess-service-api-agent-session',
               observedAt: '2026-06-02T00:00:30.000Z',
               payload: {
@@ -199,7 +200,7 @@ describe('HTTP control-plane service-backed API', () => {
           agentId: pendingCommand.agentId,
           sessionId: 'sess-service-api-agent-session',
           status: 'online',
-          lastSeq: pendingCommand.seq + 10,
+          lastSeq: sampledHeartbeatSeq,
           lastSeenCommandSeq: pendingCommand.seq,
           version: '1.2.3-agent',
           lastHeartbeatAt: '2026-06-02T00:00:30.000Z'
