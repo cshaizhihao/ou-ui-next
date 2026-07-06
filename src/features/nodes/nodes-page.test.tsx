@@ -2303,6 +2303,124 @@ describe('NodesPage', () => {
     expect(onSaveCustomerNode).not.toHaveBeenCalled();
   });
 
+  it('surfaces selected customer-node context actions tied to runtime evidence and clients', async () => {
+    const user = userEvent.setup();
+    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            configVersion: 'cfg-task-xray-apply-01',
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:05:00.000Z',
+              agentIds: ['agent-metered-01'],
+              commandIds: ['cmd-task-xray-apply-01'],
+              appliedConfigRevisions: ['cfg-task-xray-apply-01']
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[createRuntimeTask()]}
+        commandOutbox={[createRuntimeCommand()]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
+        onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Acme Premium VLESS' }));
+
+    const contextBar = screen.getByRole('region', { name: 'Customer Node Actions' });
+    expect(within(contextBar).getByText('Single Node')).toBeInTheDocument();
+    expect(within(contextBar).getByText('1 selected')).toBeInTheDocument();
+    expect(within(contextBar).getByText('Runtime Evidence: Verified')).toBeInTheDocument();
+    expect(within(contextBar).getByText('vless:443')).toBeInTheDocument();
+    expect(within(contextBar).getByText('1 clients')).toBeInTheDocument();
+
+    await user.click(within(contextBar).getByRole('button', { name: 'Renew' }));
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledWith({
+      inboundId: 'inbound-premium-vless',
+      clientId: 'client-acme-premium',
+      clientEmail: 'acme-premium@example.com',
+      action: {
+        kind: 'renew',
+        addedDays: 30
+      },
+      reason: 'customer-node:renew'
+    }));
+
+    await user.click(within(contextBar).getByRole('button', { name: 'Manage Clients' }));
+    expect(screen.getByRole('dialog', { name: /Inbound Clients/ })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Inbound Clients/ })).not.toBeInTheDocument());
+
+    await user.click(within(contextBar).getByRole('button', { name: /View runtime evidence/i }));
+    expect(screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' })).toBeInTheDocument();
+  });
+
+  it('runs multi-selected customer-node context actions through the typed bulk path', async () => {
+    const user = userEvent.setup();
+    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal('confirm', confirm);
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[createInbound(), createBetaInbound()]}
+        language="en"
+        workspaceMode="customerNodes"
+        onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Visible Customer Nodes' }));
+
+    const contextBar = screen.getByRole('region', { name: 'Customer Node Actions' });
+    expect(within(contextBar).getByText('Bulk Actions')).toBeInTheDocument();
+    expect(within(contextBar).getByText('2 selected')).toBeInTheDocument();
+    expect(within(contextBar).getByText('2 Affected Customers')).toBeInTheDocument();
+    expect(within(contextBar).getByText('2 Inbound Ports')).toBeInTheDocument();
+
+    await user.click(within(contextBar).getByRole('button', { name: 'Bulk Add Traffic 100GB' }));
+
+    await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(2));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Add 100 GB to 2 selected customer nodes'));
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      inboundId: 'inbound-premium-vless',
+      action: {
+        kind: 'add-traffic',
+        addedTrafficGb: 100
+      },
+      reason: 'customer-node:bulk-add-traffic'
+    }));
+    expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      inboundId: 'inbound-beta-vless',
+      action: {
+        kind: 'add-traffic',
+        addedTrafficGb: 100
+      },
+      reason: 'customer-node:bulk-add-traffic'
+    }));
+  });
+
   it('shows inbound clients in a drawer and submits per-client typed actions', async () => {
     const user = userEvent.setup();
     const onApplyCustomerNodeClientAction = vi.fn(async (input: CustomerNodeClientActionMutation) => ({

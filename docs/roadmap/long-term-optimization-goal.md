@@ -117,6 +117,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Failed shared-inbound client action feedback now surfaces the first runtime failure reason and can copy a safe task-scoped diagnostic package with task, command, config revision, preflight, and snapshot summaries while excluding command payloads, runtime snapshot state, artifact bodies, and client credentials.
 - Failed shared-inbound client action feedback now also provides direct release-evidence workspace and rollback actions from the same contextual bar, reusing the existing runtime evidence and rollback mutation paths instead of forcing operators to hunt through the task workspace after a failed client action.
 - Task release evidence now derives a step-level next runtime action for command, Agent result, config revision, preflight, and snapshot states, shows that action in the runtime verification strip, and includes the same structured action hints in copied task context and failure evidence packages.
+- Customer-node selection now opens a sticky contextual action bar with single-node client management, runtime evidence, links, edit, quota, renewal, enable/disable actions and multi-node typed bulk actions, reducing the need to hunt through row-end controls or expand the advanced bulk panel for common workflows.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

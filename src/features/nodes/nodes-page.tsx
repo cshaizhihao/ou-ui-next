@@ -26,7 +26,8 @@ import {
   Terminal,
   Trash2,
   Upload,
-  UserRound
+  UserRound,
+  X
 } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
@@ -465,6 +466,7 @@ type CustomerRuntimeReadiness = {
   state: CustomerRuntimeReadinessState;
   summary: string;
 };
+type CustomerNodeContextButtonTone = 'neutral' | 'primary' | 'success' | 'danger';
 
 type DrawerState =
   | { type: 'closed' }
@@ -779,6 +781,13 @@ const copy = {
     selectVisibleCustomerNodes: '选择当前客户节点',
     selectCustomerNode: '选择',
     selectedCustomerNodes: '已选客户节点',
+    customerNodeContextBar: '客户节点动作',
+    customerNodeContextSingle: '单节点操作',
+    customerNodeContextBulk: '批量操作',
+    customerNodeContextClear: '清除选择',
+    customerNodeContextRuntimeState: '运行时证据',
+    customerNodeContextClientCount: (count: string) => `${count} 客户端`,
+    customerNodeContextSelectedCount: (count: string) => `${count} 已选`,
     bulkCopyCustomerNodeLinks: '批量复制链接',
     bulkResetCustomerNodeTraffic: '批量重置流量',
     bulkResetCustomerNodeUsedTraffic: '批量清已用流量',
@@ -1205,6 +1214,13 @@ const copy = {
     selectVisibleCustomerNodes: 'Select Visible Customer Nodes',
     selectCustomerNode: 'Select',
     selectedCustomerNodes: 'Selected Customer Nodes',
+    customerNodeContextBar: 'Customer Node Actions',
+    customerNodeContextSingle: 'Single Node',
+    customerNodeContextBulk: 'Bulk Actions',
+    customerNodeContextClear: 'Clear Selection',
+    customerNodeContextRuntimeState: 'Runtime Evidence',
+    customerNodeContextClientCount: (count: string) => `${count} clients`,
+    customerNodeContextSelectedCount: (count: string) => `${count} selected`,
     bulkCopyCustomerNodeLinks: 'Bulk Copy Links',
     bulkResetCustomerNodeTraffic: 'Bulk Reset Traffic',
     bulkResetCustomerNodeUsedTraffic: 'Bulk Reset Used Traffic',
@@ -2643,6 +2659,213 @@ function CustomerNodeRuntimeEvidenceStrip({
         <span>{t.customerRuntimeEvidenceCommandCount(commandCount)}</span>
         <span>{t.customerRuntimeEvidenceConfig(configRevision || '-')}</span>
       </div>
+    </button>
+  );
+}
+
+function CustomerNodeContextActionBar({
+  bulkImpactSummary,
+  bulkRenewDays,
+  bulkTrafficGb,
+  clientCount,
+  evidence,
+  node,
+  onAddTraffic,
+  onBulkAddTraffic,
+  onBulkDisable,
+  onBulkEnable,
+  onBulkRenew,
+  onBulkResetUsedTraffic,
+  onClearSelection,
+  onCopySelectedLinks,
+  onCopyShare,
+  onCopySubscription,
+  onEdit,
+  onManageClients,
+  onOpenEvidence,
+  onOpenLinks,
+  onRenew,
+  onResetTraffic,
+  onSetEnabled,
+  selectedCount,
+  t
+}: {
+  bulkImpactSummary: CustomerNodeBulkImpactSummary;
+  bulkRenewDays: string;
+  bulkTrafficGb: string;
+  clientCount?: number;
+  evidence?: CustomerNodeRuntimeEvidenceBundle;
+  node?: CustomerNodeRecord;
+  onAddTraffic: () => void;
+  onBulkAddTraffic: () => void;
+  onBulkDisable: () => void;
+  onBulkEnable: () => void;
+  onBulkRenew: () => void;
+  onBulkResetUsedTraffic: () => void;
+  onClearSelection: () => void;
+  onCopySelectedLinks: () => void;
+  onCopyShare: () => void;
+  onCopySubscription: () => void;
+  onEdit: () => void;
+  onManageClients: () => void;
+  onOpenEvidence: () => void;
+  onOpenLinks: () => void;
+  onRenew: () => void;
+  onResetTraffic?: () => void;
+  onSetEnabled: (enabled: boolean) => void;
+  selectedCount: number;
+  t: NodesCopy;
+}) {
+  if (selectedCount === 0) {
+    return null;
+  }
+
+  const singleSelection = selectedCount === 1 && node;
+  const evidenceState = evidence?.state ?? 'waiting';
+  const evidenceTone = {
+    verified: 'border-[#00A878]/35 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    failed: 'border-[#DC2626]/40 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]',
+    waiting: 'border-[#FFB020]/35 bg-[#FFF3C4]/55 text-[#8A5A00] dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10 dark:text-[#FFD166]'
+  } satisfies Record<CustomerNodeRuntimeEvidenceState, string>;
+  const clientLabel = t.customerNodeContextClientCount(String(clientCount ?? 1));
+
+  return (
+    <section
+      aria-label={t.customerNodeContextBar}
+      className="sticky top-0 z-20 border-b border-[#07111F]/16 bg-[#FFFDF5]/95 px-3 py-3 shadow-[0_12px_32px_rgba(7,17,31,0.08)] backdrop-blur dark:border-[#6B7CFF]/18 dark:bg-[#101827]/95 dark:shadow-[0_12px_32px_rgba(0,0,0,0.28)]"
+      data-customer-node-context-bar
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3AFF] dark:text-[#DCE1FF]">
+              {singleSelection ? t.customerNodeContextSingle : t.customerNodeContextBulk}
+            </span>
+            <span className="border border-[#07111F]/16 bg-[#EAF3D1]/70 px-2 py-0.5 text-[10px] font-black uppercase text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.045] dark:text-white/58">
+              {t.customerNodeContextSelectedCount(String(selectedCount))}
+            </span>
+            {singleSelection ? (
+              <span className={cn('border px-2 py-0.5 text-[10px] font-black uppercase', evidenceTone[evidenceState])}>
+                {t.customerNodeContextRuntimeState}: {t.customerRuntimeEvidenceStateLabels[evidenceState]}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 break-words text-sm font-black text-[#07111F] dark:text-white">
+            {singleSelection ? node.nodeName : bulkImpactSummary.nodeLabels.slice(0, 3).join(' · ')}
+            {!singleSelection && bulkImpactSummary.nodeLabels.length > 3 ? ` +${bulkImpactSummary.nodeLabels.length - 3}` : ''}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/55">
+            {singleSelection ? (
+              <>
+                <span>{node.protocol}:{node.listenPort}</span>
+                <span>{clientLabel}</span>
+                <span>{node.subscriptionRule}</span>
+              </>
+            ) : (
+              <>
+                <span>{bulkImpactSummary.customerLabels.length} {t.customerNodeBulkImpactCustomers}</span>
+                <span>{bulkImpactSummary.portLabels.length} {t.customerNodeBulkImpactPorts}</span>
+                <span>{formatBytes(bulkImpactSummary.usedTrafficBytes)}</span>
+                {bulkImpactSummary.guardrailRisks.length > 0 ? (
+                  <span>{bulkImpactSummary.guardrailRisks.length} {t.customerNodeBulkImpactGuardrailRisks}</span>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+        <button
+          aria-label={t.customerNodeContextClear}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-[#07111F]/18 bg-[#FFFDF5]/80 text-[#35405A] transition hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/60 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:bg-[#6B7CFF]/12 dark:hover:text-[#DCE1FF]"
+          onClick={onClearSelection}
+          type="button"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {singleSelection ? (
+          <>
+            <CustomerNodeContextButton icon={UserRound} label={t.manageCustomerClients} onClick={onManageClients} tone="primary" />
+            <CustomerNodeContextButton icon={Activity} label={t.customerRuntimeEvidenceOpen} onClick={onOpenEvidence} tone={evidenceState === 'failed' ? 'danger' : 'primary'} />
+            <CustomerNodeContextButton icon={Download} label={t.viewCustomerNodeLinks} onClick={onOpenLinks} />
+            <CustomerNodeContextButton icon={Copy} label={t.copySingleNodeLink} onClick={onCopyShare} />
+            <CustomerNodeContextButton icon={Copy} label={t.copySubscriptionLink} onClick={onCopySubscription} />
+            <CustomerNodeContextButton icon={Pencil} label={t.editCustomerNode} onClick={onEdit} />
+            <CustomerNodeContextButton icon={PieChart} label={t.addCustomerNodeTraffic} onClick={onAddTraffic} />
+            <CustomerNodeContextButton icon={CalendarDays} label={t.renewCustomerNode} onClick={onRenew} />
+            {onResetTraffic ? (
+              <CustomerNodeContextButton icon={RotateCcw} label={t.resetCustomerNodeTraffic} onClick={onResetTraffic} />
+            ) : null}
+            <CustomerNodeContextButton
+              icon={node.enabled ? AlertTriangle : CheckCircle2}
+              label={node.enabled ? t.disableCustomerNode : t.enableCustomerNode}
+              onClick={() => onSetEnabled(!node.enabled)}
+              tone={node.enabled ? 'danger' : 'success'}
+            />
+          </>
+        ) : (
+          <>
+            <CustomerNodeContextButton
+              icon={Copy}
+              label={`${t.bulkCopyCustomerNodeLinks} ${selectedCount}`}
+              onClick={onCopySelectedLinks}
+            />
+            <CustomerNodeContextButton icon={PieChart} label={`${t.bulkAddCustomerNodeTraffic} ${bulkTrafficGb}${t.unitGb}`} onClick={onBulkAddTraffic} tone="primary" />
+            <CustomerNodeContextButton icon={CalendarDays} label={`${t.bulkRenewCustomerNodes} ${bulkRenewDays}${t.unitDays}`} onClick={onBulkRenew} tone="primary" />
+            <CustomerNodeContextButton
+              icon={RotateCcw}
+              label={`${t.bulkResetCustomerNodeUsedTraffic} ${selectedCount}`}
+              onClick={onBulkResetUsedTraffic}
+            />
+            <CustomerNodeContextButton
+              icon={CheckCircle2}
+              label={`${t.bulkEnableCustomerNodes} ${selectedCount}`}
+              onClick={onBulkEnable}
+              tone="success"
+            />
+            <CustomerNodeContextButton
+              icon={AlertTriangle}
+              label={`${t.bulkDisableCustomerNodes} ${selectedCount}`}
+              onClick={onBulkDisable}
+              tone="danger"
+            />
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function CustomerNodeContextButton({
+  icon: Icon,
+  label,
+  onClick,
+  tone = 'neutral'
+}: {
+  icon: typeof Activity;
+  label: string;
+  onClick: () => void;
+  tone?: CustomerNodeContextButtonTone;
+}) {
+  const toneClass = {
+    neutral: 'border-[#07111F]/18 bg-[#FFFDF5]/78 text-[#35405A] hover:border-[#1E3AFF]/55 hover:bg-[#DCE1FF]/60 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:bg-[#6B7CFF]/12 dark:hover:text-[#DCE1FF]',
+    primary: 'border-[#1E3AFF]/38 bg-[#DCE1FF]/45 text-[#1E3AFF] hover:bg-[#DCE1FF]/70 dark:border-[#6B7CFF]/30 dark:bg-[#6B7CFF]/12 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/16',
+    success: 'border-[#00A878]/38 bg-[#00A878]/10 text-[#007D5E] hover:bg-[#00A878]/16 dark:border-[#35E68E]/30 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4] dark:hover:bg-[#35E68E]/14',
+    danger: 'border-[#DC2626]/38 bg-[#DC2626]/8 text-[#B91C1C] hover:bg-[#DC2626]/12 dark:border-[#F87171]/28 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5] dark:hover:bg-[#DC2626]/18'
+  } satisfies Record<CustomerNodeContextButtonTone, string>;
+
+  return (
+    <button
+      className={cn(
+        'inline-flex min-h-9 items-center justify-center gap-1.5 border px-3 text-xs font-black transition active:translate-y-px',
+        toneClass[tone]
+      )}
+      onClick={onClick}
+      type="button"
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="max-w-44 truncate">{label}</span>
     </button>
   );
 }
@@ -4284,6 +4507,19 @@ export function NodesPage({
     () => visibleCustomerNodes.filter((node) => selectedCustomerNodeIds.includes(node.id)),
     [selectedCustomerNodeIds, visibleCustomerNodes]
   );
+  const primarySelectedCustomerNode = selectedCustomerNodes.length === 1 ? selectedCustomerNodes[0] : undefined;
+  const primarySelectedCustomerNodeEvidence = primarySelectedCustomerNode
+    ? runtimeEvidenceByNodeId.get(primarySelectedCustomerNode.id)
+    : undefined;
+  const primarySelectedCustomerNodeInbound = primarySelectedCustomerNode
+    ? inbounds.find(
+        (inbound): inbound is RuntimeXrayInbound =>
+          inbound.id === primarySelectedCustomerNode.id && isXrayRuntimeProtocol(inbound.protocol)
+      )
+    : undefined;
+  const primarySelectedCustomerNodeQuotaPolicy = primarySelectedCustomerNode
+    ? findCustomerNodeQuotaPolicy(primarySelectedCustomerNode, quotaPolicies)
+    : undefined;
   const customerNodeBulkImpactSummary = useMemo(
     () => createCustomerNodeBulkImpactSummary(selectedCustomerNodes, hostNamesById, t),
     [hostNamesById, selectedCustomerNodes, t]
@@ -4972,6 +5208,11 @@ export function NodesPage({
         ? current.filter((id) => !visibleIdSet.has(id))
         : Array.from(new Set([...current, ...visibleIds]));
     });
+  }
+
+  function clearCustomerNodeSelection() {
+    setBulkCustomerNodeDeleteConfirming(false);
+    setSelectedCustomerNodeIds([]);
   }
 
   function copyCustomerNodeShareLink(node: CustomerNodeRecord) {
@@ -6032,6 +6273,39 @@ export function NodesPage({
                   />
                 ) : null}
               </details>
+              <CustomerNodeContextActionBar
+                bulkImpactSummary={customerNodeBulkImpactSummary}
+                bulkRenewDays={bulkCustomerNodeRenewDays}
+                bulkTrafficGb={bulkCustomerNodeTrafficGb}
+                clientCount={primarySelectedCustomerNodeInbound?.clients.length}
+                evidence={primarySelectedCustomerNodeEvidence}
+                node={primarySelectedCustomerNode}
+                selectedCount={selectedCustomerNodes.length}
+                t={t}
+                onAddTraffic={() => primarySelectedCustomerNode && addTrafficToCustomerNode(primarySelectedCustomerNode)}
+                onBulkAddTraffic={addTrafficToSelectedCustomerNodes}
+                onBulkDisable={() => updateSelectedCustomerNodesEnabled(false)}
+                onBulkEnable={() => updateSelectedCustomerNodesEnabled(true)}
+                onBulkRenew={renewSelectedCustomerNodes}
+                onBulkResetUsedTraffic={resetSelectedCustomerNodeUsedTraffic}
+                onClearSelection={clearCustomerNodeSelection}
+                onCopySelectedLinks={copySelectedCustomerNodeLinks}
+                onCopyShare={() => primarySelectedCustomerNode && copyCustomerNodeShareLink(primarySelectedCustomerNode)}
+                onCopySubscription={() => primarySelectedCustomerNode && copyCustomerNodeSubscriptionLink(primarySelectedCustomerNode)}
+                onEdit={() => primarySelectedCustomerNode && openCustomerDrawer(primarySelectedCustomerNode)}
+                onManageClients={() => primarySelectedCustomerNode && openCustomerClientsDrawer(primarySelectedCustomerNode)}
+                onOpenEvidence={() =>
+                  primarySelectedCustomerNode && setDrawer({ type: 'customerRuntimeEvidence', nodeId: primarySelectedCustomerNode.id })
+                }
+                onOpenLinks={() => primarySelectedCustomerNode && setDrawer({ type: 'customerLinks', nodeId: primarySelectedCustomerNode.id })}
+                onRenew={() => primarySelectedCustomerNode && renewCustomerNode(primarySelectedCustomerNode)}
+                onResetTraffic={
+                  primarySelectedCustomerNode && primarySelectedCustomerNodeQuotaPolicy && onResetCustomerNodeTraffic
+                    ? () => resetCustomerNodeTraffic(primarySelectedCustomerNode, primarySelectedCustomerNodeQuotaPolicy)
+                    : undefined
+                }
+                onSetEnabled={(enabled) => primarySelectedCustomerNode && setCustomerNodeEnabled(primarySelectedCustomerNode, enabled)}
+              />
               <div className="overflow-x-auto">
                 <table className="nodes-customer-node-table w-full min-w-[860px] table-fixed text-left">
                 <thead className="bg-[#EAF3D1]/58 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:bg-white/[0.03] dark:text-white/42">
