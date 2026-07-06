@@ -465,6 +465,11 @@ function buildXrayClientPolicies(input: {
 
 function collectUnsupportedForwardingRuntimeControls(metadata: Record<string, unknown> | undefined) {
   const unsupported: ForwardingRuntimeBlockedControl[] = [];
+  const metadataBlockedControls = Array.isArray(metadata?.blockedRuntimeControls)
+    ? metadata.blockedRuntimeControls.filter((control): control is ForwardingRuntimeBlockedControl =>
+        FORWARDING_RUNTIME_BLOCKED_CONTROLS.includes(control as ForwardingRuntimeBlockedControl)
+      )
+    : [];
 
   if (readNumber(metadata, 'ipRateLimitMbps', 0) > 0) {
     unsupported.push('ipRateLimitMbps');
@@ -482,7 +487,7 @@ function collectUnsupportedForwardingRuntimeControls(metadata: Record<string, un
     unsupported.push('proxyProtocol');
   }
 
-  return unsupported;
+  return Array.from(new Set([...unsupported, ...metadataBlockedControls]));
 }
 
 function buildForwardingRuntimeCapabilities(metadata: Record<string, unknown> | undefined) {
@@ -517,6 +522,8 @@ function buildForwardingRuntimeDiagnosis(input: {
   enabled: boolean;
 }) {
   const portStatus = readForwardingPlannedPortStatus(input.task.operation);
+  const blockedControls = collectUnsupportedForwardingRuntimeControls(input.metadata);
+  const hasBlockedControl = (control: ForwardingRuntimeBlockedControl) => blockedControls.includes(control);
 
   return {
     ...diagnoseForwardingRuntime({
@@ -534,10 +541,12 @@ function buildForwardingRuntimeDiagnosis(input: {
           runtimeServiceNames: []
         }
       ],
-      ipRateLimitMbps: readNumber(input.metadata, 'ipRateLimitMbps', 0),
-      maxConnections: readNumber(input.metadata, 'maxConnections', 0),
-      maxConnectionsPerIp: readNumber(input.metadata, 'maxConnectionsPerIp', 0),
-      proxyProtocol: readBoolean(input.metadata, 'proxyProtocol', false),
+      ipRateLimitMbps: hasBlockedControl('ipRateLimitMbps') ? 1 : readNumber(input.metadata, 'ipRateLimitMbps', 0),
+      maxConnections: hasBlockedControl('maxConnections') ? 1 : readNumber(input.metadata, 'maxConnections', 0),
+      maxConnectionsPerIp: hasBlockedControl('maxConnectionsPerIp')
+        ? 1
+        : readNumber(input.metadata, 'maxConnectionsPerIp', 0),
+      proxyProtocol: hasBlockedControl('proxyProtocol') || readBoolean(input.metadata, 'proxyProtocol', false),
       quotaExceeded: readBoolean(input.metadata, 'quotaExceeded', false),
       runtimeDisabledByPolicy: readBoolean(input.metadata, 'runtimeDisabledByPolicy', false),
       guardrailReason: readString(input.metadata, 'guardrailReason', '')

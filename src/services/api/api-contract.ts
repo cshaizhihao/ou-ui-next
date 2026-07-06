@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AuditLog } from '../../domain';
+import { FORWARDING_RUNTIME_BLOCKED_CONTROLS } from '../../domain/forwarding';
 import { XRAY_RUNTIME_PROTOCOLS } from '../../domain/protocol';
 
 const deployTaskOperations = [
@@ -288,6 +289,15 @@ const taskMetadataSchema = z
     maxConnections: z.number().int().nonnegative().optional(),
     maxConnectionsPerIp: z.number().int().nonnegative().optional(),
     proxyProtocol: z.boolean().optional(),
+    blockedRuntimeControls: z.array(z.enum(FORWARDING_RUNTIME_BLOCKED_CONTROLS)).optional(),
+    blockedRuntimeControlValues: z
+      .object({
+        ipRateLimitMbps: z.number().int().nonnegative().optional(),
+        maxConnections: z.number().int().nonnegative().optional(),
+        maxConnectionsPerIp: z.number().int().nonnegative().optional(),
+        proxyProtocol: z.boolean().optional()
+      })
+      .optional(),
     billingDirection: billingDirectionSchema.optional(),
     tunnelMode: tunnelModeSchema.optional()
   })

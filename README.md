@@ -191,6 +191,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - 暂停、恢复、删除会停止或移除对应 systemd unit 和计数规则。
 - Control Plane 会在 forwarding create/update 和 tunnel create/update/redeploy 入队前检查已存在规则和进行中的端口转发任务，命中同 Agent、同监听端口、协议重叠或通配监听地址重叠时返回 `forward.port_conflict`。
 - Runtime artifact 会带出 `control-plane-compiled` 阶段的诊断、planned service 和 blocked controls，方便任务预览与后续 Agent evidence 对齐。
+- Forwarding create/update/apply/pause/resume/delete 的 UI mutation 由 feature 级 task input helper 统一生成；unsupported controls 不会作为可执行字段提交，而是通过 `blockedRuntimeControls` 诊断字段进入任务证据。
 - 面板会根据规则、绑定、runtime service、计数样本、quota/guardrail 和 Agent blocked controls 显示 `ready`、`waiting`、`degraded`、`blocked`、`failed` 诊断，以及 apply / resume / repair / inspect 等下一步动作。
 
 Preview / blocked 能力：
@@ -200,7 +201,7 @@ Preview / blocked 能力：
 - `maxConnectionsPerIp`
 - `proxyProtocol`
 
-这些字段仍保留在领域模型和 UI 数据结构中，但 V2.0.0 artifact 会把它们标记为 `blocked-by-agent-runtime`。后续要么补齐 GOST/nftables 实现，要么在 UI 中按 capability 禁用。
+这些字段仍保留在领域模型和 UI 数据结构中，但 V2.0.0 artifact 会把它们标记为 `blocked-by-agent-runtime`；任务提交会归零这些不可执行字段，并保留 `blockedRuntimeControls` 诊断。后续要么补齐 GOST/nftables 实现，要么在 UI 中按 capability 禁用。
 
 ## Subscription 说明
 

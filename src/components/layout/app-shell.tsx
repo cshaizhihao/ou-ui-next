@@ -30,6 +30,14 @@ import type {
   ForwardingCreateMetadata,
   ForwardingRuleView
 } from '../../features/forwarding/forwarding-page';
+import {
+  createForwardingDeleteIdempotencyKey,
+  createForwardingDeleteTaskInput,
+  createForwardingIdempotencyKey,
+  createForwardingRunTaskInput,
+  createForwardingTargetId,
+  createForwardingUpsertTaskInput
+} from '../../features/forwarding/forwarding-task-inputs';
 import type {
   CustomerNodeConfigMetadata,
   HostConfigMetadata,
@@ -782,68 +790,6 @@ function resolveRateLimitMbps(rateLimit?: RateLimitPolicy) {
   return rateLimit.mode === 'one-way'
     ? Math.max(rateLimit.inboundMbps, rateLimit.outboundMbps)
     : Math.min(rateLimit.inboundMbps, rateLimit.outboundMbps);
-}
-
-function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingCreateMetadata {
-  return {
-    name: rule.name,
-    ownerName: rule.ownerName,
-    tunnelId: rule.tunnelId,
-    listenAddress: rule.listenAddress,
-    listenPort: rule.listenPort,
-    targetAddress: rule.targetAddress,
-    targetPort: rule.targetPort,
-    protocol: rule.protocol,
-    entryNodeIds: rule.entryNodeIds.length > 0 ? rule.entryNodeIds : [rule.sourceAgentId],
-    strategy: rule.strategy,
-    quotaGb: Math.round(rule.quotaBytes / 1024 / 1024 / 1024),
-    monthlyResetDay: rule.monthlyResetDay,
-    currentUsedTrafficGb: rule.currentUsedTrafficGb,
-    rateLimitMbps: rule.rateLimitMbps,
-    rateLimitMode: rule.rateLimitMode,
-    rateLimitDirection: rule.rateLimitDirection,
-    ipRateLimitMbps: rule.ipRateLimitMbps,
-    maxConnections: rule.maxConnections,
-    maxConnectionsPerIp: rule.maxConnectionsPerIp,
-    proxyProtocol: rule.proxyProtocol,
-    billingDirection: rule.billingDirection,
-    tunnelMode: rule.tunnelMode,
-    enabled: rule.enabled
-  };
-}
-
-function createForwardingIdempotencyKey(operation: string, targetId: string, metadata?: ForwardingCreateMetadata) {
-  if (!metadata) {
-    return ['ui', operation, targetId, 'unknown'].join(':');
-  }
-
-  const identity = JSON.stringify({
-    name: metadata.name,
-    ownerName: metadata.ownerName,
-    tunnelId: metadata.tunnelId ?? '',
-    listenAddress: metadata.listenAddress,
-    listenPort: metadata.listenPort,
-    targetAddress: metadata.targetAddress,
-    targetPort: metadata.targetPort,
-    protocol: metadata.protocol,
-    entryNodeIds: metadata.entryNodeIds,
-    strategy: metadata.strategy,
-    quotaGb: metadata.quotaGb,
-    monthlyResetDay: metadata.monthlyResetDay,
-    currentUsedTrafficGb: metadata.currentUsedTrafficGb,
-    rateLimitMbps: metadata.rateLimitMbps,
-    rateLimitMode: metadata.rateLimitMode,
-    rateLimitDirection: metadata.rateLimitDirection,
-    ipRateLimitMbps: metadata.ipRateLimitMbps,
-    maxConnections: metadata.maxConnections,
-    maxConnectionsPerIp: metadata.maxConnectionsPerIp,
-    proxyProtocol: metadata.proxyProtocol,
-    billingDirection: metadata.billingDirection,
-    tunnelMode: metadata.tunnelMode,
-    enabled: metadata.enabled
-  });
-
-  return ['ui', operation, targetId, createStableHash(identity)].join(':');
 }
 
 function createBrowserPublicBaseUrl() {
@@ -2008,16 +1954,14 @@ export function AppShell({ ready }: AppShellProps) {
   const handleCreateForwarding = useCallback(
     (metadata: ForwardingCreateMetadata, action: 'create' | 'update' = 'create', ruleId?: string) => {
       const operation = action === 'create' ? 'forward.create' : 'forward.update';
-      const targetId = ruleId || `forward-custom-${metadata.listenPort}`;
+      const targetId = createForwardingTargetId(metadata, ruleId);
       void runTask(
-        {
-          operation,
-          resourceType: 'forward',
-          targetId,
-          targetLabel: metadata.name || t.createForwardingTarget(metadata.listenPort),
-          summary: action === 'create' ? t.createForwardingSummary : t.applyForwardingSummary,
-          metadata
-        },
+        createForwardingUpsertTaskInput(metadata, action, {
+          ruleId,
+          createSummary: t.createForwardingSummary,
+          updateSummary: t.applyForwardingSummary,
+          defaultTargetLabel: t.createForwardingTarget(metadata.listenPort)
+        }),
         {
           idempotencyKey: createForwardingIdempotencyKey(operation, targetId, metadata)
         }
@@ -2029,32 +1973,16 @@ export function AppShell({ ready }: AppShellProps) {
   const handleRunForwarding = useCallback(
     (id: string, action: 'apply' | 'pause' | 'resume' = 'apply') => {
       const rule = forwardingRules.find((item) => item.id === id);
-      const metadata = rule
-        ? createForwardingMetadataFromRule({
-            ...rule,
-            enabled: action === 'pause' ? false : action === 'resume' ? true : rule.enabled
-          })
-        : undefined;
-      const operation: CreateTaskInput['operation'] =
-        action === 'pause' ? 'forward.pause' : action === 'resume' ? 'forward.resume' : 'forward.apply';
-      const summary =
-        action === 'pause'
-          ? t.pauseForwardingSummary
-          : action === 'resume'
-            ? t.resumeForwardingSummary
-            : t.applyForwardingSummary;
-      const baseInput: CreateTaskInput = {
-        operation,
-        resourceType: 'forward',
-        targetId: id,
-        targetLabel: rule?.name ?? t.applyForwardingTarget,
-        summary,
-        metadata
-      };
-      const input = action === 'pause' || action === 'resume' ? withRiskConfirmation(baseInput) : baseInput;
+      const operation = action === 'pause' ? 'forward.pause' : action === 'resume' ? 'forward.resume' : 'forward.apply';
+      const input = createForwardingRunTaskInput(id, rule, action, {
+        apply: t.applyForwardingSummary,
+        pause: t.pauseForwardingSummary,
+        resume: t.resumeForwardingSummary,
+        defaultTargetLabel: t.applyForwardingTarget
+      });
 
       void runTask(input, {
-        idempotencyKey: createForwardingIdempotencyKey(operation, id, metadata)
+        idempotencyKey: createForwardingIdempotencyKey(operation, id, input.metadata as ForwardingCreateMetadata | undefined)
       });
     },
     [
@@ -2070,16 +1998,9 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteForwarding = useCallback(
     (rule: ForwardingRuleView) => {
       void runTask(
-        withRiskConfirmation({
-          operation: 'forward.delete',
-          resourceType: 'forward',
-          targetId: rule.id,
-          targetLabel: rule.name,
-          summary: t.deleteForwardingSummary,
-          metadata: createForwardingMetadataFromRule(rule)
-        }),
+        createForwardingDeleteTaskInput(rule, t.deleteForwardingSummary),
         {
-          idempotencyKey: ['ui', 'forward.delete', rule.id, rule.entryNodeIds.join(',')].join(':')
+          idempotencyKey: createForwardingDeleteIdempotencyKey(rule)
         }
       );
     },

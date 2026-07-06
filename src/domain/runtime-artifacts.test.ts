@@ -858,6 +858,69 @@ describe('runtime artifacts', () => {
     });
   });
 
+  it('preserves forwarding blocked-control diagnosis from task-safe metadata', () => {
+    const artifact = buildRuntimeArtifact({
+      task: createForwardTask('forward.apply', {
+        name: 'Customer HTTPS Forward',
+        ownerName: 'Customer A',
+        listenAddress: '0.0.0.0',
+        listenPort: 2443,
+        targetAddress: '172.20.8.10',
+        targetPort: 9443,
+        protocol: 'tcp',
+        entryNodeIds: ['agent-hkg-01'],
+        ipRateLimitMbps: 0,
+        maxConnections: 0,
+        maxConnectionsPerIp: 0,
+        proxyProtocol: false,
+        blockedRuntimeControls: ['ipRateLimitMbps', 'proxyProtocol'],
+        blockedRuntimeControlValues: {
+          ipRateLimitMbps: 80,
+          proxyProtocol: true
+        }
+      }),
+      agentId: 'agent-hkg-01',
+      moduleKind: 'port-forwarding'
+    }) as {
+      rule: {
+        limits: {
+          ipRateLimitMbps: number;
+          maxConnections: number;
+          maxConnectionsPerIp: number;
+        };
+        proxyProtocol: boolean;
+      };
+      runtimeCapabilities: { status: string; unsupportedControls: string[] };
+      runtimeDiagnosis: {
+        state: string;
+        reasons: string[];
+        blockedControls: string[];
+      };
+    };
+
+    expect(artifact.rule.limits).toEqual(
+      expect.objectContaining({
+        ipRateLimitMbps: 0,
+        maxConnections: 0,
+        maxConnectionsPerIp: 0
+      })
+    );
+    expect(artifact.rule.proxyProtocol).toBe(false);
+    expect(artifact.runtimeCapabilities).toEqual(
+      expect.objectContaining({
+        status: 'blocked-by-agent-runtime',
+        unsupportedControls: ['ipRateLimitMbps', 'proxyProtocol']
+      })
+    );
+    expect(artifact.runtimeDiagnosis).toEqual(
+      expect.objectContaining({
+        state: 'degraded',
+        reasons: ['no-runtime-service', 'blocked-runtime-controls', 'deploying'],
+        blockedControls: ['ipRateLimitMbps', 'proxyProtocol']
+      })
+    );
+  });
+
   it('auto-allocates a high listen port for forwarding runtime artifacts when metadata omits listenPort', () => {
     const artifact = buildRuntimeArtifact({
       task: createForwardTask('forward.create', {
