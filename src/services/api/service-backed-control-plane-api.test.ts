@@ -684,6 +684,75 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('marks Xray runtime diagnosis with Agent result evidence after apply completion', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: [seedAgents[0]]
+      }
+    });
+
+    const task = await api.createTask(
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-xray-diagnosis',
+        targetLabel: 'Xray diagnosis inbound',
+        summary: 'Create Xray inbound with runtime diagnosis',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          customerNodeName: 'Xray diagnosis inbound',
+          customerName: 'Acme',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 29443,
+          clientIdentity: 'acme-diagnosis',
+          clientCredential: '11111111-1111-4111-8111-111111111111',
+          streamNetwork: 'tcp',
+          security: 'none'
+        }
+      },
+      mutationContext('xray-diagnosis-apply')
+    );
+
+    await expect(api.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        artifact: expect.objectContaining({
+          runtimeDiagnosis: expect.objectContaining({
+            hasRuntimeEvidence: false,
+            evidenceStage: 'control-plane-compiled'
+          })
+        })
+      })
+    ]);
+
+    await completeTaskCommand(api, task.id, 'sess-agent-hkg-01', 10, 'evt-xray-diagnosis');
+
+    await expect(api.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        taskId: task.id,
+        status: 'applied',
+        artifact: expect.objectContaining({
+          runtimeDiagnosis: expect.objectContaining({
+            hasRuntimeEvidence: true,
+            evidenceStage: 'agent-result-verified',
+            observedAt: expect.any(String),
+            plannedRuntimeServices: ['ou-ui-xray.service'],
+            plannedInbound: expect.objectContaining({
+              agentId: 'agent-hkg-01',
+              listenPort: 29443,
+              protocol: 'vless',
+              action: 'upsert_inbound'
+            })
+          })
+        })
+      })
+    ]);
+  });
+
   it('builds the full snapshot without replaying persisted tasks for every section', async () => {
     const repository = createInMemoryControlPlaneRepository({
       commandOutbox: [

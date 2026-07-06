@@ -2076,6 +2076,34 @@ function normalizeResultEventForCommand(
   };
 }
 
+function updateRuntimeDiagnosisForAgentResult(
+  artifact: RuntimeConfigRevision['artifact'],
+  agentEvent: Extract<AgentEventEnvelope, { type: 'result' }>
+) {
+  const runtimeDiagnosis = artifact.runtimeDiagnosis;
+
+  if (!runtimeDiagnosis || typeof runtimeDiagnosis !== 'object' || Array.isArray(runtimeDiagnosis)) {
+    return artifact;
+  }
+
+  return {
+    ...artifact,
+    runtimeDiagnosis: {
+      ...runtimeDiagnosis,
+      hasRuntimeEvidence: true,
+      evidenceStage: agentEvent.payload.status === 'failed' ? 'agent-result-failed' : 'agent-result-verified',
+      observedAt: agentEvent.observedAt,
+      ...(agentEvent.payload.status === 'failed'
+        ? {
+            state: 'failed',
+            plannedBindingStatus: 'failed',
+            failureReason: agentEvent.payload.failureReason
+          }
+        : {})
+    }
+  };
+}
+
 function updateMockRuntimeReleaseFromResult(
   state: MockApiState,
   task: DeployTask,
@@ -2097,6 +2125,7 @@ function updateMockRuntimeReleaseFromResult(
       configRevision.failureReason =
         agentEvent.payload.status === 'failed' ? agentEvent.payload.failureReason : configRevision.failureReason;
       configRevision.healthSummary = agentEvent.payload.healthSummary ?? configRevision.healthSummary;
+      configRevision.artifact = updateRuntimeDiagnosisForAgentResult(configRevision.artifact, agentEvent);
     }
 
     if (preflightPlan) {
