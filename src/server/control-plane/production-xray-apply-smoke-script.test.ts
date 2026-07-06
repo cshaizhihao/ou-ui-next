@@ -21,6 +21,27 @@ type XrayApplySmokeScript = {
     expiresAt?: string;
     nowMs?: number;
   }): Record<string, unknown>;
+  buildXrayClientAddActionRequest(
+    createTaskInput: Record<string, unknown>,
+    options?: {
+      clientIdentity?: string;
+      clientEmail?: string;
+      clientCredential?: string;
+      trafficLimitGb?: number;
+      remainingDays?: number;
+      ipLimit?: number;
+      subscriptionRule?: string;
+      reason?: string;
+    }
+  ): Record<string, unknown>;
+  buildXrayClientDeleteActionRequest(
+    createTaskInput: Record<string, unknown>,
+    options?: {
+      clientEmail?: string;
+      clientId?: string;
+      reason?: string;
+    }
+  ): Record<string, unknown>;
   buildXrayInboundUpdateTaskInput(
     createTaskInput: Record<string, unknown>,
     options?: {
@@ -201,6 +222,139 @@ function createVerifiedSnapshot() {
   };
 }
 
+function createVerifiedClientActionSnapshot() {
+  const snapshot = createVerifiedSnapshot();
+
+  return {
+    ...snapshot,
+    tasks: [
+      ...(snapshot.tasks as Array<Record<string, unknown>>),
+      {
+        id: 'task-add-client-01',
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'xray-live-smoke-42003',
+        status: 'succeeded',
+        metadata: {
+          xrayClientAction: 'add-client',
+          xrayClientActionTargetEmail: 'carol@example.test'
+        }
+      },
+      {
+        id: 'task-delete-client-01',
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'xray-live-smoke-42003',
+        status: 'succeeded',
+        metadata: {
+          xrayClientAction: 'delete-client',
+          xrayClientActionTargetEmail: 'carol@example.test'
+        }
+      }
+    ],
+    commandOutbox: [
+      ...(snapshot.commandOutbox as Array<Record<string, unknown>>),
+      {
+        taskId: 'task-add-client-01',
+        commandId: 'cmd-task-add-client-01',
+        status: 'completed',
+        agentId: 'agent-hkg-01'
+      },
+      {
+        taskId: 'task-delete-client-01',
+        commandId: 'cmd-task-delete-client-01',
+        status: 'completed',
+        agentId: 'agent-hkg-01'
+      }
+    ],
+    configRevisions: [
+      ...(snapshot.configRevisions as Array<Record<string, unknown>>),
+      {
+        id: 'cfg-task-add-client-01',
+        taskId: 'task-add-client-01',
+        status: 'applied',
+        agentId: 'agent-hkg-01',
+        artifact: {
+          runtimeDiagnosis: {
+            state: 'ready',
+            evidenceStage: 'agent-result-verified',
+            hasRuntimeEvidence: true,
+            plannedRuntimeServices: ['ou-ui-xray.service'],
+            plannedInbound: {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 42003,
+              protocol: 'vless',
+              action: 'upsert_inbound'
+            },
+            clientCounters: {
+              total: 2,
+              active: 2,
+              disabled: 0
+            }
+          }
+        }
+      },
+      {
+        id: 'cfg-task-delete-client-01',
+        taskId: 'task-delete-client-01',
+        status: 'applied',
+        agentId: 'agent-hkg-01',
+        artifact: {
+          runtimeDiagnosis: {
+            state: 'ready',
+            evidenceStage: 'agent-result-verified',
+            hasRuntimeEvidence: true,
+            plannedRuntimeServices: ['ou-ui-xray.service'],
+            plannedInbound: {
+              agentId: 'agent-hkg-01',
+              listenAddress: '0.0.0.0',
+              listenPort: 42003,
+              protocol: 'vless',
+              action: 'upsert_inbound'
+            },
+            clientCounters: {
+              total: 1,
+              active: 1,
+              disabled: 0
+            }
+          }
+        }
+      }
+    ],
+    preflightPlans: [
+      ...(snapshot.preflightPlans as Array<Record<string, unknown>>),
+      {
+        id: 'preflight-task-add-client-01',
+        taskId: 'task-add-client-01',
+        status: 'passed',
+        checks: []
+      },
+      {
+        id: 'preflight-task-delete-client-01',
+        taskId: 'task-delete-client-01',
+        status: 'passed',
+        checks: []
+      }
+    ],
+    runtimeSnapshots: [
+      ...(snapshot.runtimeSnapshots as Array<Record<string, unknown>>),
+      {
+        id: 'snapshot-before-xray-live-smoke-42003-add-client',
+        taskId: 'task-add-client-01',
+        status: 'verified',
+        agentId: 'agent-hkg-01'
+      },
+      {
+        id: 'snapshot-before-xray-live-smoke-42003-delete-client',
+        taskId: 'task-delete-client-01',
+        status: 'verified',
+        agentId: 'agent-hkg-01'
+      }
+    ]
+  };
+}
+
 describe('production Xray apply smoke script helpers', () => {
   it('resolves config without putting the operator password on the command line', () => {
     const config = xraySmokeScript.resolveXrayApplySmokeConfig(
@@ -213,7 +367,8 @@ describe('production Xray apply smoke script helpers', () => {
         OU_UI_XRAY_SMOKE_WAIT_MS: '120000',
         OU_UI_XRAY_SMOKE_POLL_INTERVAL_MS: '2500',
         OU_UI_XRAY_SMOKE_PORT_MIN: '42000',
-        OU_UI_XRAY_SMOKE_PORT_MAX: '42100'
+        OU_UI_XRAY_SMOKE_PORT_MAX: '42100',
+        OU_UI_XRAY_SMOKE_CLIENT_ACTIONS: 'true'
       },
       ['--server-address', 'edge.example.com', '--report', '/tmp/xray-smoke.json']
     );
@@ -229,6 +384,7 @@ describe('production Xray apply smoke script helpers', () => {
       portMin: 42_000,
       portMax: 42_100,
       serverAddress: 'edge.example.com',
+      clientActions: true,
       reportPath: '/tmp/xray-smoke.json'
     });
     expect(
@@ -238,12 +394,14 @@ describe('production Xray apply smoke script helpers', () => {
         '--agent-id',
         'agent-hkg-01',
         '--listen-port',
-        '42003'
+        '42003',
+        '--client-actions'
       ])
     ).toMatchObject({
       baseUrl: 'https://panel.example/panel',
       agentId: 'agent-hkg-01',
-      listenPort: '42003'
+      listenPort: '42003',
+      clientActions: true
     });
   });
 
@@ -358,6 +516,52 @@ describe('production Xray apply smoke script helpers', () => {
     });
   });
 
+  it('builds Xray client action requests for Agent-backed add/delete smoke phases', () => {
+    const createTaskInput = xraySmokeScript.buildXrayInboundTaskInput({
+      agentId: 'agent-hkg-01',
+      listenPort: 42003,
+      serverAddress: 'edge.example.com',
+      targetId: 'xray-live-smoke-42003',
+      targetLabel: 'Xray Live Smoke 42003',
+      clientIdentity: 'smoke-client',
+      clientEmail: 'smoke@example.test',
+      clientCredential: '11111111-1111-4111-8111-111111111111',
+      expiresAt: '2026-07-07T00:00:00.000Z'
+    });
+    const addRequest = xraySmokeScript.buildXrayClientAddActionRequest(createTaskInput, {
+      clientIdentity: 'client-carol',
+      clientEmail: 'carol@example.test',
+      clientCredential: '33333333-3333-4333-8333-333333333333',
+      trafficLimitGb: 1,
+      remainingDays: 1,
+      subscriptionRule: 'runtime-smoke:client-carol'
+    });
+    const deleteRequest = xraySmokeScript.buildXrayClientDeleteActionRequest(createTaskInput, {
+      clientEmail: 'carol@example.test'
+    });
+
+    expect(addRequest).toMatchObject({
+      inboundId: 'xray-live-smoke-42003',
+      action: {
+        kind: 'add-client',
+        clientIdentity: 'client-carol',
+        clientEmail: 'carol@example.test',
+        clientCredential: '33333333-3333-4333-8333-333333333333',
+        enabled: true
+      },
+      reason: 'runtime smoke add-client evidence'
+    });
+    expect(deleteRequest).toEqual({
+      inboundId: 'xray-live-smoke-42003',
+      clientEmail: 'carol@example.test',
+      clientId: undefined,
+      action: {
+        kind: 'delete-client'
+      },
+      reason: 'runtime smoke delete-client evidence'
+    });
+  });
+
   it('extracts and validates Agent-result runtime evidence from a control-plane snapshot', () => {
     const evidence = xraySmokeScript.extractXrayApplyEvidence(
       createVerifiedSnapshot(),
@@ -420,6 +624,62 @@ describe('production Xray apply smoke script helpers', () => {
         operation: 'inbound.create'
       })
     ).toEqual(['task operation is inbound.update']);
+  });
+
+  it('extracts and validates client action Agent-result evidence with runtime client counters', () => {
+    const addEvidence = xraySmokeScript.extractXrayApplyEvidence(
+      createVerifiedClientActionSnapshot(),
+      'task-add-client-01',
+      'xray-live-smoke-42003'
+    );
+    const deleteEvidence = xraySmokeScript.extractXrayApplyEvidence(
+      createVerifiedClientActionSnapshot(),
+      'task-delete-client-01',
+      'xray-live-smoke-42003'
+    );
+
+    expect(
+      xraySmokeScript.validateXrayApplyEvidence(addEvidence, {
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.update',
+        clientAction: 'add-client',
+        clientEmail: 'carol@example.test',
+        clientCounters: {
+          total: 2,
+          active: 2
+        }
+      })
+    ).toEqual([]);
+    expect(xraySmokeScript.summarizeXrayApplyEvidence(addEvidence)).toEqual(
+      expect.objectContaining({
+        taskId: 'task-add-client-01',
+        operation: 'inbound.update',
+        xrayClientAction: 'add-client',
+        xrayClientActionTargetEmail: 'carol@example.test',
+        clientCounters: expect.objectContaining({
+          total: 2,
+          active: 2
+        }),
+        evidenceStage: 'agent-result-verified'
+      })
+    );
+    expect(
+      xraySmokeScript.validateXrayApplyEvidence(deleteEvidence, {
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.update',
+        clientAction: 'delete-client',
+        clientEmail: 'carol@example.test',
+        clientCounters: {
+          total: 1,
+          active: 1
+        }
+      })
+    ).toEqual([]);
+    expect(JSON.stringify(xraySmokeScript.summarizeXrayApplyEvidence(addEvidence))).not.toContain(
+      '33333333-3333-4333-8333-333333333333'
+    );
   });
 
   it('returns operator-actionable evidence gaps while a task is still waiting for Agent result', () => {

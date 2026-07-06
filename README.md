@@ -277,6 +277,8 @@ OU_UI_XRAY_SMOKE_BASE_URL=https://panel.example/ou-secure \
 OU_UI_XRAY_SMOKE_USERNAME=operator \
 OU_UI_XRAY_SMOKE_PASSWORD=... \
 npm run smoke:xray-apply -- --agent-id agent-id --report /var/lib/ou-ui-next/acceptance/xray-apply-smoke.json
+
+npm run smoke:xray-client-action -- --agent-id agent-id --report /var/lib/ou-ui-next/acceptance/xray-client-action-smoke.json
 ```
 
 验收重点：
@@ -286,6 +288,7 @@ npm run smoke:xray-apply -- --agent-id agent-id --report /var/lib/ou-ui-next/acc
 - 至少一台 Agent 已注册并能 ACK/result。
 - Xray 或 Forwarding 任务必须有 Agent runtime evidence，不能人工直接 transition 为成功。
 - `smoke:xray-apply` 会创建一个临时 VLESS/TCP/no-security 测试 inbound，随后更新同一个 inbound，并分别等待 create/update 两段 `agent-result-verified`、passed preflight、verified snapshot 和 completed command outbox 同时出现；失败会输出缺失的 evidence 环节。
+- `smoke:xray-client-action` 在同一条真实 Agent apply pipeline 上继续执行 `add-client` 和 `delete-client`，并验证每个客户端动作都有 task、command outbox、config revision、preflight、runtime snapshot、runtime diagnosis 和 client counter evidence。
 - Smoke 报告、Agent 日志、审计链和归档文件不得包含明文 token、密码、cookie 或 CSRF。
 - 控制面备份包会在生成阶段剔除 `tokenHash`、`accessTokenHash` 和 `accessTokenRaw` 等敏感字段，避免只靠导出后 preflight 才发现泄露。
 

@@ -100,6 +100,16 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--client-actions') {
+      options.clientActions = true;
+      continue;
+    }
+
+    if (arg === '--skip-client-actions') {
+      options.clientActions = false;
+      continue;
+    }
+
     if (arg === '--report') {
       options.reportPath = argv[index + 1];
       index += 1;
@@ -239,6 +249,10 @@ function resolveXrayApplySmokeConfig(env = process.env, argv = process.argv.slic
     portMax,
     serverAddress: args.serverAddress ?? env.OU_UI_XRAY_SMOKE_SERVER_ADDRESS ?? normalizedBaseUrl.hostname,
     targetPrefix: args.targetPrefix ?? env.OU_UI_XRAY_SMOKE_TARGET_PREFIX ?? 'xray-live-smoke',
+    clientActions:
+      args.clientActions === undefined
+        ? parseBoolean(env.OU_UI_XRAY_SMOKE_CLIENT_ACTIONS)
+        : Boolean(args.clientActions),
     reportPath: args.reportPath ?? env.OU_UI_XRAY_SMOKE_REPORT_PATH
   };
 }
@@ -429,6 +443,42 @@ function buildXrayInboundUpdateTaskInput(createTaskInput, options = {}) {
   };
 }
 
+function buildXrayClientAddActionRequest(createTaskInput, options = {}) {
+  const metadata = readObject(createTaskInput.metadata);
+  const listenPort = Number.isSafeInteger(metadata.listenPort) ? metadata.listenPort : 0;
+  const clientIdentity = options.clientIdentity ?? `smoke-extra-${listenPort}-${randomUUID().slice(0, 8)}`;
+  const clientEmail = options.clientEmail ?? `${clientIdentity}@example.test`;
+  const remainingDays = options.remainingDays ?? 1;
+
+  return {
+    inboundId: createTaskInput.targetId,
+    action: {
+      kind: 'add-client',
+      clientIdentity,
+      clientEmail,
+      clientCredential: options.clientCredential ?? randomUUID(),
+      trafficLimitGb: options.trafficLimitGb ?? 1,
+      remainingDays,
+      ipLimit: options.ipLimit ?? 1,
+      subscriptionRule: options.subscriptionRule ?? `runtime-smoke:${clientIdentity}`,
+      enabled: options.enabled ?? true
+    },
+    reason: options.reason ?? 'runtime smoke add-client evidence'
+  };
+}
+
+function buildXrayClientDeleteActionRequest(createTaskInput, options = {}) {
+  return {
+    inboundId: createTaskInput.targetId,
+    clientEmail: options.clientEmail,
+    clientId: options.clientId,
+    action: {
+      kind: 'delete-client'
+    },
+    reason: options.reason ?? 'runtime smoke delete-client evidence'
+  };
+}
+
 function getSetCookieValues(headers) {
   if (typeof headers.getSetCookie === 'function') {
     return headers.getSetCookie();
@@ -586,6 +636,34 @@ async function createTask(config, context, taskInput, label = 'create Xray inbou
   };
 }
 
+async function createXrayClientActionTask(config, context, request, label = 'create Xray client action task') {
+  const action = readObject(request.action);
+  const actionTarget =
+    request.clientEmail ?? action.clientEmail ?? request.clientId ?? action.clientIdentity ?? randomUUID().slice(0, 8);
+  const result = await requestJson(config, context, 'POST', '/api/v1/xray-client-actions', {
+    headers: {
+      'X-Request-Id': `req-xray-client-smoke-${randomUUID()}`,
+      'Idempotency-Key': `idem-xray-client-smoke-${request.inboundId}-${action.kind}-${actionTarget}`,
+      'X-CSRF-Token': context.csrfToken
+    },
+    body: request
+  });
+  assertStatus(label, result.response, result.payload, [202]);
+
+  const payload = result.payload.json ?? {};
+  const data = payload.data ?? {};
+  const taskId = payload.taskId ?? data.taskId ?? data.id;
+
+  if (!taskId) {
+    throw new Error('Xray client action response did not include a task id.');
+  }
+
+  return {
+    taskId,
+    response: payload
+  };
+}
+
 function findById(items, id) {
   return readArray(items).find((item) => item?.id === id);
 }
@@ -622,6 +700,8 @@ function extractXrayApplyEvidence(snapshot, taskId, targetId) {
 function validateXrayApplyEvidence(evidence, expected = {}) {
   const errors = [];
   const plannedInbound = readObject(evidence.runtimeDiagnosis.plannedInbound);
+  const taskMetadata = readObject(evidence.task?.metadata);
+  const clientCounters = readObject(evidence.runtimeDiagnosis.clientCounters);
 
   if (!evidence.task) {
     errors.push('task is missing from snapshot');
@@ -631,6 +711,14 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
 
   if (expected.operation && evidence.task?.operation !== expected.operation) {
     errors.push(`task operation is ${evidence.task?.operation ?? 'missing'}`);
+  }
+
+  if (expected.clientAction && taskMetadata.xrayClientAction !== expected.clientAction) {
+    errors.push(`Xray client action is ${taskMetadata.xrayClientAction ?? 'missing'}`);
+  }
+
+  if (expected.clientEmail && taskMetadata.xrayClientActionTargetEmail !== expected.clientEmail) {
+    errors.push(`Xray client action target email is ${taskMetadata.xrayClientActionTargetEmail ?? 'missing'}`);
   }
 
   if (!evidence.commandOutboxItem) {
@@ -689,11 +777,21 @@ function validateXrayApplyEvidence(evidence, expected = {}) {
     errors.push('planned runtime services do not include ou-ui-xray.service');
   }
 
+  if (expected.clientCounters) {
+    for (const [key, value] of Object.entries(expected.clientCounters)) {
+      if (clientCounters[key] !== value) {
+        errors.push(`runtime diagnosis clientCounters.${key} is ${clientCounters[key] ?? 'missing'}`);
+      }
+    }
+  }
+
   return errors;
 }
 
 function summarizeXrayApplyEvidence(evidence) {
   const plannedInbound = readObject(evidence.runtimeDiagnosis.plannedInbound);
+  const taskMetadata = readObject(evidence.task?.metadata);
+  const clientCounters = readObject(evidence.runtimeDiagnosis.clientCounters);
 
   return {
     taskId: evidence.task?.id,
@@ -715,6 +813,9 @@ function summarizeXrayApplyEvidence(evidence) {
     action: plannedInbound.action,
     runtimeState: evidence.runtimeDiagnosis.state,
     evidenceStage: evidence.runtimeDiagnosis.evidenceStage,
+    xrayClientAction: taskMetadata.xrayClientAction,
+    xrayClientActionTargetEmail: taskMetadata.xrayClientActionTargetEmail,
+    clientCounters,
     plannedRuntimeServices: readArray(evidence.runtimeDiagnosis.plannedRuntimeServices)
   };
 }
@@ -868,10 +969,89 @@ async function runXrayApplySmoke(config) {
       `${updateEvidenceSummary.configRevisionId} ${updateEvidenceSummary.evidenceStage}`
     );
 
+    let addClientEvidenceSummary;
+    let deleteClientEvidenceSummary;
+
+    if (config.clientActions) {
+      const addClientRequest = buildXrayClientAddActionRequest(taskInput);
+      const addClientEmail = addClientRequest.action.clientEmail;
+      const addedClientTask = await createXrayClientActionTask(config, context, addClientRequest, 'add Xray client action task');
+      logPass('xray add-client action task created', addedClientTask.taskId);
+
+      const { evidence: addClientEvidence } = await waitForXrayApplyEvidence(
+        config,
+        context,
+        addedClientTask.taskId,
+        taskInput.targetId,
+        {
+          agentId: agent.id,
+          listenPort,
+          operation: 'inbound.update',
+          clientAction: 'add-client',
+          clientEmail: addClientEmail,
+          clientCounters: {
+            total: 2,
+            active: 2
+          }
+        }
+      );
+      addClientEvidenceSummary = summarizeXrayApplyEvidence(addClientEvidence);
+      report.phases.push({
+        name: 'add-client',
+        taskId: addedClientTask.taskId,
+        evidence: addClientEvidenceSummary
+      });
+      logPass(
+        'add-client agent runtime evidence verified',
+        `${addClientEvidenceSummary.configRevisionId} ${addClientEvidenceSummary.evidenceStage}`
+      );
+
+      const deleteClientRequest = buildXrayClientDeleteActionRequest(taskInput, {
+        clientEmail: addClientEmail
+      });
+      const deletedClientTask = await createXrayClientActionTask(
+        config,
+        context,
+        deleteClientRequest,
+        'delete Xray client action task'
+      );
+      logPass('xray delete-client action task created', deletedClientTask.taskId);
+
+      const { evidence: deleteClientEvidence } = await waitForXrayApplyEvidence(
+        config,
+        context,
+        deletedClientTask.taskId,
+        taskInput.targetId,
+        {
+          agentId: agent.id,
+          listenPort,
+          operation: 'inbound.update',
+          clientAction: 'delete-client',
+          clientEmail: addClientEmail,
+          clientCounters: {
+            total: 1,
+            active: 1
+          }
+        }
+      );
+      deleteClientEvidenceSummary = summarizeXrayApplyEvidence(deleteClientEvidence);
+      report.phases.push({
+        name: 'delete-client',
+        taskId: deletedClientTask.taskId,
+        evidence: deleteClientEvidenceSummary
+      });
+      logPass(
+        'delete-client agent runtime evidence verified',
+        `${deleteClientEvidenceSummary.configRevisionId} ${deleteClientEvidenceSummary.evidenceStage}`
+      );
+    }
+
     markReportComplete(report, 'passed', {
-      evidence: updateEvidenceSummary,
+      evidence: deleteClientEvidenceSummary ?? updateEvidenceSummary,
       createEvidence: evidenceSummary,
-      updateEvidence: updateEvidenceSummary
+      updateEvidence: updateEvidenceSummary,
+      addClientEvidence: addClientEvidenceSummary,
+      deleteClientEvidence: deleteClientEvidenceSummary
     });
 
     if (config.reportPath) {
@@ -919,6 +1099,8 @@ Options:
   --port-max <port>            Auto-allocation range end, default ${defaultPortMax}
   --server-address <host>      Public server address written into the test inbound
   --target-prefix <prefix>     Test inbound target prefix
+  --client-actions             Also verify add-client and delete-client through /api/v1/xray-client-actions
+  --skip-client-actions        Disable client action phases when enabled by env
   --timeout-ms <ms>            Per-request timeout, default ${defaultTimeoutMs}
   --wait-ms <ms>               Total Agent evidence wait, default ${defaultWaitMs}
   --poll-interval-ms <ms>      Snapshot polling interval, default ${defaultPollIntervalMs}
@@ -947,10 +1129,13 @@ if (require.main === module) {
 
 module.exports = {
   allocateXrayListenPort,
+  buildXrayClientAddActionRequest,
+  buildXrayClientDeleteActionRequest,
   buildXrayInboundTaskInput,
   buildXrayInboundUpdateTaskInput,
   collectReservedXrayPorts,
   createXraySmokeReport,
+  createXrayClientActionTask,
   extractXrayApplyEvidence,
   parseArgs,
   resolveXrayApplySmokeConfig,

@@ -17,6 +17,7 @@
     "smoke:archive": "tsx scripts/production-archive-smoke.ts",
     "smoke:production": "node scripts/production-smoke.cjs",
     "smoke:xray-apply": "node scripts/production-xray-apply-smoke.cjs",
+    "smoke:xray-client-action": "node scripts/production-xray-apply-smoke.cjs --client-actions",
     "smoke:webhooks": "node scripts/production-webhook-smoke.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
