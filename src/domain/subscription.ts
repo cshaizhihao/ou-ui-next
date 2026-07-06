@@ -398,7 +398,14 @@ function readProxyGroups(metadata: Record<string, unknown> | undefined): ProxyGr
     .filter((group): group is ProxyGroupTemplate => Boolean(group));
 }
 
-function expiresAtFromTask(task: DeployTask, remainingDays: number) {
+function expiresAtFromTask(task: DeployTask, remainingDays: number, metadata?: Record<string, unknown>) {
+  const explicitExpiresAt = readString(metadata, 'expiresAt', '');
+  const explicitExpiresAtMs = Date.parse(explicitExpiresAt);
+
+  if (explicitExpiresAt && Number.isFinite(explicitExpiresAtMs)) {
+    return new Date(explicitExpiresAtMs).toISOString();
+  }
+
   const baseMs = Date.parse(task.createdAt);
   return new Date((Number.isNaN(baseMs) ? Date.now() : baseMs) + Math.max(remainingDays, 0) * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -850,7 +857,7 @@ export function createSubscriptionClientFromTask(task: DeployTask): Subscription
     group: readString(metadata, 'group', 'default'),
     trafficLimitBytes: bytesFromGb(readNumber(metadata, 'trafficLimitGb', 0)),
     usedTrafficBytes: bytesFromGb(readNumber(metadata, 'usedTrafficGb', 0)),
-    expiresAt: expiresAtFromTask(task, remainingDays),
+    expiresAt: expiresAtFromTask(task, remainingDays, metadata),
     ipLimit: Math.max(Math.round(readNumber(metadata, 'ipLimit', 0)), 0),
     requestLimitPerHour: Math.max(Math.round(readNumber(metadata, 'requestLimitPerHour', 360)), 0),
     sourceIds: readStringArray(metadata, 'sourceIds'),

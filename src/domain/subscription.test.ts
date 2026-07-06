@@ -81,6 +81,21 @@ describe('subscription read models', () => {
     });
   });
 
+  it('preserves explicit subscription client expiration timestamps', () => {
+    const client = createSubscriptionClientFromTask(
+      createSubscriptionTask({
+        subscriptionClientId: 'sub-client-explicit-expiry',
+        displayName: 'Explicit Expiry Client Subscription',
+        subId: 'sub_explicit_expiry_client',
+        protocol: 'vless',
+        remainingDays: 7,
+        expiresAt: '2026-09-15T12:30:00.000Z'
+      })
+    );
+
+    expect(client?.expiresAt).toBe('2026-09-15T12:30:00.000Z');
+  });
+
   it('keeps only valid subscription access token hashes in the client read model', () => {
     const validClient = createSubscriptionClientFromTask(
       createSubscriptionTask({
