@@ -1047,10 +1047,96 @@ describe('control-plane service', () => {
     ]);
     await expect(repository.listRuntimeSnapshots()).resolves.toEqual([
       expect.objectContaining({
+        id: `snapshot-before-${task.id}`,
         taskId: task.id,
         agentId: 'agent-sin-02',
         moduleKind: 'xray'
       })
+    ]);
+  });
+
+  it('uses per-task runtime snapshot IDs when updating the same Xray inbound', async () => {
+    const { repository, service } = createService();
+    const baseInput = {
+      resourceType: 'inbound' as const,
+      targetId: 'customer-node-shared-runtime-01',
+      targetLabel: 'Shared runtime inbound',
+      metadata: {
+        nodeId: 'customer-node-shared-runtime-01',
+        agentId: 'agent-sin-02',
+        customerNodeName: 'Shared runtime inbound',
+        customerName: 'Customer A',
+        serverAddress: 'edge.example.com',
+        xrayProtocol: 'vless',
+        listenPort: 24443,
+        clientIdentity: 'customer-a-main',
+        clientEmail: 'customer-a@example.com',
+        streamNetwork: 'tcp',
+        security: 'none',
+        trafficLimitGb: 100,
+        remainingDays: 30,
+        enabled: true
+      }
+    };
+    const createTask = await service.createTask(
+      {
+        ...baseInput,
+        operation: 'inbound.create',
+        summary: 'Create shared Xray inbound'
+      },
+      {
+        ...context,
+        requestId: 'req-service-inbound-create-shared-runtime',
+        idempotencyKey: 'idem-service-inbound-create-shared-runtime',
+        ifMatch: undefined
+      }
+    );
+    const updateTask = await service.createTask(
+      {
+        ...baseInput,
+        operation: 'inbound.update',
+        summary: 'Update shared Xray inbound',
+        metadata: {
+          ...baseInput.metadata,
+          trafficLimitGb: 200,
+          sniffingEnabled: false
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-inbound-update-shared-runtime',
+        idempotencyKey: 'idem-service-inbound-update-shared-runtime',
+        ifMatch: undefined
+      }
+    );
+    const commandOutbox = await repository.listCommandOutbox();
+    const runtimeSnapshots = await repository.listRuntimeSnapshots();
+
+    expect(commandOutbox).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          taskId: createTask.id,
+          command: expect.objectContaining({
+            type: 'apply',
+            payload: expect.objectContaining({
+              snapshotBeforeId: `snapshot-before-${createTask.id}`
+            })
+          })
+        }),
+        expect.objectContaining({
+          taskId: updateTask.id,
+          command: expect.objectContaining({
+            type: 'apply',
+            payload: expect.objectContaining({
+              snapshotBeforeId: `snapshot-before-${updateTask.id}`
+            })
+          })
+        })
+      ])
+    );
+    expect(runtimeSnapshots.map((snapshot) => snapshot.id)).toEqual([
+      `snapshot-before-${updateTask.id}`,
+      `snapshot-before-${createTask.id}`
     ]);
   });
 
@@ -3508,7 +3594,7 @@ describe('control-plane service', () => {
 
   it('marks referenced runtime snapshots restored when rollback commands succeed', async () => {
     const { repository, service } = createService();
-    await service.createTask(
+    const sourceTask = await service.createTask(
       {
         operation: 'agent.deploy',
         resourceType: 'agent',
@@ -3523,6 +3609,7 @@ describe('control-plane service', () => {
         ifMatch: undefined
       }
     );
+    const [sourceRuntimeSnapshot] = await repository.listRuntimeSnapshots();
     const rollbackTask = await service.createTask(
       withRiskConfirmation({
         operation: 'agent.rollback',
@@ -3539,6 +3626,21 @@ describe('control-plane service', () => {
       }
     );
     const [rollbackOutboxItem] = await repository.listCommandOutbox();
+
+    expect(rollbackOutboxItem.command).toEqual(
+      expect.objectContaining({
+        type: 'rollback',
+        payload: expect.objectContaining({
+          snapshotId: `snapshot-before-${sourceTask.id}`
+        })
+      })
+    );
+    expect(sourceRuntimeSnapshot).toEqual(
+      expect.objectContaining({
+        id: `snapshot-before-${sourceTask.id}`,
+        taskId: sourceTask.id
+      })
+    );
 
     await service.receiveAgentEvent({
       type: 'ack',
@@ -3573,7 +3675,7 @@ describe('control-plane service', () => {
 
     await expect(repository.listRuntimeSnapshots()).resolves.toEqual([
       expect.objectContaining({
-        id: 'snapshot-before-agent-hkg-01',
+        id: `snapshot-before-${sourceTask.id}`,
         status: 'restored',
         restoredAt: '2026-06-02T00:00:25.000Z',
         restoredByTaskId: rollbackTask.id

@@ -453,6 +453,34 @@ function readRollbackModeMetadata(task: DeployTask): 'hot_reload' | 'graceful_re
   return value === 'hot_reload' || value === 'graceful_restart' ? value : 'graceful_restart';
 }
 
+function getRuntimeSnapshotObservedTime(snapshot: RuntimeSnapshot) {
+  return Date.parse(snapshot.verifiedAt ?? snapshot.restoredAt ?? snapshot.capturedAt);
+}
+
+function resolveRollbackSnapshotId(
+  task: DeployTask,
+  runtimeSnapshots: RuntimeSnapshot[],
+  targetAgentIds: string[]
+): string | undefined {
+  const explicitSnapshotId = readStringMetadata(task, 'snapshotId');
+
+  if (explicitSnapshotId) {
+    return explicitSnapshotId;
+  }
+
+  const targetAgentId = readStringMetadata(task, 'agentId') ?? (targetAgentIds.length === 1 ? targetAgentIds[0] : undefined);
+  const candidates = runtimeSnapshots
+    .filter(
+      (snapshot) =>
+        snapshot.targetId === task.targetId &&
+        snapshot.reason === 'pre_apply' &&
+        (!targetAgentId || snapshot.agentId === targetAgentId)
+    )
+    .sort((left, right) => getRuntimeSnapshotObservedTime(right) - getRuntimeSnapshotObservedTime(left));
+
+  return candidates[0]?.id;
+}
+
 function resolveAgentIdForTask(task: DeployTask) {
   if (task.operation.startsWith('inbound.')) {
     return readStringMetadata(task, 'agentId') ?? task.targetId;
@@ -565,6 +593,7 @@ function resolveModuleKindForTask(operation: CreateTaskInput['operation']): 'hos
 function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: string): CommandOutboxItem {
   const artifactSuffix = shouldNamespaceCommandArtifacts(task) ? `-${agentId}` : '';
   const commandId = `cmd-${task.id}${artifactSuffix}`;
+  const snapshotBeforeId = `snapshot-before-${task.id}${artifactSuffix}`;
   const deadlineAt = addMinutes(task.createdAt, 5);
   const moduleKind = resolveModuleKindForTask(task.operation);
   const artifactModuleKind = moduleKind === 'system' ? 'bbr' : moduleKind;
@@ -632,7 +661,7 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
               signature: createSignature(artifactChecksum),
               artifact: applyArtifact,
               preflightPlanId: `preflight-${task.id}${artifactSuffix}`,
-              snapshotBeforeId: `snapshot-before-${task.targetId}${artifactSuffix}`,
+              snapshotBeforeId,
               applyMode: 'graceful_restart' as const,
               dryRun: false,
               rollbackTaskId: null
@@ -1457,7 +1486,7 @@ function createMockRuntimeReleaseArtifacts(
   const artifactUri = payload.artifactUri ?? `ou-ui://artifacts/config-revisions/${payload.configRevision}.json`;
   const signature = payload.signature ?? createSignature(payload.checksum);
   const preflightPlanId = payload.preflightPlanId ?? `preflight-${task.id}`;
-  const snapshotBeforeId = payload.snapshotBeforeId ?? `snapshot-before-${task.targetId}`;
+  const snapshotBeforeId = payload.snapshotBeforeId ?? `snapshot-before-${task.id}`;
 
   return {
     configRevision: {
@@ -2113,7 +2142,7 @@ function updateMockRuntimeReleaseFromResult(
   if (command.type === 'apply') {
     const configRevisionId = command.payload.configRevision;
     const preflightPlanId = command.payload.preflightPlanId ?? `preflight-${task.id}`;
-    const snapshotBeforeId = command.payload.snapshotBeforeId ?? `snapshot-before-${task.targetId}`;
+    const snapshotBeforeId = command.payload.snapshotBeforeId ?? `snapshot-before-${task.id}`;
     const configRevision = state.configRevisions.find((item) => item.id === configRevisionId);
     const preflightPlan = state.preflightPlans.find((item) => item.id === preflightPlanId);
     const runtimeSnapshot = state.runtimeSnapshots.find((item) => item.id === snapshotBeforeId);
@@ -4445,6 +4474,17 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         metadata: taskInput.metadata
       };
       const targetAgentIds = shouldCreateAgentCommand(task.operation) ? resolveAgentIdsForTaskInState(task, state) : [];
+
+      if (task.operation === 'agent.rollback' && !readStringMetadata(task, 'snapshotId')) {
+        const snapshotId = resolveRollbackSnapshotId(task, state.runtimeSnapshots, targetAgentIds);
+
+        if (snapshotId) {
+          task.metadata = {
+            ...(task.metadata ?? {}),
+            snapshotId
+          };
+        }
+      }
 
       if (shouldCreateAgentCommand(task.operation) && targetAgentIds.length === 0) {
         const denialReason = 'This runtime operation requires at least one target Agent before it can be dispatched.';
