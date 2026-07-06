@@ -1,6 +1,6 @@
 import { createMockApi } from './mock-api';
 import { AGENT_INSTALL_PROFILE, type CreateTaskInput, type QuotaPolicy } from '../../domain';
-import { seedForwardRules } from './mock-data';
+import { seedAgents, seedForwardRules } from './mock-data';
 
 function withRiskConfirmation<T extends CreateTaskInput>(
   input: T
@@ -1188,6 +1188,41 @@ describe('mock API contract', () => {
           guardrailReason: 'ok'
         })
       ]
+    });
+  });
+
+  it('rejects Xray inbound tasks targeting Agents without Xray runtime capability in mock mode', async () => {
+    const api = createMockApi({
+      inventory: {
+        agents: [
+          {
+            ...seedAgents[0],
+            id: 'agent-forward-only-01',
+            capabilities: ['host-agent', 'port-forwarding']
+          }
+        ]
+      }
+    });
+
+    await expect(
+      api.createTask({
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'customer-node-forward-only',
+        targetLabel: 'Forward-only inbound',
+        summary: 'Create Xray inbound on unsupported Agent',
+        metadata: {
+          agentId: 'agent-forward-only-01',
+          customerNodeName: 'Forward-only inbound',
+          customerName: 'Acme',
+          xrayProtocol: 'vless',
+          clientIdentity: 'acme',
+          streamNetwork: 'tcp',
+          security: 'tls'
+        }
+      })
+    ).rejects.toMatchObject({
+      code: 'agent_runtime_capability.unsupported'
     });
   });
 

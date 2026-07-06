@@ -12,7 +12,7 @@ import {
   type SubscriptionSource,
   type XrayInbound
 } from '../../domain';
-import { seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
+import { seedAgents, seedForwardRules, seedPermissionGrants } from '../mock/mock-data';
 import type { CommandOutboxItem } from './control-plane-api';
 import { createServiceBackedControlPlaneApi } from './service-backed-control-plane-api';
 
@@ -569,6 +569,45 @@ function createCustomerDirectoryForwardRule(): ForwardRule {
 }
 
 describe('service-backed control plane read model hydration', () => {
+  it('rejects Xray inbound tasks targeting Agents without Xray runtime capability', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: [
+          {
+            ...seedAgents[0],
+            id: 'agent-forward-only-01',
+            capabilities: ['host-agent', 'port-forwarding']
+          }
+        ]
+      }
+    });
+
+    await expect(
+      api.createTask(
+        {
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'customer-node-forward-only',
+          targetLabel: 'Forward-only inbound',
+          summary: 'Create Xray inbound on unsupported Agent',
+          metadata: {
+            agentId: 'agent-forward-only-01',
+            customerNodeName: 'Forward-only inbound',
+            customerName: 'Acme',
+            xrayProtocol: 'vless',
+            clientIdentity: 'acme',
+            streamNetwork: 'tcp',
+            security: 'tls'
+          }
+        },
+        mutationContext('xray-capability-denied')
+      )
+    ).rejects.toThrow(/agent_runtime_capability\.unsupported/);
+  });
+
   it('builds the full snapshot without replaying persisted tasks for every section', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const listTasks = vi.spyOn(repository, 'listTasks');

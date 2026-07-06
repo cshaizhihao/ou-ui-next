@@ -230,7 +230,7 @@ type CreateMockApiOptions = {
   seedInventory?: boolean;
   seedRuntimeEvidence?: boolean;
   readModelNow?: () => string;
-  inventory?: Partial<Pick<MockApiState, 'forwardRules' | 'quotaPolicies'>>;
+  inventory?: Partial<Pick<MockApiState, 'agents' | 'forwardRules' | 'quotaPolicies'>>;
 };
 
 type IdempotencyRecord = {
@@ -517,6 +517,32 @@ function resolveAgentIdsForTaskInState(task: DeployTask, state: MockApiState) {
   }
 
   return [];
+}
+
+function findXrayCapabilityDenialForTask(task: DeployTask, agents: Agent[]) {
+  if (!task.operation.startsWith('inbound.')) {
+    return undefined;
+  }
+
+  if (task.metadata?.xrayGuardrailAutomatic === true) {
+    return undefined;
+  }
+
+  const targetAgentIds = resolveAgentIdsForTask(task);
+  const unsupportedAgentIds = targetAgentIds.filter((agentId) => {
+    const agent = agents.find((item) => item.id === agentId);
+    return agent ? !agent.capabilities.includes('xray') : false;
+  });
+
+  if (unsupportedAgentIds.length === 0) {
+    return undefined;
+  }
+
+  return {
+    denialReason: 'Xray inbound operations require the target Agent to advertise the xray runtime capability.',
+    unsupportedAgentIds,
+    requiredCapability: 'xray'
+  };
 }
 
 function shouldNamespaceCommandArtifacts(task: DeployTask) {
@@ -2393,7 +2419,7 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
   const seedRuntimeEvidence = seedInventory && options.seedRuntimeEvidence ? createSeedRuntimeEvidence() : undefined;
   const initialNow = readModelNow();
   const state: MockApiState = {
-    agents: clone(seedInventory ? seedAgents : []),
+    agents: clone(options.inventory?.agents ?? (seedInventory ? seedAgents : [])),
     nodes: clone(seedInventory ? seedNodes : []),
     inbounds: clone(seedInventory ? seedInbounds : []),
     subscriptionSources: clone(seedInventory ? seedSubscriptionSources : []),
@@ -4309,6 +4335,28 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
           operation: taskInput.operation,
           targetId: taskInput.targetId
         });
+      }
+
+      const xrayCapabilityDenial = findXrayCapabilityDenialForTask(task, state.agents);
+
+      if (xrayCapabilityDenial) {
+        appendDeniedAudit(
+          taskInput,
+          resourceType,
+          mutationContext,
+          'agent_runtime_capability.unsupported',
+          xrayCapabilityDenial.denialReason,
+          requestBodyHash,
+          {
+            operation: taskInput.operation,
+            targetId: taskInput.targetId,
+            metadata: taskInput.metadata ?? {},
+            unsupportedAgentIds: xrayCapabilityDenial.unsupportedAgentIds,
+            requiredCapability: xrayCapabilityDenial.requiredCapability
+          }
+        );
+
+        throw new MockControlPlaneMutationError('agent_runtime_capability.unsupported', xrayCapabilityDenial);
       }
 
       state.tasks.unshift(task);

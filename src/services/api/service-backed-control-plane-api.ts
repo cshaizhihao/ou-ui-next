@@ -1008,6 +1008,44 @@ function readAgentIdFromTask(task: DeployTask) {
   return readTaskMetadataString(task, 'agentId', task.targetId);
 }
 
+function readTaskInputMetadataString(input: CreateTaskInput, key: string) {
+  const value = input.metadata?.[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function resolveXrayInboundTaskAgentId(input: CreateTaskInput) {
+  if (!input.operation.startsWith('inbound.')) {
+    return undefined;
+  }
+
+  if (input.metadata?.xrayGuardrailAutomatic === true) {
+    return undefined;
+  }
+
+  return readTaskInputMetadataString(input, 'agentId') ?? input.targetId;
+}
+
+function findXrayCapabilityDenial(input: CreateTaskInput, liveAgents: Agent[]) {
+  const agentId = resolveXrayInboundTaskAgentId(input);
+
+  if (!agentId) {
+    return undefined;
+  }
+
+  const agent = liveAgents.find((item) => item.id === agentId);
+
+  if (!agent || agent.capabilities.includes('xray')) {
+    return undefined;
+  }
+
+  return {
+    code: 'agent_runtime_capability.unsupported',
+    denialReason: 'Xray inbound operations require the target Agent to advertise the xray runtime capability.',
+    agentId,
+    requiredCapability: 'xray'
+  };
+}
+
 function updateSubscriptionSourceSyncState(
   sources: SubscriptionSource[],
   sourceId: string,
@@ -7309,6 +7347,11 @@ export function createServiceBackedControlPlaneApi({
               quotaPolicies: await listLiveQuotaPolicies()
             })
           : input;
+      const xrayCapabilityDenial = findXrayCapabilityDenial(resetAwareInput, agents);
+
+      if (xrayCapabilityDenial) {
+        throw new Error(`${xrayCapabilityDenial.code}: ${xrayCapabilityDenial.denialReason}`);
+      }
 
       const task = await service.createTask(resetAwareInput, resolveMutationContext(context));
 
