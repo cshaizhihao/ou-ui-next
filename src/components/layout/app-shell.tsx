@@ -2908,6 +2908,11 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             nodes={nodes}
             quotaPolicies={quotaPolicies}
+            tasks={tasks}
+            commandOutbox={commandOutbox}
+            configRevisions={configRevisions}
+            preflightPlans={preflightPlans}
+            runtimeSnapshots={runtimeSnapshots}
             returnFocusRef={quickActionButtonRef}
             workspaceMode="hosts"
             taskMutationBusy={taskMutationBusy}
@@ -2917,6 +2922,7 @@ export function AppShell({ ready }: AppShellProps) {
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
+            onOpenRuntimeEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
             onResetCustomerNodeTraffic={handleResetQuota}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}
@@ -2931,6 +2937,11 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             nodes={nodes}
             quotaPolicies={quotaPolicies}
+            tasks={tasks}
+            commandOutbox={commandOutbox}
+            configRevisions={configRevisions}
+            preflightPlans={preflightPlans}
+            runtimeSnapshots={runtimeSnapshots}
             returnFocusRef={quickActionButtonRef}
             workspaceMode="customerNodes"
             taskMutationBusy={taskMutationBusy}
@@ -2940,6 +2951,7 @@ export function AppShell({ ready }: AppShellProps) {
             onPreviewAgentInstallCommand={previewAgentInstallCommand}
             onPreviewAgentUpgradeCommand={previewAgentUpgradeCommand}
             onRemoteAgentUpgrade={handleRemoteAgentUpgrade}
+            onOpenRuntimeEvidenceWorkspace={handleOpenReleaseEvidenceWorkspace}
             onResetCustomerNodeTraffic={handleResetQuota}
             onSaveHostConfig={handleSaveHostConfig}
             onSaveCustomerNode={handleSaveCustomerNode}

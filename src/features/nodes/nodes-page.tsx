@@ -41,8 +41,12 @@ import {
   type AgentInstallMetadata,
   type AgentUpgradeCommand,
   type AgentTrafficAccountingMode,
+  type DeployTask,
   type ManagedNode,
   type QuotaPolicy,
+  type RuntimeConfigRevision,
+  type RuntimePreflightPlan,
+  type RuntimeSnapshot,
   type XrayClientResetPolicy,
   type XrayInbound,
   type XrayInboundStatus,
@@ -65,6 +69,14 @@ import {
   createCustomerNodeRenewalUpdate,
   createCustomerNodeTrafficUpdate
 } from './customer-node-task-actions';
+import {
+  resolveCustomerNodeRuntimeEvidence,
+  type CustomerNodeRuntimeEvidenceBundle,
+  type CustomerNodeRuntimeEvidenceState,
+  type CustomerNodeRuntimeEvidenceStep,
+  type CustomerNodeRuntimeEvidenceStepState
+} from './customer-node-runtime-evidence';
+import type { CommandOutboxSummary } from '../../services/api/control-plane-api';
 import { SimpleNodeTableActions } from './simple-node-table-actions';
 import { SimpleNodeWizard } from './simple-node-wizard';
 
@@ -86,6 +98,11 @@ type NodesPageProps = {
   language: AppLanguage;
   nodes?: ManagedNode[];
   quotaPolicies?: QuotaPolicy[];
+  tasks?: DeployTask[];
+  commandOutbox?: CommandOutboxSummary[];
+  configRevisions?: RuntimeConfigRevision[];
+  preflightPlans?: RuntimePreflightPlan[];
+  runtimeSnapshots?: RuntimeSnapshot[];
   returnFocusRef?: RefObject<HTMLElement | null>;
   workspaceMode?: WorkspaceMode;
   taskMutationBusy?: boolean;
@@ -95,6 +112,7 @@ type NodesPageProps = {
   onPreviewAgentInstallCommand: (metadata: AgentInstallMetadata) => Promise<AgentInstallCommand>;
   onPreviewAgentUpgradeCommand?: (agent: Agent, reason: string) => Promise<AgentUpgradeCommand>;
   onRemoteAgentUpgrade?: (agent: Agent, reason: string) => void;
+  onOpenRuntimeEvidenceWorkspace?: () => void;
   onResetCustomerNodeTraffic?: (policy: QuotaPolicy) => void;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
   onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
@@ -332,7 +350,8 @@ type DrawerState =
   | { type: 'editHost'; agentId: string }
   | { type: 'deleteHost'; agentId: string }
   | { type: 'customerNode'; nodeId?: string }
-  | { type: 'customerLinks'; nodeId: string };
+  | { type: 'customerLinks'; nodeId: string }
+  | { type: 'customerRuntimeEvidence'; nodeId: string };
 
 type CustomerProtocolTemplateId =
   | 'vless-reality-vision'
@@ -519,7 +538,6 @@ const copy = {
     customerRuntimeEvidenceValueReady: 'command + preflight + snapshot',
     customerRuntimeEvidenceValueWaiting: '等待 Agent 证据',
     customerRuntimeEvidenceValueBlocked: '不会提交',
-    customerRuntimeEvidenceTitle: '运行时证据',
     customerRuntimeEvidenceVerified: 'Agent 已验证',
     customerRuntimeEvidenceAwaiting: '等待 Agent 结果',
     customerRuntimeEvidenceAgent: (agents: string) => `Agent ${agents}`,
@@ -527,6 +545,37 @@ const copy = {
     customerRuntimeEvidenceConfig: (config: string) => `配置 ${config}`,
     customerRuntimeEvidenceVerifiedAt: (time: string) => `验证于 ${time}`,
     customerRuntimeEvidenceAwaitingDetail: '已入队或应用中，等待 command/result/preflight/snapshot 证据回传。',
+    customerRuntimeEvidenceOpen: '查看运行时证据',
+    customerRuntimeEvidenceDrawerTitle: '客户节点运行时证据',
+    customerRuntimeEvidenceDrawerDescription: '来自任务、Agent command、配置版本、预检和快照的真实发布证据。',
+    customerRuntimeEvidenceWorkspace: '打开任务证据',
+    customerRuntimeEvidenceTask: '任务',
+    customerRuntimeEvidenceAgentResult: 'Agent 结果',
+    customerRuntimeEvidenceCommand: '命令',
+    customerRuntimeEvidencePreflight: '预检',
+    customerRuntimeEvidenceSnapshot: '快照',
+    customerRuntimeEvidenceStatus: '证据状态',
+    customerRuntimeEvidenceStage: '证据阶段',
+    customerRuntimeEvidenceRollback: '回滚任务',
+    customerRuntimeEvidenceMissing: '等待证据',
+    customerRuntimeEvidenceCommandProgress: (completed: string, total: string) => `${completed}/${total} 已完成`,
+    customerRuntimeEvidenceStateLabels: {
+      verified: '已验证',
+      failed: '失败',
+      waiting: '等待'
+    },
+    customerRuntimeEvidenceStepStateLabels: {
+      confirmed: '确认',
+      failed: '失败',
+      waiting: '等待'
+    },
+    customerRuntimeEvidenceStepLabels: {
+      command: 'Command',
+      agentResult: 'Agent Result',
+      configRevision: 'Config Revision',
+      preflight: 'Preflight',
+      snapshot: 'Snapshot'
+    },
     operatorCreateHint: '',
     protocolTemplate: '协议模板',
     protocolTemplateOptions: {
@@ -857,7 +906,6 @@ const copy = {
     customerRuntimeEvidenceValueReady: 'command + preflight + snapshot',
     customerRuntimeEvidenceValueWaiting: 'Waiting for Agent evidence',
     customerRuntimeEvidenceValueBlocked: 'Not submitted',
-    customerRuntimeEvidenceTitle: 'Runtime Evidence',
     customerRuntimeEvidenceVerified: 'Agent Verified',
     customerRuntimeEvidenceAwaiting: 'Awaiting Agent Result',
     customerRuntimeEvidenceAgent: (agents: string) => `Agent ${agents}`,
@@ -865,6 +913,37 @@ const copy = {
     customerRuntimeEvidenceConfig: (config: string) => `Config ${config}`,
     customerRuntimeEvidenceVerifiedAt: (time: string) => `Verified ${time}`,
     customerRuntimeEvidenceAwaitingDetail: 'Queued or applying; waiting for command/result/preflight/snapshot evidence.',
+    customerRuntimeEvidenceOpen: 'View runtime evidence',
+    customerRuntimeEvidenceDrawerTitle: 'Customer Node Runtime Evidence',
+    customerRuntimeEvidenceDrawerDescription: 'Real release evidence from task, Agent command, config revision, preflight, and snapshot state.',
+    customerRuntimeEvidenceWorkspace: 'Open Task Evidence',
+    customerRuntimeEvidenceTask: 'Task',
+    customerRuntimeEvidenceAgentResult: 'Agent Result',
+    customerRuntimeEvidenceCommand: 'Command',
+    customerRuntimeEvidencePreflight: 'Preflight',
+    customerRuntimeEvidenceSnapshot: 'Snapshot',
+    customerRuntimeEvidenceStatus: 'Evidence Status',
+    customerRuntimeEvidenceStage: 'Evidence Stage',
+    customerRuntimeEvidenceRollback: 'Rollback Task',
+    customerRuntimeEvidenceMissing: 'Waiting for evidence',
+    customerRuntimeEvidenceCommandProgress: (completed: string, total: string) => `${completed}/${total} completed`,
+    customerRuntimeEvidenceStateLabels: {
+      verified: 'Verified',
+      failed: 'Failed',
+      waiting: 'Waiting'
+    },
+    customerRuntimeEvidenceStepStateLabels: {
+      confirmed: 'Confirmed',
+      failed: 'Failed',
+      waiting: 'Waiting'
+    },
+    customerRuntimeEvidenceStepLabels: {
+      command: 'Command',
+      agentResult: 'Agent Result',
+      configRevision: 'Config Revision',
+      preflight: 'Preflight',
+      snapshot: 'Snapshot'
+    },
     operatorCreateHint: '',
     protocolTemplate: 'Protocol Template',
     protocolTemplateOptions: {
@@ -2240,45 +2319,63 @@ function mapInboundToCustomerNode(
 }
 
 function CustomerNodeRuntimeEvidenceStrip({
+  evidence,
   language,
   node,
-  t
+  t,
+  onOpenEvidence
 }: {
+  evidence: CustomerNodeRuntimeEvidenceBundle;
   language: AppLanguage;
   node: CustomerNodeRecord;
   t: NodesCopy;
+  onOpenEvidence: () => void;
 }) {
-  const proof = node.runtimeDeployment;
+  const proof = evidence.proof;
   const verified = Boolean(proof);
+  const state = evidence.state;
   const configRevision = proof?.appliedConfigRevisions[0] ?? node.configVersion;
   const agentLabel = proof?.agentIds.join(', ') ?? node.agentId;
-  const commandCount = String(proof?.commandIds.length ?? 0);
+  const commandCount = String(proof?.commandIds.length ?? evidence.commandOutboxItems.length);
+  const stateClass = {
+    verified: 'border-[#00A878]/35 bg-[#00A878]/10 dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10',
+    failed: 'border-[#DC2626]/40 bg-[#DC2626]/10 dark:border-[#F87171]/25 dark:bg-[#DC2626]/14',
+    waiting: 'border-[#FFB020]/35 bg-[#FFF3C4]/50 dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10'
+  } satisfies Record<CustomerNodeRuntimeEvidenceState, string>;
+  const textClass = {
+    verified: 'text-[#007D5E] dark:text-[#9EF4C4]',
+    failed: 'text-[#B91C1C] dark:text-[#FCA5A5]',
+    waiting: 'text-[#8A5A00] dark:text-[#FFD166]'
+  } satisfies Record<CustomerNodeRuntimeEvidenceState, string>;
 
   return (
-    <div
-      aria-label={`${t.customerRuntimeEvidenceTitle} ${node.nodeName}`}
+    <button
+      aria-label={`${t.customerRuntimeEvidenceOpen} ${node.nodeName}`}
       className={cn(
-        'mt-2 border px-2 py-1.5',
-        verified
-          ? 'border-[#00A878]/35 bg-[#00A878]/10 dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10'
-          : 'border-[#FFB020]/35 bg-[#FFF3C4]/50 dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10'
+        'mt-2 w-full border px-2 py-1.5 text-left transition hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:hover:border-[#6B7CFF]/35 dark:hover:bg-[#6B7CFF]/10',
+        stateClass[state]
       )}
-      data-customer-runtime-evidence-state={verified ? 'verified' : 'waiting'}
-      role="group"
+      data-customer-runtime-evidence-state={state}
+      onClick={onOpenEvidence}
+      type="button"
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        {verified ? (
+        {state === 'verified' ? (
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#007D5E] dark:text-[#9EF4C4]" />
         ) : (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#B7791F] dark:text-[#FFD166]" />
+          <AlertTriangle className={cn('h-3.5 w-3.5 shrink-0', textClass[state])} />
         )}
         <span
           className={cn(
             'text-[11px] font-black uppercase',
-            verified ? 'text-[#007D5E] dark:text-[#9EF4C4]' : 'text-[#8A5A00] dark:text-[#FFD166]'
+            textClass[state]
           )}
         >
-          {verified ? t.customerRuntimeEvidenceVerified : t.customerRuntimeEvidenceAwaiting}
+          {state === 'verified'
+            ? t.customerRuntimeEvidenceVerified
+            : state === 'failed'
+              ? t.customerRuntimeEvidenceStateLabels.failed
+              : t.customerRuntimeEvidenceAwaiting}
         </span>
         <span className="text-[11px] font-semibold text-[#35405A] dark:text-white/50">
           {verified
@@ -2291,7 +2388,139 @@ function CustomerNodeRuntimeEvidenceStrip({
         <span>{t.customerRuntimeEvidenceCommandCount(commandCount)}</span>
         <span>{t.customerRuntimeEvidenceConfig(configRevision || '-')}</span>
       </div>
+    </button>
+  );
+}
+
+function CustomerNodeRuntimeEvidenceDrawerContent({
+  evidence,
+  language,
+  node,
+  t,
+  onOpenWorkspace
+}: {
+  evidence: CustomerNodeRuntimeEvidenceBundle;
+  language: AppLanguage;
+  node: CustomerNodeRecord;
+  t: NodesCopy;
+  onOpenWorkspace?: () => void;
+}) {
+  const stateClass = {
+    verified:
+      'border-[#00A878]/35 bg-[#00A878]/10 text-[#006B50] dark:border-[#00D49A]/25 dark:bg-[#00A878]/[0.12] dark:text-[#7FF3C9]',
+    failed:
+      'border-[#DC2626]/40 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]',
+    waiting:
+      'border-[#1E3AFF]/30 bg-[#DCE1FF]/65 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-primary/10 dark:text-primary'
+  } satisfies Record<CustomerNodeRuntimeEvidenceState, string>;
+  const proof = evidence.proof;
+  const commandIds =
+    evidence.commandOutboxItems.length > 0
+      ? evidence.commandOutboxItems.map((item) => item.commandId)
+      : proof?.commandIds ?? [];
+  const completedCommandCount = evidence.commandOutboxItems.filter((item) => item.status === 'completed').length;
+  const taskValue = evidence.task
+    ? `${evidence.task.id} · ${evidence.task.status}`
+    : evidence.taskId ?? t.customerRuntimeEvidenceMissing;
+  const commandValue =
+    commandIds.length > 0
+      ? `${t.customerRuntimeEvidenceCommandProgress(String(completedCommandCount), String(commandIds.length))} · ${commandIds.join(', ')}`
+      : t.customerRuntimeEvidenceMissing;
+  const agentResultValue = proof
+    ? `${proof.source} · ${t.customerRuntimeEvidenceVerifiedAt(formatDateTime(proof.verifiedAt, language))}`
+    : evidence.evidenceStage;
+  const configRevisionValue = evidence.configRevision
+    ? `${evidence.configRevision.id} · ${evidence.configRevision.status}`
+    : node.configVersion || t.customerRuntimeEvidenceMissing;
+  const preflightValue = evidence.preflightPlan
+    ? `${evidence.preflightPlan.id} · ${evidence.preflightPlan.status}`
+    : t.customerRuntimeEvidenceMissing;
+  const snapshotValue = evidence.runtimeSnapshot
+    ? `${evidence.runtimeSnapshot.id} · ${evidence.runtimeSnapshot.status}`
+    : t.customerRuntimeEvidenceMissing;
+
+  return (
+    <div className="space-y-4">
+      <section
+        aria-label={t.customerRuntimeEvidenceStatus}
+        className={cn('border p-3', stateClass[evidence.state])}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-[#07111F] [overflow-wrap:anywhere] dark:text-white">{node.nodeName}</p>
+            <p className="mt-1 text-xs font-semibold text-[#35405A] [overflow-wrap:anywhere] dark:text-white/58">
+              {node.customerName} · {node.protocol.toUpperCase()}:{node.listenPort}
+            </p>
+          </div>
+          <span className="border border-current/25 px-2.5 py-1 text-[10px] font-black uppercase">
+            {t.customerRuntimeEvidenceStateLabels[evidence.state]}
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] font-bold">
+          <span>{t.customerRuntimeEvidenceStage}: {evidence.evidenceStage}</span>
+          <span>{t.customerRuntimeEvidenceConfig(evidence.configRevision?.id ?? node.configVersion ?? '-')}</span>
+        </div>
+      </section>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {evidence.steps.map((step) => (
+          <CustomerNodeRuntimeEvidenceStepCard key={step.id} step={step} t={t} />
+        ))}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <InfoField label={t.customerRuntimeEvidenceTask} value={taskValue} />
+        <InfoField label={t.customerRuntimeEvidenceCommand} value={commandValue} />
+        <InfoField label={t.customerRuntimeEvidenceAgentResult} value={agentResultValue || t.customerRuntimeEvidenceMissing} />
+        <InfoField label={t.customerRuntimeEvidenceStepLabels.configRevision} value={configRevisionValue} />
+        <InfoField label={t.customerRuntimeEvidencePreflight} value={preflightValue} />
+        <InfoField label={t.customerRuntimeEvidenceSnapshot} value={snapshotValue} />
+        {evidence.task?.rollbackTaskId ? (
+          <InfoField label={t.customerRuntimeEvidenceRollback} value={evidence.task.rollbackTaskId} />
+        ) : null}
+      </div>
+
+      {onOpenWorkspace ? (
+        <div className="flex justify-end">
+          <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={onOpenWorkspace}>
+            <Terminal className="h-3.5 w-3.5" />
+            {t.customerRuntimeEvidenceWorkspace}
+          </GlowButton>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function CustomerNodeRuntimeEvidenceStepCard({
+  step,
+  t
+}: {
+  step: CustomerNodeRuntimeEvidenceStep;
+  t: NodesCopy;
+}) {
+  const stepClass = {
+    confirmed:
+      'border-[#00A878]/25 bg-white/80 text-[#006B50] dark:border-[#00D49A]/20 dark:bg-white/[0.04] dark:text-[#7FF3C9]',
+    failed:
+      'border-[#DC2626]/30 bg-[#FFF1F1]/80 text-[#B91C1C] dark:border-[#F87171]/20 dark:bg-[#DC2626]/10 dark:text-[#FCA5A5]',
+    waiting:
+      'border-[#07111F]/14 bg-white/65 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/62'
+  } satisfies Record<CustomerNodeRuntimeEvidenceStepState, string>;
+
+  return (
+    <article className={cn('min-w-0 border p-2', stepClass[step.state])}>
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <p className="text-[9px] font-black uppercase">{t.customerRuntimeEvidenceStepLabels[step.id]}</p>
+        <span className="border border-current/20 px-1.5 py-0.5 text-[9px] font-black uppercase">
+          {t.customerRuntimeEvidenceStepStateLabels[step.state]}
+        </span>
+      </div>
+      <p className="mt-1 break-all font-mono text-[10px] font-bold">
+        {step.value ?? t.customerRuntimeEvidenceMissing}
+      </p>
+      {step.detail ? <p className="mt-1 break-all font-mono text-[9px] font-semibold opacity-75">{step.detail}</p> : null}
+    </article>
   );
 }
 
@@ -2939,6 +3168,11 @@ export function NodesPage({
   language,
   nodes = [],
   quotaPolicies = [],
+  tasks = [],
+  commandOutbox = [],
+  configRevisions = [],
+  preflightPlans = [],
+  runtimeSnapshots = [],
   returnFocusRef,
   workspaceMode = 'all',
   taskMutationBusy = false,
@@ -2948,6 +3182,7 @@ export function NodesPage({
   onPreviewAgentInstallCommand,
   onPreviewAgentUpgradeCommand,
   onRemoteAgentUpgrade,
+  onOpenRuntimeEvidenceWorkspace,
   onResetCustomerNodeTraffic,
   onSaveHostConfig,
   onSaveCustomerNode
@@ -3042,6 +3277,23 @@ export function NodesPage({
     () => customerNodes.filter((node) => visibleAgents.some((agent) => agent.id === node.agentId)),
     [customerNodes, visibleAgents]
   );
+  const runtimeEvidenceByNodeId = useMemo(
+    () =>
+      new Map(
+        visibleCustomerNodes.map((node) => [
+          node.id,
+          resolveCustomerNodeRuntimeEvidence({
+            node,
+            tasks,
+            commandOutbox,
+            configRevisions,
+            preflightPlans,
+            runtimeSnapshots
+          })
+        ])
+      ),
+    [commandOutbox, configRevisions, preflightPlans, runtimeSnapshots, tasks, visibleCustomerNodes]
+  );
   const customerNodeProtocolOptions = useMemo(
     () => [...new Set(visibleCustomerNodes.map((node) => node.protocol))].sort(),
     [visibleCustomerNodes]
@@ -3089,6 +3341,21 @@ export function NodesPage({
     drawer.type === 'customerLinks'
       ? customerNodes.find((node) => node.id === drawer.nodeId)
       : undefined;
+  const runtimeEvidenceCustomerNode =
+    drawer.type === 'customerRuntimeEvidence'
+      ? customerNodes.find((node) => node.id === drawer.nodeId)
+      : undefined;
+  const selectedRuntimeEvidence = runtimeEvidenceCustomerNode
+    ? runtimeEvidenceByNodeId.get(runtimeEvidenceCustomerNode.id) ??
+      resolveCustomerNodeRuntimeEvidence({
+        node: runtimeEvidenceCustomerNode,
+        tasks,
+        commandOutbox,
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots
+      })
+    : undefined;
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -4511,7 +4778,20 @@ export function NodesPage({
                           <p className="mt-1 text-[11px] text-[#35405A] dark:text-white/45">
                             {node.remainingDays} {t.unitDays}
                           </p>
-                          <CustomerNodeRuntimeEvidenceStrip language={language} node={node} t={t} />
+                          <CustomerNodeRuntimeEvidenceStrip
+                            evidence={runtimeEvidenceByNodeId.get(node.id) ?? resolveCustomerNodeRuntimeEvidence({
+                              node,
+                              tasks,
+                              commandOutbox,
+                              configRevisions,
+                              preflightPlans,
+                              runtimeSnapshots
+                            })}
+                            language={language}
+                            node={node}
+                            t={t}
+                            onOpenEvidence={() => setDrawer({ type: 'customerRuntimeEvidence', nodeId: node.id })}
+                          />
                         </td>
                         <td className="nodes-customer-node-row-cell px-3 py-2.5 text-xs font-semibold leading-5 text-[#35405A] [overflow-wrap:anywhere] dark:text-white/70">
                           {node.customerName}
@@ -4845,6 +5125,31 @@ export function NodesPage({
               onCopySubscriptionLink={() => copyText(customerNodeLinkMaterial.subscriptionLink)}
             />
           </div>
+        ) : null}
+      </ConfigDrawer>
+
+      <ConfigDrawer
+        returnFocusRef={returnFocusRef}
+        description={t.customerRuntimeEvidenceDrawerDescription}
+        open={drawer.type === 'customerRuntimeEvidence'}
+        title={t.customerRuntimeEvidenceDrawerTitle}
+        onClose={() => setDrawer({ type: 'closed' })}
+      >
+        {runtimeEvidenceCustomerNode && selectedRuntimeEvidence ? (
+          <CustomerNodeRuntimeEvidenceDrawerContent
+            evidence={selectedRuntimeEvidence}
+            language={language}
+            node={runtimeEvidenceCustomerNode}
+            t={t}
+            onOpenWorkspace={
+              onOpenRuntimeEvidenceWorkspace
+                ? () => {
+                    setDrawer({ type: 'closed' });
+                    onOpenRuntimeEvidenceWorkspace();
+                  }
+                : undefined
+            }
+          />
         ) : null}
       </ConfigDrawer>
 

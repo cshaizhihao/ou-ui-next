@@ -1,7 +1,16 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
-import type { Agent, QuotaPolicy, XrayInbound } from '../../domain';
+import type {
+  Agent,
+  DeployTask,
+  QuotaPolicy,
+  RuntimeConfigRevision,
+  RuntimePreflightPlan,
+  RuntimeSnapshot,
+  XrayInbound
+} from '../../domain';
+import type { CommandOutboxSummary } from '../../services/api/control-plane-api';
 import { NodesPage } from './nodes-page';
 
 const GB = 1024 ** 3;
@@ -116,6 +125,119 @@ function createInbound(overrides: Partial<XrayInbound> = {}): XrayInbound {
     fallbacks: [],
     sniffingEnabled: true,
     configVersion: 'cfg-test-inbound-001',
+    ...overrides
+  };
+}
+
+function createRuntimeTask(overrides: Partial<DeployTask> = {}): DeployTask {
+  return {
+    id: 'task-xray-apply-01',
+    operation: 'inbound.update',
+    resourceType: 'inbound',
+    resourceId: 'inbound-premium-vless',
+    status: 'succeeded',
+    targetId: 'inbound-premium-vless',
+    targetLabel: 'Acme Premium VLESS',
+    summary: 'Update Acme Premium VLESS',
+    createdAt: '2026-06-04T04:00:00.000Z',
+    updatedAt: '2026-06-04T04:05:00.000Z',
+    actor: 'admin',
+    requestedBy: 'admin',
+    requestId: 'req-task-xray-apply-01',
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: true,
+    rollbackTaskId: 'task-xray-rollback-01',
+    attempts: 1,
+    steps: [],
+    metadata: {},
+    ...overrides
+  };
+}
+
+function createRuntimeCommand(overrides: Partial<CommandOutboxSummary> = {}): CommandOutboxSummary {
+  return {
+    id: 'outbox-task-xray-apply-01',
+    taskId: 'task-xray-apply-01',
+    commandId: 'cmd-task-xray-apply-01',
+    agentId: 'agent-metered-01',
+    seq: 1,
+    status: 'completed',
+    transport: 'http-pull',
+    attempts: 1,
+    createdAt: '2026-06-04T04:00:05.000Z',
+    updatedAt: '2026-06-04T04:04:50.000Z',
+    deadlineAt: '2026-06-04T04:10:00.000Z',
+    ackedAt: '2026-06-04T04:00:10.000Z',
+    resultAt: '2026-06-04T04:04:50.000Z',
+    commandType: 'apply',
+    ...overrides
+  };
+}
+
+function createRuntimeConfigRevision(overrides: Partial<RuntimeConfigRevision> = {}): RuntimeConfigRevision {
+  return {
+    id: 'cfg-task-xray-apply-01',
+    taskId: 'task-xray-apply-01',
+    operation: 'inbound.update',
+    targetId: 'inbound-premium-vless',
+    targetLabel: 'Acme Premium VLESS',
+    agentId: 'agent-metered-01',
+    moduleKind: 'xray',
+    artifactUri: 'memory://cfg-task-xray-apply-01',
+    checksum: 'sha256:cfg-task-xray-apply-01',
+    signature: 'sig-task-xray-apply-01',
+    preflightPlanId: 'preflight-task-xray-apply-01',
+    snapshotBeforeId: 'snapshot-task-xray-apply-01',
+    status: 'applied',
+    createdAt: '2026-06-04T04:00:00.000Z',
+    createdBy: 'admin',
+    appliedAt: '2026-06-04T04:04:50.000Z',
+    diffSummary: {
+      added: 0,
+      changed: 1,
+      removed: 0
+    },
+    artifact: {
+      runtimeDiagnosis: {
+        state: 'ready',
+        evidenceStage: 'agent-result-verified'
+      }
+    },
+    ...overrides
+  };
+}
+
+function createRuntimePreflightPlan(overrides: Partial<RuntimePreflightPlan> = {}): RuntimePreflightPlan {
+  return {
+    id: 'preflight-task-xray-apply-01',
+    taskId: 'task-xray-apply-01',
+    configRevisionId: 'cfg-task-xray-apply-01',
+    targetId: 'inbound-premium-vless',
+    agentId: 'agent-metered-01',
+    moduleKind: 'xray',
+    status: 'passed',
+    checks: [],
+    createdAt: '2026-06-04T04:00:01.000Z',
+    completedAt: '2026-06-04T04:00:03.000Z',
+    ...overrides
+  };
+}
+
+function createRuntimeSnapshot(overrides: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
+  return {
+    id: 'snapshot-task-xray-apply-01',
+    taskId: 'task-xray-apply-01',
+    targetId: 'inbound-premium-vless',
+    targetLabel: 'Acme Premium VLESS',
+    agentId: 'agent-metered-01',
+    moduleKind: 'xray',
+    reason: 'pre_apply',
+    status: 'verified',
+    checksum: 'sha256:snapshot-task-xray-apply-01',
+    capturedAt: '2026-06-04T03:59:59.000Z',
+    capturedBy: 'admin',
+    verifiedAt: '2026-06-04T04:00:04.000Z',
+    state: {},
     ...overrides
   };
 }
@@ -2453,6 +2575,11 @@ describe('NodesPage', () => {
         ]}
         language="en"
         workspaceMode="customerNodes"
+        tasks={[createRuntimeTask()]}
+        commandOutbox={[createRuntimeCommand()]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
         onDeleteCustomerNode={vi.fn()}
         onDeleteHost={vi.fn()}
         onDeployHostConfig={vi.fn()}
@@ -2462,7 +2589,7 @@ describe('NodesPage', () => {
       />
     );
 
-    const evidence = screen.getByRole('group', { name: 'Runtime Evidence Acme Premium VLESS' });
+    const evidence = screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' });
 
     expect(evidence).toHaveAttribute('data-customer-runtime-evidence-state', 'verified');
     expect(within(evidence).getByText('Agent Verified')).toBeInTheDocument();
@@ -2487,11 +2614,64 @@ describe('NodesPage', () => {
       />
     );
 
-    const evidence = screen.getByRole('group', { name: 'Runtime Evidence Acme Premium VLESS' });
+    const evidence = screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' });
 
     expect(evidence).toHaveAttribute('data-customer-runtime-evidence-state', 'waiting');
     expect(within(evidence).getByText('Awaiting Agent Result')).toBeInTheDocument();
     expect(within(evidence).getByText(/waiting for command\/result\/preflight\/snapshot evidence/i)).toBeInTheDocument();
+  });
+
+  it('opens a customer-node runtime evidence drawer with task release artifacts', async () => {
+    const user = userEvent.setup();
+    const onOpenRuntimeEvidenceWorkspace = vi.fn();
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            configVersion: 'cfg-task-xray-apply-01',
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:05:00.000Z',
+              agentIds: ['agent-metered-01'],
+              commandIds: ['cmd-task-xray-apply-01'],
+              appliedConfigRevisions: ['cfg-task-xray-apply-01']
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[createRuntimeTask()]}
+        commandOutbox={[createRuntimeCommand()]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onOpenRuntimeEvidenceWorkspace={onOpenRuntimeEvidenceWorkspace}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' }));
+
+    const drawer = screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' });
+
+    expect(within(drawer).getByText('Verified')).toBeInTheDocument();
+    expect(within(drawer).getByText('task-xray-apply-01 · succeeded')).toBeInTheDocument();
+    expect(within(drawer).getByText(/1\/1 completed · cmd-task-xray-apply-01/u)).toBeInTheDocument();
+    expect(within(drawer).getByText(/agent-result · Verified/u)).toBeInTheDocument();
+    expect(within(drawer).getByText('cfg-task-xray-apply-01 · applied')).toBeInTheDocument();
+    expect(within(drawer).getByText('preflight-task-xray-apply-01 · passed')).toBeInTheDocument();
+    expect(within(drawer).getByText('snapshot-task-xray-apply-01 · verified')).toBeInTheDocument();
+    expect(within(drawer).getByText('task-xray-rollback-01')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Open Task Evidence' }));
+    expect(onOpenRuntimeEvidenceWorkspace).toHaveBeenCalledTimes(1);
   });
 
   it('only offers executable Xray inbound protocols for customer nodes', async () => {
