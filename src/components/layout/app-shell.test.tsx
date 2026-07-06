@@ -1513,6 +1513,24 @@ describe('AppShell', () => {
     expect(deleteRequest?.metadata).not.toHaveProperty('hysteriaAuth');
     expect(deleteRequest?.metadata).not.toHaveProperty('realityPrivateKey');
     expect(deleteRequest?.metadata).not.toHaveProperty('clientComment', '');
+
+    await waitFor(() => {
+      expect(api.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'subscription.delete',
+          resourceType: 'subscription',
+          targetId: 'sub-client-ops-hkg-manual',
+          metadata: expect.objectContaining({
+            subscriptionClientId: 'sub-client-ops-hkg-manual',
+            deletedWithCustomerNodeId: 'inbound-vless-hkg-443'
+          })
+        }),
+        expect.objectContaining({
+          idempotencyKey:
+            'ui:subscription.delete.customer-node:inbound-vless-hkg-443:sub-client-ops-hkg-manual'
+        })
+      );
+    });
   });
 
   it('resets matched Xray client traffic with a short quick action alias', async () => {

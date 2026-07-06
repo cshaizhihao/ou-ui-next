@@ -1970,22 +1970,51 @@ export function AppShell({ ready }: AppShellProps) {
   const handleDeleteCustomerNode = useCallback(
     (metadata: CustomerNodeConfigMetadata) => {
       const taskMetadata = createCustomerNodeTaskMetadata(metadata, 'inbound.delete');
+      const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata);
 
-      void runTask(
-        withRiskConfirmation({
-          operation: 'inbound.delete',
-          resourceType: 'inbound',
-          targetId: metadata.nodeId,
-          targetLabel: metadata.customerNodeName,
-          summary: t.deleteCustomerNodeSummary,
-          metadata: taskMetadata
-        }),
-        {
-          idempotencyKey: ['ui', 'inbound.delete', metadata.agentId, metadata.nodeId].join(':')
+      void (async () => {
+        const inboundTask = await runTask(
+          withRiskConfirmation({
+            operation: 'inbound.delete',
+            resourceType: 'inbound',
+            targetId: metadata.nodeId,
+            targetLabel: metadata.customerNodeName,
+            summary: t.deleteCustomerNodeSummary,
+            metadata: taskMetadata
+          }),
+          {
+            idempotencyKey: ['ui', 'inbound.delete', metadata.agentId, metadata.nodeId].join(':')
+          }
+        );
+
+        if (!inboundTask) {
+          return;
         }
-      );
+
+        await runTask(
+          withRiskConfirmation({
+            operation: 'subscription.delete',
+            resourceType: 'subscription',
+            targetId: subscriptionMetadata.subscriptionClientId,
+            targetLabel: subscriptionMetadata.displayName,
+            summary: t.deleteSubscriptionClientSummary,
+            metadata: {
+              ...subscriptionMetadata,
+              deletedWithCustomerNodeId: metadata.nodeId
+            }
+          }),
+          {
+            idempotencyKey: [
+              'ui',
+              'subscription.delete.customer-node',
+              metadata.nodeId,
+              subscriptionMetadata.subscriptionClientId
+            ].join(':')
+          }
+        );
+      })();
     },
-    [runTask, t.deleteCustomerNodeSummary]
+    [runTask, t.deleteCustomerNodeSummary, t.deleteSubscriptionClientSummary]
   );
 
   const handleCreateForwarding = useCallback(
