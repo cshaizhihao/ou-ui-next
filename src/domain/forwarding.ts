@@ -34,6 +34,19 @@ export const FORWARDING_RUNTIME_BLOCKED_CONTROLS = [
 export type ForwardingRuntimeSupportedControl = (typeof FORWARDING_RUNTIME_SUPPORTED_CONTROLS)[number];
 export type ForwardingRuntimeBlockedControl = (typeof FORWARDING_RUNTIME_BLOCKED_CONTROLS)[number];
 
+export type ForwardingRuntimeControlMetadata = {
+  ipRateLimitMbps?: number;
+  maxConnections?: number;
+  maxConnectionsPerIp?: number;
+  proxyProtocol?: boolean;
+  blockedRuntimeControls?: ForwardingRuntimeBlockedControl[];
+  blockedRuntimeControlValues?: Partial<
+    Record<'ipRateLimitMbps' | 'maxConnections' | 'maxConnectionsPerIp', number> & {
+      proxyProtocol: boolean;
+    }
+  >;
+};
+
 export type ForwardingRuntimeDiagnosisState = 'ready' | 'waiting' | 'degraded' | 'blocked' | 'failed';
 
 export type ForwardingRuntimeDiagnosisReason =
@@ -165,7 +178,7 @@ export type ForwardRule = {
 };
 
 export function collectBlockedForwardingRuntimeControls(
-  rule: Pick<ForwardRule, 'ipRateLimitMbps' | 'maxConnections' | 'maxConnectionsPerIp' | 'proxyProtocol'>
+  rule: ForwardingRuntimeControlMetadata
 ): ForwardingRuntimeBlockedControl[] {
   const blockedControls: ForwardingRuntimeBlockedControl[] = [];
 
@@ -173,11 +186,11 @@ export function collectBlockedForwardingRuntimeControls(
     blockedControls.push('ipRateLimitMbps');
   }
 
-  if (rule.maxConnections > 0) {
+  if ((rule.maxConnections ?? 0) > 0) {
     blockedControls.push('maxConnections');
   }
 
-  if (rule.maxConnectionsPerIp > 0) {
+  if ((rule.maxConnectionsPerIp ?? 0) > 0) {
     blockedControls.push('maxConnectionsPerIp');
   }
 
@@ -186,6 +199,41 @@ export function collectBlockedForwardingRuntimeControls(
   }
 
   return blockedControls;
+}
+
+export function normalizeBlockedForwardingRuntimeControls<T extends ForwardingRuntimeControlMetadata>(
+  metadata: T
+): T & {
+  ipRateLimitMbps: number;
+  maxConnections: number;
+  maxConnectionsPerIp: number;
+  proxyProtocol: boolean;
+} {
+  const blockedRuntimeControls = metadata.blockedRuntimeControls ?? collectBlockedForwardingRuntimeControls(metadata);
+  const blockedRuntimeControlValues =
+    metadata.blockedRuntimeControlValues ??
+    (blockedRuntimeControls.length > 0
+      ? {
+          ipRateLimitMbps: metadata.ipRateLimitMbps,
+          maxConnections: metadata.maxConnections,
+          maxConnectionsPerIp: metadata.maxConnectionsPerIp,
+          proxyProtocol: metadata.proxyProtocol
+        }
+      : undefined);
+
+  return {
+    ...metadata,
+    ipRateLimitMbps: 0,
+    maxConnections: 0,
+    maxConnectionsPerIp: 0,
+    proxyProtocol: false,
+    ...(blockedRuntimeControls.length > 0
+      ? {
+          blockedRuntimeControls,
+          blockedRuntimeControlValues
+        }
+      : {})
+  };
 }
 
 function uniqueForwardingDiagnosisReasons(reasons: ForwardingRuntimeDiagnosisReason[]) {

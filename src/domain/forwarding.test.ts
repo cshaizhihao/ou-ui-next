@@ -1,6 +1,7 @@
 import {
   collectBlockedForwardingRuntimeControls,
   diagnoseForwardingRuntime,
+  normalizeBlockedForwardingRuntimeControls,
   type ForwardRule
 } from './forwarding';
 
@@ -83,6 +84,29 @@ describe('forwarding runtime diagnosis', () => {
       state: 'degraded',
       reasons: ['blocked-runtime-controls'],
       nextActions: ['inspect-agent']
+    });
+  });
+
+  it('normalizes blocked controls out of executable runtime metadata while preserving diagnostics', () => {
+    expect(
+      normalizeBlockedForwardingRuntimeControls({
+        ipRateLimitMbps: 50,
+        maxConnections: 1024,
+        maxConnectionsPerIp: 16,
+        proxyProtocol: true
+      })
+    ).toEqual({
+      ipRateLimitMbps: 0,
+      maxConnections: 0,
+      maxConnectionsPerIp: 0,
+      proxyProtocol: false,
+      blockedRuntimeControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+      blockedRuntimeControlValues: {
+        ipRateLimitMbps: 50,
+        maxConnections: 1024,
+        maxConnectionsPerIp: 16,
+        proxyProtocol: true
+      }
     });
   });
 

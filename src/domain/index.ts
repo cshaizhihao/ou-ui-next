@@ -69,7 +69,8 @@ export {
   collectBlockedForwardingRuntimeControls,
   diagnoseForwardingRuntime,
   FORWARDING_RUNTIME_BLOCKED_CONTROLS,
-  FORWARDING_RUNTIME_SUPPORTED_CONTROLS
+  FORWARDING_RUNTIME_SUPPORTED_CONTROLS,
+  normalizeBlockedForwardingRuntimeControls
 } from './forwarding';
 export { createCustomersFromReadModels } from './customer';
 export type { CustomerReadModel } from './customer';

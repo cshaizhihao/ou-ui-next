@@ -1636,6 +1636,67 @@ describe('control-plane service', () => {
     });
   });
 
+  it('normalizes blocked forwarding controls when hydrating persisted rules for runtime apply', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: [
+        {
+          ...seedForwardRules[0]!,
+          ipRateLimitMbps: 50,
+          maxConnections: 1024,
+          maxConnectionsPerIp: 16,
+          proxyProtocol: true
+        }
+      ],
+      permissionGrants: seedPermissionGrants
+    });
+    const service = createControlPlaneService({ repository, now: createControlPlaneTestClock() });
+
+    const task = await service.createTask(
+      {
+        operation: 'forward.apply',
+        resourceType: 'forward',
+        targetId: 'forward-hkg-443',
+        targetLabel: 'Port Forwarding Fabric',
+        summary: 'Re-apply persisted forwarding rule with blocked controls'
+      },
+      {
+        ...context,
+        requestId: 'req-service-forward-apply-blocked-hydrated',
+        idempotencyKey: 'idem-service-forward-apply-blocked-hydrated'
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+    const artifact = outboxItem.command.type === 'apply' ? outboxItem.command.payload.artifact : undefined;
+
+    expect(task.metadata).toMatchObject({
+      ipRateLimitMbps: 0,
+      maxConnections: 0,
+      maxConnectionsPerIp: 0,
+      proxyProtocol: false,
+      blockedRuntimeControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+      blockedRuntimeControlValues: {
+        ipRateLimitMbps: 50,
+        maxConnections: 1024,
+        maxConnectionsPerIp: 16,
+        proxyProtocol: true
+      }
+    });
+    expect(artifact).toMatchObject({
+      rule: {
+        limits: {
+          ipRateLimitMbps: 0,
+          maxConnections: 0,
+          maxConnectionsPerIp: 0
+        },
+        proxyProtocol: false
+      },
+      runtimeCapabilities: {
+        unsupportedControls: ['ipRateLimitMbps', 'maxConnections', 'maxConnectionsPerIp', 'proxyProtocol'],
+        status: 'blocked-by-agent-runtime'
+      }
+    });
+  });
+
   it('hydrates forwarding pause tasks from the persisted rule as disabled runtime metadata when metadata is omitted', async () => {
     const { repository, service } = createService();
 

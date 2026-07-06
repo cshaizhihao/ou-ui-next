@@ -1,4 +1,4 @@
-import type { ForwardRule } from '../../domain/forwarding';
+import { normalizeBlockedForwardingRuntimeControls, type ForwardRule } from '../../domain/forwarding';
 import type { CreateTaskInput, DeployTask } from '../../domain/task';
 import type { QuotaPolicy } from '../../domain/quota';
 
@@ -117,7 +117,7 @@ function createForwardQuotaMetadata(
   const primaryBinding = readPrimaryBinding(rule);
   const tunnelId = rule.tunnelId.trim();
 
-  return {
+  return normalizeBlockedForwardingRuntimeControls({
     name: rule.name,
     ownerName: rule.ownerName,
     ...(tunnelId ? { tunnelId } : {}),
@@ -152,7 +152,7 @@ function createForwardQuotaMetadata(
     quotaEnforcementTriggerKind: trigger.kind,
     quotaEnforcementTriggerId: trigger.id,
     quotaEnforcementGuardrailReason: policy.guardrailReason ?? rule.guardrailReason ?? (action === 'pause' ? 'rule_monthly_quota_exceeded' : 'ok')
-  };
+  });
 }
 
 function createPauseIntent(

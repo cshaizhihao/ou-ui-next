@@ -1,5 +1,5 @@
 import type { CreateTaskInput } from '../../domain/task';
-import { collectBlockedForwardingRuntimeControls, type ForwardingRuntimeBlockedControl } from '../../domain/forwarding';
+import { normalizeBlockedForwardingRuntimeControls, type ForwardingRuntimeBlockedControl } from '../../domain/forwarding';
 import type { ForwardingCreateMetadata, ForwardingRuleView } from './forwarding-page';
 
 export type ForwardingSaveAction = 'create' | 'update';
@@ -41,31 +41,7 @@ function withRiskConfirmation(input: CreateTaskInput): CreateTaskInput {
 }
 
 function createForwardingTaskMetadata(metadata: ForwardingTaskMetadata): ForwardingTaskMetadata {
-  const blockedRuntimeControls = metadata.blockedRuntimeControls ?? collectBlockedForwardingRuntimeControls(metadata);
-  const blockedRuntimeControlValues =
-    metadata.blockedRuntimeControlValues ??
-    (blockedRuntimeControls.length > 0
-      ? {
-          ipRateLimitMbps: metadata.ipRateLimitMbps,
-          maxConnections: metadata.maxConnections,
-          maxConnectionsPerIp: metadata.maxConnectionsPerIp,
-          proxyProtocol: metadata.proxyProtocol
-        }
-      : undefined);
-
-  return {
-    ...metadata,
-    ipRateLimitMbps: 0,
-    maxConnections: 0,
-    maxConnectionsPerIp: 0,
-    proxyProtocol: false,
-    ...(blockedRuntimeControls.length > 0
-      ? {
-          blockedRuntimeControls,
-          blockedRuntimeControlValues
-        }
-      : {})
-  };
+  return normalizeBlockedForwardingRuntimeControls(metadata);
 }
 
 export function createForwardingMetadataFromRule(rule: ForwardingRuleView): ForwardingTaskMetadata {

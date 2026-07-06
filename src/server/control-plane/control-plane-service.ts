@@ -28,7 +28,8 @@ import {
   composeAgentUpgradeCommand,
   createRuntimeAgentToken,
   DEFAULT_AGENT_INSTALL_SCRIPT_URL,
-  markTaskAgentRuntimeDeploymentVerified
+  markTaskAgentRuntimeDeploymentVerified,
+  normalizeBlockedForwardingRuntimeControls
 } from '../../domain';
 import {
   agentCommandEnvelopeSchema,
@@ -700,7 +701,7 @@ function createForwardRuntimeMetadataFromRule(
     return undefined;
   }
 
-  return {
+  return normalizeBlockedForwardingRuntimeControls({
     name: rule.name,
     ownerName: rule.ownerName,
     tunnelId: rule.tunnelId,
@@ -725,7 +726,7 @@ function createForwardRuntimeMetadataFromRule(
     enabled,
     proxyProtocol: rule.proxyProtocol,
     pricePerGb: rule.pricePerGb
-  };
+  });
 }
 
 async function hydrateForwardRuntimeTaskInput(taskInput: CreateTaskInput, transaction: ControlPlaneTransaction) {
