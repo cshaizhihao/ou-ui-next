@@ -66,8 +66,8 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
 | Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、访问凭据轮换、二维码和 Shadowrocket/Stash 输出 |
 | 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户，展示启用格式链接、到期、用量和生成节点；独立客户门户、raw token/hash 校验、泄露撤销和设备级绑定仍需继续补齐 |
-| SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储，适合单 Master 部署和安装器闭环 |
-| 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的强 schema、迁移和 HA 仍是后续重点 |
+| SQLite 状态 | 已实现 | 当前为 JSON-state SQLite 仓储 + schema v2 领域实体索引表，适合单 Master 部署、安装器闭环和后续强 schema 迁移起步 |
+| 规范化生产数据库 | Roadmap | Inbound/client/traffic/audit/outbox 的完整强 schema、增量查询和 HA 仍是后续重点 |
 
 ## 快速开始
 
@@ -293,7 +293,7 @@ P1：
 
 - 订阅门户、raw token/hash 校验、泄露撤销和设备级绑定。
 - Tunnel entry/exit、质量探测、故障切换和运行状态面板。
-- SQLite JSON-state 迁移到更强的领域表结构。
+- SQLite v2 已提供可重建的领域实体索引表；完整强 schema、增量查询和 HA 仍需继续推进。
 - 更接近 3X-UI 的 Xray hot diff / reload 管线。
 
 P2：

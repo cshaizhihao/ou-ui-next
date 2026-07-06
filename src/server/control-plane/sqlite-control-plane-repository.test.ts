@@ -73,15 +73,45 @@ function readMigrationRows(databaseFilePath: string) {
   }
 }
 
+function readEntityIndexRows(databaseFilePath: string) {
+  const database = new Database(databaseFilePath, { readonly: true });
+
+  try {
+    return database
+      .prepare(
+        `SELECT entity_type, entity_id, parent_id, status, label, payload
+         FROM control_plane_entity_index
+         ORDER BY entity_type ASC, entity_id ASC`
+      )
+      .all() as Array<{
+        entity_type: string;
+        entity_id: string;
+        parent_id: string;
+        status: string;
+        label: string;
+        payload: string;
+      }>;
+  } finally {
+    database.close();
+  }
+}
+
 describe('sqlite control-plane repository', () => {
   it('records a migration ledger when initializing a new sqlite database', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
       await createSqliteControlPlaneRepository({ databaseFilePath });
 
+      expect(readSchemaVersion(databaseFilePath)).toBe('2');
       expect(readMigrationRows(databaseFilePath)).toEqual([
         expect.objectContaining({
           version: 1,
           name: '001_json_state_v1',
+          checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+          applied_at: expect.stringMatching(/^20/)
+        }),
+        expect.objectContaining({
+          version: 2,
+          name: '002_domain_entity_index_v1',
           checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
           applied_at: expect.stringMatching(/^20/)
         })
@@ -95,10 +125,16 @@ describe('sqlite control-plane repository', () => {
 
       await createSqliteControlPlaneRepository({ databaseFilePath });
 
+      expect(readSchemaVersion(databaseFilePath)).toBe('2');
       expect(readMigrationRows(databaseFilePath)).toEqual([
         expect.objectContaining({
           version: 1,
           name: '001_json_state_v1',
+          checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+        }),
+        expect.objectContaining({
+          version: 2,
+          name: '002_domain_entity_index_v1',
           checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
         })
       ]);
@@ -170,6 +206,98 @@ describe('sqlite control-plane repository', () => {
     });
   });
 
+  it('rebuilds a safe domain entity index alongside the json state payload', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const token = 'oit_sqlite_index_secret_token_001';
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTask({
+          id: 'task-sqlite-index-forward',
+          operation: 'forward.create',
+          resourceType: 'forward',
+          resourceId: 'forward-sqlite-index',
+          status: 'queued',
+          targetId: 'forward-sqlite-index',
+          targetLabel: 'SQLite indexed forward',
+          summary: 'Create sqlite indexed forwarding rule',
+          createdAt: '2026-06-05T00:00:00.000Z',
+          updatedAt: '2026-06-05T00:00:00.000Z',
+          actor: 'admin',
+          requestedBy: 'admin',
+          requestId: 'req-sqlite-index-forward',
+          sourceIp: '203.0.113.10',
+          rollbackAvailable: false,
+          attempts: 0,
+          progressPercent: 0,
+          steps: [],
+          metadata: {
+            clientCredential: token
+          }
+        });
+        await transaction.upsertSubscriptionClient({
+          id: 'sub-client-sqlite-index',
+          displayName: 'SQLite Indexed Subscription',
+          subId: 'sub_sqlite_index',
+          email: 'sqlite-index@example.com',
+          enabled: true,
+          protocol: 'vless',
+          group: 'premium',
+          trafficLimitBytes: 10 * 1024 ** 3,
+          usedTrafficBytes: 0,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          ipLimit: 2,
+          requestLimitPerHour: 60,
+          sourceIds: [],
+          selectedTags: ['premium'],
+          includeFilter: '',
+          excludeFilter: '',
+          regionFilter: [],
+          routingRule: '',
+          maxLatencyMs: 0,
+          sortStrategy: 'latency',
+          formats: ['plain'],
+          outputFormats: ['uri'],
+          templateName: 'default',
+          accessTokenPreview: 'ou_sqlit...ndex',
+          securePathPreview: '/sqliteIndexPath001',
+          generatedNodeCount: 1
+        });
+      });
+
+      const rows = readEntityIndexRows(databaseFilePath);
+      const rawIndex = JSON.stringify(rows);
+
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            entity_type: 'task',
+            entity_id: 'task-sqlite-index-forward',
+            parent_id: 'forward-sqlite-index',
+            status: 'queued',
+            label: 'SQLite indexed forward'
+          }),
+          expect.objectContaining({
+            entity_type: 'subscription-client',
+            entity_id: 'sub-client-sqlite-index',
+            parent_id: 'sub_sqlite_index',
+            status: 'enabled',
+            label: 'SQLite Indexed Subscription'
+          })
+        ])
+      );
+      expect(JSON.parse(rows.find((row) => row.entity_id === 'task-sqlite-index-forward')?.payload ?? '{}')).toEqual({
+        actor: 'admin',
+        operation: 'forward.create',
+        requestId: 'req-sqlite-index-forward',
+        resourceType: 'forward',
+        targetId: 'forward-sqlite-index'
+      });
+      expect(rawIndex).not.toContain(token);
+      expect(rawIndex).not.toContain('clientCredential');
+    });
+  });
+
   it('imports legacy json state into sqlite when the database does not exist yet', async () => {
     await withDatabaseFile(async (databaseFilePath, legacyStateFilePath) => {
       await writeFile(
@@ -228,12 +356,12 @@ describe('sqlite control-plane repository', () => {
 
   it('rejects future sqlite schema versions without downgrading metadata', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
-      writeControlPlaneDatabaseMetadataFixture(databaseFilePath, '2');
+      writeControlPlaneDatabaseMetadataFixture(databaseFilePath, '3');
 
       await expect(createSqliteControlPlaneRepository({ databaseFilePath })).rejects.toThrow(
-        'Unsupported control-plane sqlite schema_version 2'
+        'Unsupported control-plane sqlite schema_version 3'
       );
-      expect(readSchemaVersion(databaseFilePath)).toBe('2');
+      expect(readSchemaVersion(databaseFilePath)).toBe('3');
     });
   });
 

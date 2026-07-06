@@ -136,12 +136,18 @@ describe('control-plane sqlite tool', () => {
         backupFile: resolve(backupFilePath),
         sizeBytes: statSync(backupFilePath).size,
         sha256: sha256File(backupFilePath),
-        sqliteSchemaVersion: 1,
+        sqliteSchemaVersion: 2,
         stateFormat: 'json-state-v1',
         sqliteMigrations: [
           expect.objectContaining({
             version: 1,
             name: '001_json_state_v1',
+            checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+            appliedAt: expect.stringMatching(/^20/)
+          }),
+          expect.objectContaining({
+            version: 2,
+            name: '002_domain_entity_index_v1',
             checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
             appliedAt: expect.stringMatching(/^20/)
           })
@@ -181,6 +187,11 @@ describe('control-plane sqlite tool', () => {
         expect.objectContaining({
           version: 1,
           name: '001_json_state_v1',
+          checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
+        }),
+        expect.objectContaining({
+          version: 2,
+          name: '002_domain_entity_index_v1',
           checksum: expect.stringMatching(/^sha256:[a-f0-9]{64}$/)
         })
       ]);
@@ -234,10 +245,10 @@ describe('control-plane sqlite tool', () => {
     await withTempDirectory(async (directory) => {
       const futureDatabaseFilePath = join(directory, 'future.sqlite');
 
-      writeControlPlaneDatabaseMetadataFixture(futureDatabaseFilePath, '2');
+      writeControlPlaneDatabaseMetadataFixture(futureDatabaseFilePath, '3');
 
       expect(runSqliteToolExpectFailure('validate', futureDatabaseFilePath)).toContain(
-        'unsupported control-plane schema_version 2'
+        'unsupported control-plane schema_version 3'
       );
     });
   });

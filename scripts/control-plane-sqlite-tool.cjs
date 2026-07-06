@@ -5,7 +5,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const Database = require('better-sqlite3');
 
-const SQLITE_SCHEMA_VERSION = 1;
+const SQLITE_SCHEMA_VERSION = 2;
 const SQLITE_STATE_ROW_ID = 1;
 const SQLITE_STATE_FORMAT = 'json-state-v1';
 const BACKUP_MANIFEST_SCHEMA_VERSION = 'ou-ui-next.control-plane-backup.v1';
@@ -14,6 +14,11 @@ const SQLITE_MIGRATIONS = [
     version: 1,
     name: '001_json_state_v1',
     checksum: createMigrationChecksum(1, '001_json_state_v1', SQLITE_STATE_FORMAT)
+  },
+  {
+    version: 2,
+    name: '002_domain_entity_index_v1',
+    checksum: createMigrationChecksum(2, '002_domain_entity_index_v1', SQLITE_STATE_FORMAT)
   }
 ];
 const USAGE = [
@@ -64,6 +69,41 @@ function readMigrationRows(database) {
     .all();
 }
 
+function createEntityIndexTables(database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS control_plane_entity_index (
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      parent_id TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      PRIMARY KEY (entity_type, entity_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_control_plane_entity_index_type
+      ON control_plane_entity_index (entity_type);
+
+    CREATE INDEX IF NOT EXISTS idx_control_plane_entity_index_parent
+      ON control_plane_entity_index (entity_type, parent_id);
+
+    CREATE INDEX IF NOT EXISTS idx_control_plane_entity_index_status
+      ON control_plane_entity_index (entity_type, status);
+  `);
+}
+
+function upsertDatabaseMetadata(database) {
+  const upsertMeta = database.prepare(`
+    INSERT INTO control_plane_meta (key, value)
+    VALUES (@key, @value)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `);
+
+  upsertMeta.run({ key: 'schema_version', value: String(SQLITE_SCHEMA_VERSION) });
+  upsertMeta.run({ key: 'state_format', value: SQLITE_STATE_FORMAT });
+}
+
 function applySupportedMigrations(database, sourceFile) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS control_plane_migrations (
@@ -73,6 +113,7 @@ function applySupportedMigrations(database, sourceFile) {
       applied_at TEXT NOT NULL
     );
   `);
+  createEntityIndexTables(database);
 
   const existingRows = readMigrationRows(database);
   const insertMigration = database.prepare(`
@@ -98,6 +139,8 @@ function applySupportedMigrations(database, sourceFile) {
       fail(`sqlite database has invalid control-plane migration ${migration.version}: ${sourceFile}`);
     }
   }
+
+  upsertDatabaseMetadata(database);
 }
 
 function validateMigrationLedger(database, sourceFile, options = {}) {
@@ -259,7 +302,7 @@ function validateControlPlaneDatabase(database, sourceFile, options = {}) {
 
     const parsedSchemaVersion = parseSchemaVersion(schemaVersion.value, sourceFile);
 
-    if (parsedSchemaVersion !== SQLITE_SCHEMA_VERSION) {
+    if (parsedSchemaVersion > SQLITE_SCHEMA_VERSION) {
       fail(
         `sqlite database uses unsupported control-plane schema_version ${parsedSchemaVersion}; ` +
         `this tool supports ${SQLITE_SCHEMA_VERSION}: ${sourceFile}`

@@ -21,7 +21,7 @@ type CreateSqliteControlPlaneRepositoryInput = {
   seed?: Partial<ControlPlaneRepositoryState>;
 };
 
-const SQLITE_SCHEMA_VERSION = 1;
+const SQLITE_SCHEMA_VERSION = 2;
 const SQLITE_STATE_ROW_ID = 1;
 const SQLITE_STATE_FORMAT = 'json-state-v1';
 const SQLITE_MIGRATIONS = [
@@ -29,10 +29,24 @@ const SQLITE_MIGRATIONS = [
     version: 1,
     name: '001_json_state_v1',
     checksum: createMigrationChecksum(1, '001_json_state_v1', SQLITE_STATE_FORMAT)
+  },
+  {
+    version: 2,
+    name: '002_domain_entity_index_v1',
+    checksum: createMigrationChecksum(2, '002_domain_entity_index_v1', SQLITE_STATE_FORMAT)
   }
 ] as const;
 
 type SqliteDatabase = InstanceType<typeof Database>;
+type EntityIndexRow = {
+  entityType: string;
+  entityId: string;
+  parentId: string;
+  status: string;
+  label: string;
+  updatedAt: string;
+  payload: string;
+};
 
 function createMigrationChecksum(version: number, name: string, stateFormat: string) {
   return `sha256:${createHash('sha256')
@@ -92,7 +106,7 @@ function assertSupportedDatabaseMetadata(database: SqliteDatabase, originLabel: 
 
   const schemaVersion = parseSchemaVersion(rawSchemaVersion, originLabel);
 
-  if (schemaVersion !== SQLITE_SCHEMA_VERSION) {
+  if (schemaVersion > SQLITE_SCHEMA_VERSION) {
     throw new Error(
       `Unsupported control-plane sqlite schema_version ${schemaVersion}: this build supports ${SQLITE_SCHEMA_VERSION}. ` +
       `Upgrade OU-UI before opening ${originLabel}.`
@@ -166,7 +180,38 @@ function createDatabaseTables(database: SqliteDatabase) {
       checksum TEXT NOT NULL,
       applied_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS control_plane_entity_index (
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      parent_id TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      PRIMARY KEY (entity_type, entity_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_control_plane_entity_index_type
+      ON control_plane_entity_index (entity_type);
+
+    CREATE INDEX IF NOT EXISTS idx_control_plane_entity_index_parent
+      ON control_plane_entity_index (entity_type, parent_id);
+
+    CREATE INDEX IF NOT EXISTS idx_control_plane_entity_index_status
+      ON control_plane_entity_index (entity_type, status);
   `);
+}
+
+function upsertDatabaseMetadata(database: SqliteDatabase) {
+  const upsertMeta = database.prepare(`
+    INSERT INTO control_plane_meta (key, value)
+    VALUES (@key, @value)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `);
+
+  upsertMeta.run({ key: 'schema_version', value: String(SQLITE_SCHEMA_VERSION) });
+  upsertMeta.run({ key: 'state_format', value: SQLITE_STATE_FORMAT });
 }
 
 function applySupportedMigrations(database: SqliteDatabase, originLabel: string, now = new Date().toISOString()) {
@@ -206,6 +251,7 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
     configureDatabaseConnection(database);
     createDatabaseTables(database);
     applySupportedMigrations(database, originLabel);
+    upsertDatabaseMetadata(database);
     assertSupportedMigrationLedger(database, originLabel);
     return;
   }
@@ -216,17 +262,176 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
 
   configureDatabaseConnection(database);
   createDatabaseTables(database);
+  applySupportedMigrations(database, originLabel);
+  upsertDatabaseMetadata(database);
+  assertSupportedMigrationLedger(database, originLabel);
+}
 
-  const upsertMeta = database.prepare(`
-    INSERT INTO control_plane_meta (key, value)
-    VALUES (@key, @value)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+function createEntityIndexRows(state: ControlPlaneRepositoryState, fallbackUpdatedAt: string): EntityIndexRow[] {
+  const rows: EntityIndexRow[] = [];
+  const pushRow = (input: Omit<EntityIndexRow, 'payload'> & { payload: Record<string, unknown> }) => {
+    rows.push({
+      ...input,
+      parentId: input.parentId || '',
+      status: input.status || '',
+      label: input.label || '',
+      updatedAt: input.updatedAt || fallbackUpdatedAt,
+      payload: JSON.stringify(input.payload)
+    });
+  };
+
+  state.tasks.forEach((task) => {
+    pushRow({
+      entityType: 'task',
+      entityId: task.id,
+      parentId: task.resourceId ?? task.targetId,
+      status: task.status,
+      label: task.targetLabel,
+      updatedAt: task.updatedAt || task.createdAt,
+      payload: {
+        operation: task.operation,
+        resourceType: task.resourceType,
+        targetId: task.targetId,
+        requestId: task.requestId,
+        actor: task.actor
+      }
+    });
+  });
+
+  state.auditLogs.forEach((auditLog) => {
+    pushRow({
+      entityType: 'audit-log',
+      entityId: auditLog.id,
+      parentId: auditLog.targetId,
+      status: auditLog.result,
+      label: auditLog.action,
+      updatedAt: auditLog.createdAt,
+      payload: {
+        action: auditLog.action,
+        resourceType: auditLog.resourceType,
+        actor: auditLog.actor,
+        requestId: auditLog.requestId
+      }
+    });
+  });
+
+  state.commandOutbox.forEach((command) => {
+    pushRow({
+      entityType: 'command-outbox',
+      entityId: command.id,
+      parentId: command.taskId,
+      status: command.status,
+      label: command.commandId,
+      updatedAt: command.updatedAt || command.createdAt,
+      payload: {
+        taskId: command.taskId,
+        commandId: command.commandId,
+        agentId: command.agentId,
+        transport: command.transport,
+        seq: command.seq
+      }
+    });
+  });
+
+  state.forwardRules.forEach((rule) => {
+    pushRow({
+      entityType: 'forward-rule',
+      entityId: rule.id,
+      parentId: rule.tunnelId,
+      status: rule.enabled ? 'enabled' : 'disabled',
+      label: rule.name,
+      updatedAt: fallbackUpdatedAt,
+      payload: {
+        ownerName: rule.ownerName,
+        protocol: rule.ports[0]?.protocol,
+        listenPort: rule.ports[0]?.listenPort,
+        targetAddress: rule.ports[0]?.targetAddress,
+        targetPort: rule.ports[0]?.targetPort
+      }
+    });
+  });
+
+  state.subscriptionSources.forEach((source) => {
+    pushRow({
+      entityType: 'subscription-source',
+      entityId: source.id,
+      parentId: source.providerAccountId ?? '',
+      status: source.status,
+      label: source.name,
+      updatedAt: source.lastSyncAt || fallbackUpdatedAt,
+      payload: {
+        kind: source.kind,
+        nodeCount: source.nodeCount,
+        dedupeKey: source.dedupeKey
+      }
+    });
+  });
+
+  state.subscriptionClients.forEach((client) => {
+    pushRow({
+      entityType: 'subscription-client',
+      entityId: client.id,
+      parentId: client.subId,
+      status: client.enabled ? 'enabled' : 'disabled',
+      label: client.displayName,
+      updatedAt: client.lastGeneratedAt ?? fallbackUpdatedAt,
+      payload: {
+        subId: client.subId,
+        email: client.email,
+        group: client.group,
+        outputFormats: client.outputFormats ?? client.formats
+      }
+    });
+  });
+
+  state.trafficRollups.forEach((rollup) => {
+    pushRow({
+      entityType: 'traffic-rollup',
+      entityId: rollup.id,
+      parentId: rollup.subjectId,
+      status: rollup.dimension,
+      label: rollup.subjectLabel,
+      updatedAt: rollup.observedAt,
+      payload: {
+        agentId: rollup.agentId,
+        periodKey: rollup.periodKey,
+        meteredBytes: rollup.meteredBytes,
+        source: rollup.source
+      }
+    });
+  });
+
+  return rows;
+}
+
+function rebuildEntityIndex(database: SqliteDatabase, state: ControlPlaneRepositoryState, updatedAt: string) {
+  const rows = createEntityIndexRows(state, updatedAt);
+  const insertRow = database.prepare(`
+    INSERT INTO control_plane_entity_index (
+      entity_type,
+      entity_id,
+      parent_id,
+      status,
+      label,
+      updated_at,
+      payload
+    )
+    VALUES (
+      @entityType,
+      @entityId,
+      @parentId,
+      @status,
+      @label,
+      @updatedAt,
+      @payload
+    )
   `);
 
-  upsertMeta.run({ key: 'schema_version', value: String(SQLITE_SCHEMA_VERSION) });
-  upsertMeta.run({ key: 'state_format', value: SQLITE_STATE_FORMAT });
-  applySupportedMigrations(database, originLabel);
-  assertSupportedMigrationLedger(database, originLabel);
+  database.prepare('DELETE FROM control_plane_entity_index').run();
+
+  for (const row of rows) {
+    insertRow.run(row);
+  }
 }
 
 function readStateFromDatabase(database: SqliteDatabase, originLabel: string): ControlPlaneRepositoryState {
@@ -245,6 +450,7 @@ function readStateFromDatabase(database: SqliteDatabase, originLabel: string): C
 function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepositoryState, originLabel: string) {
   assertSupportedDatabaseMetadata(database, originLabel);
   assertSupportedMigrationLedger(database, originLabel);
+  const updatedAt = new Date().toISOString();
 
   database
     .prepare(
@@ -255,8 +461,9 @@ function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepos
     .run({
       id: SQLITE_STATE_ROW_ID,
       payload: JSON.stringify(state, null, 2),
-      updatedAt: new Date().toISOString()
+      updatedAt
     });
+  rebuildEntityIndex(database, state, updatedAt);
 }
 
 function loadLegacyState(input: CreateSqliteControlPlaneRepositoryInput) {
@@ -292,6 +499,7 @@ async function prepareSqliteDatabase(input: CreateSqliteControlPlaneRepositoryIn
           payload: JSON.stringify(state, null, 2),
           updatedAt: new Date().toISOString()
         });
+      rebuildEntityIndex(database, state, new Date().toISOString());
     } else {
       const state = parseStatePayload(existingRow.payload, input.databaseFilePath);
       writeStateToDatabase(database, state, input.databaseFilePath);
