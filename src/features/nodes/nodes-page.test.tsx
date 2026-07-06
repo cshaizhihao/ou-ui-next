@@ -2465,6 +2465,48 @@ describe('NodesPage', () => {
     expect(protocolOptions.queryByRole('option', { name: 'Hysteria2' })).not.toBeInTheDocument();
   });
 
+  it('does not render unsupported Xray protocols as editable customer-node runtime rows', () => {
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            id: 'inbound-preview-hysteria',
+            label: 'Preview Hysteria2 Inbound',
+            protocol: 'hysteria',
+            listenPort: 443,
+            clientIdentity: 'client-preview-hysteria',
+            clients: [
+              {
+                ...createInbound().clients[0],
+                id: 'client-preview-hysteria',
+                email: 'preview-hysteria@example.com',
+                auth: 'hy2-preview-secret'
+              }
+            ],
+            streamSettings: {
+              network: 'udp',
+              security: 'tls',
+              sni: 'hy2.example.com'
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText('Preview Hysteria2 Inbound')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Customer Node' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clone Customer Node' })).not.toBeInTheDocument();
+  });
+
   it('requires an Agent with Xray capability before creating customer nodes', async () => {
     render(
       <NodesPage

@@ -45,8 +45,9 @@ import {
   type XrayClientResetPolicy,
   type XrayInbound,
   type XrayInboundStatus,
-  type XrayProtocol,
-  type XrayStreamSettings
+  type XrayRuntimeProtocol,
+  type XrayStreamSettings,
+  isXrayRuntimeProtocol
 } from '../../domain';
 import { normalizeXrayClientCredentials } from '../../domain/protocol-credentials';
 import { buildXrayShareLink, extractShareHostLabel } from '../../domain/xray-share-link';
@@ -71,7 +72,7 @@ type WorkspaceMode = Workspace | 'all';
 type HostStatusFilter = 'all' | Agent['status'];
 type HostCapabilityFilter = 'all' | Agent['capabilities'][number];
 type HostRuntimeHealthFilter = 'all' | 'issues' | 'sampling-gap' | 'no-telemetry';
-type CustomerNodeProtocolFilter = 'all' | XrayProtocol;
+type CustomerNodeProtocolFilter = 'all' | XrayRuntimeProtocol;
 type CustomerNodeStatusFilter = 'all' | XrayInboundStatus | 'client-disabled';
 type CustomerNodeTrafficMultiplier = 0.5 | 1 | 1.5 | 2;
 const hostStatuses: Agent['status'][] = ['online', 'degraded', 'offline', 'provisioning'];
@@ -135,7 +136,7 @@ export type CustomerNodeConfigMetadata = {
   customerNodeName: string;
   customerName: string;
   serverAddress: string;
-  xrayProtocol: XrayProtocol;
+  xrayProtocol: XrayRuntimeProtocol;
   listenPort: number;
   clientIdentity: string;
   clientEmail: string;
@@ -187,7 +188,7 @@ type CustomerNodeRecord = {
   nodeName: string;
   customerName: string;
   serverAddress: string;
-  protocol: XrayProtocol;
+  protocol: XrayRuntimeProtocol;
   listenPort: number;
   clientIdentity: string;
   clientEmail: string;
@@ -238,7 +239,7 @@ type CustomerDraft = {
   customerName: string;
   protocolTemplate: CustomerProtocolTemplateId;
   serverAddress: string;
-  protocol: XrayProtocol;
+  protocol: XrayRuntimeProtocol;
   listenPort: string;
   clientIdentity: string;
   clientEmail: string;
@@ -272,6 +273,10 @@ type CustomerDraft = {
   currentUsedTrafficGb: string;
   remainingDays: string;
   subscriptionRule: string;
+};
+
+type RuntimeXrayInbound = XrayInbound & {
+  protocol: XrayRuntimeProtocol;
 };
 
 type DrawerState =
@@ -1146,7 +1151,7 @@ function filterCustomerNodes(
   });
 }
 
-function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft): Partial<CustomerDraft> {
+function createProtocolDraftPatch(protocol: XrayRuntimeProtocol, current: CustomerDraft): Partial<CustomerDraft> {
   const nextIdentity = createClientIdentity(protocol);
   const currentEmail = current.clientEmail.trim();
   const currentFingerprint = current.fingerprint.trim();
@@ -1159,12 +1164,10 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
   const nextSecurity =
     protocol === 'shadowsocks'
       ? 'none'
-      : protocol === 'hysteria'
-        ? 'tls'
-        : protocol === 'trojan'
-          ? current.security === 'none'
-            ? 'tls'
-            : current.security
+      : protocol === 'trojan'
+        ? current.security === 'none'
+          ? 'tls'
+          : current.security
         : protocol === 'vmess'
           ? current.security === 'reality' || current.security === 'none'
             ? 'tls'
@@ -1191,15 +1194,13 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
     vmessSecurity: protocol === 'vmess' ? current.vmessSecurity || 'auto' : current.vmessSecurity,
     shadowsocksMethod:
       protocol === 'shadowsocks' ? current.shadowsocksMethod || '2022-blake3-aes-128-gcm' : current.shadowsocksMethod,
-    hysteriaAuth: protocol === 'hysteria' ? nextIdentity : current.hysteriaAuth,
+    hysteriaAuth: current.hysteriaAuth,
     streamNetwork:
-      protocol === 'hysteria'
-        ? 'udp'
-        : protocol === 'shadowsocks' || protocol === 'trojan' || protocol === 'vless'
-          ? 'tcp'
-          : protocol === 'vmess'
-            ? 'ws'
-            : current.streamNetwork,
+      protocol === 'shadowsocks' || protocol === 'trojan' || protocol === 'vless'
+        ? 'tcp'
+        : protocol === 'vmess'
+          ? 'ws'
+          : current.streamNetwork,
     security: nextSecurity,
     sni: nextSni,
     path:
@@ -1209,7 +1210,7 @@ function createProtocolDraftPatch(protocol: XrayProtocol, current: CustomerDraft
           ? current.path.trim()
           : '',
     fingerprint: nextSecurity === 'none' ? '' : currentFingerprint || 'chrome',
-    alpn: protocol === 'hysteria' ? 'h3' : nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
+    alpn: nextSecurity === 'tls' ? current.alpn || 'h2,http/1.1' : current.alpn,
     realityPublicKey: nextSecurity === 'reality' ? currentRealityKey || generatedRealityKeys?.publicKey || '' : '',
     realityPrivateKey: nextSecurity === 'reality' ? currentRealityPrivateKey || generatedRealityKeys?.privateKey || '' : '',
     realityTarget: nextSecurity === 'reality' ? currentRealityTarget || (nextSni ? `${nextSni}:443` : '') : '',
@@ -1392,7 +1393,7 @@ function refreshRealityMaterial(current: CustomerDraft): CustomerDraft {
   };
 }
 
-function getSecurityOptions(protocol: XrayProtocol, language: AppLanguage) {
+function getSecurityOptions(protocol: XrayRuntimeProtocol, language: AppLanguage) {
   const labels =
     language === 'zh'
       ? {
@@ -1408,10 +1409,6 @@ function getSecurityOptions(protocol: XrayProtocol, language: AppLanguage) {
 
   if (protocol === 'shadowsocks') {
     return [{ label: labels.none, value: 'none' }];
-  }
-
-  if (protocol === 'hysteria') {
-    return [{ label: labels.tls, value: 'tls' }];
   }
 
   if (protocol === 'vmess') {
@@ -1451,17 +1448,13 @@ function getVmessSecurityOptions(language: AppLanguage) {
       ];
 }
 
-function createClientIdentity(protocol: XrayProtocol) {
+function createClientIdentity(protocol: XrayRuntimeProtocol) {
   if (protocol === 'trojan') {
     return createRandomSecret('trojan-');
   }
 
   if (protocol === 'shadowsocks') {
     return createRandomSecret('ss-');
-  }
-
-  if (protocol === 'hysteria') {
-    return createRandomSecret('hysteria-');
   }
 
   return createRandomUuid();
@@ -1617,7 +1610,7 @@ function createRealityShortId() {
   return createRandomSecret('').slice(0, 8);
 }
 
-const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayProtocol }> = [
+const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayRuntimeProtocol }> = [
   { label: 'VLESS', value: 'vless' },
   { label: 'VMess', value: 'vmess' },
   { label: 'Trojan', value: 'trojan' },
@@ -1626,13 +1619,9 @@ const CUSTOMER_PROTOCOL_OPTIONS: Array<{ label: string; value: XrayProtocol }> =
 
 const RESET_POLICY_OPTIONS: XrayClientResetPolicy[] = ['never', 'daily', 'weekly', 'monthly'];
 
-function createProtocolClient(protocol: XrayProtocol, identity: string) {
+function createProtocolClient(protocol: XrayRuntimeProtocol, identity: string) {
   if (protocol === 'trojan' || protocol === 'shadowsocks') {
     return { password: identity };
-  }
-
-  if (protocol === 'hysteria') {
-    return { auth: identity };
   }
 
   return { id: identity };
@@ -1824,9 +1813,7 @@ function buildXrayArtifacts(
   const identity =
     draft.protocol === 'vless' || draft.protocol === 'vmess'
       ? normalizedCredentials.clientId
-      : draft.protocol === 'hysteria'
-        ? normalizedCredentials.auth
-        : normalizedCredentials.password;
+      : normalizedCredentials.password;
   const flow = draft.flow.trim();
   const port = resolveCustomerNodeListenPort(draft, options);
   const client = {
@@ -1850,16 +1837,7 @@ function buildXrayArtifacts(
           password: identity,
           network: 'tcp,udp'
         }
-      : draft.protocol === 'http' || draft.protocol === 'mixed'
-        ? {
-            accounts: [
-              {
-                user: draft.clientEmail.trim() || draft.customerName.trim() || draft.clientIdentity.trim(),
-                pass: identity
-              }
-            ]
-          }
-        : draft.protocol === 'vless'
+      : draft.protocol === 'vless'
           ? {
               clients: [client],
               decryption: 'none',
@@ -1898,7 +1876,7 @@ function buildXrayArtifacts(
 }
 
 function mapInboundToCustomerNode(
-  inbound: XrayInbound,
+  inbound: RuntimeXrayInbound,
   nodeAgentIds: Map<string, string>,
   nodeServerAddresses: Map<string, string>,
   agentServerAddresses: Map<string, string>
@@ -2696,7 +2674,10 @@ export function NodesPage({
     [visibleAgents]
   );
   const customerNodes = useMemo(
-    () => inbounds.map((inbound) => mapInboundToCustomerNode(inbound, nodeAgentIds, nodeServerAddresses, agentServerAddresses)),
+    () =>
+      inbounds
+        .filter((inbound): inbound is RuntimeXrayInbound => isXrayRuntimeProtocol(inbound.protocol))
+        .map((inbound) => mapInboundToCustomerNode(inbound, nodeAgentIds, nodeServerAddresses, agentServerAddresses)),
     [agentServerAddresses, inbounds, nodeAgentIds, nodeServerAddresses]
   );
   const onlineHostCount = visibleAgents.filter((agent) => agent.status === 'online').length;
@@ -2797,19 +2778,15 @@ export function NodesPage({
         ? t.vmessSection
         : customerDraft.protocol === 'trojan'
           ? t.trojanSection
-          : customerDraft.protocol === 'shadowsocks'
-            ? t.shadowsocksSection
-            : t.hysteriaSection;
+          : t.shadowsocksSection;
   const showTransportPath = ['ws', 'grpc', 'httpupgrade', 'splithttp'].includes(customerDraft.streamNetwork);
   const showSni = customerDraft.security !== 'none' || showTransportPath;
-  const showTlsSettings = customerDraft.security === 'tls' && customerDraft.protocol !== 'hysteria';
+  const showTlsSettings = customerDraft.security === 'tls';
   const showRealitySettings = customerDraft.security === 'reality';
   const credentialLabel =
     customerDraft.protocol === 'vless' || customerDraft.protocol === 'vmess'
       ? t.clientIdentity
-      : customerDraft.protocol === 'hysteria'
-        ? t.hysteriaAuth
-        : t.clientCredential;
+      : t.clientCredential;
 
   useEffect(() => {
     let stale = false;
@@ -2931,8 +2908,7 @@ export function NodesPage({
     setCustomerDraft((current) => ({
       ...current,
       clientCredential: value,
-      clientIdentity: value,
-      hysteriaAuth: current.protocol === 'hysteria' ? value : current.hysteriaAuth
+      clientIdentity: value
     }));
   }
 
@@ -4614,7 +4590,7 @@ export function NodesPage({
                       setCustomerDraft((current) => ({
                         ...current,
                         protocolTemplate: current.protocolTemplate,
-                        ...createProtocolDraftPatch(value as XrayProtocol, current)
+                        ...createProtocolDraftPatch(value as XrayRuntimeProtocol, current)
                       }))
                     }
                     options={CUSTOMER_PROTOCOL_OPTIONS}
@@ -4632,7 +4608,7 @@ export function NodesPage({
                   />
                   <InputField
                     label={credentialLabel}
-                    value={customerDraft.protocol === 'hysteria' ? customerDraft.hysteriaAuth : customerDraft.clientCredential}
+                    value={customerDraft.clientCredential}
                     onChange={updateCustomerCredential}
                   />
                 </div>

@@ -1,4 +1,4 @@
-import type { XrayInbound } from '../../domain/protocol';
+import { isXrayRuntimeProtocol, type XrayInbound } from '../../domain/protocol';
 import type { CreateTaskInput, DeployTask } from '../../domain/task';
 import { readCustomerNodePolicyId } from './customer-node-policy-identity';
 
@@ -14,7 +14,6 @@ type XrayGuardrailTaskIntent = {
   idempotencyKey: string;
 };
 
-const XrayRuntimeProtocols = new Set(['vmess', 'vless', 'trojan', 'shadowsocks']);
 const ACTIVE_TASK_STATUSES = new Set(['queued', 'running', 'retrying']);
 const GB = 1024 ** 3;
 
@@ -182,7 +181,7 @@ function createIntent(
     return undefined;
   }
 
-  if (!XrayRuntimeProtocols.has(inbound.protocol)) {
+  if (!isXrayRuntimeProtocol(inbound.protocol)) {
     return undefined;
   }
 
@@ -221,7 +220,7 @@ export function deriveXrayGuardrailTaskIntents(
   trigger: XrayGuardrailEnforcementTrigger
 ) {
   return afterInbounds.flatMap((inbound) => {
-    if (!XrayRuntimeProtocols.has(inbound.protocol) || inbound.clients.length === 0) {
+    if (!isXrayRuntimeProtocol(inbound.protocol) || inbound.clients.length === 0) {
       return [];
     }
 

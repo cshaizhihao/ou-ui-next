@@ -12,7 +12,14 @@ import type {
   TunnelMode,
   TunnelType
 } from './forwarding';
-import type { XrayClient, XrayClientResetPolicy, XrayInbound, XrayProtocol, XrayStreamSettings } from './protocol';
+import {
+  isXrayRuntimeProtocol,
+  type XrayClient,
+  type XrayClientResetPolicy,
+  type XrayInbound,
+  type XrayRuntimeProtocol,
+  type XrayStreamSettings
+} from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
 import { allocateStableHighListenPort } from './xray-port-allocation';
 
@@ -121,7 +128,7 @@ function expiresAtFromTask(task: DeployTask, remainingDays: number) {
   return new Date((Number.isNaN(baseMs) ? Date.now() : baseMs) + Math.max(remainingDays, 0) * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayProtocol | undefined {
+function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayRuntimeProtocol | undefined {
   const rawProtocol = metadata?.xrayProtocol;
 
   if (rawProtocol === undefined || rawProtocol === '') {
@@ -129,9 +136,7 @@ function readXrayProtocol(metadata: Record<string, unknown> | undefined): XrayPr
   }
 
   const protocol = readString(metadata, 'xrayProtocol', '');
-  return ['vmess', 'vless', 'trojan', 'shadowsocks'].includes(protocol)
-    ? (protocol as XrayProtocol)
-    : undefined;
+  return isXrayRuntimeProtocol(protocol) ? protocol : undefined;
 }
 
 function readStreamNetwork(metadata: Record<string, unknown> | undefined): XrayStreamSettings['network'] {
@@ -336,7 +341,7 @@ function readTunnelChain(
 
 function createXrayClientsFromTask(input: {
   task: DeployTask;
-  protocol: XrayProtocol;
+  protocol: XrayRuntimeProtocol;
   customerName: string;
   enabled: boolean;
 }) {
@@ -393,7 +398,7 @@ function createXrayClientsFromTask(input: {
         input.protocol === 'trojan' || input.protocol === 'shadowsocks'
           ? normalizedCredentials.password
           : undefined,
-      auth: input.protocol === 'hysteria' ? normalizedCredentials.auth : undefined,
+      auth: undefined,
       method:
         input.protocol === 'shadowsocks'
           ? readString(clientMetadata, 'shadowsocksMethod', '2022-blake3-aes-128-gcm')

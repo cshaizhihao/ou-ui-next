@@ -92,8 +92,10 @@ export type {
   XrayInbound,
   XrayInboundStatus,
   XrayProtocol,
+  XrayRuntimeProtocol,
   XrayStreamSettings
 } from './protocol';
+export { XRAY_RUNTIME_PROTOCOLS, isXrayRuntimeProtocol } from './protocol';
 export type {
   BillingDirection,
   QuotaEnforcementState,

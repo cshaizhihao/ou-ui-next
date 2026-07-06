@@ -3,6 +3,7 @@ import { getNavigationItem, getNavigationItems, type PageId } from '../../app/na
 import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import {
+  isXrayRuntimeProtocol,
   selectSubscriptionExportProfileForClient,
   type Agent,
   type AgentCredentialSummary,
@@ -345,6 +346,10 @@ function createCustomerNodeMetadataFromInbound(
   const remainingDays =
     inbound.remainingDays
     ?? Math.max(Math.ceil((Date.parse(client.expiresAt) - Date.now()) / 24 / 60 / 60 / 1000), 0);
+
+  if (!isXrayRuntimeProtocol(inbound.protocol)) {
+    throw new Error(`Unsupported Xray inbound protocol: ${inbound.protocol}`);
+  }
 
   return {
     nodeId: inbound.id,

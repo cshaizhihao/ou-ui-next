@@ -60,8 +60,8 @@ V2.0.0 的重点不是继续增加页面数量，而是收紧“功能声明”�
 | Agent 注册与命令通道 | 已实现 | install token、runtime credential、command outbox、ACK/result/log_chunk、telemetry 上报 |
 | Xray runtime apply | 已实现 | Agent 写入 `inbounds.d`、合并同端口同协议 inbound、生成 `config.json`、执行 Xray preflight、重启 `ou-ui-xray.service` |
 | Xray 多 client inbound | 已实现 | Control Plane artifact 支持 `clients[]`，API/OpenAPI 校验多 client metadata，Agent profile 支持逐 client telemetry/guardrail |
-| Xray 协议 | 已实现 | runtime apply 支持 `vless`、`vmess`、`trojan`、`shadowsocks` |
-| Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议 |
+| Xray 协议 | 已实现 | runtime apply 支持 `vless`、`vmess`、`trojan`、`shadowsocks`；客户节点工作台按同一 runtime protocol 边界过滤 |
+| Hysteria / WireGuard / TUN | Preview | 域模型和订阅解析可出现相关概念，但当前不是 Xray Agent runtime 的生产落地协议，不会作为可编辑客户节点 runtime 入站暴露 |
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp，GOST/socat 执行，GOST 规则级限速，nftables 计数，forward/tunnel 端口绑定冲突拒绝，artifact / 规则级 runtime diagnosis |
 | Forwarding 高级控制 | Preview | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会标记为 Agent runtime blocked，不宣称已完成 |
 | Subscription mixer | 已实现 | 订阅身份、源导入、格式输出、provider/export/profile 工作区，支持订阅诊断、访问凭据轮换、二维码和 Shadowrocket/Stash 输出 |
@@ -164,6 +164,7 @@ Control Plane 保存意图、任务、审计链和 read model。Agent 负责在�
 - 客户节点删除会同步入队绑定订阅身份删除；历史手工创建的订阅身份如果无法从客户节点 metadata 推导，仍需在订阅工作区独立清理。
 - 客户节点创建目标会按 Agent `xray` capability 过滤，没有 Xray runtime 的主机不会出现在可提交目标里。
 - API 层会拒绝已知非 Xray Agent 的人工 inbound 任务，避免绕过 UI 后制造不会落地的 Xray runtime 任务。
+- 客户节点工作台和 runtime artifact 共用 `XRAY_RUNTIME_PROTOCOLS` 边界，当前只允许 `vless`、`vmess`、`trojan`、`shadowsocks` 进入可编辑/可下发 runtime inbound。
 - 被 quota / expiry guardrail 标记为 `runtimeDisabledByPolicy` 的 client 会保留在 `clientPolicies[]` 和订阅诊断中，但不会进入实际 Xray `settings.clients`。
 - 自动 guardrail 任务会按 client 派生 disable / resume intent，多 client inbound 不再因为共享一个 inbound 而整体跳过。
 - 同端口同协议 inbound fragment 合并，保留独立 client profile。

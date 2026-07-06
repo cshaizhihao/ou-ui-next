@@ -78,13 +78,6 @@ function createClientMetadata(metadata: CustomerNodeConfigMetadata) {
             shadowsocksMethod: metadata.shadowsocksMethod
           }
         : {}
-    ),
-    ...compactMetadata(
-      metadata.xrayProtocol === 'hysteria'
-        ? {
-            hysteriaAuth: metadata.hysteriaAuth
-          }
-        : {}
     )
   };
 }
@@ -144,13 +137,6 @@ function createUpsertMetadata(metadata: CustomerNodeConfigMetadata) {
       metadata.xrayProtocol === 'shadowsocks'
         ? {
             shadowsocksMethod: metadata.shadowsocksMethod
-          }
-        : {}
-    ),
-    ...compactMetadata(
-      metadata.xrayProtocol === 'hysteria'
-        ? {
-            hysteriaAuth: metadata.hysteriaAuth
           }
         : {}
     ),

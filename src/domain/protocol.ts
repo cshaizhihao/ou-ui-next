@@ -10,6 +10,14 @@ export type XrayProtocol =
   | 'wireguard'
   | 'tun';
 
+export const XRAY_RUNTIME_PROTOCOLS = ['vmess', 'vless', 'trojan', 'shadowsocks'] as const;
+
+export type XrayRuntimeProtocol = (typeof XRAY_RUNTIME_PROTOCOLS)[number];
+
+export function isXrayRuntimeProtocol(protocol: unknown): protocol is XrayRuntimeProtocol {
+  return typeof protocol === 'string' && XRAY_RUNTIME_PROTOCOLS.includes(protocol as XrayRuntimeProtocol);
+}
+
 export type XrayInboundStatus = 'enabled' | 'disabled' | 'applying' | 'error';
 
 export type XrayClientCredentialType = 'uuid' | 'password' | 'auth' | 'userpass';

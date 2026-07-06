@@ -35,6 +35,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Xray inbound read-model updates now prefer explicit task-level client policy evidence over stale guardrail state while still preserving telemetry counters, so resume and quota-reset style updates can clear disabled policy state.
 - Customer-node create/edit forms now restrict selectable runtime targets to Agents with the `xray` capability, preventing non-Xray hosts from accepting customer-node submissions as if runtime apply were supported.
 - Mock and service-backed APIs now reject manual `inbound.*` submissions for known Agents that lack the `xray` capability with `agent_runtime_capability.unsupported`, while allowing automatic guardrail tasks derived from existing inbounds.
+- Customer-node runtime protocol handling now uses the shared `XRAY_RUNTIME_PROTOCOLS` boundary across UI, API schemas, read models, guardrail task derivation, and runtime artifacts; unsupported protocols such as Hysteria2/WireGuard/TUN remain subscription/Preview concepts and are not rendered as editable Xray runtime inbound rows.
 - Xray inbound delete artifacts now emit `remove_inbound` with no active runtime clients while preserving disabled policy evidence, so delete tasks cannot look like an upsert in Agent evidence.
 - Customer-node delete now queues the bound `subscription.delete` task after `inbound.delete` is accepted, closing the normal UI-created Xray client and public subscription identity lifecycle.
 - Public subscription output now emits conversion diagnostic headers for selected, URI-converted, and unconverted node counts so format/rendering issues are visible without parsing the generated body.
@@ -176,7 +177,8 @@ Required outcomes:
 - Verify generated Reality / TLS / fallback / SNI / gRPC / WS settings.
 - Preserve independent client profiles when multiple customers share one runtime inbound.
 - Ensure deletion of the final inbound stops and removes the Xray service.
-- Avoid claiming Hysteria2, WireGuard, or TUN are production runtime features until actual Agent support exists.
+- Keep runtime-supported protocols behind the shared `XRAY_RUNTIME_PROTOCOLS` boundary and avoid claiming Hysteria2, WireGuard, or TUN are production runtime features until actual Agent support exists.
+- Keep customer-node UI, API schemas, read models, guardrail tasks, and runtime artifacts aligned so unsupported protocols cannot become editable/applyable Xray runtime inbounds by accident.
 - Add tests around runtime artifact output, Agent profile persistence, and rollback/evidence behavior.
 
 Acceptance criteria:

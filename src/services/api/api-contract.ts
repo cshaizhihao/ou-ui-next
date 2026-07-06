@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AuditLog } from '../../domain';
+import { XRAY_RUNTIME_PROTOCOLS } from '../../domain/protocol';
 
 const deployTaskOperations = [
   'agent.deploy',
@@ -57,7 +58,7 @@ const agentTrafficAccountingModeSchema = z.enum(['both', 'single', 'ingress', 'e
 const agentLatencyStatusSchema = z.enum(['green', 'yellow', 'red']);
 const telemetrySourceSchema = z.enum(['agent']);
 const xrayProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'hysteria']);
-const xrayInboundProtocolSchema = z.enum(['vmess', 'vless', 'trojan', 'shadowsocks']);
+const xrayInboundProtocolSchema = z.enum(XRAY_RUNTIME_PROTOCOLS);
 const xrayStreamNetworkSchema = z.enum(['tcp', 'udp', 'ws', 'grpc', 'httpupgrade', 'splithttp']);
 const xraySecuritySchema = z.enum(['none', 'tls', 'reality']);
 const xrayClientResetPolicySchema = z.enum(['never', 'daily', 'weekly', 'monthly']);

@@ -17,7 +17,13 @@ import {
   type TunnelMode,
   type TunnelType
 } from './forwarding';
-import type { XrayProtocol, XrayStreamSettings } from './protocol';
+import {
+  XRAY_RUNTIME_PROTOCOLS,
+  isXrayRuntimeProtocol,
+  type XrayRuntimeProtocol,
+  type XrayProtocol,
+  type XrayStreamSettings
+} from './protocol';
 import { normalizeXrayClientCredentials } from './protocol-credentials';
 import { buildXrayShareLink, normalizeGrpcServiceName } from './xray-share-link';
 import { allocateStableHighListenPort } from './xray-port-allocation';
@@ -27,11 +33,6 @@ type RuntimeArtifactInput = {
   agentId: string;
   moduleKind: RuntimeModuleKind;
 };
-
-type XrayRuntimeProtocol = Extract<
-  XrayProtocol,
-  'vmess' | 'vless' | 'trojan' | 'shadowsocks'
->;
 
 type RuntimeXrayClientPolicy = {
   clientIdentity: string;
@@ -58,13 +59,6 @@ type RuntimeXrayClientPolicy = {
   vmessSecurity: string;
   shadowsocksMethod: string;
 };
-
-const XAY_RUNTIME_PROTOCOLS = new Set<XrayProtocol>([
-  'vmess',
-  'vless',
-  'trojan',
-  'shadowsocks'
-]);
 
 function readString(metadata: Record<string, unknown> | undefined, key: string, fallback: string) {
   const value = metadata?.[key];
@@ -135,11 +129,11 @@ function readRecordArray(metadata: Record<string, unknown> | undefined, key: str
 function readProtocol(metadata: Record<string, unknown> | undefined): XrayRuntimeProtocol {
   const protocol = readString(metadata, 'xrayProtocol', 'vless') as XrayProtocol;
 
-  if (!XAY_RUNTIME_PROTOCOLS.has(protocol)) {
+  if (!isXrayRuntimeProtocol(protocol)) {
     throw new Error(`Unsupported Xray inbound protocol: ${protocol}`);
   }
 
-  return protocol as XrayRuntimeProtocol;
+  return protocol;
 }
 
 function readStreamNetwork(metadata: Record<string, unknown> | undefined): XrayStreamSettings['network'] {
@@ -759,7 +753,7 @@ function buildXrayArtifact({ task, agentId }: RuntimeArtifactInput) {
       formats: ['plain', 'json', 'clash']
     },
     runtimeCapabilities: {
-      supportedProtocols: Array.from(XAY_RUNTIME_PROTOCOLS),
+      supportedProtocols: Array.from(XRAY_RUNTIME_PROTOCOLS),
       multiClientInbound: clientPolicies.length > 1,
       activeClientCount: activeClientPolicies.length,
       totalClientCount: clientPolicies.length,
