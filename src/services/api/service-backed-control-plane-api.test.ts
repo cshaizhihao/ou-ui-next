@@ -609,6 +609,131 @@ describe('service-backed control plane read model hydration', () => {
     ).rejects.toThrow(/agent_runtime_capability\.unsupported/);
   });
 
+  it('applies explicit Xray client actions through the runtime task pipeline', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      permissionGrants: seedPermissionGrants
+    });
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      readModelNow: () => '2026-06-05T11:00:00.000Z',
+      inventory: {
+        agents: [seedAgents[0]],
+        nodes: seedNodes,
+        inbounds: [
+          {
+            id: 'customer-node-client-action-01',
+            nodeId: 'customer-node-client-action-01',
+            agentId: 'agent-hkg-01',
+            customerName: 'Acme',
+            serverAddress: 'edge.example.com',
+            protocol: 'vless',
+            label: 'Acme client-action inbound',
+            listenAddress: '0.0.0.0',
+            listenPort: 2443,
+            status: 'enabled',
+            clients: [
+              {
+                id: 'client-alice',
+                email: 'alice@example.com',
+                enabled: true,
+                trafficLimitBytes: 10 * GB,
+                usedTrafficBytes: 2 * GB,
+                expiresAt: '2026-12-31T00:00:00.000Z',
+                ipLimit: 2
+              },
+              {
+                id: 'client-bob',
+                email: 'bob@example.com',
+                enabled: true,
+                trafficLimitBytes: 8 * GB,
+                usedTrafficBytes: 1 * GB,
+                expiresAt: '2026-12-31T00:00:00.000Z',
+                ipLimit: 1
+              }
+            ],
+            streamSettings: {
+              network: 'tcp',
+              security: 'tls',
+              sni: 'edge.example.com'
+            },
+            tls: {
+              enabled: true,
+              alpn: ['h2', 'http/1.1']
+            },
+            reality: {
+              enabled: false,
+              shortIds: [],
+              serverNames: []
+            },
+            fallbacks: [],
+            sniffingEnabled: true,
+            configVersion: 'cfg-client-action-01'
+          }
+        ]
+      }
+    });
+
+    const task = await api.applyXrayClientAction(
+      {
+        inboundId: 'customer-node-client-action-01',
+        clientEmail: 'bob@example.com',
+        action: {
+          kind: 'set-enabled',
+          enabled: false
+        },
+        observedAt: '2026-06-05T11:00:00.000Z'
+      },
+      mutationContext('xray-client-action-disable')
+    );
+
+    expect(task).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'customer-node-client-action-01',
+      summary: 'Xray client disable: bob@example.com',
+      metadata: expect.objectContaining({
+        enabled: true,
+        clientIdentity: 'client-bob',
+        clientEmail: 'bob@example.com',
+        xrayClientAction: 'set-enabled',
+        xrayClientActionTargetEmail: 'bob@example.com'
+      })
+    });
+    expect(task.metadata?.clients).toEqual([
+      expect.objectContaining({
+        clientIdentity: 'client-alice',
+        enabled: true
+      }),
+      expect.objectContaining({
+        clientIdentity: 'client-bob',
+        enabled: false
+      })
+    ]);
+    expect((await api.listCommandOutbox()).find((item) => item.taskId === task.id)).toMatchObject({
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      command: {
+        type: 'apply',
+        payload: expect.objectContaining({
+          moduleKind: 'xray'
+        })
+      }
+    });
+    expect((await api.listInbounds()).find((inbound) => inbound.id === 'customer-node-client-action-01')).toMatchObject({
+      status: 'applying',
+      clients: [
+        expect.objectContaining({
+          email: 'alice@example.com',
+          enabled: true
+        }),
+        expect.objectContaining({
+          email: 'bob@example.com',
+          enabled: false
+        })
+      ]
+    });
+  });
+
   it('rejects Xray inbound tasks that reuse an Agent listener with a different protocol', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

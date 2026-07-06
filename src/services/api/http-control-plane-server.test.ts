@@ -461,6 +461,96 @@ describe('HTTP control-plane server', () => {
     expect(listTrafficRollups).toHaveBeenCalledTimes(1);
   });
 
+  it('creates typed Xray client action tasks through the REST adapter', async () => {
+    await withServerApi(createMockApi({ seedInventory: true }), async (baseUrl) => {
+      const createInboundResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-xray-client-action-inbound',
+          'Idempotency-Key': 'idem-http-xray-client-action-inbound'
+        }),
+        body: JSON.stringify({
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'inbound-http-client-action',
+          targetLabel: 'HTTP client action inbound',
+          summary: 'Create inbound for HTTP client action',
+          metadata: {
+            nodeId: 'inbound-http-client-action',
+            agentId: 'agent-hkg-01',
+            customerNodeName: 'HTTP client action inbound',
+            customerName: 'Acme',
+            serverAddress: 'edge.example.com',
+            xrayProtocol: 'vless',
+            listenPort: 2447,
+            streamNetwork: 'tcp',
+            security: 'tls',
+            sni: 'edge.example.com',
+            clients: [
+              {
+                clientIdentity: '11111111-1111-4111-8111-111111111111',
+                clientCredential: '11111111-1111-4111-8111-111111111111',
+                clientEmail: 'alice@example.com',
+                trafficLimitGb: 100,
+                remainingDays: 180,
+                enabled: true
+              },
+              {
+                clientIdentity: '22222222-2222-4222-8222-222222222222',
+                clientCredential: '22222222-2222-4222-8222-222222222222',
+                clientEmail: 'bob@example.com',
+                trafficLimitGb: 100,
+                remainingDays: 180,
+                enabled: true
+              }
+            ]
+          }
+        })
+      });
+
+      expect(createInboundResponse.status).toBe(201);
+
+      const actionResponse = await fetch(`${baseUrl}/api/v1/xray-client-actions`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-xray-client-action-disable',
+          'Idempotency-Key': 'idem-http-xray-client-action-disable'
+        }),
+        body: JSON.stringify({
+          inboundId: 'inbound-http-client-action',
+          clientEmail: 'bob@example.com',
+          action: {
+            kind: 'set-enabled',
+            enabled: false
+          }
+        })
+      });
+      const actionEnvelope = await actionResponse.json();
+
+      expect(actionResponse.status).toBe(202);
+      expect(actionEnvelope.taskId).toBe(actionEnvelope.data.id);
+      expect(actionEnvelope.data).toMatchObject({
+        operation: 'inbound.update',
+        targetId: 'inbound-http-client-action',
+        metadata: expect.objectContaining({
+          enabled: true,
+          clientEmail: 'bob@example.com',
+          xrayClientAction: 'set-enabled'
+        })
+      });
+      expect(actionEnvelope.data.metadata.clients).toEqual([
+        expect.objectContaining({
+          clientEmail: 'alice@example.com',
+          enabled: true
+        }),
+        expect.objectContaining({
+          clientEmail: 'bob@example.com',
+          enabled: false
+        })
+      ]);
+    });
+  });
+
   it('returns actionable permission denial details for rejected mutations', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/v1/tasks`, {

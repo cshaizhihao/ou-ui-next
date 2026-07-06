@@ -13,6 +13,7 @@ import {
   parseAgentLogRetentionPolicyUpdateRequest,
   parseCreateTaskRequest,
   parseTrafficRollupRetentionPolicyUpdateRequest,
+  parseXrayClientActionRequest,
   trafficRollupRetentionPolicyUpdateRequestSchema,
   transitionTaskRequestSchema
 } from './api-contract';
@@ -1722,6 +1723,51 @@ describe('v1 API runtime contract', () => {
     expect(() => createTaskRequestSchema.parse(createMultiClientRequest([{}]))).toThrow(
       /requires clientIdentity or clientEmail/
     );
+  });
+
+  it('validates explicit Xray client action requests', () => {
+    expect(
+      parseXrayClientActionRequest({
+        inboundId: 'customer-node-hkg-01',
+        clientEmail: 'acme@example.com',
+        action: {
+          kind: 'renew',
+          addedDays: 30
+        },
+        reason: 'customer renewal',
+        observedAt: '2026-06-05T11:00:00.000Z'
+      })
+    ).toEqual({
+      inboundId: 'customer-node-hkg-01',
+      clientEmail: 'acme@example.com',
+      action: {
+        kind: 'renew',
+        addedDays: 30
+      },
+      reason: 'customer renewal',
+      observedAt: '2026-06-05T11:00:00.000Z'
+    });
+
+    expect(() =>
+      parseXrayClientActionRequest({
+        inboundId: 'customer-node-hkg-01',
+        action: {
+          kind: 'set-enabled',
+          enabled: true
+        }
+      })
+    ).toThrow(/clientId or clientEmail/);
+
+    expect(() =>
+      parseXrayClientActionRequest({
+        inboundId: 'customer-node-hkg-01',
+        clientId: 'client-a',
+        action: {
+          kind: 'set-ip-limit',
+          ipLimit: -1
+        }
+      })
+    ).toThrow(/greater than or equal to 0/);
   });
 
   it('rejects active Xray Reality runtime metadata without required key material', () => {

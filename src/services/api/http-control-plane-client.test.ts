@@ -165,6 +165,71 @@ describe('HTTP control-plane client', () => {
     );
   });
 
+  it('posts explicit Xray client actions through the typed HTTP route', async () => {
+    let body: unknown;
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      body = await request.json();
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            id: 'task-xray-client-action',
+            operation: 'inbound.update',
+            status: 'queued'
+          },
+          requestId: 'req-http-client-xray-client-action',
+          taskId: 'task-xray-client-action'
+        }),
+        {
+          status: 202,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }) as typeof fetch;
+    const api = createHttpControlPlaneClient({
+      baseUrl: 'https://panel.example',
+      getCsrfToken: () => 'csrf-client-token',
+      fetcher
+    });
+
+    await api.applyXrayClientAction(
+      {
+        inboundId: 'customer-node-hkg-01',
+        clientEmail: 'acme@example.com',
+        action: {
+          kind: 'reset-used-traffic'
+        }
+      },
+      {
+        ...mutationContext,
+        requestId: 'req-http-client-xray-client-action',
+        idempotencyKey: 'idem-http-client-xray-client-action'
+      }
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://panel.example/api/v1/xray-client-actions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'X-CSRF-Token': 'csrf-client-token',
+          'X-Request-Id': 'req-http-client-xray-client-action',
+          'Idempotency-Key': 'idem-http-client-xray-client-action'
+        })
+      })
+    );
+    expect(body).toEqual({
+      inboundId: 'customer-node-hkg-01',
+      clientEmail: 'acme@example.com',
+      action: {
+        kind: 'reset-used-traffic'
+      }
+    });
+  });
+
   it('keeps Unicode mutation payloads out of fetch headers while preserving the JSON body', async () => {
     let body: unknown;
     let firstRequestId = '';

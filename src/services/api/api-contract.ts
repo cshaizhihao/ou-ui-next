@@ -572,6 +572,70 @@ export const createTaskRequestSchema = z
     }
   });
 
+const xrayClientActionSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('set-enabled'),
+      enabled: z.boolean()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('add-traffic'),
+      addedTrafficGb: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('set-traffic-limit'),
+      trafficLimitGb: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('reset-used-traffic')
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('renew'),
+      addedDays: z.number().int().nonnegative()
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('set-reset-policy'),
+      resetPolicy: xrayClientResetPolicySchema
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('set-ip-limit'),
+      ipLimit: z.number().int().nonnegative()
+    })
+    .strict()
+]);
+
+export const xrayClientActionRequestSchema = z
+  .object({
+    inboundId: z.string().trim().min(1).max(160),
+    clientId: z.string().trim().min(1).max(255).optional(),
+    clientEmail: z.string().trim().min(1).max(255).optional(),
+    action: xrayClientActionSchema,
+    reason: z.string().trim().min(1).max(500).optional(),
+    observedAt: optionalUtcDateTimeSchema
+  })
+  .strict()
+  .superRefine((request, context) => {
+    if (!request.clientId && !request.clientEmail) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Xray client action requires clientId or clientEmail.',
+        path: ['clientId']
+      });
+    }
+  });
+
 export const transitionTaskRequestSchema = z.object({
   status: z.enum(deployTaskStatuses)
 });
@@ -925,6 +989,7 @@ export const operatorSessionRevokeRequestSchema = z.object({
 });
 
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
+export type XrayClientActionRequestDto = z.infer<typeof xrayClientActionRequestSchema>;
 export type VerifyAuditLogChainRequestDto = z.infer<typeof verifyAuditLogChainRequestSchema>;
 export type AgentLogRetentionPolicyUpdateRequestDto = z.infer<typeof agentLogRetentionPolicyUpdateRequestSchema>;
 export type TrafficRollupRetentionPolicyUpdateRequestDto = z.infer<
@@ -955,6 +1020,26 @@ export function parseCreateTaskRequest(value: unknown): CreateTaskRequestDto {
     }));
     const issueSummary = issues.map((issue) => `${issue.path || '<root>'}: ${issue.message}`).join('; ');
     throw Object.assign(new Error(`Invalid create task request: ${issueSummary}`), {
+      code: 'validation_error',
+      details: {
+        issues
+      }
+    });
+  }
+
+  return result.data;
+}
+
+export function parseXrayClientActionRequest(value: unknown): XrayClientActionRequestDto {
+  const result = xrayClientActionRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message
+    }));
+    const issueSummary = issues.map((issue) => `${issue.path || '<root>'}: ${issue.message}`).join('; ');
+    throw Object.assign(new Error(`Invalid Xray client action request: ${issueSummary}`), {
       code: 'validation_error',
       details: {
         issues

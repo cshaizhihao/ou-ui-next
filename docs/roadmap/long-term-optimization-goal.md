@@ -94,6 +94,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Customer-node runtime evidence drawers now copy a safe structured diagnostic package with task, command, config revision, preflight, snapshot, rollback, and runtime diagnosis summaries while excluding raw command payloads, runtime snapshot state, and full artifact bodies.
 - Customer-node runtime evidence drawers now expose the existing rollback flow for rollback-ready source tasks, letting operators move from verified release evidence to recovery without leaving the customer-node diagnosis context.
 - Customer-node runtime evidence drawers now resolve linked rollback recovery evidence from the rollback task, rollback command outbox item, and restored runtime snapshot, and suppress duplicate rollback starts once a rollback task is already linked.
+- Xray client enable/disable, traffic reset, renewal, quota, reset-policy, and IP-limit actions now have an explicit `applyXrayClientAction` Control Plane API plus `/api/v1/xray-client-actions` REST route that builds peer-preserving `inbound.update` tasks from live inbound read models and keeps runtime validation, command outbox, evidence, and rollback paths on the existing task pipeline.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

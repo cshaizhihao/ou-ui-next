@@ -125,6 +125,7 @@ import {
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from './xray-guardrail-enforcement-tasks';
+import { createXrayClientActionTaskPlan } from './xray-client-action-tasks';
 import { findXrayInboundPortConflictDenial } from './xray-inbound-port-conflicts';
 import {
   applyQuotaResetStateToAgentEvent,
@@ -7361,6 +7362,30 @@ export function createServiceBackedControlPlaneApi({
       }
 
       return api.createTask(createQuotaResetTaskInput(policy), context);
+    },
+
+    async applyXrayClientAction(input, context?: MutationContext) {
+      await hydrateReadModelsFromPersistedTasks();
+      const observedAtMs = Date.parse(input.observedAt ?? '');
+      const observedAt = Number.isNaN(observedAtMs) ? readModelNow() : new Date(observedAtMs).toISOString();
+      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, observedAt);
+      const inbound = liveInbounds.find((item) => item.id === input.inboundId);
+
+      if (!inbound) {
+        throw new Error(`Xray inbound not found: ${input.inboundId}`);
+      }
+
+      const plan = createXrayClientActionTaskPlan({
+        inbound,
+        request: input,
+        observedAt
+      });
+      const mutationContext = resolveMutationContext(context);
+
+      return api.createTask(plan.input, {
+        ...mutationContext,
+        idempotencyKey: mutationContext.idempotencyKey ?? plan.idempotencyKey
+      });
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

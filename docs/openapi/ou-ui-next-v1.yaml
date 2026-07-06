@@ -1064,6 +1064,53 @@ paths:
                           $ref: '#/components/schemas/ResourceSummary'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/xray-client-actions:
+    post:
+      tags:
+        - Tasks
+      operationId: applyXrayClientAction
+      summary: Apply a typed Xray client action through an inbound.update runtime task
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XrayClientActionRequest'
+      responses:
+        '202':
+          description: Xray client action accepted as an inbound.update task; verify runtime state through task evidence.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                      - taskId
+                    properties:
+                      taskId:
+                        $ref: '#/components/schemas/TaskId'
+                      data:
+                        $ref: '#/components/schemas/DeployTask'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/subscription-sources:
     get:
       tags:
@@ -6129,6 +6176,122 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+      additionalProperties: false
+    XrayClientActionRequest:
+      type: object
+      required:
+        - inboundId
+        - action
+      properties:
+        inboundId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        clientId:
+          type: string
+          minLength: 1
+          maxLength: 255
+        clientEmail:
+          type: string
+          minLength: 1
+          maxLength: 255
+        action:
+          oneOf:
+            - type: object
+              required:
+                - kind
+                - enabled
+              properties:
+                kind:
+                  type: string
+                  const: set-enabled
+                enabled:
+                  type: boolean
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+                - addedTrafficGb
+              properties:
+                kind:
+                  type: string
+                  const: add-traffic
+                addedTrafficGb:
+                  type: integer
+                  minimum: 0
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+                - trafficLimitGb
+              properties:
+                kind:
+                  type: string
+                  const: set-traffic-limit
+                trafficLimitGb:
+                  type: integer
+                  minimum: 0
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+              properties:
+                kind:
+                  type: string
+                  const: reset-used-traffic
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+                - addedDays
+              properties:
+                kind:
+                  type: string
+                  const: renew
+                addedDays:
+                  type: integer
+                  minimum: 0
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+                - resetPolicy
+              properties:
+                kind:
+                  type: string
+                  const: set-reset-policy
+                resetPolicy:
+                  type: string
+                  enum:
+                    - never
+                    - daily
+                    - weekly
+                    - monthly
+              additionalProperties: false
+            - type: object
+              required:
+                - kind
+                - ipLimit
+              properties:
+                kind:
+                  type: string
+                  const: set-ip-limit
+                ipLimit:
+                  type: integer
+                  minimum: 0
+              additionalProperties: false
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        observedAt:
+          type: string
+          format: date-time
+      anyOf:
+        - required:
+            - clientId
+        - required:
+            - clientEmail
       additionalProperties: false
     DeployTask:
       type: object

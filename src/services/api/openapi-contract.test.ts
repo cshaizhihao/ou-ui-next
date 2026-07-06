@@ -151,6 +151,7 @@ describe('OpenAPI v1 contract', () => {
         '/api/v1/telegram-notification-deliveries/{deliveryId}/retry',
         '/api/v1/nodes',
         '/api/v1/inbounds',
+        '/api/v1/xray-client-actions',
         '/api/v1/subscription-sources',
         '/api/v1/subscription-sources/{sourceId}/sync',
         '/api/v1/subscription-nodes',
@@ -505,6 +506,9 @@ describe('OpenAPI v1 contract', () => {
     expect(document.paths['/api/v1/agents'].get).toBeDefined();
     expect(document.paths['/api/v1/subscription-nodes'].get).toBeDefined();
     expect(document.paths['/api/v1/subscription-export-profiles'].get).toBeDefined();
+    expect(document.paths['/api/v1/xray-client-actions'].post.requestBody?.content?.['application/json']?.schema.$ref).toBe(
+      '#/components/schemas/XrayClientActionRequest'
+    );
     expect(document.paths['/api/v1/subscription-sources/{sourceId}/sync'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
       expect.arrayContaining([
         '#/components/parameters/XRequestId',

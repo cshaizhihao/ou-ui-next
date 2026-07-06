@@ -40,7 +40,8 @@ import {
   parseOperatorSessionRevokeRequest,
   parseTrafficRollupRetentionPolicyUpdateRequest,
   parseVerifyAuditLogChainRequest,
-  parseTransitionTaskRequest
+  parseTransitionTaskRequest,
+  parseXrayClientActionRequest
 } from './api-contract';
 import {
   isPublicSubscriptionFormat,
@@ -3104,6 +3105,15 @@ async function routeRequest(
       credentialId: credential.credentialId
     });
     sendData(response, body.requestId, credential, 201);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/xray-client-actions') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const input = parseXrayClientActionRequest(await readJsonBody(request));
+    const task = await api.applyXrayClientAction(input, context);
+    logTaskEvent(options, request, 'task.created', task, context);
+    sendData(response, context.requestId, task, 202, task.id);
     return;
   }
 

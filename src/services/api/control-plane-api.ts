@@ -73,6 +73,7 @@ import type {
   XrayRuntimeProtocol
 } from '../../domain';
 import type { AgentCommandEnvelope, AgentEventEnvelope } from './api-contract';
+import type { XrayClientActionRequest } from './xray-client-action-tasks';
 import type {
   SystemAlertNotificationDeliveryRecord,
   SystemAlertNotificationDeliveryStatus,
@@ -1830,6 +1831,7 @@ export interface ControlPlaneApi {
     context?: MutationContext
   ): Promise<AgentRuntimeCredential>;
   resetQuotaPolicy(policyId: string, context?: MutationContext): Promise<DeployTask>;
+  applyXrayClientAction(input: XrayClientActionRequest, context?: MutationContext): Promise<DeployTask>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
   syncSubscriptionSource(sourceId: string, context?: MutationContext): Promise<SubscriptionSourceSyncResult>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;

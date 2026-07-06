@@ -555,6 +555,12 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
         method: 'POST',
         context
       }),
+    applyXrayClientAction: (input, context?: MutationContext) =>
+      request<DeployTask>('/api/v1/xray-client-actions', {
+        method: 'POST',
+        body: input,
+        context
+      }),
     createTask: (input: CreateTaskInput, context?: MutationContext) =>
       request<DeployTask>('/api/v1/tasks', {
         method: 'POST',
