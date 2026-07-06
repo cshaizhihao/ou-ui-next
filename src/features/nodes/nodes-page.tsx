@@ -734,6 +734,7 @@ const copy = {
     customerRuntimeEvidenceSnapshot: '快照',
     customerRuntimeEvidenceStatus: '证据状态',
     customerRuntimeEvidenceStage: '证据阶段',
+    customerRuntimeEvidenceNextAction: '下一步运行时动作',
     customerRuntimeEvidenceRollback: '回滚任务',
     customerRuntimeEvidenceMissing: '等待证据',
     customerRuntimeEvidenceCommandProgress: (completed: string, total: string) => `${completed}/${total} 已完成`,
@@ -758,6 +759,19 @@ const copy = {
       configRevision: 'Config Revision',
       preflight: 'Preflight',
       snapshot: 'Snapshot'
+    },
+    customerRuntimeEvidenceNextActionLabels: {
+      none: '无需动作，证据链已闭合。',
+      'wait-command-result': '等待 Agent ACK/result；若长期停留，检查 Agent 会话和 command outbox。',
+      'inspect-command-failure': '先检查 Agent command 错误、会话状态和关联日志。',
+      'wait-agent-result': '等待 Agent runtime result；超时后检查 Agent 在线状态和任务命令。',
+      'inspect-agent-result': '先查看 Agent result 失败原因，再使用回滚或运行时诊断。',
+      'wait-config-apply': '等待配置版本从 compiled/preflight_ready 进入 applied。',
+      'inspect-config-revision': '检查配置版本失败原因和 runtimeDiagnosis。',
+      'wait-preflight': '等待 xray run -test / runtime preflight 完成。',
+      'fix-preflight': '修复失败的预检项后再重新发布。',
+      'wait-snapshot': '等待 pre-apply snapshot 捕获并验证。',
+      'inspect-snapshot': '检查 snapshot 状态，确认回滚边界是否仍可用。'
     },
     operatorCreateHint: '',
     protocolTemplate: '协议模板',
@@ -1167,6 +1181,7 @@ const copy = {
     customerRuntimeEvidenceSnapshot: 'Snapshot',
     customerRuntimeEvidenceStatus: 'Evidence Status',
     customerRuntimeEvidenceStage: 'Evidence Stage',
+    customerRuntimeEvidenceNextAction: 'Next Runtime Action',
     customerRuntimeEvidenceRollback: 'Rollback Task',
     customerRuntimeEvidenceMissing: 'Waiting for evidence',
     customerRuntimeEvidenceCommandProgress: (completed: string, total: string) => `${completed}/${total} completed`,
@@ -1191,6 +1206,19 @@ const copy = {
       configRevision: 'Config Revision',
       preflight: 'Preflight',
       snapshot: 'Snapshot'
+    },
+    customerRuntimeEvidenceNextActionLabels: {
+      none: 'No action required; the evidence chain is closed.',
+      'wait-command-result': 'Wait for Agent ACK/result; if it stays pending, inspect the Agent session and command outbox.',
+      'inspect-command-failure': 'Inspect the Agent command error, session state, and related logs first.',
+      'wait-agent-result': 'Wait for the Agent runtime result; if it times out, inspect Agent liveness and task command state.',
+      'inspect-agent-result': 'Start with the Agent result failure reason, then use rollback or runtime diagnosis.',
+      'wait-config-apply': 'Wait for the config revision to move from compiled/preflight_ready to applied.',
+      'inspect-config-revision': 'Inspect the config revision failure reason and runtimeDiagnosis.',
+      'wait-preflight': 'Wait for xray run -test / runtime preflight to complete.',
+      'fix-preflight': 'Fix the failed preflight checks before releasing again.',
+      'wait-snapshot': 'Wait for the pre-apply snapshot to be captured and verified.',
+      'inspect-snapshot': 'Inspect snapshot state and confirm the rollback boundary is still usable.'
     },
     operatorCreateHint: '',
     protocolTemplate: 'Protocol Template',
@@ -3135,6 +3163,16 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
     waiting:
       'border-[#1E3AFF]/24 bg-[#DCE1FF]/55 text-[#1E3AFF] dark:border-[#6B7CFF]/22 dark:bg-primary/10 dark:text-primary'
   } satisfies Record<'restored' | 'failed' | 'waiting', string>;
+  const nextAction = evidence.nextAction;
+  const nextActionClass = {
+    info:
+      'border-[#00A878]/24 bg-[#00A878]/8 text-[#006B50] dark:border-[#00D49A]/18 dark:bg-[#00A878]/[0.1] dark:text-[#7FF3C9]',
+    warning:
+      'border-[#FFB020]/35 bg-[#FFF3C4]/65 text-[#8A5A00] dark:border-[#FFD166]/24 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    critical:
+      'border-[#DC2626]/40 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]'
+  } satisfies Record<typeof nextAction.severity, string>;
+  const nextActionStepLabel = nextAction.stepId ? t.customerRuntimeEvidenceStepLabels[nextAction.stepId] : undefined;
 
   return (
     <div className="space-y-4">
@@ -3156,6 +3194,21 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
         <div className="mt-3 flex flex-wrap gap-2 font-mono text-[10px] font-bold">
           <span>{t.customerRuntimeEvidenceStage}: {evidence.evidenceStage}</span>
           <span>{t.customerRuntimeEvidenceConfig(evidence.configRevision?.id ?? node.configVersion ?? '-')}</span>
+        </div>
+        <div
+          className={cn('mt-3 border px-2.5 py-2 text-[11px] font-semibold leading-5', nextActionClass[nextAction.severity])}
+          data-customer-runtime-evidence-next-action={nextAction.code}
+        >
+          <p className="text-[9px] font-black uppercase tracking-[0.14em] opacity-75">
+            {t.customerRuntimeEvidenceNextAction}
+          </p>
+          <p className="mt-1">
+            {nextActionStepLabel ? <span className="font-black">{nextActionStepLabel}: </span> : null}
+            {t.customerRuntimeEvidenceNextActionLabels[nextAction.code]}
+          </p>
+          {nextAction.detail ? (
+            <p className="mt-1 break-all font-mono text-[10px] font-bold opacity-75">{nextAction.detail}</p>
+          ) : null}
         </div>
       </section>
 

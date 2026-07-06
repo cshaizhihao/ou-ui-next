@@ -155,6 +155,10 @@ describe('customer node runtime evidence', () => {
       state: 'verified',
       taskId: 'task-0100',
       evidenceStage: 'agent-result-verified',
+      nextAction: {
+        code: 'none',
+        severity: 'info'
+      },
       task: {
         id: 'task-0100'
       },
@@ -205,6 +209,13 @@ describe('customer node runtime evidence', () => {
     expect(evidence.state).toBe('waiting');
     expect(evidence.taskId).toBe('task-0100');
     expect(evidence.evidenceStage).toBe('control-plane-compiled');
+    expect(evidence.nextAction).toMatchObject({
+      code: 'wait-command-result',
+      severity: 'warning',
+      stepId: 'command',
+      stepState: 'waiting',
+      detail: 'cmd-task-0100'
+    });
     expect(evidence.steps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'command', state: 'waiting' }),
@@ -240,6 +251,13 @@ describe('customer node runtime evidence', () => {
     });
 
     expect(evidence.state).toBe('failed');
+    expect(evidence.nextAction).toMatchObject({
+      code: 'inspect-command-failure',
+      severity: 'critical',
+      stepId: 'command',
+      stepState: 'failed',
+      detail: 'xray test failed'
+    });
     expect(evidence.steps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'command', state: 'failed', detail: 'xray test failed' }),
@@ -249,6 +267,53 @@ describe('customer node runtime evidence', () => {
         expect.objectContaining({ id: 'snapshot', state: 'failed' })
       ])
     );
+  });
+
+  it('points the next action at the failed preflight when preflight blocks runtime apply', () => {
+    const evidence = resolveCustomerNodeRuntimeEvidence({
+      node: {
+        id: 'inbound-acme',
+        configVersion: 'cfg-task-0100'
+      },
+      tasks: [createTask({ status: 'failed', failureReason: 'preflight rejected generated config' })],
+      commandOutbox: [createCommand()],
+      configRevisions: [
+        createConfigRevision({
+          status: 'preflight_ready',
+          appliedAt: undefined,
+          artifact: {
+            runtimeDiagnosis: {
+              state: 'failed',
+              evidenceStage: 'control-plane-compiled'
+            }
+          }
+        })
+      ],
+      preflightPlans: [
+        createPreflightPlan({
+          status: 'failed',
+          failureReason: 'xray run -test failed',
+          checks: [
+            {
+              id: 'check-xray-test',
+              label: 'xray run -test',
+              status: 'failed',
+              severity: 'critical'
+            }
+          ]
+        })
+      ],
+      runtimeSnapshots: [createRuntimeSnapshot()]
+    });
+
+    expect(evidence.state).toBe('failed');
+    expect(evidence.nextAction).toMatchObject({
+      code: 'fix-preflight',
+      severity: 'critical',
+      stepId: 'preflight',
+      stepState: 'failed',
+      detail: 'xray run -test failed'
+    });
   });
 
   it('links rollback task, command, and restored snapshot evidence to the customer-node release bundle', () => {
@@ -438,6 +503,12 @@ describe('customer node runtime evidence', () => {
       runtimeSnapshot: {
         id: 'snapshot-task-0100',
         status: 'verified'
+      },
+      evidence: {
+        nextAction: {
+          code: 'none',
+          severity: 'info'
+        }
       }
     });
     expect(JSON.stringify(diagnosticPackage)).not.toContain('secretRuntimeBody');

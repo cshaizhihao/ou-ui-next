@@ -3277,7 +3277,9 @@ describe('NodesPage', () => {
     expect(within(evidence).getByText('Config cfg-task-xray-apply-01')).toBeInTheDocument();
   });
 
-  it('keeps customer-node runtime evidence waiting when no Agent result proof exists', () => {
+  it('keeps customer-node runtime evidence waiting with a concrete next runtime action', async () => {
+    const user = userEvent.setup();
+
     render(
       <NodesPage
         agents={[createAgent()]}
@@ -3298,6 +3300,16 @@ describe('NodesPage', () => {
     expect(evidence).toHaveAttribute('data-customer-runtime-evidence-state', 'waiting');
     expect(within(evidence).getByText('Awaiting Agent Result')).toBeInTheDocument();
     expect(within(evidence).getByText(/waiting for command\/result\/preflight\/snapshot evidence/i)).toBeInTheDocument();
+
+    await user.click(evidence);
+
+    const drawer = screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' });
+    const nextAction = drawer.querySelector('[data-customer-runtime-evidence-next-action="wait-command-result"]');
+
+    expect(nextAction).not.toBeNull();
+    expect(nextAction).toHaveTextContent('Next Runtime Action');
+    expect(nextAction).toHaveTextContent('Command');
+    expect(nextAction).toHaveTextContent('Wait for Agent ACK/result');
   });
 
   it('opens a customer-node runtime evidence drawer with task release artifacts', async () => {
@@ -3354,6 +3366,8 @@ describe('NodesPage', () => {
     expect(within(drawer).getByText('preflight-task-xray-apply-01 · passed')).toBeInTheDocument();
     expect(within(drawer).getByText('snapshot-task-xray-apply-01 · verified')).toBeInTheDocument();
     expect(within(drawer).getAllByText('task-xray-rollback-01')).toHaveLength(2);
+    expect(within(drawer).getByText('Next Runtime Action')).toBeInTheDocument();
+    expect(within(drawer).getByText('No action required; the evidence chain is closed.')).toBeInTheDocument();
 
     await user.click(within(drawer).getByRole('button', { name: 'Copy Evidence Package' }));
     expect(writeText).toHaveBeenCalledTimes(1);
@@ -3383,6 +3397,12 @@ describe('NodesPage', () => {
       },
       runtimeSnapshot: {
         id: 'snapshot-task-xray-apply-01'
+      },
+      evidence: {
+        nextAction: {
+          code: 'none',
+          severity: 'info'
+        }
       }
     });
 

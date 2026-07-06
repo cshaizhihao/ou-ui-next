@@ -29,6 +29,27 @@ export type CustomerNodeRuntimeEvidenceStep = {
   detail?: string;
 };
 
+export type CustomerNodeRuntimeEvidenceNextActionCode =
+  | 'none'
+  | 'wait-command-result'
+  | 'inspect-command-failure'
+  | 'wait-agent-result'
+  | 'inspect-agent-result'
+  | 'wait-config-apply'
+  | 'inspect-config-revision'
+  | 'wait-preflight'
+  | 'fix-preflight'
+  | 'wait-snapshot'
+  | 'inspect-snapshot';
+
+export type CustomerNodeRuntimeEvidenceNextAction = {
+  code: CustomerNodeRuntimeEvidenceNextActionCode;
+  severity: 'info' | 'warning' | 'critical';
+  stepId?: CustomerNodeRuntimeEvidenceStepId;
+  stepState?: CustomerNodeRuntimeEvidenceStepState;
+  detail?: string;
+};
+
 export type CustomerNodeRuntimeEvidenceBundle = {
   state: CustomerNodeRuntimeEvidenceState;
   task?: DeployTask;
@@ -40,6 +61,7 @@ export type CustomerNodeRuntimeEvidenceBundle = {
   runtimeSnapshot?: RuntimeSnapshot;
   rollbackRecovery?: CustomerNodeRuntimeRollbackRecoveryEvidence;
   evidenceStage: string;
+  nextAction: CustomerNodeRuntimeEvidenceNextAction;
   steps: CustomerNodeRuntimeEvidenceStep[];
 };
 
@@ -74,6 +96,7 @@ export type CustomerNodeRuntimeEvidencePackage = {
   evidence: {
     state: CustomerNodeRuntimeEvidenceState;
     stage: string;
+    nextAction: CustomerNodeRuntimeEvidenceNextAction;
     steps: CustomerNodeRuntimeEvidenceStep[];
     proof?: AgentRuntimeDeploymentProof;
   };
@@ -358,6 +381,56 @@ function resolveRollbackRecoveryEvidence({
   };
 }
 
+function createRuntimeEvidenceNextAction({
+  state,
+  steps
+}: {
+  state: CustomerNodeRuntimeEvidenceState;
+  steps: CustomerNodeRuntimeEvidenceStep[];
+}): CustomerNodeRuntimeEvidenceNextAction {
+  if (state === 'verified') {
+    return {
+      code: 'none',
+      severity: 'info'
+    };
+  }
+
+  const step =
+    state === 'failed'
+      ? steps.find((item) => item.state === 'failed')
+      : steps.find((item) => item.state === 'waiting');
+
+  if (!step) {
+    return {
+      code: 'none',
+      severity: 'info'
+    };
+  }
+
+  const waitingCode = {
+    command: 'wait-command-result',
+    agentResult: 'wait-agent-result',
+    configRevision: 'wait-config-apply',
+    preflight: 'wait-preflight',
+    snapshot: 'wait-snapshot'
+  } satisfies Record<CustomerNodeRuntimeEvidenceStepId, CustomerNodeRuntimeEvidenceNextActionCode>;
+  const failedCode = {
+    command: 'inspect-command-failure',
+    agentResult: 'inspect-agent-result',
+    configRevision: 'inspect-config-revision',
+    preflight: 'fix-preflight',
+    snapshot: 'inspect-snapshot'
+  } satisfies Record<CustomerNodeRuntimeEvidenceStepId, CustomerNodeRuntimeEvidenceNextActionCode>;
+
+  return {
+    code: step.state === 'failed' ? failedCode[step.id] : waitingCode[step.id],
+    severity: step.state === 'failed' ? 'critical' : 'warning',
+    stepId: step.id,
+    stepState: step.state,
+    detail: step.detail ?? step.value
+  };
+}
+
 export function resolveCustomerNodeRuntimeEvidence({
   node,
   tasks,
@@ -439,7 +512,7 @@ export function resolveCustomerNodeRuntimeEvidence({
     id: 'agentResult',
     state: evidenceStage === 'agent-result-failed' ? 'failed' : proof ? 'confirmed' : 'waiting',
     value: proof ? proof.source : evidenceStage || undefined,
-    detail: proof?.verifiedAt
+    detail: proof?.verifiedAt ?? configRevision?.failureReason
   };
   const configRevisionStep: CustomerNodeRuntimeEvidenceStep = {
     id: 'configRevision',
@@ -450,14 +523,18 @@ export function resolveCustomerNodeRuntimeEvidence({
           ? 'confirmed'
           : 'waiting',
     value: configRevision?.id ?? node.configVersion,
-    detail: configRevision?.status
+    detail: configRevision?.failureReason ?? configRevision?.status
   };
+  const failedPreflightCheck = preflightPlan?.checks.find((check) => check.status === 'failed');
   const preflightStep: CustomerNodeRuntimeEvidenceStep = {
     id: 'preflight',
     state:
       preflightPlan?.status === 'failed' ? 'failed' : preflightPlan?.status === 'passed' ? 'confirmed' : 'waiting',
     value: preflightPlan?.id,
-    detail: preflightPlan?.status
+    detail:
+      preflightPlan?.failureReason ??
+      (failedPreflightCheck ? `${failedPreflightCheck.label}: ${failedPreflightCheck.status}` : undefined) ??
+      preflightPlan?.status
   };
   const snapshotStep: CustomerNodeRuntimeEvidenceStep = {
     id: 'snapshot',
@@ -476,6 +553,10 @@ export function resolveCustomerNodeRuntimeEvidence({
     : steps.every((step) => step.state === 'confirmed')
       ? 'verified'
       : 'waiting';
+  const nextAction = createRuntimeEvidenceNextAction({
+    state,
+    steps
+  });
 
   return {
     state,
@@ -488,6 +569,7 @@ export function resolveCustomerNodeRuntimeEvidence({
     runtimeSnapshot,
     rollbackRecovery,
     evidenceStage: proof ? 'agent-result-verified' : evidenceStage || 'waiting',
+    nextAction,
     steps
   };
 }
@@ -514,6 +596,7 @@ export function createCustomerNodeRuntimeEvidencePackage({
     evidence: {
       state: evidence.state,
       stage: evidence.evidenceStage,
+      nextAction: evidence.nextAction,
       steps: evidence.steps,
       ...(evidence.proof ? { proof: evidence.proof } : {})
     },
