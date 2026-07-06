@@ -441,6 +441,7 @@ function createQuickActionItems({
   const copySubscriptionLinkCommand = language === 'zh' ? '复制链接' : 'Copy Link';
   const copyAllSubscriptionLinksCommand = language === 'zh' ? '复制全部' : 'Copy All';
   const managedNodesById = new Map(nodes.map((node) => [node.id, node]));
+  const runtimeInbounds = inbounds.filter((inbound) => isXrayRuntimeProtocol(inbound.protocol));
 
   return [
     ...getNavigationItems(language).map((item): QuickActionItem => ({
@@ -485,7 +486,7 @@ function createQuickActionItems({
         targetId: customer.id
       }
     })),
-    ...inbounds.map((inbound): QuickActionItem => {
+    ...runtimeInbounds.map((inbound): QuickActionItem => {
       const primaryClient = inbound.clients[0];
       const customerName = inbound.customerName ?? primaryClient?.email ?? '';
       const managedNode = managedNodesById.get(inbound.nodeId);
@@ -535,7 +536,7 @@ function createQuickActionItems({
         }
       };
     }),
-    ...inbounds.flatMap((inbound): QuickActionItem[] => {
+    ...runtimeInbounds.flatMap((inbound): QuickActionItem[] => {
       const managedNode = managedNodesById.get(inbound.nodeId);
       const resolvedAgentId = inbound.agentId ?? managedNode?.agentId ?? '';
 

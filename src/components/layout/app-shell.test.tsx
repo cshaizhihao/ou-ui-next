@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary, AuditLog } from '../../domain';
+import type { AgentCredentialSummary, AuditLog, XrayInbound } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
@@ -1394,6 +1394,41 @@ describe('AppShell', () => {
     expect(within(drawer).getByLabelText('客户名称')).toHaveValue('ops-hkg');
     expect(within(drawer).getAllByLabelText('入站端口')[0]).toHaveValue(443);
     expect(screen.queryByRole('dialog', { name: '控制面搜索' })).not.toBeInTheDocument();
+  });
+
+  it('does not expose unsupported Xray runtime protocols in global customer-node quick actions', async () => {
+    const user = userEvent.setup();
+    const api = createMockApi({ seedInventory: true });
+    const previewHysteriaInbound: XrayInbound = {
+      ...seedInbounds[0],
+      id: 'inbound-preview-hysteria-global',
+      label: 'Preview Hysteria2 Global Gateway',
+      protocol: 'hysteria',
+      listenPort: 4433,
+      clientIdentity: 'client-preview-hysteria-global',
+      clients: [
+        {
+          ...seedInbounds[0].clients[0],
+          id: 'client-preview-hysteria-global',
+          email: 'preview-hysteria-global@example.com',
+          auth: 'hy2-preview-global-secret'
+        }
+      ]
+    };
+    api.listInbounds = vi.fn(async () => [
+      ...seedInbounds,
+      previewHysteriaInbound
+    ]);
+
+    renderShell(api);
+
+    await user.click(await screen.findByRole('button', { name: '打开控制面搜索' }));
+    await user.type(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' }), 'Preview Hysteria2 Global Gateway');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Preview Hysteria2 Global Gateway' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'preview-hysteria-global@example.com' })).not.toBeInTheDocument();
+    });
   });
 
   it('opens a customer node edit drawer from a matched Xray client quick action', async () => {
