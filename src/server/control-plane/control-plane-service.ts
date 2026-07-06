@@ -2741,6 +2741,33 @@ export function createControlPlaneService({
     };
   }
 
+  function acceptCachedRoutineAgentEvent(agentEvent: AgentEventEnvelope) {
+    if (!isHighFrequencyAgentEvent(agentEvent)) {
+      return false;
+    }
+
+    const sessionKey = `${agentEvent.agentId}\0${agentEvent.sessionId}`;
+    const hotLastSeq = agentSessionHotLastSeq.get(sessionKey);
+
+    if (hotLastSeq === undefined) {
+      return false;
+    }
+
+    if (agentEvent.seq <= hotLastSeq) {
+      return true;
+    }
+
+    if (
+      highFrequencyAgentEventPersistence.persistEvery <= 1
+      || agentEvent.seq % highFrequencyAgentEventPersistence.persistEvery === 0
+    ) {
+      return false;
+    }
+
+    agentSessionHotLastSeq.set(sessionKey, agentEvent.seq);
+    return true;
+  }
+
   async function expireCommandDeadline(
     transaction: ControlPlaneTransaction,
     outboxItem: CommandOutboxItem,
@@ -3987,6 +4014,11 @@ export function createControlPlaneService({
     async receiveAgentEvent(event: AgentEventEnvelope) {
       await ensureSequenceInitialized();
       const agentEvent = parseAgentEventEnvelope(event);
+
+      if (acceptCachedRoutineAgentEvent(agentEvent)) {
+        return undefined;
+      }
+
       const archiveSinkBatches: ArchiveSinkBatch[] = [];
 
       const result = await repository.transaction<

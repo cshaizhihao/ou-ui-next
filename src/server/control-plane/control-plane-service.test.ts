@@ -3326,6 +3326,95 @@ describe('control-plane service', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('keeps cached unsampled routine Agent events off repository transactions', async () => {
+    const backingRepository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    const counters = {
+      transactions: 0
+    };
+    const repository: typeof backingRepository = {
+      ...backingRepository,
+      async transaction(run) {
+        counters.transactions += 1;
+        return backingRepository.transaction(run);
+      }
+    };
+    const service = createControlPlaneService({
+      repository,
+      now: createControlPlaneTestClock(),
+      highFrequencyAgentEventPersistence: {
+        persistEvery: 3
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-cached-heartbeat-001',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-cached',
+      observedAt: '2026-06-02T00:00:01.000Z',
+      payload: {
+        version: '1.0.0',
+        capabilities: ['xray'],
+        lastSeenCommandSeq: 0
+      }
+    });
+
+    expect(counters.transactions).toBe(1);
+
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-cached-heartbeat-002',
+      agentId: 'agent-hkg-01',
+      seq: 2,
+      sessionId: 'sess-agent-hkg-cached',
+      observedAt: '2026-06-02T00:00:02.000Z',
+      payload: {
+        version: '1.0.1',
+        capabilities: ['xray', 'telemetry'],
+        lastSeenCommandSeq: 1
+      }
+    });
+
+    expect(counters.transactions).toBe(1);
+    await expect(repository.listAgentEvents()).resolves.toEqual([
+      expect.objectContaining({ eventId: 'evt-cached-heartbeat-001', seq: 1 })
+    ]);
+    await expect(repository.listAgentSessions()).resolves.toEqual([
+      expect.objectContaining({
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-cached',
+        lastSeq: 1,
+        version: '1.0.0'
+      })
+    ]);
+
+    await service.receiveAgentEvent({
+      type: 'heartbeat',
+      eventId: 'evt-cached-heartbeat-003',
+      agentId: 'agent-hkg-01',
+      seq: 3,
+      sessionId: 'sess-agent-hkg-cached',
+      observedAt: '2026-06-02T00:00:03.000Z',
+      payload: {
+        version: '1.0.2',
+        capabilities: ['xray', 'telemetry', 'command-channel'],
+        lastSeenCommandSeq: 2
+      }
+    });
+
+    expect(counters.transactions).toBe(2);
+    await expect(repository.listAgentEvents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: 'evt-cached-heartbeat-001', seq: 1 }),
+        expect.objectContaining({ eventId: 'evt-cached-heartbeat-003', seq: 3 })
+      ])
+    );
+  });
+
   it('persists Agent telemetry traffic rollups without duplicating replayed events', async () => {
     const { repository, service } = createService();
     const telemetryEvent = {
