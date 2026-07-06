@@ -96,6 +96,45 @@ function readEntityIndexRows(databaseFilePath: string) {
   }
 }
 
+function installEntityIndexFullRebuildFailureTrigger(databaseFilePath: string) {
+  const database = new Database(databaseFilePath);
+
+  try {
+    database.exec(`
+      CREATE TRIGGER fail_entity_index_full_rebuild
+      BEFORE DELETE ON control_plane_entity_index
+      BEGIN
+        SELECT RAISE(FAIL, 'entity index full rebuild is not allowed in this test');
+      END;
+    `);
+  } finally {
+    database.close();
+  }
+}
+
+function createIndexedTask(taskId = 'task-sqlite-index-stable') {
+  return {
+    id: taskId,
+    operation: 'agent.update' as const,
+    resourceType: 'agent' as const,
+    resourceId: 'agent-sqlite-index-stable',
+    status: 'queued' as const,
+    targetId: 'agent-sqlite-index-stable',
+    targetLabel: 'SQLite stable indexed task',
+    summary: 'Update sqlite stable indexed task',
+    createdAt: '2026-06-05T00:00:00.000Z',
+    updatedAt: '2026-06-05T00:00:00.000Z',
+    actor: 'admin',
+    requestedBy: 'admin',
+    requestId: `req-${taskId}`,
+    sourceIp: '203.0.113.10',
+    rollbackAvailable: false,
+    attempts: 0,
+    progressPercent: 0,
+    steps: []
+  };
+}
+
 describe('sqlite control-plane repository', () => {
   it('records a migration ledger when initializing a new sqlite database', async () => {
     await withDatabaseFile(async (databaseFilePath) => {
@@ -188,6 +227,131 @@ describe('sqlite control-plane repository', () => {
           })
         ])
       );
+    });
+  });
+
+  it('persists high-frequency Agent events without rebuilding the sqlite entity index', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTask(createIndexedTask());
+      });
+
+      const rowsBeforeHighFrequencyEvents = readEntityIndexRows(databaseFilePath);
+      installEntityIndexFullRebuildFailureTrigger(databaseFilePath);
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertAgentEvent({
+          agentId: 'agent-fast-events-01',
+          eventId: 'evt-fast-heartbeat-001',
+          observedAt: '2026-06-05T00:01:00.000Z',
+          payload: {
+            capabilities: ['host-agent', 'xray']
+          },
+          seq: 1,
+          sessionId: 'sess-fast-events',
+          type: 'heartbeat'
+        });
+        await transaction.insertAgentEvent({
+          agentId: 'agent-fast-events-01',
+          eventId: 'evt-fast-telemetry-001',
+          observedAt: '2026-06-05T00:01:01.000Z',
+          payload: {
+            cpuPercent: 12,
+            memoryPercent: 30,
+            reportedAt: '2026-06-05T00:01:01.000Z'
+          },
+          seq: 2,
+          sessionId: 'sess-fast-events',
+          type: 'telemetry_sample'
+        });
+        await transaction.upsertAgentSession({
+          agentId: 'agent-fast-events-01',
+          sessionId: 'sess-fast-events',
+          status: 'online',
+          lastSeq: 2,
+          capabilities: ['host-agent', 'xray'],
+          lastHeartbeatAt: '2026-06-05T00:01:00.000Z',
+          updatedAt: '2026-06-05T00:01:01.000Z'
+        });
+      });
+
+      expect(readEntityIndexRows(databaseFilePath)).toEqual(rowsBeforeHighFrequencyEvents);
+      await expect(repository.listAgentEvents()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ eventId: 'evt-fast-heartbeat-001', type: 'heartbeat' }),
+          expect.objectContaining({ eventId: 'evt-fast-telemetry-001', type: 'telemetry_sample' })
+        ])
+      );
+      await expect(repository.listAgentSessions()).resolves.toEqual([
+        expect.objectContaining({
+          agentId: 'agent-fast-events-01',
+          sessionId: 'sess-fast-events',
+          status: 'online'
+        })
+      ]);
+    });
+  });
+
+  it('upserts traffic rollup entity index rows incrementally without a full sqlite index rebuild', async () => {
+    await withDatabaseFile(async (databaseFilePath) => {
+      const repository = await createSqliteControlPlaneRepository({ databaseFilePath });
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTask(createIndexedTask('task-sqlite-traffic-rollup-anchor'));
+      });
+
+      installEntityIndexFullRebuildFailureTrigger(databaseFilePath);
+
+      await repository.transaction(async (transaction) => {
+        await transaction.insertTrafficRollup({
+          id: 'traffic-rollup-fast-agent-001',
+          dimension: 'agent',
+          subjectId: 'agent-fast-events-01',
+          subjectLabel: 'Fast Agent',
+          agentId: 'agent-fast-events-01',
+          observedAt: '2026-06-05T00:02:00.000Z',
+          sampledAt: '2026-06-05T00:02:00.000Z',
+          periodKey: '2026-06',
+          monthlyResetDay: 1,
+          accountingMode: 'both',
+          ingressBytes: 1024,
+          egressBytes: 2048,
+          meteredBytes: 3072,
+          source: 'agent-telemetry'
+        });
+      });
+
+      const rows = readEntityIndexRows(databaseFilePath);
+
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            entity_type: 'task',
+            entity_id: 'task-sqlite-traffic-rollup-anchor'
+          }),
+          expect.objectContaining({
+            entity_type: 'traffic-rollup',
+            entity_id: 'traffic-rollup-fast-agent-001',
+            parent_id: 'agent-fast-events-01',
+            status: 'agent',
+            label: 'Fast Agent'
+          })
+        ])
+      );
+      expect(JSON.parse(rows.find((row) => row.entity_id === 'traffic-rollup-fast-agent-001')?.payload ?? '{}')).toEqual({
+        agentId: 'agent-fast-events-01',
+        meteredBytes: 3072,
+        periodKey: '2026-06',
+        source: 'agent-telemetry'
+      });
+      await expect(repository.listTrafficRollups()).resolves.toEqual([
+        expect.objectContaining({
+          id: 'traffic-rollup-fast-agent-001',
+          meteredBytes: 3072
+        })
+      ]);
     });
   });
 

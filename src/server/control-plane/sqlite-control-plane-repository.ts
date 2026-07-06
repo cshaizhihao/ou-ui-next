@@ -50,6 +50,11 @@ type EntityIndexRow = {
   updatedAt: string;
   payload: string;
 };
+type EntityIndexMutation =
+  | { kind: 'upsert'; createRow: (fallbackUpdatedAt: string) => EntityIndexRow | undefined }
+  | { kind: 'delete'; entityType: string; entityId: string }
+  | { kind: 'deleteByParent'; entityType: string; parentId: string }
+  | { kind: 'rebuild' };
 
 function createMigrationChecksum(version: number, name: string, stateFormat: string) {
   return `sha256:${createHash('sha256')
@@ -270,221 +275,398 @@ function initializeDatabase(database: SqliteDatabase, originLabel: string) {
   assertSupportedMigrationLedger(database, originLabel);
 }
 
+function createEntityIndexRow(
+  input: Omit<EntityIndexRow, 'payload'> & { payload: Record<string, unknown> },
+  fallbackUpdatedAt: string
+): EntityIndexRow {
+  return {
+    ...input,
+    parentId: input.parentId || '',
+    status: input.status || '',
+    label: input.label || '',
+    updatedAt: input.updatedAt || fallbackUpdatedAt,
+    payload: JSON.stringify(input.payload)
+  };
+}
+
+function createTaskEntityIndexRow(state: ControlPlaneRepositoryState, taskId: string, fallbackUpdatedAt: string) {
+  const task = state.tasks.find((item) => item.id === taskId);
+
+  return task
+    ? createEntityIndexRow({
+        entityType: 'task',
+        entityId: task.id,
+        parentId: task.resourceId ?? task.targetId,
+        status: task.status,
+        label: task.targetLabel,
+        updatedAt: task.updatedAt || task.createdAt,
+        payload: {
+          operation: task.operation,
+          resourceType: task.resourceType,
+          targetId: task.targetId,
+          requestId: task.requestId,
+          actor: task.actor
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createAuditLogEntityIndexRow(state: ControlPlaneRepositoryState, auditLogId: string, fallbackUpdatedAt: string) {
+  const auditLog = state.auditLogs.find((item) => item.id === auditLogId);
+
+  return auditLog
+    ? createEntityIndexRow({
+        entityType: 'audit-log',
+        entityId: auditLog.id,
+        parentId: auditLog.targetId,
+        status: auditLog.result,
+        label: auditLog.action,
+        updatedAt: auditLog.createdAt,
+        payload: {
+          action: auditLog.action,
+          resourceType: auditLog.resourceType,
+          actor: auditLog.actor,
+          requestId: auditLog.requestId
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createCommandOutboxEntityIndexRow(
+  state: ControlPlaneRepositoryState,
+  commandOutboxItemId: string,
+  fallbackUpdatedAt: string
+) {
+  const command = state.commandOutbox.find((item) => item.id === commandOutboxItemId);
+
+  return command
+    ? createEntityIndexRow({
+        entityType: 'command-outbox',
+        entityId: command.id,
+        parentId: command.taskId,
+        status: command.status,
+        label: command.commandId,
+        updatedAt: command.updatedAt || command.createdAt,
+        payload: {
+          taskId: command.taskId,
+          commandId: command.commandId,
+          agentId: command.agentId,
+          transport: command.transport,
+          seq: command.seq
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createForwardRuleEntityIndexRow(state: ControlPlaneRepositoryState, ruleId: string, fallbackUpdatedAt: string) {
+  const rule = state.forwardRules.find((item) => item.id === ruleId);
+
+  return rule
+    ? createEntityIndexRow({
+        entityType: 'forward-rule',
+        entityId: rule.id,
+        parentId: rule.tunnelId,
+        status: rule.enabled ? 'enabled' : 'disabled',
+        label: rule.name,
+        updatedAt: fallbackUpdatedAt,
+        payload: {
+          ownerName: rule.ownerName,
+          protocol: rule.ports[0]?.protocol,
+          listenPort: rule.ports[0]?.listenPort,
+          targetAddress: rule.ports[0]?.targetAddress,
+          targetPort: rule.ports[0]?.targetPort
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createSubscriptionSourceEntityIndexRow(
+  state: ControlPlaneRepositoryState,
+  sourceId: string,
+  fallbackUpdatedAt: string
+) {
+  const source = state.subscriptionSources.find((item) => item.id === sourceId);
+
+  return source
+    ? createEntityIndexRow({
+        entityType: 'subscription-source',
+        entityId: source.id,
+        parentId: source.providerAccountId ?? '',
+        status: source.status,
+        label: source.name,
+        updatedAt: source.lastSyncAt || fallbackUpdatedAt,
+        payload: {
+          kind: source.kind,
+          nodeCount: source.nodeCount,
+          dedupeKey: source.dedupeKey
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createSubscriptionInventoryNodeEntityIndexRow(
+  node: ControlPlaneRepositoryState['subscriptionInventoryNodes'][number],
+  fallbackUpdatedAt: string
+) {
+  return createEntityIndexRow({
+    entityType: 'subscription-inventory-node',
+    entityId: `${node.sourceId}:${node.id}`,
+    parentId: node.sourceId,
+    status: node.status ?? 'unknown',
+    label: node.name,
+    updatedAt: fallbackUpdatedAt,
+    payload: {
+      nodeId: node.id,
+      protocol: node.protocol,
+      server: node.server,
+      port: node.port,
+      tags: node.tags,
+      customerName: node.customerName,
+      hostId: node.hostId,
+      probeAgentId: node.probeAgentId
+    }
+  }, fallbackUpdatedAt);
+}
+
+function createSubscriptionClientEntityIndexRow(
+  state: ControlPlaneRepositoryState,
+  clientId: string,
+  fallbackUpdatedAt: string
+) {
+  const client = state.subscriptionClients.find((item) => item.id === clientId);
+
+  return client
+    ? createEntityIndexRow({
+        entityType: 'subscription-client',
+        entityId: client.id,
+        parentId: client.subId,
+        status: client.enabled ? 'enabled' : 'disabled',
+        label: client.displayName,
+        updatedAt: client.lastGeneratedAt ?? fallbackUpdatedAt,
+        payload: {
+          subId: client.subId,
+          email: client.email,
+          group: client.group,
+          outputFormats: client.outputFormats ?? client.formats
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createConfigRevisionEntityIndexRow(
+  state: ControlPlaneRepositoryState,
+  revisionId: string,
+  fallbackUpdatedAt: string
+) {
+  const revision = state.configRevisions.find((item) => item.id === revisionId);
+
+  return revision
+    ? createEntityIndexRow({
+        entityType: 'runtime-config-revision',
+        entityId: revision.id,
+        parentId: revision.taskId,
+        status: revision.status,
+        label: revision.targetLabel,
+        updatedAt: revision.appliedAt ?? revision.failedAt ?? revision.createdAt,
+        payload: {
+          operation: revision.operation,
+          targetId: revision.targetId,
+          agentId: revision.agentId,
+          moduleKind: revision.moduleKind,
+          checksum: revision.checksum,
+          preflightPlanId: revision.preflightPlanId,
+          snapshotBeforeId: revision.snapshotBeforeId,
+          diffSummary: revision.diffSummary
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createPreflightPlanEntityIndexRow(state: ControlPlaneRepositoryState, planId: string, fallbackUpdatedAt: string) {
+  const plan = state.preflightPlans.find((item) => item.id === planId);
+
+  return plan
+    ? createEntityIndexRow({
+        entityType: 'runtime-preflight-plan',
+        entityId: plan.id,
+        parentId: plan.configRevisionId,
+        status: plan.status,
+        label: plan.targetId,
+        updatedAt: plan.completedAt ?? plan.createdAt,
+        payload: {
+          taskId: plan.taskId,
+          targetId: plan.targetId,
+          agentId: plan.agentId,
+          moduleKind: plan.moduleKind,
+          checkCount: plan.checks.length,
+          criticalFailureCount: plan.checks.filter((check) => check.severity === 'critical' && check.status === 'failed').length
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createRuntimeSnapshotEntityIndexRow(
+  state: ControlPlaneRepositoryState,
+  snapshotId: string,
+  fallbackUpdatedAt: string
+) {
+  const snapshot = state.runtimeSnapshots.find((item) => item.id === snapshotId);
+
+  return snapshot
+    ? createEntityIndexRow({
+        entityType: 'runtime-snapshot',
+        entityId: snapshot.id,
+        parentId: snapshot.taskId,
+        status: snapshot.status,
+        label: snapshot.targetLabel,
+        updatedAt: snapshot.restoredAt ?? snapshot.verifiedAt ?? snapshot.capturedAt,
+        payload: {
+          targetId: snapshot.targetId,
+          agentId: snapshot.agentId,
+          moduleKind: snapshot.moduleKind,
+          reason: snapshot.reason,
+          checksum: snapshot.checksum,
+          restoredByTaskId: snapshot.restoredByTaskId
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
+function createTrafficRollupEntityIndexRow(
+  state: ControlPlaneRepositoryState,
+  trafficRollupId: string,
+  fallbackUpdatedAt: string
+) {
+  const rollup = state.trafficRollups.find((item) => item.id === trafficRollupId);
+
+  return rollup
+    ? createEntityIndexRow({
+        entityType: 'traffic-rollup',
+        entityId: rollup.id,
+        parentId: rollup.subjectId,
+        status: rollup.dimension,
+        label: rollup.subjectLabel,
+        updatedAt: rollup.observedAt,
+        payload: {
+          agentId: rollup.agentId,
+          periodKey: rollup.periodKey,
+          meteredBytes: rollup.meteredBytes,
+          source: rollup.source
+        }
+      }, fallbackUpdatedAt)
+    : undefined;
+}
+
 function createEntityIndexRows(state: ControlPlaneRepositoryState, fallbackUpdatedAt: string): EntityIndexRow[] {
   const rows: EntityIndexRow[] = [];
-  const pushRow = (input: Omit<EntityIndexRow, 'payload'> & { payload: Record<string, unknown> }) => {
-    rows.push({
-      ...input,
-      parentId: input.parentId || '',
-      status: input.status || '',
-      label: input.label || '',
-      updatedAt: input.updatedAt || fallbackUpdatedAt,
-      payload: JSON.stringify(input.payload)
-    });
+  const pushDefinedRow = (row: EntityIndexRow | undefined) => {
+    if (row) {
+      rows.push(row);
+    }
   };
 
   state.tasks.forEach((task) => {
-    pushRow({
-      entityType: 'task',
-      entityId: task.id,
-      parentId: task.resourceId ?? task.targetId,
-      status: task.status,
-      label: task.targetLabel,
-      updatedAt: task.updatedAt || task.createdAt,
-      payload: {
-        operation: task.operation,
-        resourceType: task.resourceType,
-        targetId: task.targetId,
-        requestId: task.requestId,
-        actor: task.actor
-      }
-    });
+    pushDefinedRow(createTaskEntityIndexRow(state, task.id, fallbackUpdatedAt));
   });
 
   state.auditLogs.forEach((auditLog) => {
-    pushRow({
-      entityType: 'audit-log',
-      entityId: auditLog.id,
-      parentId: auditLog.targetId,
-      status: auditLog.result,
-      label: auditLog.action,
-      updatedAt: auditLog.createdAt,
-      payload: {
-        action: auditLog.action,
-        resourceType: auditLog.resourceType,
-        actor: auditLog.actor,
-        requestId: auditLog.requestId
-      }
-    });
+    pushDefinedRow(createAuditLogEntityIndexRow(state, auditLog.id, fallbackUpdatedAt));
   });
 
   state.commandOutbox.forEach((command) => {
-    pushRow({
-      entityType: 'command-outbox',
-      entityId: command.id,
-      parentId: command.taskId,
-      status: command.status,
-      label: command.commandId,
-      updatedAt: command.updatedAt || command.createdAt,
-      payload: {
-        taskId: command.taskId,
-        commandId: command.commandId,
-        agentId: command.agentId,
-        transport: command.transport,
-        seq: command.seq
-      }
-    });
+    pushDefinedRow(createCommandOutboxEntityIndexRow(state, command.id, fallbackUpdatedAt));
   });
 
   state.forwardRules.forEach((rule) => {
-    pushRow({
-      entityType: 'forward-rule',
-      entityId: rule.id,
-      parentId: rule.tunnelId,
-      status: rule.enabled ? 'enabled' : 'disabled',
-      label: rule.name,
-      updatedAt: fallbackUpdatedAt,
-      payload: {
-        ownerName: rule.ownerName,
-        protocol: rule.ports[0]?.protocol,
-        listenPort: rule.ports[0]?.listenPort,
-        targetAddress: rule.ports[0]?.targetAddress,
-        targetPort: rule.ports[0]?.targetPort
-      }
-    });
+    pushDefinedRow(createForwardRuleEntityIndexRow(state, rule.id, fallbackUpdatedAt));
   });
 
   state.subscriptionSources.forEach((source) => {
-    pushRow({
-      entityType: 'subscription-source',
-      entityId: source.id,
-      parentId: source.providerAccountId ?? '',
-      status: source.status,
-      label: source.name,
-      updatedAt: source.lastSyncAt || fallbackUpdatedAt,
-      payload: {
-        kind: source.kind,
-        nodeCount: source.nodeCount,
-        dedupeKey: source.dedupeKey
-      }
-    });
+    pushDefinedRow(createSubscriptionSourceEntityIndexRow(state, source.id, fallbackUpdatedAt));
   });
 
   state.subscriptionInventoryNodes.forEach((node) => {
-    pushRow({
-      entityType: 'subscription-inventory-node',
-      entityId: `${node.sourceId}:${node.id}`,
-      parentId: node.sourceId,
-      status: node.status ?? 'unknown',
-      label: node.name,
-      updatedAt: fallbackUpdatedAt,
-      payload: {
-        nodeId: node.id,
-        protocol: node.protocol,
-        server: node.server,
-        port: node.port,
-        tags: node.tags,
-        customerName: node.customerName,
-        hostId: node.hostId,
-        probeAgentId: node.probeAgentId
-      }
-    });
+    pushDefinedRow(createSubscriptionInventoryNodeEntityIndexRow(node, fallbackUpdatedAt));
   });
 
   state.subscriptionClients.forEach((client) => {
-    pushRow({
-      entityType: 'subscription-client',
-      entityId: client.id,
-      parentId: client.subId,
-      status: client.enabled ? 'enabled' : 'disabled',
-      label: client.displayName,
-      updatedAt: client.lastGeneratedAt ?? fallbackUpdatedAt,
-      payload: {
-        subId: client.subId,
-        email: client.email,
-        group: client.group,
-        outputFormats: client.outputFormats ?? client.formats
-      }
-    });
+    pushDefinedRow(createSubscriptionClientEntityIndexRow(state, client.id, fallbackUpdatedAt));
   });
 
   state.configRevisions.forEach((revision) => {
-    pushRow({
-      entityType: 'runtime-config-revision',
-      entityId: revision.id,
-      parentId: revision.taskId,
-      status: revision.status,
-      label: revision.targetLabel,
-      updatedAt: revision.appliedAt ?? revision.failedAt ?? revision.createdAt,
-      payload: {
-        operation: revision.operation,
-        targetId: revision.targetId,
-        agentId: revision.agentId,
-        moduleKind: revision.moduleKind,
-        checksum: revision.checksum,
-        preflightPlanId: revision.preflightPlanId,
-        snapshotBeforeId: revision.snapshotBeforeId,
-        diffSummary: revision.diffSummary
-      }
-    });
+    pushDefinedRow(createConfigRevisionEntityIndexRow(state, revision.id, fallbackUpdatedAt));
   });
 
   state.preflightPlans.forEach((plan) => {
-    pushRow({
-      entityType: 'runtime-preflight-plan',
-      entityId: plan.id,
-      parentId: plan.configRevisionId,
-      status: plan.status,
-      label: plan.targetId,
-      updatedAt: plan.completedAt ?? plan.createdAt,
-      payload: {
-        taskId: plan.taskId,
-        targetId: plan.targetId,
-        agentId: plan.agentId,
-        moduleKind: plan.moduleKind,
-        checkCount: plan.checks.length,
-        criticalFailureCount: plan.checks.filter((check) => check.severity === 'critical' && check.status === 'failed').length
-      }
-    });
+    pushDefinedRow(createPreflightPlanEntityIndexRow(state, plan.id, fallbackUpdatedAt));
   });
 
   state.runtimeSnapshots.forEach((snapshot) => {
-    pushRow({
-      entityType: 'runtime-snapshot',
-      entityId: snapshot.id,
-      parentId: snapshot.taskId,
-      status: snapshot.status,
-      label: snapshot.targetLabel,
-      updatedAt: snapshot.restoredAt ?? snapshot.verifiedAt ?? snapshot.capturedAt,
-      payload: {
-        targetId: snapshot.targetId,
-        agentId: snapshot.agentId,
-        moduleKind: snapshot.moduleKind,
-        reason: snapshot.reason,
-        checksum: snapshot.checksum,
-        restoredByTaskId: snapshot.restoredByTaskId
-      }
-    });
+    pushDefinedRow(createRuntimeSnapshotEntityIndexRow(state, snapshot.id, fallbackUpdatedAt));
   });
 
   state.trafficRollups.forEach((rollup) => {
-    pushRow({
-      entityType: 'traffic-rollup',
-      entityId: rollup.id,
-      parentId: rollup.subjectId,
-      status: rollup.dimension,
-      label: rollup.subjectLabel,
-      updatedAt: rollup.observedAt,
-      payload: {
-        agentId: rollup.agentId,
-        periodKey: rollup.periodKey,
-        meteredBytes: rollup.meteredBytes,
-        source: rollup.source
-      }
-    });
+    pushDefinedRow(createTrafficRollupEntityIndexRow(state, rollup.id, fallbackUpdatedAt));
   });
 
   return rows;
+}
+
+function createEntityIndexMutationTracker(state: ControlPlaneRepositoryState) {
+  const mutations: EntityIndexMutation[] = [];
+  const upsert = (createRow: (fallbackUpdatedAt: string) => EntityIndexRow | undefined) => {
+    mutations.push({
+      kind: 'upsert',
+      createRow
+    });
+  };
+
+  return {
+    mutations,
+    rebuild() {
+      mutations.push({ kind: 'rebuild' });
+    },
+    task(taskId: string) {
+      upsert((fallbackUpdatedAt) => createTaskEntityIndexRow(state, taskId, fallbackUpdatedAt));
+    },
+    auditLog(auditLogId: string) {
+      upsert((fallbackUpdatedAt) => createAuditLogEntityIndexRow(state, auditLogId, fallbackUpdatedAt));
+    },
+    commandOutboxItem(commandOutboxItemId: string) {
+      upsert((fallbackUpdatedAt) => createCommandOutboxEntityIndexRow(state, commandOutboxItemId, fallbackUpdatedAt));
+    },
+    subscriptionSource(sourceId: string) {
+      upsert((fallbackUpdatedAt) => createSubscriptionSourceEntityIndexRow(state, sourceId, fallbackUpdatedAt));
+    },
+    deleteSubscriptionSource(sourceId: string) {
+      mutations.push({ kind: 'delete', entityType: 'subscription-source', entityId: sourceId });
+      mutations.push({ kind: 'deleteByParent', entityType: 'subscription-inventory-node', parentId: sourceId });
+    },
+    subscriptionClient(clientId: string) {
+      upsert((fallbackUpdatedAt) => createSubscriptionClientEntityIndexRow(state, clientId, fallbackUpdatedAt));
+    },
+    deleteSubscriptionClient(clientId: string) {
+      mutations.push({ kind: 'delete', entityType: 'subscription-client', entityId: clientId });
+    },
+    replaceSubscriptionInventoryNodes(sourceId: string, nodes: ControlPlaneRepositoryState['subscriptionInventoryNodes']) {
+      mutations.push({ kind: 'deleteByParent', entityType: 'subscription-inventory-node', parentId: sourceId });
+      nodes.forEach((node) => {
+        upsert((fallbackUpdatedAt) => createSubscriptionInventoryNodeEntityIndexRow(node, fallbackUpdatedAt));
+      });
+    },
+    configRevision(revisionId: string) {
+      upsert((fallbackUpdatedAt) => createConfigRevisionEntityIndexRow(state, revisionId, fallbackUpdatedAt));
+    },
+    preflightPlan(planId: string) {
+      upsert((fallbackUpdatedAt) => createPreflightPlanEntityIndexRow(state, planId, fallbackUpdatedAt));
+    },
+    runtimeSnapshot(snapshotId: string) {
+      upsert((fallbackUpdatedAt) => createRuntimeSnapshotEntityIndexRow(state, snapshotId, fallbackUpdatedAt));
+    },
+    trafficRollup(trafficRollupId: string) {
+      upsert((fallbackUpdatedAt) => createTrafficRollupEntityIndexRow(state, trafficRollupId, fallbackUpdatedAt));
+    }
+  };
 }
 
 function rebuildEntityIndex(database: SqliteDatabase, state: ControlPlaneRepositoryState, updatedAt: string) {
@@ -515,6 +697,165 @@ function rebuildEntityIndex(database: SqliteDatabase, state: ControlPlaneReposit
   for (const row of rows) {
     insertRow.run(row);
   }
+}
+
+function applyEntityIndexMutations(
+  database: SqliteDatabase,
+  state: ControlPlaneRepositoryState,
+  mutations: EntityIndexMutation[],
+  updatedAt: string
+) {
+  if (mutations.length === 0) {
+    return;
+  }
+
+  if (mutations.some((mutation) => mutation.kind === 'rebuild')) {
+    rebuildEntityIndex(database, state, updatedAt);
+    return;
+  }
+
+  const upsertRow = database.prepare(`
+    INSERT INTO control_plane_entity_index (
+      entity_type,
+      entity_id,
+      parent_id,
+      status,
+      label,
+      updated_at,
+      payload
+    )
+    VALUES (
+      @entityType,
+      @entityId,
+      @parentId,
+      @status,
+      @label,
+      @updatedAt,
+      @payload
+    )
+    ON CONFLICT(entity_type, entity_id) DO UPDATE SET
+      parent_id = excluded.parent_id,
+      status = excluded.status,
+      label = excluded.label,
+      updated_at = excluded.updated_at,
+      payload = excluded.payload
+  `);
+  const deleteRow = database.prepare(`
+    DELETE FROM control_plane_entity_index
+    WHERE entity_type = @entityType AND entity_id = @entityId
+  `);
+  const deleteRowsByParent = database.prepare(`
+    DELETE FROM control_plane_entity_index
+    WHERE entity_type = @entityType AND parent_id = @parentId
+  `);
+
+  for (const mutation of mutations) {
+    if (mutation.kind === 'upsert') {
+      const row = mutation.createRow(updatedAt);
+
+      if (row) {
+        upsertRow.run(row);
+      }
+      continue;
+    }
+
+    if (mutation.kind === 'delete') {
+      deleteRow.run({
+        entityType: mutation.entityType,
+        entityId: mutation.entityId
+      });
+      continue;
+    }
+
+    if (mutation.kind === 'deleteByParent') {
+      deleteRowsByParent.run({
+        entityType: mutation.entityType,
+        parentId: mutation.parentId
+      });
+    }
+  }
+}
+
+function createEntityIndexingTransaction(
+  transaction: ControlPlaneTransaction,
+  tracker: ReturnType<typeof createEntityIndexMutationTracker>
+): ControlPlaneTransaction {
+  return {
+    ...transaction,
+    async insertTask(task) {
+      await transaction.insertTask(task);
+      tracker.task(task.id);
+    },
+    async updateTask(task) {
+      await transaction.updateTask(task);
+      tracker.task(task.id);
+    },
+    async insertAuditLog(auditLog) {
+      await transaction.insertAuditLog(auditLog);
+      tracker.auditLog(auditLog.id);
+    },
+    async updateCommandOutboxItem(item) {
+      await transaction.updateCommandOutboxItem(item);
+      tracker.commandOutboxItem(item.id);
+    },
+    async insertCommandOutbox(item) {
+      await transaction.insertCommandOutbox(item);
+      tracker.commandOutboxItem(item.id);
+    },
+    async upsertSubscriptionSource(source) {
+      await transaction.upsertSubscriptionSource(source);
+      tracker.subscriptionSource(source.id);
+    },
+    async deleteSubscriptionSource(sourceId) {
+      await transaction.deleteSubscriptionSource(sourceId);
+      tracker.deleteSubscriptionSource(sourceId);
+    },
+    async upsertSubscriptionClient(client) {
+      await transaction.upsertSubscriptionClient(client);
+      tracker.subscriptionClient(client.id);
+    },
+    async deleteSubscriptionClient(clientId) {
+      await transaction.deleteSubscriptionClient(clientId);
+      tracker.deleteSubscriptionClient(clientId);
+    },
+    async replaceSubscriptionInventoryNodesForSource(sourceId, nodes) {
+      await transaction.replaceSubscriptionInventoryNodesForSource(sourceId, nodes);
+      tracker.replaceSubscriptionInventoryNodes(sourceId, nodes);
+    },
+    async pruneTrafficRollups(policy, now) {
+      const result = await transaction.pruneTrafficRollups(policy, now);
+      tracker.rebuild();
+      return result;
+    },
+    async insertConfigRevision(configRevision) {
+      await transaction.insertConfigRevision(configRevision);
+      tracker.configRevision(configRevision.id);
+    },
+    async updateConfigRevision(configRevision) {
+      await transaction.updateConfigRevision(configRevision);
+      tracker.configRevision(configRevision.id);
+    },
+    async insertPreflightPlan(preflightPlan) {
+      await transaction.insertPreflightPlan(preflightPlan);
+      tracker.preflightPlan(preflightPlan.id);
+    },
+    async updatePreflightPlan(preflightPlan) {
+      await transaction.updatePreflightPlan(preflightPlan);
+      tracker.preflightPlan(preflightPlan.id);
+    },
+    async insertRuntimeSnapshot(runtimeSnapshot) {
+      await transaction.insertRuntimeSnapshot(runtimeSnapshot);
+      tracker.runtimeSnapshot(runtimeSnapshot.id);
+    },
+    async updateRuntimeSnapshot(runtimeSnapshot) {
+      await transaction.updateRuntimeSnapshot(runtimeSnapshot);
+      tracker.runtimeSnapshot(runtimeSnapshot.id);
+    },
+    async insertTrafficRollup(trafficRollup) {
+      await transaction.insertTrafficRollup(trafficRollup);
+      tracker.trafficRollup(trafficRollup.id);
+    }
+  };
 }
 
 function readMaxHighFrequencyAgentEventsPerType() {
@@ -561,7 +902,12 @@ function compactHighFrequencyAgentEventsForPersistence(
   return agentEvents.length === state.agentEvents.length ? state : { ...state, agentEvents };
 }
 
-function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepositoryState, originLabel: string) {
+function writeStateToDatabase(
+  database: SqliteDatabase,
+  state: ControlPlaneRepositoryState,
+  originLabel: string,
+  entityIndexMutations?: EntityIndexMutation[]
+) {
   assertSupportedDatabaseMetadata(database, originLabel);
   assertSupportedMigrationLedger(database, originLabel);
   const updatedAt = new Date().toISOString();
@@ -578,7 +924,11 @@ function writeStateToDatabase(database: SqliteDatabase, state: ControlPlaneRepos
       payload: JSON.stringify(persistedState),
       updatedAt
     });
-  rebuildEntityIndex(database, persistedState, updatedAt);
+  if (entityIndexMutations) {
+    applyEntityIndexMutations(database, persistedState, entityIndexMutations, updatedAt);
+  } else {
+    rebuildEntityIndex(database, persistedState, updatedAt);
+  }
 }
 
 function loadLegacyState(input: CreateSqliteControlPlaneRepositoryInput) {
@@ -657,9 +1007,10 @@ export async function createSqliteControlPlaneRepository(
 
         try {
           const draft = readStateFromDatabase(database, input.databaseFilePath);
-          const result = await run(createControlPlaneTransaction(draft));
+          const tracker = createEntityIndexMutationTracker(draft);
+          const result = await run(createEntityIndexingTransaction(createControlPlaneTransaction(draft), tracker));
 
-          writeStateToDatabase(database, draft, input.databaseFilePath);
+          writeStateToDatabase(database, draft, input.databaseFilePath, tracker.mutations);
           database.exec('COMMIT');
 
           return clone(result);
