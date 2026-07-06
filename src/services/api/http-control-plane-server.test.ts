@@ -2149,6 +2149,57 @@ describe('HTTP control-plane server', () => {
     });
   });
 
+  it('counts public subscription portal visits against the same subscription request limit', async () => {
+    await withServerApi(createMockApi(), async (baseUrl) => {
+      const createClientResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-public-sub-portal-rate-limit-client',
+          'Idempotency-Key': 'idem-public-sub-portal-rate-limit-client'
+        }),
+        body: JSON.stringify({
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'sub-client-portal-rate-limited',
+          targetLabel: 'Portal Rate Limited Subscription',
+          summary: 'Create portal rate limited subscription client',
+          metadata: {
+            subscriptionClientId: 'sub-client-portal-rate-limited',
+            customerName: 'Portal Limited Customer',
+            displayName: 'Portal Rate Limited Subscription',
+            subId: 'sub_portal_rate_limited',
+            email: 'portal-limited@example.com',
+            protocol: 'vless',
+            group: 'premium',
+            remainingDays: 30,
+            outputFormats: ['uri'],
+            formats: ['plain'],
+            securePathPreview: '/pL7mN2pQ9sT4vW8xY1zA3bC5',
+            requestLimitPerHour: 1,
+            generatedNodeCount: 0
+          }
+        })
+      });
+
+      expect(createClientResponse.status).toBe(201);
+
+      const portalResponse = await fetch(`${baseUrl}/portal/pL7mN2pQ9sT4vW8xY1zA3bC5/sub_portal_rate_limited`);
+      const downloadResponse = await fetch(`${baseUrl}/sub/pL7mN2pQ9sT4vW8xY1zA3bC5/uri/sub_portal_rate_limited`);
+      const downloadEnvelope = await downloadResponse.json();
+
+      expect(portalResponse.status).toBe(200);
+      expect(downloadResponse.status).toBe(429);
+      expect(downloadEnvelope.error).toMatchObject({
+        code: 'subscription.rate_limited',
+        details: expect.objectContaining({
+          clientId: 'sub-client-portal-rate-limited',
+          requestLimitPerHour: 1,
+          format: 'uri'
+        })
+      });
+    });
+  });
+
   it('supports Agent polling, Agent event ingestion, and audit chain verification', async () => {
     await withServer(async (baseUrl) => {
       const taskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {

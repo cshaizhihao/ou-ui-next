@@ -1593,6 +1593,8 @@ const subscriptionClientFormatToOutputFormat: Record<SubscriptionClientFormat, S
   'sing-box': 'sing-box'
 };
 
+type PublicSubscriptionRequestKind = PublicSubscriptionFormat | 'portal';
+
 function resolveAllowedSubscriptionOutputFormats(client: SubscriptionClientIdentity) {
   const explicitFormats = client.outputFormats ?? [];
 
@@ -1641,7 +1643,8 @@ async function resolvePublicSubscriptionClient(
     throw createHttpError(403, 'permission.denied', 'Subscription client is disabled.');
   }
 
-  if (Date.parse(client.expiresAt) <= Date.now()) {
+  const expiresAtMs = Date.parse(client.expiresAt);
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
     throw createHttpError(403, 'permission.denied', 'Subscription client is expired.');
   }
 
@@ -1652,7 +1655,11 @@ async function resolvePublicSubscriptionClient(
   return client;
 }
 
-function consumePublicSubscriptionRequest(client: SubscriptionClientIdentity, format: PublicSubscriptionFormat, now = Date.now()) {
+function consumePublicSubscriptionRequest(
+  client: SubscriptionClientIdentity,
+  requestKind: PublicSubscriptionRequestKind,
+  now = Date.now()
+) {
   const requestLimitPerHour = Math.max(Math.round(client.requestLimitPerHour ?? 360), 0);
 
   if (requestLimitPerHour === 0) {
@@ -1674,7 +1681,7 @@ function consumePublicSubscriptionRequest(client: SubscriptionClientIdentity, fo
     throw createHttpError(429, 'subscription.rate_limited', 'Subscription request limit exceeded.', {
       clientId: client.id,
       subId: client.subId,
-      format,
+      format: requestKind,
       requestLimitPerHour,
       windowResetAt: new Date(currentWindowStartedAt + publicSubscriptionRateWindowMs).toISOString()
     });
@@ -2511,6 +2518,7 @@ async function routeRequest(
   if (method === 'GET' && publicSubscriptionPortalPath) {
     const client = await resolvePublicSubscriptionClient(api, publicSubscriptionPortalPath);
 
+    consumePublicSubscriptionRequest(client, 'portal');
     sendHtml(response, 200, renderPublicSubscriptionPortal(client));
     return;
   }
