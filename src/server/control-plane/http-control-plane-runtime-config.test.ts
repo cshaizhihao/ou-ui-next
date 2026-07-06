@@ -10,6 +10,7 @@ import {
 import {
   DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS,
   DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS,
+  DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY,
   DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
 } from './control-plane-service';
 
@@ -29,6 +30,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       },
       highFrequencyAgentEventPersistence: {
         persistEvery: DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
+      },
+      agentLogChunkPersistence: {
+        persistEvery: DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY
       },
       agentCredentialRuntimeAuth: {
         successCacheTtlMs: DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS,
@@ -71,6 +75,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS: '31',
         OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE: '5000',
         OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY: '10',
+        OU_UI_AGENT_LOG_CHUNK_PERSIST_EVERY: '7',
         OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS: '2500',
         OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS: '45000',
         OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY: '12',
@@ -98,6 +103,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       },
       highFrequencyAgentEventPersistence: {
         persistEvery: 10
+      },
+      agentLogChunkPersistence: {
+        persistEvery: 7
       },
       agentCredentialRuntimeAuth: {
         successCacheTtlMs: 2500,
@@ -452,6 +460,9 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
       highFrequencyAgentEventPersistence: {
         persistEvery: DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
       },
+      agentLogChunkPersistence: {
+        persistEvery: DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY
+      },
       agentCredentialRuntimeAuth: {
         successCacheTtlMs: DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS,
         lastUsedPersistIntervalMs: DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS
@@ -629,6 +640,14 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY: '0'
       })
     ).toThrow('OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY must be a positive integer.');
+  });
+
+  it('rejects invalid Agent log chunk persistence settings', () => {
+    expect(() =>
+      resolveHttpControlPlaneRuntimeConfig({
+        OU_UI_AGENT_LOG_CHUNK_PERSIST_EVERY: '0'
+      })
+    ).toThrow('OU_UI_AGENT_LOG_CHUNK_PERSIST_EVERY must be a positive integer.');
   });
 
   it('maps and rejects invalid Agent runtime credential auth cache settings', () => {

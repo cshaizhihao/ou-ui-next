@@ -102,6 +102,7 @@ type CreateServiceBackedControlPlaneOptions = (
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   highFrequencyAgentEventPersistence?: Partial<HighFrequencyAgentEventPersistencePolicy>;
+  agentLogChunkPersistence?: Parameters<typeof createControlPlaneService>[0]['agentLogChunkPersistence'];
   agentCredentialRuntimeAuth?: Parameters<typeof createControlPlaneService>[0]['agentCredentialRuntimeAuth'];
   commandTimeoutSweep?: CommandTimeoutSweepJobOptions;
   now?: () => string;
@@ -447,6 +448,7 @@ export async function createServiceBackedControlPlane(options: CreateServiceBack
     agentLogRetention: options.agentLogRetention,
     trafficRollupRetention: options.trafficRollupRetention,
     highFrequencyAgentEventPersistence: options.highFrequencyAgentEventPersistence,
+    agentLogChunkPersistence: options.agentLogChunkPersistence,
     agentCredentialRuntimeAuth: options.agentCredentialRuntimeAuth,
     ...(options.archiveSink ? { archiveSink: options.archiveSink } : {}),
     ...(onArchiveSinkError ? { onArchiveSinkError } : {}),

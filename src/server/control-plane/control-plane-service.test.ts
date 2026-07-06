@@ -3104,6 +3104,104 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('samples Agent log chunk persistence without breaking later command evidence', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules,
+      permissionGrants: seedPermissionGrants
+    });
+    const service = createControlPlaneService({
+      repository,
+      now: createControlPlaneTestClock(),
+      agentLogChunkPersistence: {
+        persistEvery: 3
+      }
+    });
+    const task = await service.createTask(
+      {
+        operation: 'agent.deploy',
+        resourceType: 'agent',
+        targetId: 'agent-hkg-01',
+        targetLabel: 'Agent-A HKG Gateway',
+        summary: 'Deploy service Agent config with sampled log chunks'
+      },
+      {
+        ...context,
+        requestId: 'req-service-agent-log-chunk-sampled',
+        idempotencyKey: 'idem-service-agent-log-chunk-sampled',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-agent-log-chunk-sampled-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-log-chunk-sampled',
+      observedAt: '2026-06-02T00:00:01.000Z',
+      payload: {}
+    });
+
+    for (const chunkSeq of [1, 2, 3]) {
+      await service.receiveAgentEvent({
+        type: 'log_chunk',
+        eventId: `evt-service-agent-log-chunk-sampled-${chunkSeq}`,
+        commandId: outboxItem.commandId,
+        taskId: task.id,
+        agentId: 'agent-hkg-01',
+        seq: outboxItem.seq + 1 + chunkSeq,
+        sessionId: 'sess-agent-log-chunk-sampled',
+        observedAt: `2026-06-02T00:00:0${chunkSeq + 1}.000Z`,
+        payload: {
+          chunkSeq,
+          stream: 'stdout',
+          content: `sampled command output ${chunkSeq}`
+        }
+      });
+    }
+
+    const persistedLogChunks = (await repository.listAgentEvents()).filter((event) => event.type === 'log_chunk');
+
+    expect(persistedLogChunks).toEqual([
+      expect.objectContaining({
+        eventId: 'evt-service-agent-log-chunk-sampled-3',
+        type: 'log_chunk',
+        payload: expect.objectContaining({ chunkSeq: 3 })
+      }),
+      expect.objectContaining({
+        eventId: 'evt-service-agent-log-chunk-sampled-1',
+        type: 'log_chunk',
+        payload: expect.objectContaining({ chunkSeq: 1 })
+      })
+    ]);
+
+    await service.receiveAgentEvent({
+      type: 'result',
+      eventId: 'evt-service-agent-log-chunk-sampled-result',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 5,
+      sessionId: 'sess-agent-log-chunk-sampled',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {
+        status: 'succeeded',
+        appliedConfigRevision:
+          outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : undefined
+      }
+    });
+
+    await expect(repository.listCommandOutbox()).resolves.toEqual([
+      expect.objectContaining({
+        commandId: outboxItem.commandId,
+        status: 'completed'
+      })
+    ]);
+  });
+
   it('ignores late ACK and result events after a command reaches a terminal state', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(

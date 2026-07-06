@@ -68,10 +68,16 @@ import {
 } from './traffic-rollup-retention';
 
 export const DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY = 5;
+export const DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY = 1;
 export const DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS = 5_000;
 export const DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS = 60_000;
+const MAX_HOT_AGENT_LOG_CHUNK_KEYS = 20_000;
 
 export type HighFrequencyAgentEventPersistencePolicy = {
+  persistEvery: number;
+};
+
+export type AgentLogChunkPersistencePolicy = {
   persistEvery: number;
 };
 
@@ -99,6 +105,7 @@ type CreateControlPlaneServiceInput = {
   agentLogRetention?: Partial<AgentLogRetentionPolicy>;
   trafficRollupRetention?: Partial<TrafficRollupRetentionPolicy>;
   highFrequencyAgentEventPersistence?: Partial<HighFrequencyAgentEventPersistencePolicy>;
+  agentLogChunkPersistence?: Partial<AgentLogChunkPersistencePolicy>;
   agentCredentialRuntimeAuth?: Partial<AgentCredentialRuntimeAuthPolicy>;
   archiveSink?: ControlPlaneArchiveSink;
   onArchiveSinkError?: ControlPlaneArchiveSinkErrorHandler;
@@ -197,6 +204,16 @@ function normalizeHighFrequencyAgentEventPersistencePolicy(
 
   return {
     persistEvery: Number.isInteger(persistEvery) && persistEvery > 0 ? persistEvery : DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY
+  };
+}
+
+function normalizeAgentLogChunkPersistencePolicy(
+  policy: Partial<AgentLogChunkPersistencePolicy> | undefined
+): AgentLogChunkPersistencePolicy {
+  const persistEvery = policy?.persistEvery ?? DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY;
+
+  return {
+    persistEvery: Number.isInteger(persistEvery) && persistEvery > 0 ? persistEvery : DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY
   };
 }
 
@@ -1874,6 +1891,7 @@ export function createControlPlaneService({
   agentLogRetention: agentLogRetentionInput,
   trafficRollupRetention: trafficRollupRetentionInput,
   highFrequencyAgentEventPersistence: highFrequencyAgentEventPersistenceInput,
+  agentLogChunkPersistence: agentLogChunkPersistenceInput,
   agentCredentialRuntimeAuth: agentCredentialRuntimeAuthInput,
   archiveSink,
   onArchiveSinkError,
@@ -1885,6 +1903,7 @@ export function createControlPlaneService({
   const highFrequencyAgentEventPersistence = normalizeHighFrequencyAgentEventPersistencePolicy(
     highFrequencyAgentEventPersistenceInput
   );
+  const agentLogChunkPersistence = normalizeAgentLogChunkPersistencePolicy(agentLogChunkPersistenceInput);
   const agentCredentialRuntimeAuth = normalizeAgentCredentialRuntimeAuthPolicy(agentCredentialRuntimeAuthInput);
   const agentTokenResolutionCache = new Map<
     string,
@@ -1899,6 +1918,7 @@ export function createControlPlaneService({
   >();
   const agentCredentialLastUsedPersistedAt = new Map<string, number>();
   const agentSessionHotLastSeq = new Map<string, number>();
+  const agentLogChunkHotKeys = new Set<string>();
   const pollableCommandAgents = new Map<string, number>();
   const pollableCommandById = new Map<string, string>();
   const readNow = () => readClock();
@@ -2780,6 +2800,57 @@ export function createControlPlaneService({
       persistedRawEvidence: shouldPersistRawAgentEvent,
       persistedSession: shouldPersistAgentSession
     };
+  }
+
+  function createAgentLogChunkHotKey(agentEvent: Extract<AgentEventEnvelope, { type: 'log_chunk' }>) {
+    return `${agentEvent.agentId}\0${agentEvent.taskId}\0${agentEvent.commandId}\0${agentEvent.payload.chunkSeq}`;
+  }
+
+  function rememberAgentLogChunkHotKey(key: string) {
+    if (agentLogChunkHotKeys.size >= MAX_HOT_AGENT_LOG_CHUNK_KEYS) {
+      agentLogChunkHotKeys.clear();
+    }
+
+    agentLogChunkHotKeys.add(key);
+  }
+
+  function shouldPersistAgentLogChunk(agentEvent: Extract<AgentEventEnvelope, { type: 'log_chunk' }>) {
+    if (agentLogChunkPersistence.persistEvery <= 1) {
+      return true;
+    }
+
+    return agentEvent.payload.chunkSeq === 1 || agentEvent.payload.chunkSeq % agentLogChunkPersistence.persistEvery === 0;
+  }
+
+  async function acceptUnpersistedAgentLogChunk(
+    transaction: ControlPlaneTransaction,
+    agentEvent: Extract<AgentEventEnvelope, { type: 'log_chunk' }>
+  ) {
+    const hotKey = createAgentLogChunkHotKey(agentEvent);
+    const persistedChunk = await transaction.findAgentLogChunk(
+      agentEvent.agentId,
+      agentEvent.taskId,
+      agentEvent.commandId,
+      agentEvent.payload.chunkSeq
+    );
+
+    if (persistedChunk || agentLogChunkHotKeys.has(hotKey)) {
+      const sessionKey = `${agentEvent.agentId}\0${agentEvent.sessionId}`;
+      const hotLastSeq = agentSessionHotLastSeq.get(sessionKey) ?? 0;
+      agentSessionHotLastSeq.set(sessionKey, Math.max(hotLastSeq, agentEvent.seq));
+      rememberAgentLogChunkHotKey(hotKey);
+      return true;
+    }
+
+    if (shouldPersistAgentLogChunk(agentEvent)) {
+      return false;
+    }
+
+    const sessionKey = `${agentEvent.agentId}\0${agentEvent.sessionId}`;
+    const hotLastSeq = agentSessionHotLastSeq.get(sessionKey) ?? 0;
+    agentSessionHotLastSeq.set(sessionKey, Math.max(hotLastSeq, agentEvent.seq));
+    rememberAgentLogChunkHotKey(hotKey);
+    return true;
   }
 
   function acceptCachedRoutineAgentEvent(agentEvent: AgentEventEnvelope) {
@@ -4160,6 +4231,13 @@ export function createControlPlaneService({
 
         const effectiveAgentEvent =
           agentEvent.type === 'result' ? normalizeResultEventForCommand(outboxItem.command, agentEvent) : agentEvent;
+
+        if (
+          effectiveAgentEvent.type === 'log_chunk' &&
+          (await acceptUnpersistedAgentLogChunk(transaction, effectiveAgentEvent))
+        ) {
+          return clone(task);
+        }
 
         await recordAgentEventSession(transaction, effectiveAgentEvent, archiveSinkBatches);
 
