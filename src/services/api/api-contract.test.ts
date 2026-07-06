@@ -1778,6 +1778,38 @@ describe('v1 API runtime contract', () => {
         }
       }).success
     ).toBe(true);
+
+    expect(
+      createTaskRequestSchema.safeParse({
+        operation: 'inbound.update',
+        resourceType: 'inbound',
+        targetId: 'customer-node-reality-policy-disabled',
+        targetLabel: 'Policy disabled Reality inbound',
+        summary: 'Policy-disable Reality clients without requiring runtime key material',
+        metadata: {
+          nodeId: 'customer-node-reality-policy-disabled',
+          agentId: 'agent-hkg-01',
+          customerNodeName: 'Policy disabled Reality inbound',
+          customerName: 'Acme Team',
+          xrayProtocol: 'vless',
+          listenPort: 443,
+          streamNetwork: 'tcp',
+          security: 'reality',
+          clients: [
+            {
+              clientIdentity: 'quota-disabled',
+              clientEmail: 'quota-disabled@example.com',
+              quotaExceeded: true
+            },
+            {
+              clientIdentity: 'expired-disabled',
+              clientEmail: 'expired-disabled@example.com',
+              clientExpired: true
+            }
+          ]
+        }
+      }).success
+    ).toBe(true);
   });
 
   it('accepts Agent forwarding traffic counter telemetry samples', () => {

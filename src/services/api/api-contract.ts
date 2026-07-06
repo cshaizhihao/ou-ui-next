@@ -358,12 +358,22 @@ function addDuplicateXrayClientMetadataIssues(metadata: TaskMetadataInput, conte
 
 function hasRuntimeEnabledXrayClientMetadata(metadata: TaskMetadataInput) {
   const clients = metadata.clients ?? [];
+  const isRuntimeEnabled = (client: {
+    enabled?: boolean;
+    quotaExceeded?: boolean;
+    clientExpired?: boolean;
+    runtimeDisabledByPolicy?: boolean;
+  }) =>
+    client.enabled !== false &&
+    client.quotaExceeded !== true &&
+    client.clientExpired !== true &&
+    client.runtimeDisabledByPolicy !== true;
 
   if (clients.length > 0) {
-    return clients.some((client) => client.enabled !== false && client.runtimeDisabledByPolicy !== true);
+    return clients.some(isRuntimeEnabled);
   }
 
-  return metadata.enabled !== false && metadata.runtimeDisabledByPolicy !== true;
+  return isRuntimeEnabled(metadata);
 }
 
 function addActiveXrayRealityMetadataIssues(metadata: TaskMetadataInput, context: z.RefinementCtx) {

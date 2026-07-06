@@ -325,10 +325,21 @@ function hasRuntimeEnabledXrayClientMetadata(metadata: Record<string, unknown> |
   const clients = readRecordArray(metadata, 'clients');
 
   if (clients.length > 0) {
-    return clients.some((client) => readBoolean(client, 'enabled', true) && !readBoolean(client, 'runtimeDisabledByPolicy', false));
+    return clients.some(
+      (client) =>
+        readBoolean(client, 'enabled', true) &&
+        !readBoolean(client, 'quotaExceeded', false) &&
+        !readBoolean(client, 'clientExpired', false) &&
+        !readBoolean(client, 'runtimeDisabledByPolicy', false)
+    );
   }
 
-  return readBoolean(metadata, 'enabled', true) && !readBoolean(metadata, 'runtimeDisabledByPolicy', false);
+  return (
+    readBoolean(metadata, 'enabled', true) &&
+    !readBoolean(metadata, 'quotaExceeded', false) &&
+    !readBoolean(metadata, 'clientExpired', false) &&
+    !readBoolean(metadata, 'runtimeDisabledByPolicy', false)
+  );
 }
 
 function validateXrayRuntimeSecurityMetadata(task: DeployTask, metadata: Record<string, unknown> | undefined) {
@@ -459,8 +470,12 @@ function buildXrayClientPolicies(input: {
     const operatorEnabled = readBoolean(clientMetadata, 'enabled', true);
     const quotaExceeded = readBoolean(clientMetadata, 'quotaExceeded', false);
     const clientExpired = readBoolean(clientMetadata, 'clientExpired', false);
-    const runtimeDisabledByPolicy = readBoolean(clientMetadata, 'runtimeDisabledByPolicy', false);
-    const guardrailReason = readString(clientMetadata, 'guardrailReason', '');
+    const runtimeDisabledByPolicy =
+      readBoolean(clientMetadata, 'runtimeDisabledByPolicy', false) || quotaExceeded || clientExpired;
+    const explicitGuardrailReason = readString(clientMetadata, 'guardrailReason', '');
+    const guardrailReason =
+      explicitGuardrailReason ||
+      (quotaExceeded ? 'xray_client_monthly_quota_exceeded' : clientExpired ? 'xray_client_expired' : '');
     const normalizedCredentials = normalizeXrayClientCredentials({
       protocol: input.protocol,
       clientIdentity,

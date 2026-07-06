@@ -348,7 +348,7 @@ describe('runtime artifacts', () => {
     });
   });
 
-  it('excludes runtime-disabled Xray clients from active settings while preserving policy evidence', () => {
+  it('excludes policy-disabled Xray clients from active settings while preserving quota and expiry evidence', () => {
     const artifact = buildRuntimeArtifact({
       task: createInboundTask({
         agentId: 'agent-hkg-01',
@@ -371,9 +371,14 @@ describe('runtime artifacts', () => {
             clientCredential: 'bob-token',
             clientEmail: 'bob@example.com',
             enabled: true,
-            quotaExceeded: true,
-            runtimeDisabledByPolicy: true,
-            guardrailReason: 'xray_client_monthly_quota_exceeded'
+            quotaExceeded: true
+          },
+          {
+            clientIdentity: 'charlie-expired',
+            clientCredential: 'charlie-token',
+            clientEmail: 'charlie@example.com',
+            enabled: true,
+            clientExpired: true
           }
         ]
       }),
@@ -387,6 +392,7 @@ describe('runtime artifacts', () => {
         operatorEnabled: boolean;
         enabled: boolean;
         quotaExceeded: boolean;
+        clientExpired: boolean;
         runtimeDisabledByPolicy: boolean;
         guardrailReason?: string;
       }>;
@@ -412,15 +418,24 @@ describe('runtime artifacts', () => {
         quotaExceeded: true,
         runtimeDisabledByPolicy: true,
         guardrailReason: 'xray_client_monthly_quota_exceeded'
+      },
+      {
+        clientEmail: 'charlie@example.com',
+        operatorEnabled: true,
+        enabled: false,
+        clientExpired: true,
+        runtimeDisabledByPolicy: true,
+        guardrailReason: 'xray_client_expired'
       }
     ]);
     expect(artifact.subscription.shareUris).toEqual([
       expect.objectContaining({ clientEmail: 'alice@example.com', enabled: true }),
-      expect.objectContaining({ clientEmail: 'bob@example.com', enabled: false })
+      expect.objectContaining({ clientEmail: 'bob@example.com', enabled: false }),
+      expect.objectContaining({ clientEmail: 'charlie@example.com', enabled: false })
     ]);
     expect(artifact.runtimeCapabilities).toMatchObject({
       activeClientCount: 1,
-      totalClientCount: 2
+      totalClientCount: 3
     });
   });
 
