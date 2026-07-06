@@ -24,13 +24,15 @@ export function createCustomerNodeTrafficUpdate(
 
 export function createCustomerNodeRenewalUpdate(
   metadata: CustomerNodeConfigMetadata,
-  addedDays: number
+  addedDays: number,
+  now: number | Date = Date.now()
 ): CustomerNodeConfigMetadata {
   const remainingDays = Math.max(metadata.remainingDays + Math.max(Math.round(addedDays), 0), 0);
+  const nowMs = typeof now === 'number' ? now : now.getTime();
 
   return {
     ...metadata,
     remainingDays,
-    expiresAt: new Date(Date.now() + remainingDays * DAY_MS).toISOString()
+    expiresAt: new Date(nowMs + remainingDays * DAY_MS).toISOString()
   };
 }
