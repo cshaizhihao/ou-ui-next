@@ -2419,7 +2419,11 @@ describe('NodesPage', () => {
 
   it('runs multi-selected customer-node context actions through the typed bulk path', async () => {
     const user = userEvent.setup();
-    const onApplyCustomerNodeClientAction = vi.fn(async () => true);
+    const onApplyCustomerNodeClientAction = vi.fn(async (input: CustomerNodeClientActionMutation) => ({
+      accepted: true,
+      runtimeTaskId: input.inboundId === 'inbound-premium-vless' ? 'task-bulk-acme-traffic' : 'task-bulk-beta-traffic',
+      targetClientEmail: input.clientEmail
+    }));
     const confirm = vi.fn(() => true);
     vi.stubGlobal('confirm', confirm);
 
@@ -2429,6 +2433,64 @@ describe('NodesPage', () => {
         inbounds={[createInbound(), createBetaInbound()]}
         language="en"
         workspaceMode="customerNodes"
+        tasks={[
+          createRuntimeTask({ id: 'task-bulk-acme-traffic', requestId: 'req-task-bulk-acme-traffic' }),
+          createRuntimeTask({ id: 'task-bulk-beta-traffic', requestId: 'req-task-bulk-beta-traffic' })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand({
+            id: 'outbox-task-bulk-acme-traffic',
+            taskId: 'task-bulk-acme-traffic',
+            commandId: 'cmd-task-bulk-acme-traffic'
+          }),
+          createRuntimeCommand({
+            id: 'outbox-task-bulk-beta-traffic',
+            taskId: 'task-bulk-beta-traffic',
+            commandId: 'cmd-task-bulk-beta-traffic'
+          })
+        ]}
+        configRevisions={[
+          createRuntimeConfigRevision({
+            id: 'cfg-task-bulk-acme-traffic',
+            taskId: 'task-bulk-acme-traffic',
+            checksum: 'sha256:cfg-task-bulk-acme-traffic',
+            signature: 'sig-task-bulk-acme-traffic',
+            preflightPlanId: 'preflight-task-bulk-acme-traffic',
+            snapshotBeforeId: 'snapshot-task-bulk-acme-traffic'
+          }),
+          createRuntimeConfigRevision({
+            id: 'cfg-task-bulk-beta-traffic',
+            taskId: 'task-bulk-beta-traffic',
+            checksum: 'sha256:cfg-task-bulk-beta-traffic',
+            signature: 'sig-task-bulk-beta-traffic',
+            preflightPlanId: 'preflight-task-bulk-beta-traffic',
+            snapshotBeforeId: 'snapshot-task-bulk-beta-traffic'
+          })
+        ]}
+        preflightPlans={[
+          createRuntimePreflightPlan({
+            id: 'preflight-task-bulk-acme-traffic',
+            taskId: 'task-bulk-acme-traffic',
+            configRevisionId: 'cfg-task-bulk-acme-traffic'
+          }),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-bulk-beta-traffic',
+            taskId: 'task-bulk-beta-traffic',
+            configRevisionId: 'cfg-task-bulk-beta-traffic'
+          })
+        ]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot({
+            id: 'snapshot-task-bulk-acme-traffic',
+            taskId: 'task-bulk-acme-traffic',
+            checksum: 'sha256:snapshot-task-bulk-acme-traffic'
+          }),
+          createRuntimeSnapshot({
+            id: 'snapshot-task-bulk-beta-traffic',
+            taskId: 'task-bulk-beta-traffic',
+            checksum: 'sha256:snapshot-task-bulk-beta-traffic'
+          })
+        ]}
         onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
         onDeleteCustomerNode={vi.fn()}
         onDeleteHost={vi.fn()}
@@ -2467,6 +2529,15 @@ describe('NodesPage', () => {
       },
       reason: 'customer-node:bulk-add-traffic'
     }));
+    const bulkFeedback = within(contextBar).getByRole('region', { name: 'Bulk Task Feedback' });
+    expect(within(bulkFeedback).getByText('2 verified · 0 waiting · 0 failed / 2')).toBeInTheDocument();
+    expect(within(bulkFeedback).getByText('Acme Premium VLESS')).toBeInTheDocument();
+    expect(within(bulkFeedback).getByText('Beta VLESS Edge')).toBeInTheDocument();
+    expect(within(bulkFeedback).getByText('Add Traffic queued · acme-premium@example.com')).toBeInTheDocument();
+    expect(within(bulkFeedback).getByText('Add Traffic queued · beta@example.com')).toBeInTheDocument();
+    expect(within(bulkFeedback).getByText('Runtime task-bulk-acme-traffic')).toBeInTheDocument();
+    expect(within(bulkFeedback).getByText('Runtime task-bulk-beta-traffic')).toBeInTheDocument();
+    expect(within(bulkFeedback).getAllByText('Stage agent-result-verified')).toHaveLength(2);
   });
 
   it('shows inbound clients in a drawer and submits per-client typed actions', async () => {

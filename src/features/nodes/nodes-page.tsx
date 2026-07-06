@@ -382,6 +382,12 @@ type CustomerClientActionFeedback = {
   runtimeTaskId?: string;
   subscriptionTaskId?: string;
 };
+type CustomerNodeBulkActionFeedbackItem = {
+  feedback: CustomerClientActionFeedback;
+  nodeLabel: string;
+  runtimeEvidence?: CustomerClientActionRuntimeEvidence;
+};
+type CustomerNodeBulkActionFeedbackState = 'verified' | 'waiting' | 'failed';
 type CustomerClientActionEvidenceState = 'verified' | 'waiting' | 'failed' | 'missing';
 type CustomerClientActionEvidenceStepId = 'task' | 'command' | 'revision' | 'preflight' | 'snapshot';
 type CustomerClientActionEvidenceStep = {
@@ -672,6 +678,9 @@ const copy = {
     customerClientActionEvidenceStage: (stage: string) => `阶段 ${stage || '-'}`,
     customerClientActionFailureReason: (reason: string) => `原因：${reason}`,
     customerClientActionCopyDiagnostics: '复制诊断',
+    customerBulkActionFeedbackQueue: '批量任务反馈',
+    customerBulkActionFeedbackSummary: (verified: string, waiting: string, failed: string, total: string) =>
+      `${verified} 已验证 · ${waiting} 等待 · ${failed} 失败 / ${total}`,
     customerClientActionEvidenceLabels: {
       task: '任务',
       command: '命令',
@@ -1119,6 +1128,9 @@ const copy = {
     customerClientActionEvidenceStage: (stage: string) => `Stage ${stage || '-'}`,
     customerClientActionFailureReason: (reason: string) => `Reason: ${reason}`,
     customerClientActionCopyDiagnostics: 'Copy Diagnostics',
+    customerBulkActionFeedbackQueue: 'Bulk Task Feedback',
+    customerBulkActionFeedbackSummary: (verified: string, waiting: string, failed: string, total: string) =>
+      `${verified} verified · ${waiting} waiting · ${failed} failed / ${total}`,
     customerClientActionEvidenceLabels: {
       task: 'Task',
       command: 'Command',
@@ -2694,6 +2706,7 @@ function CustomerNodeRuntimeEvidenceStrip({
 function CustomerNodeContextActionBar({
   actionFeedback,
   actionRuntimeEvidence,
+  bulkActionFeedbackItems,
   bulkImpactSummary,
   bulkRenewDays,
   bulkTrafficGb,
@@ -2726,6 +2739,7 @@ function CustomerNodeContextActionBar({
 }: {
   actionFeedback?: CustomerClientActionFeedback;
   actionRuntimeEvidence?: CustomerClientActionRuntimeEvidence;
+  bulkActionFeedbackItems?: CustomerNodeBulkActionFeedbackItem[];
   bulkImpactSummary: CustomerNodeBulkImpactSummary;
   bulkRenewDays: string;
   bulkTrafficGb: string;
@@ -2886,6 +2900,9 @@ function CustomerNodeContextActionBar({
           />
         </div>
       ) : null}
+      {!singleSelection && bulkActionFeedbackItems && bulkActionFeedbackItems.length > 0 ? (
+        <CustomerNodeBulkActionFeedbackQueue items={bulkActionFeedbackItems} t={t} />
+      ) : null}
     </section>
   );
 }
@@ -2920,6 +2937,100 @@ function CustomerNodeContextButton({
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="max-w-44 truncate">{label}</span>
     </button>
+  );
+}
+
+function CustomerNodeBulkActionFeedbackQueue({
+  items,
+  t
+}: {
+  items: CustomerNodeBulkActionFeedbackItem[];
+  t: NodesCopy;
+}) {
+  const rows = items.map((item) => {
+    const runtimeState = item.runtimeEvidence?.state;
+    const state: CustomerNodeBulkActionFeedbackState =
+      item.feedback.status === 'failed' || runtimeState === 'failed'
+        ? 'failed'
+        : runtimeState === 'verified'
+          ? 'verified'
+          : 'waiting';
+
+    return {
+      ...item,
+      state
+    };
+  });
+  const verified = rows.filter((row) => row.state === 'verified').length;
+  const failed = rows.filter((row) => row.state === 'failed').length;
+  const waiting = rows.length - verified - failed;
+  const stateClass = {
+    verified: 'border-[#00A878]/30 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    waiting: 'border-[#FFB020]/35 bg-[#FFF3C4]/55 text-[#8A5A00] dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    failed: 'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]'
+  } satisfies Record<CustomerNodeBulkActionFeedbackState, string>;
+  const stateLabel = {
+    verified: t.customerClientActionEvidenceVerified,
+    waiting: t.customerClientActionEvidenceWaiting,
+    failed: t.customerClientActionEvidenceFailed
+  } satisfies Record<CustomerNodeBulkActionFeedbackState, string>;
+  const stateIcon = {
+    verified: CheckCircle2,
+    waiting: Send,
+    failed: AlertTriangle
+  } satisfies Record<CustomerNodeBulkActionFeedbackState, typeof CheckCircle2>;
+
+  return (
+    <div
+      aria-label={t.customerBulkActionFeedbackQueue}
+      className="mt-3 border border-[#07111F]/14 bg-[#FFFDF5]/78 px-3 py-2.5 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035]"
+      data-customer-node-bulk-action-feedback
+      role="region"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[#1E3AFF] dark:text-[#DCE1FF]">
+          {t.customerBulkActionFeedbackQueue}
+        </p>
+        <p className="text-[11px] font-bold text-[#35405A] dark:text-white/55">
+          {t.customerBulkActionFeedbackSummary(String(verified), String(waiting), String(failed), String(rows.length))}
+        </p>
+      </div>
+      <div className="mt-2 grid gap-1.5 md:grid-cols-2">
+        {rows.map((row) => {
+          const Icon = stateIcon[row.state];
+
+          return (
+            <div
+              className={cn('min-w-0 border px-2.5 py-2 text-[11px]', stateClass[row.state])}
+              data-customer-node-bulk-action-feedback-row={row.feedback.inboundId}
+              data-customer-node-bulk-action-feedback-state={row.state}
+              key={row.feedback.id}
+            >
+              <div className="flex min-w-0 items-start gap-1.5">
+                <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="break-words font-black">{row.nodeLabel}</p>
+                  <p className="mt-0.5 break-words font-semibold text-[#35405A] dark:text-white/60">
+                    {row.feedback.status === 'failed'
+                      ? t.customerClientActionFailed(row.feedback.actionLabel, row.feedback.targetLabel)
+                      : t.customerClientActionQueued(row.feedback.actionLabel, row.feedback.targetLabel)}
+                  </p>
+                  <p className="mt-0.5 break-words font-semibold text-[#35405A] dark:text-white/55">
+                    {stateLabel[row.state]}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/55">
+                    {row.feedback.runtimeTaskId ? <span>{t.customerClientActionRuntimeTask(row.feedback.runtimeTaskId)}</span> : null}
+                    {row.runtimeEvidence?.evidenceStage ? (
+                      <span>{t.customerClientActionEvidenceStage(row.runtimeEvidence.evidenceStage)}</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -4488,6 +4599,15 @@ export function NodesPage({
   const [customerAdvancedOpen, setCustomerAdvancedOpen] = useState(false);
   const [customerClientDraft, setCustomerClientDraft] = useState<CustomerClientDraft>(() => createCustomerClientDraft());
   const [customerClientActionFeedback, setCustomerClientActionFeedback] = useState<CustomerClientActionFeedback>();
+  const [customerClientActionFeedbacks, setCustomerClientActionFeedbacks] = useState<CustomerClientActionFeedback[]>([]);
+
+  function rememberCustomerClientActionFeedback(feedback: CustomerClientActionFeedback) {
+    setCustomerClientActionFeedback(feedback);
+    setCustomerClientActionFeedbacks((current) => [
+      feedback,
+      ...current.filter((item) => item.id !== feedback.id)
+    ].slice(0, 24));
+  }
 
   const visibleAgents = useMemo(
     () => agents.filter((agent) => !removedAgentIds.includes(agent.id)),
@@ -4659,8 +4779,9 @@ export function NodesPage({
       })
     : undefined;
   const activeCustomerClientActionFeedback =
-    customerClientsInbound && customerClientActionFeedback?.inboundId === customerClientsInbound.id
-      ? customerClientActionFeedback
+    customerClientsInbound
+      ? customerClientActionFeedbacks.find((feedback) => feedback.inboundId === customerClientsInbound.id) ??
+        (customerClientActionFeedback?.inboundId === customerClientsInbound.id ? customerClientActionFeedback : undefined)
       : undefined;
   const activeCustomerClientActionRuntimeEvidence = useMemo(
     () =>
@@ -4689,8 +4810,9 @@ export function NodesPage({
       ? activeCustomerClientActionRuntimeEvidence.runtimeTaskId
       : undefined;
   const selectedCustomerNodeActionFeedback =
-    primarySelectedCustomerNode && customerClientActionFeedback?.inboundId === primarySelectedCustomerNode.id
-      ? customerClientActionFeedback
+    primarySelectedCustomerNode
+      ? customerClientActionFeedbacks.find((feedback) => feedback.inboundId === primarySelectedCustomerNode.id) ??
+        (customerClientActionFeedback?.inboundId === primarySelectedCustomerNode.id ? customerClientActionFeedback : undefined)
       : undefined;
   const selectedCustomerNodeActionRuntimeEvidence = useMemo(
     () =>
@@ -4718,6 +4840,42 @@ export function NodesPage({
     !selectedCustomerNodeActionRuntimeEvidence.diagnosticPackage.task.rollbackTaskId
       ? selectedCustomerNodeActionRuntimeEvidence.runtimeTaskId
       : undefined;
+  const selectedCustomerNodeBulkActionFeedbackItems = useMemo<CustomerNodeBulkActionFeedbackItem[]>(() => {
+    if (selectedCustomerNodes.length <= 1) {
+      return [];
+    }
+
+    const selectedById = new Map(selectedCustomerNodes.map((node) => [node.id, node]));
+
+    return customerClientActionFeedbacks
+      .filter((feedback) => selectedById.has(feedback.inboundId))
+      .map((feedback) => {
+        const node = selectedById.get(feedback.inboundId);
+
+        return {
+          feedback,
+          nodeLabel: node?.nodeName ?? feedback.inboundId,
+          runtimeEvidence: feedback.runtimeTaskId
+            ? resolveCustomerClientActionRuntimeEvidence({
+                commandOutbox,
+                configRevisions,
+                preflightPlans,
+                runtimeSnapshots,
+                runtimeTaskId: feedback.runtimeTaskId,
+                tasks
+              })
+            : undefined
+        };
+      });
+  }, [
+    commandOutbox,
+    configRevisions,
+    customerClientActionFeedbacks,
+    preflightPlans,
+    runtimeSnapshots,
+    selectedCustomerNodes,
+    tasks
+  ]);
   const reusableCustomerNodePort = useMemo(
     () => findReusableCustomerNodePort(customerDraft, visibleCustomerNodes, { nodeId: editingCustomerNode?.id }),
     [customerDraft, editingCustomerNode?.id, visibleCustomerNodes]
@@ -4967,7 +5125,7 @@ export function NodesPage({
 
   function openCustomerClientsDrawer(node: CustomerNodeRecord) {
     setCustomerClientDraft(createCustomerClientDraft(node.protocol));
-    setCustomerClientActionFeedback((current) => (current?.inboundId === node.id ? current : undefined));
+    setCustomerClientActionFeedback(customerClientActionFeedbacks.find((feedback) => feedback.inboundId === node.id));
     setDrawer({ type: 'customerClients', nodeId: node.id });
   }
 
@@ -5415,7 +5573,7 @@ export function NodesPage({
       return;
     }
 
-    setCustomerClientActionFeedback(
+    rememberCustomerClientActionFeedback(
       createCustomerClientActionFeedback({
         action,
         client: findRuntimeClientForCustomerNode(inbound, node),
@@ -5434,7 +5592,7 @@ export function NodesPage({
     reason: string
   ) {
     if (!onApplyCustomerNodeClientAction) {
-      setCustomerClientActionFeedback(
+      rememberCustomerClientActionFeedback(
         createCustomerClientActionFeedback({
           action,
           client,
@@ -5451,7 +5609,7 @@ export function NodesPage({
       const result = await onApplyCustomerNodeClientAction(createInboundClientActionMutation(inbound, client, action, reason));
       const failed = result === false || (isCustomerNodeClientActionResult(result) && !result.accepted);
 
-      setCustomerClientActionFeedback(
+      rememberCustomerClientActionFeedback(
         createCustomerClientActionFeedback({
           action,
           client,
@@ -5464,7 +5622,7 @@ export function NodesPage({
 
       return result;
     } catch {
-      setCustomerClientActionFeedback(
+      rememberCustomerClientActionFeedback(
         createCustomerClientActionFeedback({
           action,
           client,
@@ -5570,7 +5728,7 @@ export function NodesPage({
         reason: 'customer-node-client:add'
       });
     } catch {
-      setCustomerClientActionFeedback(
+      rememberCustomerClientActionFeedback(
         createCustomerClientActionFeedback({
           action,
           inbound: customerClientsInbound,
@@ -5584,7 +5742,7 @@ export function NodesPage({
 
     const failed = applied === false || (isCustomerNodeClientActionResult(applied) && !applied.accepted);
 
-    setCustomerClientActionFeedback(
+    rememberCustomerClientActionFeedback(
       createCustomerClientActionFeedback({
         action,
         inbound: customerClientsInbound,
@@ -6461,6 +6619,7 @@ export function NodesPage({
               <CustomerNodeContextActionBar
                 actionFeedback={selectedCustomerNodeActionFeedback}
                 actionRuntimeEvidence={selectedCustomerNodeActionRuntimeEvidence}
+                bulkActionFeedbackItems={selectedCustomerNodeBulkActionFeedbackItems}
                 bulkImpactSummary={customerNodeBulkImpactSummary}
                 bulkRenewDays={bulkCustomerNodeRenewDays}
                 bulkTrafficGb={bulkCustomerNodeTrafficGb}
