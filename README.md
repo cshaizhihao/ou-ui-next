@@ -251,7 +251,7 @@ Preview / blocked 能力：
 | `OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS` | 流量历史保留天数 |
 | `OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE` | 每个 Agent / 转发规则 / Xray 客户端保留的 rollup 记录上限 |
 | `OU_UI_AGENT_LOG_RETENTION_DAYS` | Agent 日志保留天数 |
-| `OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY` | heartbeat / telemetry_sample 原始事件留证采样间隔，默认 `5`；session liveness 与流量 rollup 仍逐条更新 |
+| `OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY` | heartbeat / telemetry_sample 持久化采样间隔，默认 `5`；采样点刷新 durable session / rollup evidence，已缓存的采样外事件走内存 sequence 快路径。大 SQLite 状态可提高到 `20` 或 `50` 降低热写 |
 | `OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS` | Agent runtime token 成功认证缓存 TTL，默认 `5000`；只缓存 tokenHash 对应的安全身份摘要，可设 `0` 关闭 |
 | `OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS` | runtime credential `lastUsedAt` 写库节流间隔，默认 `60000`；认证仍逐次校验缓存 TTL 和过期时间，可设 `0` 恢复每次写库 |
 | `OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY` | 空 Agent poll、heartbeat、telemetry_sample 的 console 结构化日志采样间隔，默认 `20`；命令、失败、ACK/result 和 runtime evidence 日志不采样 |
