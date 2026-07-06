@@ -2443,6 +2443,15 @@ export function createServiceBackedControlPlaneApi({
   let forwardRulesReadModel: Awaited<ReturnType<ControlPlaneRepository['listForwardRules']>> | undefined;
   let deletedAgentIds = new Set<string>();
   let readModelsHydrated = false;
+  let readModelTasks: DeployTask[] = [];
+
+  function updateReadModelTasks(tasks: DeployTask[]) {
+    readModelTasks = sortTasksForReadModelReplay(clone(tasks));
+  }
+
+  function upsertReadModelTask(task: DeployTask) {
+    updateReadModelTasks([task, ...readModelTasks.filter((item) => item.id !== task.id)]);
+  }
 
   async function readEffectiveAgentLogRetentionPolicy() {
     const persistedPolicy = await repository.getAgentLogRetentionPolicy();
@@ -5257,6 +5266,7 @@ export function createServiceBackedControlPlaneApi({
 
   async function hydrateReadModelsFromPersistedTasks() {
     const tasks = sortTasksForReadModelReplay(await repository.listTasks());
+    updateReadModelTasks(tasks);
     const persistedSubscriptionSources = await repository.listSubscriptionSources();
     const persistedSubscriptionInventoryNodes = await repository.listSubscriptionInventoryNodes();
     const persistedSubscriptionClients = await repository.listSubscriptionClients();
@@ -5500,11 +5510,15 @@ export function createServiceBackedControlPlaneApi({
 
   async function listLiveQuotaPolicies() {
     await hydrateReadModelsFromPersistedTasks();
+    return listLiveQuotaPoliciesFromReadModel(readModelTasks);
+  }
+
+  async function listLiveQuotaPoliciesFromReadModel(tasks: DeployTask[] = readModelTasks) {
     const now = readModelNow();
     const liveAgents = applyAgentLivenessToReadModel(agents, now);
     const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, now);
     const liveForwardRules = applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), now);
-    const quotaPolicyTasks = sortTasksForReadModelReplay(await repository.listTasks());
+    const quotaPolicyTasks = sortTasksForReadModelReplay(tasks);
     const quotaResetReplayState = createQuotaResetReplayState(quotaPolicyTasks);
     const liveQuotaPolicies = applyQuotaResetTasksToExplicitPolicies(inventory.quotaPolicies ?? [], quotaPolicyTasks);
     const liveSubscriptionClients = projectSubscriptionClientReadModels(
@@ -5526,11 +5540,19 @@ export function createServiceBackedControlPlaneApi({
 
   async function listLiveForwardRulesForQuotaEnforcement() {
     await hydrateReadModelsFromPersistedTasks();
+    return listLiveForwardRulesForQuotaEnforcementFromReadModel();
+  }
+
+  async function listLiveForwardRulesForQuotaEnforcementFromReadModel() {
     return applyForwardingBillingWindowToReadModel(await listForwardRuleReadModel(), readModelNow());
   }
 
   async function listLiveInboundsForGuardrailEnforcement() {
     await hydrateReadModelsFromPersistedTasks();
+    return listLiveInboundsForGuardrailEnforcementFromReadModel();
+  }
+
+  function listLiveInboundsForGuardrailEnforcementFromReadModel() {
     return applyXrayTrafficWindowToReadModel(inbounds, readModelNow());
   }
 
@@ -5546,12 +5568,17 @@ export function createServiceBackedControlPlaneApi({
 
   async function enqueueDerivedForwardQuotaEnforcementTasks(
     beforeRules: ForwardRule[],
-    trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }
+    trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string },
+    precomputed?: {
+      afterRules: ForwardRule[];
+      afterPolicies: QuotaPolicy[];
+      tasks: DeployTask[];
+    }
   ) {
-    const afterRules = await listLiveForwardRulesForQuotaEnforcement();
-    const afterPolicies = await listLiveQuotaPolicies();
+    const afterRules = precomputed?.afterRules ?? (await listLiveForwardRulesForQuotaEnforcement());
+    const afterPolicies = precomputed?.afterPolicies ?? (await listLiveQuotaPolicies());
     const intents = deriveForwardQuotaEnforcementTaskIntents(
-      await repository.listTasks(),
+      precomputed?.tasks ?? (await repository.listTasks()),
       beforeRules,
       afterRules,
       afterPolicies,
@@ -5563,9 +5590,19 @@ export function createServiceBackedControlPlaneApi({
     }
   }
 
-  async function enqueueDerivedXrayGuardrailTasks(trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string }) {
-    const afterInbounds = await listLiveInboundsForGuardrailEnforcement();
-    const intents = deriveXrayGuardrailTaskIntents(await repository.listTasks(), afterInbounds, trigger);
+  async function enqueueDerivedXrayGuardrailTasks(
+    trigger: { kind: 'agent-event' | 'task'; id: string; observedAt: string },
+    precomputed?: {
+      afterInbounds: XrayInbound[];
+      tasks: DeployTask[];
+    }
+  ) {
+    const afterInbounds = precomputed?.afterInbounds ?? (await listLiveInboundsForGuardrailEnforcement());
+    const intents = deriveXrayGuardrailTaskIntents(
+      precomputed?.tasks ?? (await repository.listTasks()),
+      afterInbounds,
+      trigger
+    );
 
     for (const intent of intents) {
       await api.createTask(intent.input, createSystemQuotaEnforcerContext(intent.requestId, intent.idempotencyKey));
@@ -7370,6 +7407,7 @@ export function createServiceBackedControlPlaneApi({
       }
 
       const task = await service.createTask(resetAwareInput, resolveMutationContext(context));
+      upsertReadModelTask(task);
 
       if (task.operation === 'agent.delete') {
         deletedAgentIds.add(readAgentIdFromTask(task));
@@ -7623,6 +7661,7 @@ export function createServiceBackedControlPlaneApi({
 
     async transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext) {
       const task = await service.transitionTask(taskId, status, resolveMutationContext(context));
+      upsertReadModelTask(task);
       forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), task);
       return task;
     },
@@ -7658,10 +7697,20 @@ export function createServiceBackedControlPlaneApi({
         return result;
       }
 
-      const beforeForwardRules = await listLiveForwardRulesForQuotaEnforcement();
-      const beforeInbounds = await listLiveInboundsForGuardrailEnforcement();
+      if (event.type === 'telemetry_sample' && !readModelsHydrated) {
+        await hydrateReadModelsFromPersistedTasks();
+      }
+
+      const useTelemetryFastPath = event.type === 'telemetry_sample' && readModelsHydrated;
+      const beforeForwardRules = useTelemetryFastPath
+        ? await listLiveForwardRulesForQuotaEnforcementFromReadModel()
+        : await listLiveForwardRulesForQuotaEnforcement();
+      const beforeInbounds = useTelemetryFastPath
+        ? listLiveInboundsForGuardrailEnforcementFromReadModel()
+        : await listLiveInboundsForGuardrailEnforcement();
       const result = await service.receiveAgentEvent(event);
-      const quotaResetReplayState = createQuotaResetReplayState(sortTasksForReadModelReplay(await repository.listTasks()));
+      const replayTasks = useTelemetryFastPath ? readModelTasks : sortTasksForReadModelReplay(await repository.listTasks());
+      const quotaResetReplayState = createQuotaResetReplayState(replayTasks);
       const resetAwareEvent = applyQuotaResetStateToForwardingEvent(
         applyQuotaResetStateToXrayEvent(applyQuotaResetStateToAgentEvent(event, quotaResetReplayState), quotaResetReplayState),
         quotaResetReplayState
@@ -7672,21 +7721,39 @@ export function createServiceBackedControlPlaneApi({
         forwardRulesReadModel = applyForwardingTelemetryToReadModel(await listForwardRuleReadModel(), resetAwareEvent);
       }
       if (result) {
+        upsertReadModelTask(result);
         forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), result);
       }
 
-      await enqueueDerivedForwardQuotaEnforcementTasks(beforeForwardRules, {
+      const trigger = {
         kind: 'agent-event',
         id: event.eventId,
         observedAt: event.observedAt
-      });
-      const afterInbounds = await listLiveInboundsForGuardrailEnforcement();
+      } as const;
+      await enqueueDerivedForwardQuotaEnforcementTasks(
+        beforeForwardRules,
+        trigger,
+        useTelemetryFastPath
+          ? {
+              afterRules: await listLiveForwardRulesForQuotaEnforcementFromReadModel(),
+              afterPolicies: await listLiveQuotaPoliciesFromReadModel(readModelTasks),
+              tasks: readModelTasks
+            }
+          : undefined
+      );
+      const afterInbounds = useTelemetryFastPath
+        ? listLiveInboundsForGuardrailEnforcementFromReadModel()
+        : await listLiveInboundsForGuardrailEnforcement();
       if (JSON.stringify(beforeInbounds) !== JSON.stringify(afterInbounds)) {
-        await enqueueDerivedXrayGuardrailTasks({
-          kind: 'agent-event',
-          id: event.eventId,
-          observedAt: event.observedAt
-        });
+        await enqueueDerivedXrayGuardrailTasks(
+          trigger,
+          useTelemetryFastPath
+            ? {
+                afterInbounds,
+                tasks: readModelTasks
+              }
+            : undefined
+        );
       }
       return result;
     }

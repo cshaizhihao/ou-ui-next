@@ -895,6 +895,72 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('processes high-frequency Agent telemetry samples without replaying persisted tasks after hydration', async () => {
+    const repository = createInMemoryControlPlaneRepository({
+      forwardRules: seedForwardRules
+    });
+    const listTasks = vi.spyOn(repository, 'listTasks');
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() }),
+      inventory: {
+        agents: seedAgents,
+        inbounds: seedInbounds
+      },
+      readModelNow: () => '2026-06-05T10:31:30.000Z'
+    });
+
+    await api.getSnapshot();
+    await api.leaseAgentCommands('agent-hkg-01', { requestId: 'req-fast-telemetry-prewarm' });
+    listTasks.mockClear();
+
+    await api.receiveAgentEvent({
+      type: 'telemetry_sample',
+      eventId: 'evt-agent-hkg-fast-telemetry-001',
+      agentId: 'agent-hkg-01',
+      seq: 1,
+      sessionId: 'sess-agent-hkg-fast-telemetry',
+      observedAt: '2026-06-05T10:31:00.000Z',
+      payload: {
+        cpuPercent: 17,
+        memoryPercent: 31,
+        monthlyIngressBytes: 3 * GB,
+        monthlyEgressBytes: 4 * GB,
+        monthlyTrafficUsedBytes: 7 * GB,
+        trafficAccountingMode: 'both',
+        monthlyResetDay: 1,
+        reportedAt: '2026-06-05T10:31:00.000Z',
+        forwardingCounters: [
+          {
+            ruleId: 'forward-hkg-443',
+            agentId: 'agent-hkg-01',
+            inboundBytes: 123,
+            outboundBytes: 456,
+            sampledAt: '2026-06-05T10:31:00.000Z',
+            source: 'nftables'
+          }
+        ]
+      }
+    });
+
+    expect(listTasks).not.toHaveBeenCalled();
+
+    const agents = await api.listAgents();
+    const forwardRules = await api.listForwardRules();
+
+    expect(agents.find((agent) => agent.id === 'agent-hkg-01')?.telemetry).toMatchObject({
+      cpuPercent: 17,
+      memoryPercent: 31,
+      monthlyIngressBytes: 3 * GB,
+      monthlyEgressBytes: 4 * GB,
+      monthlyTrafficUsedBytes: 7 * GB
+    });
+    expect(forwardRules.find((rule) => rule.id === 'forward-hkg-443')).toMatchObject({
+      inboundBytes: 123,
+      outboundBytes: 456
+    });
+  });
+
   it('caps traffic rollups in the full snapshot while preserving the full traffic history endpoint', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({
