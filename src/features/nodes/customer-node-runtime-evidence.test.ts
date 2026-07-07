@@ -290,6 +290,15 @@ describe('customer node runtime evidence', () => {
           operation: 'inbound.delete',
           status: 'failed',
           failureReason: 'command.result.timeout',
+          metadata: {
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:00:30.000Z',
+              agentIds: ['agent-hkg-01'],
+              commandIds: ['cmd-task-0100'],
+              appliedConfigRevisions: ['cfg-task-0100']
+            }
+          },
           updatedAt: '2026-06-04T04:12:00.000Z'
         })
       ],

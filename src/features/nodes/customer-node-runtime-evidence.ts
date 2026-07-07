@@ -472,9 +472,12 @@ export function resolveCustomerNodeRuntimeEvidence({
     (latestInboundTask.status !== 'succeeded' || node.inboundStatus === 'applying' || node.inboundStatus === 'error')
       ? latestInboundTask
       : undefined;
-  const proof = focusedDeleteTask
-    ? readAgentRuntimeDeploymentProof(focusedDeleteTask)
-    : node.runtimeDeployment;
+  const proof =
+    focusedDeleteTask && focusedDeleteTask.status === 'succeeded'
+      ? readAgentRuntimeDeploymentProof(focusedDeleteTask)
+      : focusedDeleteTask
+        ? undefined
+        : node.runtimeDeployment;
   const proofCommandItems = proof?.commandIds
     .map((commandId) => commandOutbox.find((item) => item.commandId === commandId))
     .filter((item): item is CommandOutboxSummary => Boolean(item)) ?? [];
