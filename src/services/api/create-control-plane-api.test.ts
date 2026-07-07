@@ -97,16 +97,38 @@ describe('createControlPlaneApi', () => {
     ).toBe('http');
   });
 
-  it('does not fall back to mock inventory in production builds', () => {
+  it('uses the same-origin HTTP adapter in production builds when no base URL is configured', async () => {
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async (url) => {
+      calls.push(String(url));
+
+      return new Response(
+        JSON.stringify({
+          data: [],
+          requestId: 'req-prod-same-origin-agents'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    };
+
     expect(resolveControlPlaneApiMode({ PROD: true })).toBe('http');
     expect(resolveControlPlaneApiMode({ PROD: true, VITE_CONTROL_PLANE_ALLOW_MOCK: 'true' })).toBe('http');
-    expect(() =>
-      createControlPlaneApi({
-        env: {
-          PROD: true
-        }
-      })
-    ).toThrow('VITE_CONTROL_PLANE_BASE_URL');
+
+    const api = createControlPlaneApi({
+      env: {
+        PROD: true,
+        VITE_CONTROL_PLANE_MOCK_SEEDED: 'true'
+      },
+      fetcher
+    });
+
+    await expect(api.listAgents()).resolves.toEqual([]);
+    expect(calls).toEqual(['/api/v1/agents']);
   });
 
   it('ignores mock seed flags when production builds have an HTTP base URL', async () => {
@@ -180,14 +202,46 @@ describe('createControlPlaneApi', () => {
     });
   });
 
-  it('fails early when HTTP mode is missing a base URL', () => {
-    expect(() =>
-      createControlPlaneApi({
-        env: {
-          VITE_CONTROL_PLANE_MODE: 'http'
+  it('uses the same-origin HTTP adapter when HTTP mode is missing a base URL', async () => {
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async (url) => {
+      calls.push(String(url));
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            version: 'v1',
+            restBasePath: '/api/v1',
+            eventStreamPath: '/events/v1',
+            agentStreamPath: '/agent/v1',
+            supportsIdempotency: true,
+            transports: ['rest'],
+            taskStatuses: ['queued'],
+            taskTransitions: {
+              queued: []
+            }
+          },
+          requestId: 'req-factory-same-origin-boundary'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
         }
-      })
-    ).toThrow('VITE_CONTROL_PLANE_BASE_URL');
+      );
+    };
+    const api = createControlPlaneApi({
+      env: {
+        VITE_CONTROL_PLANE_MODE: 'http'
+      },
+      fetcher
+    });
+
+    await expect(api.getApiBoundary()).resolves.toMatchObject({
+      restBasePath: '/api/v1'
+    });
+    expect(calls).toEqual(['/api/v1/boundary']);
   });
 
   it('keeps HTTP client errors available to UI callers', () => {

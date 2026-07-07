@@ -58,12 +58,13 @@ export function createControlPlaneApi(options: CreateControlPlaneApiOptions = {}
     return createMockApi({ seedInventory: seededInventory, seedRuntimeEvidence: seededInventory });
   }
 
-  if (!env.VITE_CONTROL_PLANE_BASE_URL) {
-    throw new Error('VITE_CONTROL_PLANE_BASE_URL is required when VITE_CONTROL_PLANE_MODE=http.');
-  }
+  const baseUrl =
+    typeof env.VITE_CONTROL_PLANE_BASE_URL === 'string' && env.VITE_CONTROL_PLANE_BASE_URL.trim() !== ''
+      ? env.VITE_CONTROL_PLANE_BASE_URL.trim()
+      : '';
 
   return createHttpControlPlaneClient({
-    baseUrl: env.VITE_CONTROL_PLANE_BASE_URL,
+    baseUrl,
     defaultAgentId: env.VITE_CONTROL_PLANE_AGENT_ID,
     operatorBearerToken: env.VITE_CONTROL_PLANE_OPERATOR_TOKEN,
     agentBearerToken: env.VITE_CONTROL_PLANE_AGENT_TOKEN,
