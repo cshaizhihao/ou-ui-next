@@ -168,7 +168,15 @@ function createVerifiedSnapshot() {
         taskId: 'task-apply-01',
         commandId: 'cmd-task-apply-01',
         status: 'completed',
-        agentId: 'agent-hkg-01'
+        agentId: 'agent-hkg-01',
+        attempts: 1,
+        createdAt: '2026-07-07T00:00:00.000Z',
+        updatedAt: '2026-07-07T00:00:01.000Z',
+        leasedAt: '2026-07-07T00:00:00.100Z',
+        leaseExpiresAt: '2026-07-07T00:00:30.100Z',
+        ackedAt: '2026-07-07T00:00:00.200Z',
+        resultAt: '2026-07-07T00:00:01.000Z',
+        deadlineAt: '2026-07-07T00:05:00.000Z'
       },
       {
         taskId: 'task-update-01',
@@ -279,6 +287,32 @@ function createVerifiedSnapshot() {
         targetId: 'xray-live-smoke-42003',
         status: 'verified',
         agentId: 'agent-hkg-01'
+      }
+    ],
+    agentLogChunks: [
+      {
+        eventId: 'evt-log-apply-runtime-01',
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-01',
+        taskId: 'task-apply-01',
+        commandId: 'cmd-task-apply-01',
+        seq: 501,
+        chunkSeq: 1,
+        stream: 'runtime',
+        content: '$ xray run -test -config /etc/ou-ui/xray/config.json\nexitCode=0',
+        observedAt: '2026-07-07T00:00:00.500Z'
+      },
+      {
+        eventId: 'evt-log-apply-agent-01',
+        agentId: 'agent-hkg-01',
+        sessionId: 'sess-agent-hkg-01',
+        taskId: 'task-apply-01',
+        commandId: 'cmd-task-apply-01',
+        seq: 502,
+        chunkSeq: 2,
+        stream: 'agent',
+        content: 'command result {"status":"succeeded","appliedConfigRevision":"cfg-task-apply-01"}',
+        observedAt: '2026-07-07T00:00:01.000Z'
       }
     ]
   };
@@ -830,12 +864,22 @@ describe('production Xray apply smoke script helpers', () => {
         runtimeSnapshotStatus: 'verified',
         commandStatus: 'completed',
         commandAgentId: 'agent-hkg-01',
+        commandAckedAt: '2026-07-07T00:00:00.200Z',
+        commandResultAt: '2026-07-07T00:00:01.000Z',
+        commandDeadlineAt: '2026-07-07T00:05:00.000Z',
         configRevisionAgentId: 'agent-hkg-01',
         runtimeSnapshotAgentId: 'agent-hkg-01',
         evidenceStage: 'agent-result-verified',
         runtimeState: 'ready',
         listenPort: 42003,
-        protocol: 'vless'
+        protocol: 'vless',
+        agentLogChunkCount: 2,
+        agentLogChunks: expect.arrayContaining([
+          expect.objectContaining({
+            stream: 'runtime',
+            content: '$ xray run -test -config /etc/ou-ui/xray/config.json\nexitCode=0'
+          })
+        ])
       })
     );
     expect(JSON.stringify(xraySmokeScript.summarizeXrayApplyEvidence(evidence))).not.toContain(
@@ -1179,12 +1223,33 @@ describe('production Xray apply smoke script helpers', () => {
           taskId: 'task-apply-01',
           commandId: 'cmd-task-apply-01',
           status: 'acknowledged',
-          agentId: 'agent-hkg-01'
+          agentId: 'agent-hkg-01',
+          attempts: 1,
+          createdAt: '2026-07-07T00:00:00.000Z',
+          updatedAt: '2026-07-07T00:03:30.000Z',
+          leasedAt: '2026-07-07T00:00:30.000Z',
+          leaseExpiresAt: '2026-07-07T00:01:00.000Z',
+          ackedAt: '2026-07-07T00:00:45.000Z',
+          deadlineAt: '2026-07-07T00:05:00.000Z'
         }
       ],
       configRevisions: [],
       preflightPlans: [],
-      runtimeSnapshots: []
+      runtimeSnapshots: [],
+      agentLogChunks: [
+        {
+          eventId: 'evt-log-waiting-runtime-01',
+          agentId: 'agent-hkg-01',
+          sessionId: 'sess-agent-hkg-01',
+          taskId: 'task-apply-01',
+          commandId: 'cmd-task-apply-01',
+          seq: 601,
+          chunkSeq: 1,
+          stream: 'runtime',
+          content: '$ systemctl restart ou-ui-xray.service\nstill running',
+          observedAt: '2026-07-07T00:03:00.000Z'
+        }
+      ]
     };
     const waitingEvidence = xraySmokeScript.extractXrayApplyEvidence(
       waitingSnapshot,
@@ -1234,7 +1299,16 @@ describe('production Xray apply smoke script helpers', () => {
           taskId: 'task-apply-01',
           taskStatus: 'running',
           commandId: 'cmd-task-apply-01',
-          commandStatus: 'acknowledged'
+          commandStatus: 'acknowledged',
+          commandAckedAt: '2026-07-07T00:00:45.000Z',
+          commandDeadlineAt: '2026-07-07T00:05:00.000Z',
+          agentLogChunkCount: 1,
+          agentLogChunks: [
+            expect.objectContaining({
+              stream: 'runtime',
+              content: '$ systemctl restart ou-ui-xray.service\nstill running'
+            })
+          ]
         }),
         readModel: expect.objectContaining({
           targetId: 'xray-live-smoke-42003',

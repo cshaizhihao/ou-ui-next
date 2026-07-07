@@ -45,7 +45,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         enabled: true,
         intervalMs: 30_000,
         ackTimeoutMs: 15_000,
-        resultTimeoutMs: 120_000,
+        resultTimeoutMs: 240_000,
         maxCommands: 500
       },
       operatorAuthFailureThrottle: {
@@ -474,7 +474,7 @@ describe('resolveHttpControlPlaneRuntimeConfig', () => {
         enabled: true,
         intervalMs: 30_000,
         ackTimeoutMs: 15_000,
-        resultTimeoutMs: 120_000,
+        resultTimeoutMs: 240_000,
         maxCommands: 500
       },
       operatorAuthFailureThrottle: {

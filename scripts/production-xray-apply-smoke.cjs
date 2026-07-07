@@ -745,6 +745,16 @@ function findByTaskId(items, taskId) {
   return readArray(items).find((item) => item?.taskId === taskId);
 }
 
+function findAgentLogChunks(snapshot, taskId, commandId) {
+  return readArray(snapshot?.agentLogChunks)
+    .filter((item) => item?.taskId === taskId || (commandId && item?.commandId === commandId))
+    .sort((left, right) => {
+      const leftSeq = Number(left?.chunkSeq ?? left?.seq ?? 0);
+      const rightSeq = Number(right?.chunkSeq ?? right?.seq ?? 0);
+      return leftSeq - rightSeq || String(left?.observedAt ?? '').localeCompare(String(right?.observedAt ?? ''));
+    });
+}
+
 function extractXrayApplyEvidence(snapshot, taskId, targetId) {
   const task =
     findById(snapshot?.tasks, taskId) ??
@@ -757,6 +767,7 @@ function extractXrayApplyEvidence(snapshot, taskId, targetId) {
   const preflightPlan = findByTaskId(snapshot?.preflightPlans, taskId);
   const runtimeSnapshot = findByTaskId(snapshot?.runtimeSnapshots, taskId);
   const commandOutboxItem = findByTaskId(snapshot?.commandOutbox, taskId);
+  const agentLogChunks = findAgentLogChunks(snapshot, taskId, commandOutboxItem?.commandId);
   const artifact = readObject(configRevision?.artifact);
   const runtimeDiagnosis = readObject(artifact.runtimeDiagnosis);
 
@@ -766,6 +777,7 @@ function extractXrayApplyEvidence(snapshot, taskId, targetId) {
     preflightPlan,
     runtimeSnapshot,
     commandOutboxItem,
+    agentLogChunks,
     runtimeDiagnosis
   };
 }
@@ -1038,6 +1050,7 @@ function summarizeXrayApplyEvidence(evidence) {
   const plannedInbound = readObject(evidence.runtimeDiagnosis.plannedInbound);
   const taskMetadata = readObject(evidence.task?.metadata);
   const clientCounters = readObject(evidence.runtimeDiagnosis.clientCounters);
+  const agentLogChunks = readArray(evidence.agentLogChunks);
 
   return {
     taskId: evidence.task?.id,
@@ -1054,6 +1067,15 @@ function summarizeXrayApplyEvidence(evidence) {
     commandStatus: evidence.commandOutboxItem?.status,
     commandAgentId: evidence.commandOutboxItem?.agentId,
     commandTaskId: evidence.commandOutboxItem?.taskId,
+    commandAttempts: evidence.commandOutboxItem?.attempts,
+    commandCreatedAt: evidence.commandOutboxItem?.createdAt,
+    commandUpdatedAt: evidence.commandOutboxItem?.updatedAt,
+    commandLeasedAt: evidence.commandOutboxItem?.leasedAt,
+    commandLeaseExpiresAt: evidence.commandOutboxItem?.leaseExpiresAt,
+    commandAckedAt: evidence.commandOutboxItem?.ackedAt,
+    commandResultAt: evidence.commandOutboxItem?.resultAt,
+    commandDeadlineAt: evidence.commandOutboxItem?.deadlineAt,
+    commandLastError: evidence.commandOutboxItem?.lastError,
     configRevisionAgentId: evidence.configRevision?.agentId,
     configRevisionTargetId: evidence.configRevision?.targetId,
     preflightAgentId: evidence.preflightPlan?.agentId,
@@ -1071,7 +1093,15 @@ function summarizeXrayApplyEvidence(evidence) {
     xrayClientAction: taskMetadata.xrayClientAction,
     xrayClientActionTargetEmail: taskMetadata.xrayClientActionTargetEmail,
     clientCounters,
-    plannedRuntimeServices: readArray(evidence.runtimeDiagnosis.plannedRuntimeServices)
+    plannedRuntimeServices: readArray(evidence.runtimeDiagnosis.plannedRuntimeServices),
+    agentLogChunkCount: agentLogChunks.length,
+    agentLogChunks: agentLogChunks.slice(0, 8).map((chunk) => ({
+      eventId: chunk.eventId,
+      stream: chunk.stream,
+      chunkSeq: chunk.chunkSeq,
+      observedAt: chunk.observedAt,
+      content: typeof chunk.content === 'string' ? chunk.content.slice(0, 500) : undefined
+    }))
   };
 }
 

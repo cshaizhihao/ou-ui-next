@@ -2593,7 +2593,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS 30000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_ACK_TIMEOUT_MS 15000');
-    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 120000');
+    expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 240000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS 60000');
     expect(script).toContain('ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT 5');
@@ -2609,7 +2609,7 @@ describe('install-master.sh contract', () => {
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=30000');
     expect(script).toContain('OU_UI_COMMAND_ACK_TIMEOUT_MS=15000');
-    expect(script).toContain('OU_UI_COMMAND_RESULT_TIMEOUT_MS=120000');
+    expect(script).toContain('OU_UI_COMMAND_RESULT_TIMEOUT_MS=240000');
     expect(script).toContain('OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=500');
     expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS=60000');
     expect(script).toContain('OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT=5');
@@ -8146,7 +8146,7 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(defaults).toContain('Agent 命令超时扫描: 默认启用');
     expect(defaults).toContain('Agent 命令超时扫描间隔: 默认 30000ms');
     expect(defaults).toContain('Agent 命令 ACK 超时: 默认 15000ms');
-    expect(defaults).toContain('Agent 命令 result 超时: 默认 120000ms');
+    expect(defaults).toContain('Agent 命令 result 超时: 默认 240000ms');
     expect(defaults).toContain('Agent 命令超时扫描每轮上限: 默认 500');
 
     const invalid = runCommandTimeoutSweepHealth(script, [

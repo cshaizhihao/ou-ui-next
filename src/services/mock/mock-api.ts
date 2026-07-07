@@ -1404,7 +1404,7 @@ function sweepMockCommandTimeouts(state: MockApiState, options: CommandTimeoutSw
   const now = options.now ?? nextTimestamp(state.sequence++);
   const nowMs = Date.parse(now);
   const ackTimeoutMs = options.ackTimeoutMs ?? 15_000;
-  const resultTimeoutMs = options.resultTimeoutMs ?? 120_000;
+  const resultTimeoutMs = options.resultTimeoutMs ?? 240_000;
   const maxCommands = options.maxCommands ?? 500;
   const result = {
     scanned: 0,

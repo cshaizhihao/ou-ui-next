@@ -71,6 +71,8 @@ export const DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY = 5;
 export const DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY = 1;
 export const DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS = 5_000;
 export const DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS = 60_000;
+export const DEFAULT_COMMAND_ACK_TIMEOUT_MS = 15_000;
+export const DEFAULT_COMMAND_RESULT_TIMEOUT_MS = 240_000;
 const MAX_HOT_AGENT_LOG_CHUNK_KEYS = 20_000;
 
 export type HighFrequencyAgentEventPersistencePolicy = {
@@ -4392,8 +4394,8 @@ export function createControlPlaneService({
       await ensureSequenceInitialized();
       const now = options.now ?? nextObservedAt();
       const nowMs = Date.parse(now);
-      const ackTimeoutMs = options.ackTimeoutMs ?? 15_000;
-      const resultTimeoutMs = options.resultTimeoutMs ?? 120_000;
+      const ackTimeoutMs = options.ackTimeoutMs ?? DEFAULT_COMMAND_ACK_TIMEOUT_MS;
+      const resultTimeoutMs = options.resultTimeoutMs ?? DEFAULT_COMMAND_RESULT_TIMEOUT_MS;
       const maxCommands = options.maxCommands ?? 500;
 
       return repository.transaction(async (transaction) => {

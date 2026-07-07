@@ -542,7 +542,7 @@ OU_UI_EXTERNAL_ARCHIVE_DIRECTORY=${STATE_DIR}/external-archives
 OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED=true
 OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS=30000
 OU_UI_COMMAND_ACK_TIMEOUT_MS=15000
-OU_UI_COMMAND_RESULT_TIMEOUT_MS=120000
+OU_UI_COMMAND_RESULT_TIMEOUT_MS=240000
 OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS=500
 OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS=60000
 OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT=5
@@ -5106,7 +5106,7 @@ ensure_runtime_env_defaults() {
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_ENABLED true
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS 30000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_ACK_TIMEOUT_MS 15000
-  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 120000
+  ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_RESULT_TIMEOUT_MS 240000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS 500
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_WINDOW_MS 60000
   ensure_env_line "${BACKEND_ENV_FILE}" OU_UI_CONTROL_PLANE_AGENT_AUTH_FAILURE_LIMIT 5
@@ -5737,7 +5737,7 @@ show_command_timeout_sweep_health() {
   if [[ -n "${result_timeout_ms}" ]]; then
     show_positive_integer_config_health "Agent 命令 result 超时" "${result_timeout_ms}" "ms"
   else
-    echo "  Agent 命令 result 超时: 默认 120000ms"
+    echo "  Agent 命令 result 超时: 默认 240000ms"
   fi
 
   if [[ -n "${max_commands}" ]]; then

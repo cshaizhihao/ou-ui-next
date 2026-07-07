@@ -18,6 +18,8 @@ import {
   DEFAULT_AGENT_CREDENTIAL_AUTH_CACHE_TTL_MS,
   DEFAULT_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS,
   DEFAULT_AGENT_LOG_CHUNK_PERSIST_EVERY,
+  DEFAULT_COMMAND_ACK_TIMEOUT_MS,
+  DEFAULT_COMMAND_RESULT_TIMEOUT_MS,
   DEFAULT_HIGH_FREQUENCY_AGENT_EVENT_PERSIST_EVERY,
   type AgentLogChunkPersistencePolicy,
   type AgentCredentialRuntimeAuthPolicy,
@@ -535,11 +537,15 @@ export function resolveHttpControlPlaneRuntimeConfig(env: RuntimeConfigEnv): Htt
       'OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS',
       30_000
     ),
-    ackTimeoutMs: parsePositiveInteger(env.OU_UI_COMMAND_ACK_TIMEOUT_MS, 'OU_UI_COMMAND_ACK_TIMEOUT_MS', 15_000),
+    ackTimeoutMs: parsePositiveInteger(
+      env.OU_UI_COMMAND_ACK_TIMEOUT_MS,
+      'OU_UI_COMMAND_ACK_TIMEOUT_MS',
+      DEFAULT_COMMAND_ACK_TIMEOUT_MS
+    ),
     resultTimeoutMs: parsePositiveInteger(
       env.OU_UI_COMMAND_RESULT_TIMEOUT_MS,
       'OU_UI_COMMAND_RESULT_TIMEOUT_MS',
-      120_000
+      DEFAULT_COMMAND_RESULT_TIMEOUT_MS
     ),
     maxCommands: parsePositiveInteger(
       env.OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS,
