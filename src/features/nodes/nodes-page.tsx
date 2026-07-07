@@ -122,7 +122,7 @@ type NodesPageProps = {
   onResetCustomerNodeTraffic?: (policy: QuotaPolicy) => void;
   onApplyCustomerNodeClientAction?: (input: CustomerNodeClientActionMutation) => CustomerNodeClientActionReturn;
   onSaveHostConfig: (metadata: HostConfigMetadata) => void;
-  onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => void;
+  onSaveCustomerNode: (metadata: CustomerNodeConfigMetadata, action: CustomerNodeSaveAction) => CustomerNodeSaveReturn;
 };
 
 export type NodesFocusIntent =
@@ -149,6 +149,17 @@ export type CustomerNodeClientActionResult = {
 
 type CustomerNodeClientActionSettled = boolean | void | CustomerNodeClientActionResult;
 type CustomerNodeClientActionReturn = CustomerNodeClientActionSettled | Promise<CustomerNodeClientActionSettled>;
+export type CustomerNodeSaveAction = 'create' | 'update';
+export type CustomerNodeSaveResult = {
+  accepted: boolean;
+  action: CustomerNodeSaveAction;
+  runtimeTaskId?: string;
+  subscriptionTaskId?: string;
+  targetNodeId?: string;
+  targetLabel?: string;
+};
+type CustomerNodeSaveSettled = boolean | void | CustomerNodeSaveResult;
+type CustomerNodeSaveReturn = CustomerNodeSaveSettled | Promise<CustomerNodeSaveSettled>;
 
 export type HostConfigMetadata = {
   agentId: string;
@@ -378,6 +389,15 @@ type CustomerClientActionFeedback = {
   inboundId: string;
   status: CustomerClientActionFeedbackStatus;
   actionLabel: string;
+  targetLabel: string;
+  runtimeTaskId?: string;
+  subscriptionTaskId?: string;
+};
+type CustomerNodeSaveFeedback = {
+  id: string;
+  action: CustomerNodeSaveAction;
+  status: CustomerClientActionFeedbackStatus;
+  targetNodeId: string;
   targetLabel: string;
   runtimeTaskId?: string;
   subscriptionTaskId?: string;
@@ -665,6 +685,17 @@ const copy = {
     customerClientSubscriptionFailed: '订阅任务失败',
     customerClientSubscriptionMissing: '未找到订阅任务',
     customerClientEvidenceTask: (taskId: string) => `任务 ${taskId}`,
+    customerNodeSaveFeedbackRegion: '客户节点保存反馈',
+    customerNodeSaveCreateAction: '新增节点',
+    customerNodeSaveUpdateAction: '更新节点',
+    customerNodeSaveQueued: (action: string, target: string) => `${action} 已接收 · ${target}`,
+    customerNodeSaveFailed: (action: string, target: string) => `${action} 未接收 · ${target}`,
+    customerNodeSaveEvidenceHint: '等待保存任务进入 Control Plane snapshot 与 Agent apply 证据链。',
+    customerNodeSaveEvidenceVerified: 'Agent 已验证此保存动作。',
+    customerNodeSaveEvidenceWaiting: '正在等待此保存动作的 Agent 证据。',
+    customerNodeSaveEvidenceMissing: 'Snapshot 暂未集齐此保存任务的证据。',
+    customerNodeSaveEvidenceFailed: '此保存动作的运行时证据失败。',
+    customerNodeSaveDismiss: '关闭保存反馈',
     customerClientActionQueued: (action: string, target: string) => `${action} 已提交 · ${target}`,
     customerClientActionFailed: (action: string, target: string) => `${action} 未提交 · ${target}`,
     customerClientActionEvidenceHint: '等待 Control Plane snapshot 与 Agent 结果回传。',
@@ -1134,6 +1165,17 @@ const copy = {
     customerClientSubscriptionFailed: 'Subscription Task Failed',
     customerClientSubscriptionMissing: 'No Subscription Task',
     customerClientEvidenceTask: (taskId: string) => `Task ${taskId}`,
+    customerNodeSaveFeedbackRegion: 'Customer Node Save Feedback',
+    customerNodeSaveCreateAction: 'Create Node',
+    customerNodeSaveUpdateAction: 'Update Node',
+    customerNodeSaveQueued: (action: string, target: string) => `${action} accepted · ${target}`,
+    customerNodeSaveFailed: (action: string, target: string) => `${action} not accepted · ${target}`,
+    customerNodeSaveEvidenceHint: 'Waiting for the save task to appear in Control Plane snapshot and Agent apply evidence.',
+    customerNodeSaveEvidenceVerified: 'Agent verified this save action.',
+    customerNodeSaveEvidenceWaiting: 'Waiting for Agent evidence for this save action.',
+    customerNodeSaveEvidenceMissing: 'The snapshot has not collected all evidence for this save task yet.',
+    customerNodeSaveEvidenceFailed: 'Runtime evidence failed for this save action.',
+    customerNodeSaveDismiss: 'Dismiss save feedback',
     customerClientActionQueued: (action: string, target: string) => `${action} queued · ${target}`,
     customerClientActionFailed: (action: string, target: string) => `${action} not accepted · ${target}`,
     customerClientActionEvidenceHint: 'Waiting for Control Plane snapshot and Agent result evidence.',
@@ -3177,6 +3219,159 @@ function CustomerClientSubscriptionEvidenceRow({
   );
 }
 
+function CustomerNodeSaveFeedbackBar({
+  feedback,
+  runtimeEvidence,
+  onCopyDiagnostics,
+  onDismiss,
+  onOpenEvidence,
+  onOpenWorkspace,
+  onRollbackTask,
+  t
+}: {
+  feedback: CustomerNodeSaveFeedback;
+  runtimeEvidence?: CustomerClientActionRuntimeEvidence;
+  onCopyDiagnostics?: () => void;
+  onDismiss: () => void;
+  onOpenEvidence?: () => void;
+  onOpenWorkspace?: () => void;
+  onRollbackTask?: () => void;
+  t: NodesCopy;
+}) {
+  const failed = feedback.status === 'failed';
+  const verified = runtimeEvidence?.state === 'verified';
+  const runtimeFailed = runtimeEvidence?.state === 'failed';
+  const Icon = failed || runtimeFailed ? AlertTriangle : verified ? CheckCircle2 : Send;
+  const actionLabel = getCustomerNodeSaveActionLabel(feedback.action, t);
+  const runtimeSummary =
+    failed
+      ? t.customerNodeSaveEvidenceFailed
+      : verified
+        ? t.customerNodeSaveEvidenceVerified
+        : runtimeFailed
+          ? t.customerNodeSaveEvidenceFailed
+          : runtimeEvidence?.state === 'missing'
+            ? t.customerNodeSaveEvidenceMissing
+            : runtimeEvidence
+              ? t.customerNodeSaveEvidenceWaiting
+              : t.customerNodeSaveEvidenceHint;
+  const stepClass = {
+    confirmed: 'border-[#00A878]/30 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    waiting: 'border-[#FFB020]/35 bg-[#FFF3C4]/55 text-[#8A5A00] dark:border-[#FFD166]/25 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    failed: 'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]',
+    missing: 'border-[#07111F]/14 bg-[#FFFDF5]/70 text-[#35405A] dark:border-[#6B7CFF]/16 dark:bg-white/[0.035] dark:text-white/55'
+  } satisfies Record<CustomerClientActionEvidenceStep['state'], string>;
+
+  return (
+    <section
+      aria-label={t.customerNodeSaveFeedbackRegion}
+      aria-live="polite"
+      className={cn(
+        'border px-3 py-2.5 text-xs',
+        failed || runtimeFailed
+          ? 'border-[#DC2626]/35 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]'
+          : 'border-[#1E3AFF]/28 bg-[#DCE1FF]/35 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF]'
+      )}
+      data-customer-node-save-feedback={feedback.status}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="break-words font-black">
+              {failed
+                ? t.customerNodeSaveFailed(actionLabel, feedback.targetLabel)
+                : t.customerNodeSaveQueued(actionLabel, feedback.targetLabel)}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
+            {runtimeSummary}
+          </p>
+          {runtimeEvidence?.failureReason ? (
+            <p className="mt-1 break-words text-[11px] font-bold text-[#B91C1C] dark:text-[#FCA5A5]">
+              {t.customerClientActionFailureReason(runtimeEvidence.failureReason)}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          {onCopyDiagnostics ? (
+            <button
+              className="inline-flex items-center gap-1 border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+              onClick={onCopyDiagnostics}
+              type="button"
+            >
+              <Copy className="h-3 w-3" />
+              {t.customerClientActionCopyDiagnostics}
+            </button>
+          ) : null}
+          {onOpenWorkspace ? (
+            <button
+              className="inline-flex items-center gap-1 border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+              onClick={onOpenWorkspace}
+              type="button"
+            >
+              <Terminal className="h-3 w-3" />
+              {t.customerRuntimeEvidenceWorkspace}
+            </button>
+          ) : null}
+          {onOpenEvidence ? (
+            <button
+              className="border border-current px-2.5 py-1 text-[11px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+              onClick={onOpenEvidence}
+              type="button"
+            >
+              {t.customerClientActionOpenEvidence}
+            </button>
+          ) : null}
+          {onRollbackTask ? (
+            <button
+              className="inline-flex items-center gap-1 border border-[#DC2626]/45 bg-[#DC2626]/10 px-2.5 py-1 text-[11px] font-black uppercase text-[#B91C1C] transition hover:border-[#DC2626]/65 hover:bg-[#DC2626]/15 dark:border-[#F87171]/30 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]"
+              onClick={onRollbackTask}
+              type="button"
+            >
+              <RotateCcw className="h-3 w-3" />
+              {t.customerRuntimeEvidenceRollbackAction}
+            </button>
+          ) : null}
+          <button
+            aria-label={t.customerNodeSaveDismiss}
+            className="inline-flex h-7 w-7 items-center justify-center border border-current/45 transition hover:bg-white/35 dark:hover:bg-white/10"
+            onClick={onDismiss}
+            type="button"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {feedback.runtimeTaskId || feedback.subscriptionTaskId ? (
+        <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/60">
+          {feedback.runtimeTaskId ? <span>{t.customerClientActionRuntimeTask(feedback.runtimeTaskId)}</span> : null}
+          {feedback.subscriptionTaskId ? <span>{t.customerClientActionSubscriptionTask(feedback.subscriptionTaskId)}</span> : null}
+          {runtimeEvidence?.evidenceStage ? <span>{t.customerClientActionEvidenceStage(runtimeEvidence.evidenceStage)}</span> : null}
+        </div>
+      ) : null}
+      {runtimeEvidence ? (
+        <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+          {runtimeEvidence.steps.map((step) => (
+            <div
+              aria-label={`${t.customerClientActionEvidenceLabels[step.id]} ${step.value}`}
+              className={cn('min-h-12 border px-2 py-1.5', stepClass[step.state])}
+              data-customer-node-save-evidence-step={step.id}
+              data-customer-node-save-evidence-state={step.state}
+              key={step.id}
+            >
+              <p className="text-[9px] font-black uppercase tracking-[0.08em]">
+                {t.customerClientActionEvidenceLabels[step.id]}
+              </p>
+              <p className="mt-1 break-all font-mono text-[10px] font-bold leading-4">{step.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CustomerClientActionFeedbackBar({
   feedback,
   runtimeEvidence,
@@ -4321,6 +4516,10 @@ function isCustomerNodeClientActionResult(result: CustomerNodeClientActionSettle
   return typeof result === 'object' && result !== null && 'accepted' in result;
 }
 
+function isCustomerNodeSaveResult(result: CustomerNodeSaveSettled): result is CustomerNodeSaveResult {
+  return typeof result === 'object' && result !== null && 'accepted' in result;
+}
+
 function getCustomerClientActionLabel(action: XrayClientAction, t: NodesCopy) {
   switch (action.kind) {
     case 'add-client':
@@ -4342,6 +4541,38 @@ function getCustomerClientActionLabel(action: XrayClientAction, t: NodesCopy) {
     case 'delete-client':
       return t.deleteCustomerClient;
   }
+}
+
+function getCustomerNodeSaveActionLabel(action: CustomerNodeSaveAction, t: NodesCopy) {
+  return action === 'create' ? t.customerNodeSaveCreateAction : t.customerNodeSaveUpdateAction;
+}
+
+function createCustomerNodeSaveFeedback({
+  action,
+  metadata,
+  result,
+  status
+}: {
+  action: CustomerNodeSaveAction;
+  metadata: CustomerNodeConfigMetadata;
+  result: Exclude<CustomerNodeSaveSettled, void>;
+  status: CustomerClientActionFeedbackStatus;
+}): CustomerNodeSaveFeedback {
+  const saveResult = isCustomerNodeSaveResult(result) ? result : undefined;
+  const targetNodeId = saveResult?.targetNodeId || metadata.nodeId;
+  const targetLabel = saveResult?.targetLabel || metadata.customerNodeName || metadata.customerName || metadata.nodeId;
+  const runtimeTaskId = saveResult?.runtimeTaskId;
+  const subscriptionTaskId = saveResult?.subscriptionTaskId;
+
+  return {
+    id: [targetNodeId, action, runtimeTaskId, subscriptionTaskId, status].filter(Boolean).join(':'),
+    action,
+    status,
+    targetNodeId,
+    targetLabel,
+    runtimeTaskId,
+    subscriptionTaskId
+  };
 }
 
 function createCustomerClientActionFeedback({
@@ -4632,6 +4863,35 @@ function resolveCustomerClientActionRuntimeEvidence({
   };
 }
 
+function createCustomerNodeSaveDiagnosticPackage(
+  feedback: CustomerNodeSaveFeedback,
+  runtimeEvidence: CustomerClientActionRuntimeEvidence | undefined
+) {
+  return {
+    schemaVersion: 'ou-ui-next.customer-node-save-diagnostics.v1',
+    createdAt: new Date().toISOString(),
+    action: feedback.action,
+    status: feedback.status,
+    targetNodeId: feedback.targetNodeId,
+    targetLabel: feedback.targetLabel,
+    runtimeTaskId: feedback.runtimeTaskId,
+    subscriptionTaskId: feedback.subscriptionTaskId,
+    runtimeEvidence: runtimeEvidence
+      ? {
+          state: runtimeEvidence.state,
+          evidenceStage: runtimeEvidence.evidenceStage,
+          failureReason: runtimeEvidence.failureReason,
+          steps: runtimeEvidence.steps,
+          task: runtimeEvidence.diagnosticPackage.task,
+          command: runtimeEvidence.diagnosticPackage.command,
+          configRevision: runtimeEvidence.diagnosticPackage.configRevision,
+          preflightPlan: runtimeEvidence.diagnosticPackage.preflightPlan,
+          runtimeSnapshot: runtimeEvidence.diagnosticPackage.runtimeSnapshot
+        }
+      : undefined
+  };
+}
+
 export function NodesPage({
   agents,
   focusIntent,
@@ -4700,6 +4960,7 @@ export function NodesPage({
   const [customerClientDraft, setCustomerClientDraft] = useState<CustomerClientDraft>(() => createCustomerClientDraft());
   const [customerClientActionFeedback, setCustomerClientActionFeedback] = useState<CustomerClientActionFeedback>();
   const [customerClientActionFeedbacks, setCustomerClientActionFeedbacks] = useState<CustomerClientActionFeedback[]>([]);
+  const [customerNodeSaveFeedback, setCustomerNodeSaveFeedback] = useState<CustomerNodeSaveFeedback>();
 
   function rememberCustomerClientActionFeedback(feedback: CustomerClientActionFeedback) {
     setCustomerClientActionFeedback(feedback);
@@ -4908,6 +5169,35 @@ export function NodesPage({
     activeCustomerClientActionRuntimeEvidence?.diagnosticPackage.task?.rollbackAvailable &&
     !activeCustomerClientActionRuntimeEvidence.diagnosticPackage.task.rollbackTaskId
       ? activeCustomerClientActionRuntimeEvidence.runtimeTaskId
+      : undefined;
+  const activeCustomerNodeSaveRuntimeEvidence = useMemo(
+    () =>
+      customerNodeSaveFeedback?.runtimeTaskId
+        ? resolveCustomerClientActionRuntimeEvidence({
+            commandOutbox,
+            configRevisions,
+            preflightPlans,
+            runtimeSnapshots,
+            runtimeTaskId: customerNodeSaveFeedback.runtimeTaskId,
+            tasks
+          })
+        : undefined,
+    [
+      commandOutbox,
+      configRevisions,
+      customerNodeSaveFeedback?.runtimeTaskId,
+      preflightPlans,
+      runtimeSnapshots,
+      tasks
+    ]
+  );
+  const activeCustomerNodeSaveTargetNode = customerNodeSaveFeedback
+    ? customerNodes.find((node) => node.id === customerNodeSaveFeedback.targetNodeId)
+    : undefined;
+  const activeCustomerNodeSaveRollbackTaskId =
+    activeCustomerNodeSaveRuntimeEvidence?.diagnosticPackage.task?.rollbackAvailable &&
+    !activeCustomerNodeSaveRuntimeEvidence.diagnosticPackage.task.rollbackTaskId
+      ? activeCustomerNodeSaveRuntimeEvidence.runtimeTaskId
       : undefined;
   const selectedCustomerNodeActionFeedback =
     primarySelectedCustomerNode
@@ -5290,7 +5580,7 @@ export function NodesPage({
     setDrawer({ type: 'closed' });
   }
 
-  function handleCustomerSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleCustomerSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!customerDraft.agentId) {
@@ -5408,63 +5698,72 @@ export function NodesPage({
       runtimeDeployment: editingCustomerNode?.runtimeDeployment
     };
     const saveAction = editingCustomerNode ? 'update' : 'create';
+    const saveMetadata: CustomerNodeConfigMetadata = {
+      nodeId: nextNode.id,
+      agentId: nextNode.agentId,
+      customerNodeName: nextNode.nodeName,
+      customerName: nextNode.customerName,
+      serverAddress: nextNode.serverAddress,
+      xrayProtocol: nextNode.protocol,
+      listenPort: nextNode.listenPort,
+      clientIdentity: nextNode.clientIdentity,
+      clientEmail: nextNode.clientEmail,
+      clientCredential: nextNode.clientCredential,
+      clientLevel: nextNode.clientLevel,
+      clientComment: nextNode.clientComment,
+      telegramId: nextNode.telegramId,
+      resetPolicy: nextNode.resetPolicy,
+      vmessSecurity: nextNode.vmessSecurity,
+      shadowsocksMethod: nextNode.shadowsocksMethod,
+      hysteriaAuth: nextNode.hysteriaAuth,
+      streamNetwork: nextNode.streamNetwork,
+      security: nextNode.security,
+      sni: nextNode.sni,
+      path: nextNode.path,
+      flow: nextNode.flow,
+      fingerprint: nextNode.fingerprint,
+      alpn: nextNode.alpn,
+      realityPublicKey: nextNode.realityPublicKey,
+      realityPrivateKey: nextNode.realityPrivateKey,
+      realityTarget: nextNode.realityTarget,
+      realityShortId: nextNode.realityShortId,
+      fallbackName: nextNode.fallbackName,
+      fallbackDestination: nextNode.fallbackDestination,
+      fallbackXver: nextNode.fallbackXver,
+      sniffingEnabled: nextNode.sniffingEnabled,
+      ipLimit: nextNode.ipLimit,
+      trafficMultiplier: nextNode.trafficMultiplier,
+      trafficLimitGb: nextNode.trafficLimitGb,
+      monthlyResetDay: nextNode.monthlyResetDay,
+      currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
+      remainingDays: nextNode.remainingDays,
+      expiresAt: nextNode.expiresAt,
+      quotaExceeded: nextNode.quotaExceeded,
+      clientExpired: nextNode.clientExpired,
+      runtimeDisabledByPolicy: nextNode.runtimeDisabledByPolicy,
+      guardrailReason: nextNode.guardrailReason,
+      subscriptionRule: nextNode.subscriptionRule,
+      subscriptionClientId: subscriptionMaterial.subscriptionClientId,
+      subId: subscriptionMaterial.subId,
+      securePathPreview: subscriptionMaterial.securePathPreview,
+      subscriptionUrlPreview: subscriptionMaterial.subscriptionUrlPreview,
+      enabled: nextNode.enabled
+    };
+    const saveResult = await onSaveCustomerNode(saveMetadata, saveAction);
+    const accepted = saveResult !== false && (!isCustomerNodeSaveResult(saveResult) || saveResult.accepted);
 
-    onSaveCustomerNode(
-      {
-        nodeId: nextNode.id,
-        agentId: nextNode.agentId,
-        customerNodeName: nextNode.nodeName,
-        customerName: nextNode.customerName,
-        serverAddress: nextNode.serverAddress,
-        xrayProtocol: nextNode.protocol,
-        listenPort: nextNode.listenPort,
-        clientIdentity: nextNode.clientIdentity,
-        clientEmail: nextNode.clientEmail,
-        clientCredential: nextNode.clientCredential,
-        clientLevel: nextNode.clientLevel,
-        clientComment: nextNode.clientComment,
-        telegramId: nextNode.telegramId,
-        resetPolicy: nextNode.resetPolicy,
-        vmessSecurity: nextNode.vmessSecurity,
-        shadowsocksMethod: nextNode.shadowsocksMethod,
-        hysteriaAuth: nextNode.hysteriaAuth,
-        streamNetwork: nextNode.streamNetwork,
-        security: nextNode.security,
-        sni: nextNode.sni,
-        path: nextNode.path,
-        flow: nextNode.flow,
-        fingerprint: nextNode.fingerprint,
-        alpn: nextNode.alpn,
-        realityPublicKey: nextNode.realityPublicKey,
-        realityPrivateKey: nextNode.realityPrivateKey,
-        realityTarget: nextNode.realityTarget,
-        realityShortId: nextNode.realityShortId,
-        fallbackName: nextNode.fallbackName,
-        fallbackDestination: nextNode.fallbackDestination,
-        fallbackXver: nextNode.fallbackXver,
-        sniffingEnabled: nextNode.sniffingEnabled,
-        ipLimit: nextNode.ipLimit,
-        trafficMultiplier: nextNode.trafficMultiplier,
-        trafficLimitGb: nextNode.trafficLimitGb,
-        monthlyResetDay: nextNode.monthlyResetDay,
-        currentUsedTrafficGb: nextNode.currentUsedTrafficGb,
-        remainingDays: nextNode.remainingDays,
-        expiresAt: nextNode.expiresAt,
-        quotaExceeded: nextNode.quotaExceeded,
-        clientExpired: nextNode.clientExpired,
-        runtimeDisabledByPolicy: nextNode.runtimeDisabledByPolicy,
-        guardrailReason: nextNode.guardrailReason,
-        subscriptionRule: nextNode.subscriptionRule,
-        subscriptionClientId: subscriptionMaterial.subscriptionClientId,
-        subId: subscriptionMaterial.subId,
-        securePathPreview: subscriptionMaterial.securePathPreview,
-        subscriptionUrlPreview: subscriptionMaterial.subscriptionUrlPreview,
-        enabled: nextNode.enabled
-      },
-      saveAction
-    );
+    if (saveResult !== undefined) {
+      setCustomerNodeSaveFeedback(
+        createCustomerNodeSaveFeedback({
+          action: saveAction,
+          metadata: saveMetadata,
+          result: saveResult,
+          status: accepted ? 'queued' : 'failed'
+        })
+      );
+    }
 
-    if (editingCustomerNode) {
+    if (accepted) {
       setDrawer({ type: 'closed' });
     }
   }
@@ -5598,13 +5897,13 @@ export function NodesPage({
   function updateSelectedCustomerNodeMetadata(updateMetadata: (metadata: CustomerNodeConfigMetadata) => CustomerNodeConfigMetadata) {
     setBulkCustomerNodeDeleteConfirming(false);
     selectedCustomerNodes.forEach((node) => {
-      onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
+      void onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
     });
   }
 
   function updateCustomerNodeMetadata(node: CustomerNodeRecord, updateMetadata: (metadata: CustomerNodeConfigMetadata) => CustomerNodeConfigMetadata) {
     setBulkCustomerNodeDeleteConfirming(false);
-    onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
+    void onSaveCustomerNode(updateMetadata(createCustomerNodeMetadataFromRecord(node)), 'update');
   }
 
   function createCustomerNodeClientActionMutation(
@@ -6556,6 +6855,44 @@ export function NodesPage({
               <p className="mt-3 text-xs font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
                 {t.matchingCustomerNodes} {filteredCustomerNodes.length} / {visibleCustomerNodes.length}
               </p>
+            </div>
+          ) : null}
+
+          {customerNodeSaveFeedback ? (
+            <div className="border-b border-[#07111F]/16 bg-[#FFFDF5] px-3 py-2.5 dark:border-[#6B7CFF]/18 dark:bg-white/[0.015]">
+              <CustomerNodeSaveFeedbackBar
+                feedback={customerNodeSaveFeedback}
+                runtimeEvidence={activeCustomerNodeSaveRuntimeEvidence}
+                t={t}
+                onCopyDiagnostics={() =>
+                  void copyText(
+                    JSON.stringify(
+                      createCustomerNodeSaveDiagnosticPackage(
+                        customerNodeSaveFeedback,
+                        activeCustomerNodeSaveRuntimeEvidence
+                      ),
+                      null,
+                      2
+                    )
+                  )
+                }
+                onDismiss={() => setCustomerNodeSaveFeedback(undefined)}
+                onOpenEvidence={
+                  activeCustomerNodeSaveTargetNode
+                    ? () => setDrawer({ type: 'customerRuntimeEvidence', nodeId: activeCustomerNodeSaveTargetNode.id })
+                    : undefined
+                }
+                onOpenWorkspace={
+                  activeCustomerNodeSaveRuntimeEvidence && onOpenRuntimeEvidenceWorkspace
+                    ? onOpenRuntimeEvidenceWorkspace
+                    : undefined
+                }
+                onRollbackTask={
+                  activeCustomerNodeSaveRollbackTaskId && onRollbackRuntimeTask
+                    ? () => onRollbackRuntimeTask(activeCustomerNodeSaveRollbackTaskId)
+                    : undefined
+                }
+              />
             </div>
           ) : null}
 

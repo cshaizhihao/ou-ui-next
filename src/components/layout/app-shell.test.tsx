@@ -2891,9 +2891,25 @@ describe('AppShell', () => {
 
   it('creates customer node inbound tasks with Xray metadata from the customer node workspace', async () => {
     const user = userEvent.setup();
+    const acceptedInboundTask: DeployTask = {
+      ...rollbackReadyTask,
+      id: 'task-customer-node-save-inbound',
+      operation: 'inbound.create',
+      resourceType: 'inbound',
+      targetLabel: '客户专属 VLESS 入口'
+    };
+    const acceptedSubscriptionTask: DeployTask = {
+      ...rollbackReadyTask,
+      id: 'task-customer-node-save-subscription',
+      operation: 'subscription.generate',
+      resourceType: 'subscription',
+      targetLabel: 'Acme subscription'
+    };
     const api = {
       ...createMockApi({ seedInventory: true }),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      createTask: vi.fn()
+        .mockResolvedValueOnce(acceptedInboundTask)
+        .mockResolvedValueOnce(acceptedSubscriptionTask)
     };
     renderShell(api);
 
@@ -2963,6 +2979,11 @@ describe('AppShell', () => {
       );
     });
     expect(api.createTask).toHaveBeenCalledTimes(2);
+    const saveFeedback = await screen.findByRole('region', { name: '客户节点保存反馈' });
+
+    expect(within(saveFeedback).getByText('新增节点 已接收 · 客户专属 VLESS 入口')).toBeInTheDocument();
+    expect(within(saveFeedback).getByText('Runtime task-customer-node-save-inbound')).toBeInTheDocument();
+    expect(within(saveFeedback).getByText('Subscription task-customer-node-save-subscription')).toBeInTheDocument();
   });
 
   it('creates quota reset tasks from the customer node traffic reset action', async () => {

@@ -3805,6 +3805,57 @@ describe('NodesPage', () => {
     });
   });
 
+  it('shows accepted customer-node save task feedback with runtime evidence', async () => {
+    const user = userEvent.setup();
+    const onSaveCustomerNode = vi.fn().mockResolvedValue({
+      accepted: true,
+      action: 'create',
+      runtimeTaskId: 'task-xray-apply-01',
+      subscriptionTaskId: 'task-sub-save-01',
+      targetNodeId: 'customer-node-save-01',
+      targetLabel: 'Acme Runtime Save'
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        commandOutbox={[createRuntimeCommand()]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        inbounds={[]}
+        language="en"
+        preflightPlans={[createRuntimePreflightPlan()]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
+        tasks={[createRuntimeTask()]}
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onOpenRuntimeEvidenceWorkspace={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={onSaveCustomerNode}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+    await user.clear(screen.getByLabelText('Customer Name'));
+    await user.type(screen.getByLabelText('Customer Name'), 'Acme Runtime');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    const feedback = await screen.findByRole('region', { name: 'Customer Node Save Feedback' });
+
+    expect(within(feedback).getByText('Create Node accepted · Acme Runtime Save')).toBeInTheDocument();
+    expect(within(feedback).getByText('Agent verified this save action.')).toBeInTheDocument();
+    expect(within(feedback).getByText('Runtime task-xray-apply-01')).toBeInTheDocument();
+    expect(within(feedback).getByText('Subscription task-sub-save-01')).toBeInTheDocument();
+    expect(within(feedback).getByText('Stage agent-result-verified')).toBeInTheDocument();
+    expect(within(feedback).getByLabelText('Task succeeded')).toHaveAttribute(
+      'data-customer-node-save-evidence-state',
+      'confirmed'
+    );
+    expect(screen.queryByRole('dialog', { name: 'Add Customer Node' })).not.toBeInTheDocument();
+  });
+
   it('generates both single-node import and public subscription links for customer nodes', async () => {
     const user = userEvent.setup();
     render(

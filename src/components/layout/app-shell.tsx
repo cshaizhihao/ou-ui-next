@@ -42,6 +42,7 @@ import type {
   CustomerNodeClientActionResult,
   CustomerNodeClientActionMutation,
   CustomerNodeConfigMetadata,
+  CustomerNodeSaveResult,
   HostConfigMetadata,
   NodesFocusIntent
 } from '../../features/nodes/nodes-page';
@@ -1902,7 +1903,7 @@ export function AppShell({ ready }: AppShellProps) {
   );
 
   const handleSaveCustomerNode = useCallback(
-    (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update') => {
+    async (metadata: CustomerNodeConfigMetadata, action: 'create' | 'update'): Promise<CustomerNodeSaveResult> => {
       const operation = action === 'create' ? 'inbound.create' : 'inbound.update';
       const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
       const inboundInput = createCustomerNodeInboundTaskInput(metadata, action, {
@@ -1910,28 +1911,40 @@ export function AppShell({ ready }: AppShellProps) {
         update: t.updateCustomerNodeSummary
       });
 
-      void (async () => {
-        const inboundTask = await runTask(
-          inboundInput,
-          {
-            idempotencyKey: createCustomerNodeInboundIdempotencyKey(metadata, operation)
-          }
-        );
-
-        if (!inboundTask) {
-          return;
+      const inboundTask = await runTask(
+        inboundInput,
+        {
+          idempotencyKey: createCustomerNodeInboundIdempotencyKey(metadata, operation)
         }
+      );
 
-        await runTask(
-          createSubscriptionClientGenerateTaskInput(subscriptionMetadata, action, {
-            create: t.createSubscriptionClientSummary,
-            update: t.updateSubscriptionClientSummary
-          }),
-          {
-            idempotencyKey: createSubscriptionClientGenerateIdempotencyKey(subscriptionMetadata, action)
-          }
-        );
-      })();
+      if (!inboundTask) {
+        return {
+          accepted: false,
+          action,
+          targetNodeId: metadata.nodeId,
+          targetLabel: metadata.customerNodeName
+        };
+      }
+
+      const subscriptionTask = await runTask(
+        createSubscriptionClientGenerateTaskInput(subscriptionMetadata, action, {
+          create: t.createSubscriptionClientSummary,
+          update: t.updateSubscriptionClientSummary
+        }),
+        {
+          idempotencyKey: createSubscriptionClientGenerateIdempotencyKey(subscriptionMetadata, action)
+        }
+      );
+
+      return {
+        accepted: true,
+        action,
+        runtimeTaskId: inboundTask.id,
+        subscriptionTaskId: subscriptionTask?.id,
+        targetNodeId: metadata.nodeId,
+        targetLabel: metadata.customerNodeName
+      };
     },
     [
       runTask,
@@ -2408,7 +2421,7 @@ export function AppShell({ ready }: AppShellProps) {
             return;
           }
 
-          handleSaveCustomerNode(
+          void handleSaveCustomerNode(
             {
               ...createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, enabled),
               clients: createCustomerNodeClientMetadataListFromInbound(inbound, client, enabled)
