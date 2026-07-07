@@ -884,11 +884,19 @@ print(module.read_probe_target(state_dir))
     );
 
     expect(script).toContain('OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}');
+    expect(script).toContain('OU_AGENT_COMMAND_TIMEOUT_SECONDS=${OU_AGENT_COMMAND_TIMEOUT_SECONDS:-210}');
     expect(script).toContain('COMMAND_LOG_CHUNK_MAX_CHARS = 60_000');
+    expect(script).toContain('COMMAND_PROGRESS_CONTEXT = None');
     expect(script).toContain('def reset_command_log_buffer():');
     expect(script).toContain('def record_command_log(stream, content):');
+    expect(script).toContain('def set_command_progress_context(state_dir, master_poll_url, token, command, minimum_seq):');
+    expect(script).toContain('def emit_command_progress(stream, content):');
     expect(script).toContain('def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload):');
     expect(script).toContain('read_positive_int_env("OU_AGENT_COMMAND_LOG_MAX_CHUNKS", 20');
+    expect(script).toContain('def command_timeout_seconds(command):');
+    expect(script).toContain('class AgentCommandTimeoutError(RuntimeError):');
+    expect(script).toContain('signal.alarm(timeout_seconds)');
+    expect(script).toContain('clear_command_progress_context()');
     expect(script).toContain('output_limit = max(0, max_chunks - 1)');
     expect(script).toContain('"outputTruncated": output_truncated');
     expect(script).toContain('record_command_log("runtime", f"$ {command_line}\\nexitCode={result.returncode}")');
@@ -898,6 +906,7 @@ print(module.read_probe_target(state_dir))
     expect(script).toContain('"chunkSeq": chunk_seq');
     expect(script).toContain('"content": entry["content"]');
     expect(processCommand).toContain('reset_command_log_buffer()');
+    expect(processCommand).toContain('emit_command_progress(\n            "agent",\n            f"command execution started type={command.get(\'type\')} task={command.get(\'taskId\')} timeoutSeconds={timeout_seconds}",\n        )');
     expect(processCommand.indexOf('send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload)')).toBeLessThan(
       processCommand.indexOf('result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])')
     );
@@ -942,6 +951,10 @@ print(module.read_probe_target(state_dir))
 
     expect(applyXrayArtifact).toContain('unit_path = systemd_unit_dir() / "ou-ui-xray.service"');
     expect(applyXrayArtifact).toContain('unit_existed = unit_path.exists()');
+    expect(applyXrayArtifact).toContain('emit_command_progress("agent", f"xray remove_inbound start target={artifact.get(\'targetId\')}")');
+    expect(applyXrayArtifact).toContain('emit_command_progress("runtime", f"rendering xray runtime config inboundCount={len(inbounds)}")');
+    expect(applyXrayArtifact).toContain('emit_command_progress("runtime", "restarting ou-ui-xray.service")');
+    expect(applyXrayArtifact).toContain('emit_command_progress("agent", f"xray apply completed runtime={service_state}")');
     expect(applyXrayArtifact).toContain('stop_and_remove_unit(state_dir, "ou-ui-xray.service")');
     expect(applyXrayArtifact).toContain('if unit_existed:\n            changed.append(str(unit_path))');
     expect(applyXrayArtifact.indexOf('unit_existed = unit_path.exists()')).toBeLessThan(

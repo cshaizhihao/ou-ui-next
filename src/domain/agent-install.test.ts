@@ -103,6 +103,7 @@ describe('agent install command', () => {
     expect(script).toContain('OU_AGENT_EXECUTOR_PATH=${INSTALL_ROOT}/bin/ou-agent-executor.py');
     expect(script).toContain('OU_AGENT_CONFIG_DIR=${CONFIG_DIR}');
     expect(script).toContain('OU_AGENT_PYTHON_BIN=${OU_AGENT_PYTHON_BIN:-${python_bin}}');
+    expect(script).toContain('OU_AGENT_COMMAND_TIMEOUT_SECONDS=${OU_AGENT_COMMAND_TIMEOUT_SECONDS:-210}');
     expect(script).toContain('OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}');
     expect(script).toContain('OU_INSTALL_PROFILE="${OU_INSTALL_PROFILE:-host-agent,xray,port-forwarding,telemetry,command-channel}"');
     expect(script).toContain('if ! "\\${OU_AGENT_PYTHON_BIN}" "\\${OU_AGENT_EXECUTOR_PATH}"');

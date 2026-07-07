@@ -323,6 +323,7 @@ OU_AGENT_MAX_PENDING_EVENTS=${OU_AGENT_MAX_PENDING_EVENTS:-1000}
 OU_AGENT_LOG_MAX_BYTES=${OU_AGENT_LOG_MAX_BYTES:-5242880}
 OU_AGENT_LOG_BACKUP_COUNT=${OU_AGENT_LOG_BACKUP_COUNT:-3}
 OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}
+OU_AGENT_COMMAND_TIMEOUT_SECONDS=${OU_AGENT_COMMAND_TIMEOUT_SECONDS:-210}
 OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}
 EOF
 
@@ -352,6 +353,7 @@ import ipaddress
 import os
 import re
 import shlex
+import signal
 import shutil
 import socket
 import subprocess
@@ -428,6 +430,7 @@ NON_RETRYABLE_AGENT_EVENT_ERROR_CODES = {
 }
 COMMAND_OUTPUT_LOGS = []
 COMMAND_LOG_CHUNK_MAX_CHARS = 60_000
+COMMAND_PROGRESS_CONTEXT = None
 
 
 def read_http_error_code(error):
@@ -619,6 +622,45 @@ def record_command_log(stream, content):
     if not text:
         return
     COMMAND_OUTPUT_LOGS.append({"stream": stream, "content": text})
+
+
+def set_command_progress_context(state_dir, master_poll_url, token, command, minimum_seq):
+    global COMMAND_PROGRESS_CONTEXT
+    COMMAND_PROGRESS_CONTEXT = {
+        "stateDir": state_dir,
+        "masterPollUrl": master_poll_url,
+        "token": token,
+        "command": command,
+        "minimumSeq": minimum_seq,
+    }
+
+
+def clear_command_progress_context():
+    global COMMAND_PROGRESS_CONTEXT
+    COMMAND_PROGRESS_CONTEXT = None
+
+
+def emit_command_progress(stream, content):
+    text = str(content or "")
+    if not text:
+        return
+
+    context = COMMAND_PROGRESS_CONTEXT
+    if not context:
+        record_command_log(stream, text)
+        return
+
+    event = build_command_event(
+        context["stateDir"],
+        context["command"],
+        "log_chunk",
+        {
+            "stream": stream if stream in ("stdout", "stderr", "agent", "runtime") else "runtime",
+            "content": text[:COMMAND_LOG_CHUNK_MAX_CHARS],
+        },
+        minimum_seq=context["minimumSeq"],
+    )
+    send_event_or_queue(context["stateDir"], context["masterPollUrl"], context["token"], event, queue_on_failure=True)
 
 
 def consume_command_log_buffer():
@@ -915,6 +957,28 @@ def parse_utc_epoch(value):
         return parsed.timestamp()
     except Exception:
         return None
+
+
+class AgentCommandTimeoutError(RuntimeError):
+    pass
+
+
+def command_timeout_seconds(command):
+    configured = read_positive_int_env("OU_AGENT_COMMAND_TIMEOUT_SECONDS", 210, lower=30, upper=1800)
+    deadline_epoch = parse_utc_epoch(command.get("deadlineAt"))
+
+    if deadline_epoch is None:
+        return configured
+
+    remaining = int(deadline_epoch - time.time() - 15)
+    if remaining <= 0:
+        return 30
+
+    return max(30, min(configured, remaining))
+
+
+def handle_command_timeout(signum, frame):
+    raise AgentCommandTimeoutError("Agent command execution timed out before result delivery")
 
 
 def read_host_guardrail_limits(state_dir):
@@ -3063,17 +3127,22 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
     changed = []
 
     if action == "remove_inbound":
+        emit_command_progress("agent", f"xray remove_inbound start target={artifact.get('targetId')}")
         if inbound_path.exists():
             inbound_path.unlink()
             changed.append(str(inbound_path))
+            emit_command_progress("runtime", f"removed xray inbound fragment {inbound_path}")
         if profile_path.exists():
             profile_path.unlink()
             changed.append(str(profile_path))
+            emit_command_progress("runtime", f"removed xray profile {profile_path}")
     else:
         if not inbound:
             raise RuntimeError("xray artifact does not contain xray.inbound")
+        emit_command_progress("agent", f"xray upsert_inbound start target={artifact.get('targetId')}")
         write_json(inbound_path, inbound)
         changed.append(str(inbound_path))
+        emit_command_progress("runtime", f"wrote xray inbound fragment {inbound_path}")
         write_json(
             profile_path,
             {
@@ -3089,8 +3158,10 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
             },
         )
         changed.append(str(profile_path))
+        emit_command_progress("runtime", f"wrote xray profile {profile_path}")
 
     inbounds = read_inbound_fragments(inbound_root)
+    emit_command_progress("runtime", f"rendering xray runtime config inboundCount={len(inbounds)}")
     config_path = write_xray_runtime_config(xray_root, log_root, inbounds)
     changed.append(str(config_path))
 
@@ -3098,6 +3169,7 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
     if not inbounds:
         unit_path = systemd_unit_dir() / "ou-ui-xray.service"
         unit_existed = unit_path.exists()
+        emit_command_progress("runtime", "xray has no active inbound fragments; stopping ou-ui-xray.service")
         stop_and_remove_unit(state_dir, "ou-ui-xray.service")
         if unit_existed:
             changed.append(str(unit_path))
@@ -3105,15 +3177,21 @@ def apply_xray_artifact(state_dir, command, revision, artifact):
     else:
         if not xray_bin:
             raise RuntimeError("xray binary is not installed; rerun the Agent installer or install Xray before applying customer nodes")
+        emit_command_progress("runtime", f"testing xray config {config_path}")
         test_xray_config(state_dir, xray_bin, config_path)
+        emit_command_progress("runtime", "writing ou-ui-xray.service unit")
         unit, unit_path = write_xray_service_unit(state_dir, xray_bin, config_path)
         changed.append(str(unit_path))
+        emit_command_progress("runtime", "enabling ou-ui-xray.service")
         systemctl(state_dir, "enable", "--now", unit)
+        emit_command_progress("runtime", "restarting ou-ui-xray.service")
         systemctl(state_dir, "restart", unit)
+        emit_command_progress("runtime", "checking ou-ui-xray.service active state")
         if not service_active(state_dir, unit):
             raise RuntimeError("ou-ui-xray.service did not become active")
         service_state = "running"
 
+    emit_command_progress("agent", f"xray apply completed runtime={service_state}")
     return write_revision_state(
         state_dir,
         command,
@@ -3905,7 +3983,17 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
             return command_seq
         raise
 
+    timeout_seconds = command_timeout_seconds(command)
+    previous_alarm_handler = signal.getsignal(signal.SIGALRM)
+    set_command_progress_context(state_dir, master_poll_url, token, command, ack_event["seq"])
+    signal.signal(signal.SIGALRM, handle_command_timeout)
+    signal.alarm(timeout_seconds)
+
     try:
+        emit_command_progress(
+            "agent",
+            f"command execution started type={command.get('type')} task={command.get('taskId')} timeoutSeconds={timeout_seconds}",
+        )
         if command.get("type") == "apply":
             result = apply_command(state_dir, command)
             payload = {
@@ -3984,6 +4072,10 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
                 "failureReason": failure_reason,
             },
         }
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_alarm_handler)
+        clear_command_progress_context()
 
     payload = normalize_result_payload(payload)
     send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload)
