@@ -1331,7 +1331,7 @@ describe('HTTP control-plane service-backed API', () => {
       });
       delete deleteInboundHeaders['If-Match'];
 
-      await fetch(`${baseUrl}/api/v1/tasks`, {
+      const deleteInboundTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
         method: 'POST',
         headers: deleteInboundHeaders,
         body: JSON.stringify(withRiskConfirmation({
@@ -1346,6 +1346,22 @@ describe('HTTP control-plane service-backed API', () => {
           }
         }))
       });
+      const deleteInboundTaskEnvelope = await deleteInboundTaskResponse.json();
+
+      const deletingInboundsResponse = await fetch(`${baseUrl}/api/v1/inbounds`);
+      const deletingInboundsEnvelope = await deletingInboundsResponse.json();
+
+      expect(deleteInboundTaskResponse.status).toBe(201);
+      expect(deletingInboundsEnvelope.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'customer-node-service-read-model',
+            status: 'applying'
+          })
+        ])
+      );
+
+      await completeAgentCommands(deleteInboundTaskEnvelope.taskId, 'inbound-delete-read-model');
 
       const deletedInboundsResponse = await fetch(`${baseUrl}/api/v1/inbounds`);
       const deletedInboundsEnvelope = await deletedInboundsResponse.json();

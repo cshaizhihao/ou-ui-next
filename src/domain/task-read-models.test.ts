@@ -154,6 +154,92 @@ describe('task read models', () => {
     });
   });
 
+  it('keeps Xray inbounds visible until delete has verified Agent runtime evidence', () => {
+    const existingInbound = createXrayInboundFromTask(
+      markTaskAgentRuntimeDeploymentVerified(
+        {
+          ...createInboundTask({
+            agentId: 'agent-hkg-01',
+            customerName: 'Acme',
+            customerNodeName: 'Acme Runtime Delete',
+            xrayProtocol: 'vless',
+            clientIdentity: 'acme-runtime-delete',
+            clientCredential: '22222222-2222-4222-8222-222222222222'
+          }),
+          id: 'task-xray-runtime-delete-create',
+          status: 'succeeded',
+          updatedAt: '2026-06-04T00:01:00.000Z'
+        },
+        {
+          verifiedAt: '2026-06-04T00:01:00.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-xray-runtime-delete-create'],
+          appliedConfigRevisions: ['cfg-task-xray-runtime-delete-create']
+        }
+      )
+    );
+    const deleteTask = {
+      ...createInboundTask({
+        agentId: 'agent-hkg-01',
+        customerName: 'Acme',
+        customerNodeName: 'Acme Runtime Delete',
+        xrayProtocol: 'vless'
+      }),
+      id: 'task-xray-runtime-delete',
+      operation: 'inbound.delete' as const,
+      targetId: 'customer-node-read-model',
+      status: 'running' as const
+    };
+
+    expect(existingInbound).toBeDefined();
+
+    expect(applyXrayInboundTask([existingInbound!], deleteTask)).toEqual([
+      expect.objectContaining({
+        id: 'customer-node-read-model',
+        status: 'applying',
+        runtimeDeployment: existingInbound!.runtimeDeployment
+      })
+    ]);
+    expect(applyXrayInboundTask([existingInbound!], { ...deleteTask, status: 'succeeded' })).toEqual([
+      expect.objectContaining({
+        id: 'customer-node-read-model',
+        status: 'applying',
+        runtimeDeployment: existingInbound!.runtimeDeployment
+      })
+    ]);
+    expect(
+      applyXrayInboundTask([existingInbound!], {
+        ...deleteTask,
+        status: 'failed',
+        failureReason: 'command.ack.timeout'
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'customer-node-read-model',
+        status: 'error',
+        runtimeDeployment: existingInbound!.runtimeDeployment
+      })
+    ]);
+    expect(
+      applyXrayInboundTask(
+        [existingInbound!],
+        markTaskAgentRuntimeDeploymentVerified(
+          {
+            ...deleteTask,
+            status: 'succeeded',
+            updatedAt: '2026-06-04T00:02:00.000Z'
+          },
+          {
+            verifiedAt: '2026-06-04T00:02:00.000Z',
+            agentIds: ['agent-hkg-01'],
+            commandIds: ['cmd-task-xray-runtime-delete'],
+            appliedConfigRevisions: ['cfg-task-xray-runtime-delete']
+          }
+        )
+      )
+    ).toEqual([]);
+  });
+
   it('projects multiple Xray clients from customer-node task metadata', () => {
     const inbound = createXrayInboundFromTask(
       createInboundTask({

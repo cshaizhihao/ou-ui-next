@@ -3230,6 +3230,62 @@ describe('mock API contract', () => {
 
   it('persists customer Xray inbound create and delete tasks into the mock read model', async () => {
     const api = createMockApi({ seedInventory: true });
+    const readExpectedConfigRevision = (item: Awaited<ReturnType<typeof api.listCommandOutbox>>[number]) => {
+      if (item.command.type === 'apply' || item.command.type === 'reload') {
+        return item.command.payload.configRevision;
+      }
+
+      if (item.command.type === 'rollback') {
+        return item.command.payload.targetConfigRevision;
+      }
+
+      return undefined;
+    };
+    const completeAgentCommands = async (taskId: string, eventPrefix: string) => {
+      const outbox = (await api.listCommandOutbox())
+        .filter((item) => item.taskId === taskId)
+        .sort((left, right) => left.seq - right.seq);
+
+      expect(outbox.length).toBeGreaterThan(0);
+
+      for (const [index, item] of outbox.entries()) {
+        const sessionId = `sess-${eventPrefix}-${item.agentId}`;
+        const appliedConfigRevision = readExpectedConfigRevision(item);
+        const ackObservedAt = new Date(Date.parse(item.deadlineAt) - 30_000 + index * 1000).toISOString();
+        const resultObservedAt = new Date(Date.parse(item.deadlineAt) - 15_000 + index * 1000).toISOString();
+
+        await api.receiveAgentEvent({
+          type: 'ack',
+          eventId: `evt-${eventPrefix}-${item.agentId}-ack`,
+          commandId: item.commandId,
+          taskId,
+          agentId: item.agentId,
+          seq: item.seq + 1,
+          sessionId,
+          observedAt: ackObservedAt,
+          payload: {
+            duplicate: false
+          }
+        });
+        await api.receiveAgentEvent({
+          type: 'result',
+          eventId: `evt-${eventPrefix}-${item.agentId}-result`,
+          commandId: item.commandId,
+          taskId,
+          agentId: item.agentId,
+          seq: item.seq + 2,
+          sessionId,
+          observedAt: resultObservedAt,
+          payload: {
+            status: 'succeeded',
+            ...(appliedConfigRevision ? { appliedConfigRevision } : {}),
+            healthSummary: {
+              runtime: 'healthy'
+            }
+          }
+        });
+      }
+    };
 
     await api.createTask({
       operation: 'inbound.create',
@@ -3277,7 +3333,7 @@ describe('mock API contract', () => {
       ])
     );
 
-    await api.createTask(withRiskConfirmation({
+    const deleteTask = await api.createTask(withRiskConfirmation({
       operation: 'inbound.delete',
       resourceType: 'inbound',
       targetId: 'customer-node-read-model',
@@ -3288,6 +3344,17 @@ describe('mock API contract', () => {
         customerNodeName: '客户节点读模型'
       }
     }));
+
+    await expect(api.listInbounds()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'customer-node-read-model',
+          status: 'applying'
+        })
+      ])
+    );
+
+    await completeAgentCommands(deleteTask.id, 'inbound-delete-read-model');
 
     await expect(api.listInbounds()).resolves.not.toEqual(
       expect.arrayContaining([

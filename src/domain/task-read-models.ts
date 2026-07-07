@@ -621,7 +621,20 @@ function shouldPatchSingleExistingXrayClient(input: {
 
 export function applyXrayInboundTask(inbounds: XrayInbound[], task: DeployTask) {
   if (task.operation === 'inbound.delete') {
-    return inbounds.filter((inbound) => inbound.id !== task.targetId);
+    if (task.status === 'succeeded' && hasAgentRuntimeDeploymentProof(task)) {
+      return inbounds.filter((inbound) => inbound.id !== task.targetId);
+    }
+
+    const existingInbound = inbounds.find((inbound) => inbound.id === task.targetId);
+
+    if (!existingInbound) {
+      return inbounds;
+    }
+
+    const status: XrayInboundStatus =
+      task.status === 'failed' || task.status === 'canceled' || task.status === 'rolled_back' ? 'error' : 'applying';
+
+    return [{ ...existingInbound, status }, ...inbounds.filter((inbound) => inbound.id !== task.targetId)];
   }
 
   const existingInbound = inbounds.find((inbound) => inbound.id === task.targetId);
