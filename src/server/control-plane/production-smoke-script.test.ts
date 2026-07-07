@@ -53,6 +53,7 @@ type RuntimeAcceptanceSummary = {
 };
 
 type ProductionSmokeScript = {
+  assertRootHtml(label: string, response: Response, text: string): void;
   buildEndpointUrl(baseUrl: URL, endpointPath: string): string;
   createCookieHeader(setCookieValues: string[]): string;
   joinUrlPath(prefixPath: string, endpointPath: string): string;
@@ -181,6 +182,44 @@ IGNORED_LINE
     });
     expect(() => smokeScript.normalizeBaseUrl('https://user:password@panel.example/secure/')).toThrow(
       'OU_UI_SMOKE_BASE_URL 不能包含用户名或密码。'
+    );
+  });
+
+  it('fails early when the production root does not return a usable HTML shell', () => {
+    const html = '<!doctype html><div id="root"></div><script type="module" src="/assets/index.js"></script>';
+    const ok = new Response(html, {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8'
+      }
+    });
+
+    expect(() => smokeScript.assertRootHtml('root HTML shell', ok, html)).not.toThrow();
+
+    const empty = new Response('', {
+      status: 200,
+      headers: {
+        'content-type': 'text/html'
+      }
+    });
+    expect(() => smokeScript.assertRootHtml('root HTML shell', empty, '')).toThrow('返回空 HTML');
+
+    const json = new Response('{}', {
+      status: 200,
+      headers: {
+        'content-type': 'application/json'
+      }
+    });
+    expect(() => smokeScript.assertRootHtml('root HTML shell', json, '{}')).toThrow('不是 text/html');
+
+    const noRoot = new Response('<!doctype html><main></main>', {
+      status: 200,
+      headers: {
+        'content-type': 'text/html'
+      }
+    });
+    expect(() => smokeScript.assertRootHtml('root HTML shell', noRoot, '<!doctype html><main></main>')).toThrow(
+      'React root'
     );
   });
 

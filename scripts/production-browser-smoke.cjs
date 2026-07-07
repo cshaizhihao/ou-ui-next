@@ -86,6 +86,12 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === '--executable-path') {
+      options.executablePath = readOptionValue(argv, index, arg);
+      index += 1;
+      continue;
+    }
+
     if (arg === '--viewport') {
       options.viewportPreset = readOptionValue(argv, index, arg);
       index += 1;
@@ -228,6 +234,7 @@ function resolveBrowserSmokeConfig(env = process.env, argv = process.argv.slice(
     credentials.OU_UI_BROWSER_SMOKE_PASSWORD ??
     credentials.OU_UI_SMOKE_PASSWORD;
   const browserName = args.browserName ?? env.OU_UI_BROWSER_SMOKE_BROWSER ?? 'chromium';
+  const executablePath = args.executablePath ?? env.OU_UI_BROWSER_SMOKE_EXECUTABLE_PATH;
   const viewportPreset = args.viewportPreset ?? env.OU_UI_BROWSER_SMOKE_VIEWPORT ?? 'desktop';
   const screenshotsEnabled =
     !args.skipScreenshots && env.OU_UI_BROWSER_SMOKE_SCREENSHOTS !== '0' && env.OU_UI_BROWSER_SMOKE_SCREENSHOTS !== 'false';
@@ -264,6 +271,7 @@ function resolveBrowserSmokeConfig(env = process.env, argv = process.argv.slice(
       ? args.screenshotDir ?? env.OU_UI_BROWSER_SMOKE_SCREENSHOT_DIR
       : undefined,
     browserName,
+    executablePath,
     viewportPreset,
     viewport: viewportPresets[viewportPreset],
     headed: Boolean(args.headed) || parseBoolean(env.OU_UI_BROWSER_SMOKE_HEADED),
@@ -284,6 +292,7 @@ function createBrowserSmokeReport(config) {
     browserName: config.browserName,
     headless: !config.headed,
     insecureTls: config.insecureTls,
+    executablePathConfigured: Boolean(config.executablePath),
     viewport: config.viewport,
     screenshotsEnabled: Boolean(config.screenshotDir),
     checks: []
@@ -348,10 +357,43 @@ async function waitForVisible(locator, timeoutMs, label) {
   });
 }
 
+async function readRenderState(page) {
+  return page.evaluate(() => {
+    const pageDocument = globalThis.document;
+    const root = pageDocument.getElementById('root');
+    const bodyText = pageDocument.body?.innerText?.trim() ?? '';
+    const rootText = root?.innerText?.trim() ?? '';
+
+    return {
+      bodyTextLength: bodyText.length,
+      rootChildCount: root?.childElementCount ?? 0,
+      rootExists: Boolean(root),
+      rootTextLength: rootText.length,
+      title: pageDocument.title
+    };
+  });
+}
+
+async function assertPageNotBlank(page, label) {
+  const state = await readRenderState(page);
+
+  if (!state.rootExists) {
+    throw new Error(`${label} 缺少 React root 容器。`);
+  }
+
+  if (state.bodyTextLength === 0 && state.rootChildCount === 0) {
+    throw new Error(`${label} 为空白页面：React root 没有渲染内容。`);
+  }
+
+  return state;
+}
+
 async function runBrowserCheck(config, page, report, name, action) {
   await action();
+  const renderState = await assertPageNotBlank(page, name);
   const screenshotPath = await captureScreenshot(config, page, report, name);
   recordBrowserCheck(report, name, {
+    renderState,
     screenshot: screenshotPath
   });
   logPass(name, screenshotPath ? `screenshot=${screenshotPath}` : undefined);
@@ -416,7 +458,8 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
   let browser;
   try {
     browser = await browserType.launch({
-      headless: !config.headed
+      headless: !config.headed,
+      ...(config.executablePath ? { executablePath: config.executablePath } : {})
     });
   } catch (error) {
     throw new Error(
@@ -536,6 +579,7 @@ Options:
   --report <path>            写入脱敏 JSON 浏览器烟测报告
   --screenshot-dir <path>    保存每一步通过后的浏览器截图
   --browser <name>           chromium/firefox/webkit，默认 chromium
+  --executable-path <path>   使用系统浏览器二进制，适合服务器缺少 Playwright bundled browser 的场景
   --viewport <name>          desktop/mobile，默认 desktop
   --insecure-tls             允许自签名 TLS 证书
   --headed                   使用有界面浏览器，默认 headless
@@ -562,6 +606,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertPageNotBlank,
   createBrowserSmokeReport,
   createSafeScreenshotName,
   normalizeBaseUrl,

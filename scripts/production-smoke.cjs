@@ -283,6 +283,30 @@ function responseErrorSummary(payload) {
   return 'empty response';
 }
 
+function assertRootHtml(label, response, text) {
+  if (response.status !== 200) {
+    throw new Error(`${label} HTTP ${response.status}，期望 200。`);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (!contentType.includes('text/html')) {
+    throw new Error(`${label} 响应不是 text/html：${contentType || 'missing content-type'}`);
+  }
+
+  if (!text || text.trim().length === 0) {
+    throw new Error(`${label} 返回空 HTML，可能是白屏或静态代理失效。`);
+  }
+
+  if (!text.includes('id="root"')) {
+    throw new Error(`${label} HTML 缺少 React root 容器。`);
+  }
+
+  if (!text.includes('type="module"') && !text.includes('/assets/')) {
+    throw new Error(`${label} HTML 缺少生产前端资源引用。`);
+  }
+}
+
 function assertStatus(label, response, payload, expectedStatuses) {
   if (expectedStatuses.includes(response.status)) {
     return;
@@ -674,6 +698,16 @@ async function runProductionSmokeChecks(config, context, report) {
 
   process.stdout.write(`OU-UI Next production smoke: ${config.baseUrl.toString()}\n`);
 
+  const rootResult = await requestText(config, context, 'GET', '/', {
+    accept: 'text/html'
+  });
+  assertRootHtml('root HTML shell', rootResult.response, rootResult.text);
+  logPass('root HTML shell', `bytes=${Buffer.byteLength(rootResult.text)}`);
+  recordSmokeCheck(report, 'root HTML shell', {
+    httpStatus: rootResult.response.status,
+    byteLength: Buffer.byteLength(rootResult.text)
+  });
+
   const boundaryResult = await requestJson(config, context, 'GET', '/api/v1/boundary');
   assertStatus('boundary', boundaryResult.response, boundaryResult.payload, [200]);
   const boundary = assertJsonData('boundary', boundaryResult.payload);
@@ -922,6 +956,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertRootHtml,
   buildEndpointUrl,
   createCookieHeader,
   createRuntimeAcceptanceSummary,

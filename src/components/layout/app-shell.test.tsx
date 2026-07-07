@@ -3867,4 +3867,50 @@ describe('AppShell', () => {
     });
     expect(useAppStore.getState().authenticated).toBe(false);
   });
+
+  it('calls the same-origin logout endpoint when production HTTP mode has no base URL', async () => {
+    const user = userEvent.setup();
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            authenticated: false
+          },
+          requestId: 'req-topbar-same-origin-logout'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+    );
+
+    act(() => {
+      useAppStore.getState().authenticate({
+        csrfToken: 'csrf-topbar-same-origin-logout-001',
+        operatorSessionId: 'operator-session-current-001'
+      });
+    });
+    vi.stubEnv('VITE_CONTROL_PLANE_MODE', 'http');
+    vi.stubGlobal('fetch', fetcher);
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await user.click(await screen.findByRole('button', { name: '退出登录' }));
+
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledWith(
+        '/api/v1/auth/session',
+        expect.objectContaining({
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'X-CSRF-Token': 'csrf-topbar-same-origin-logout-001'
+          }
+        })
+      );
+    });
+    expect(useAppStore.getState().authenticated).toBe(false);
+  });
 });

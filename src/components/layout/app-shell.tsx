@@ -1532,7 +1532,7 @@ export function AppShell({ ready }: AppShellProps) {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    if (runtimeConfig.controlPlaneMode !== 'http' || !runtimeConfig.controlPlaneBaseUrl) {
+    if (runtimeConfig.controlPlaneMode !== 'http') {
       logout();
       return;
     }
@@ -1540,7 +1540,7 @@ export function AppShell({ ready }: AppShellProps) {
     setTaskMutationState({ status: 'pending', message: t.logoutPending });
 
     try {
-      const response = await fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl), {
+      const response = await fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl ?? ''), {
         method: 'DELETE',
         credentials: 'include',
         headers: csrfToken

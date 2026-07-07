@@ -9,6 +9,7 @@ type ProductionBrowserSmokeScript = {
   createBrowserSmokeReport(config: {
     baseUrl: URL;
     browserName: string;
+    executablePath?: string;
     viewport: {
       width: number;
       height: number;
@@ -24,6 +25,7 @@ type ProductionBrowserSmokeScript = {
     baseUrl: string;
     browserName: string;
     headless: boolean;
+    executablePathConfigured: boolean;
     screenshotsEnabled: boolean;
     checks: Array<Record<string, unknown>>;
   };
@@ -33,6 +35,7 @@ type ProductionBrowserSmokeScript = {
     baseUrl?: string;
     browserName?: string;
     credentialsFile?: string;
+    executablePath?: string;
     headed?: boolean;
     help?: boolean;
     insecureTls?: boolean;
@@ -51,6 +54,7 @@ type ProductionBrowserSmokeScript = {
     password: string;
     timeoutMs: number;
     browserName: string;
+    executablePath?: string;
     viewportPreset: string;
     viewport: {
       width: number;
@@ -82,6 +86,8 @@ describe('production browser smoke script helpers', () => {
         '45000',
         '--browser',
         'chromium',
+        '--executable-path',
+        '/usr/bin/google-chrome',
         '--viewport',
         'mobile',
         '--insecure-tls',
@@ -93,6 +99,7 @@ describe('production browser smoke script helpers', () => {
       screenshotDir: '/tmp/screens',
       timeoutMs: '45000',
       browserName: 'chromium',
+      executablePath: '/usr/bin/google-chrome',
       viewportPreset: 'mobile',
       insecureTls: true,
       headed: true
@@ -112,6 +119,7 @@ describe('production browser smoke script helpers', () => {
         OU_UI_BROWSER_SMOKE_TIMEOUT_MS: '5000',
         OU_UI_BROWSER_SMOKE_REPORT_PATH: '/tmp/browser-report.json',
         OU_UI_BROWSER_SMOKE_SCREENSHOT_DIR: '/tmp/browser-screens',
+        OU_UI_BROWSER_SMOKE_EXECUTABLE_PATH: '/usr/bin/google-chrome',
         OU_UI_BROWSER_SMOKE_INSECURE_TLS: '1',
         OU_UI_BROWSER_SMOKE_VIEWPORT: 'mobile'
       },
@@ -123,6 +131,7 @@ describe('production browser smoke script helpers', () => {
       password: 'secret-password',
       timeoutMs: 5000,
       browserName: 'chromium',
+      executablePath: '/usr/bin/google-chrome',
       headed: false,
       insecureTls: true,
       reportPath: '/tmp/browser-report.json',
@@ -178,6 +187,7 @@ describe('production browser smoke script helpers', () => {
       const report = browserSmokeScript.createBrowserSmokeReport({
         baseUrl: new URL('https://panel.example/secure/'),
         browserName: 'chromium',
+        executablePath: '/usr/bin/google-chrome',
         viewport: {
           width: 390,
           height: 844,
@@ -202,6 +212,7 @@ describe('production browser smoke script helpers', () => {
         schemaVersion: 'ou-ui-next.production-browser-smoke.v1',
         status: 'passed',
         baseUrl: 'https://panel.example/secure/',
+        executablePathConfigured: true,
         checks: [expect.objectContaining({ name: 'operator browser login' })]
       });
       expect(saved).not.toContain('secret-password');
@@ -231,6 +242,8 @@ describe('production browser smoke script helpers', () => {
     expect(scriptSource).toContain('手机治理入口');
     expect(scriptSource).toContain('Master Control Plane');
     expect(scriptSource).toContain('概览|Overview');
+    expect(scriptSource).toContain('assertPageNotBlank');
+    expect(scriptSource).toContain('rootChildCount');
     expect(scriptSource).not.toContain('Master Control Plane Overview');
     expect(scriptSource).not.toContain('运营态势');
   });

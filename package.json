@@ -16,13 +16,15 @@
     "smoke:notifications": "node scripts/production-notification-smoke.cjs",
     "smoke:archive": "tsx scripts/production-archive-smoke.ts",
     "smoke:production": "node scripts/production-smoke.cjs",
+    "smoke:local-4174": "node scripts/local-4174-deploy.cjs smoke",
     "smoke:xray-apply": "node scripts/production-xray-apply-smoke.cjs",
     "smoke:xray-client-action": "node scripts/production-xray-apply-smoke.cjs --client-actions",
     "smoke:webhooks": "node scripts/production-webhook-smoke.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "deploy:local-4174": "node scripts/local-4174-deploy.cjs restart --smoke"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

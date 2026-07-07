@@ -132,6 +132,22 @@ npm test
 npm run build
 ```
 
+本仓库用于实时评审的 `4174` 面板可以用仓库脚本重启和验收。该脚本默认使用
+`diagnostics/local-deploy/control-plane.sqlite`，不会切到空内存库；默认登录为 `admin/admin`，需要修改密码时使用
+`OU_UI_LOCAL_4174_PASSWORD` 环境变量。
+
+```bash
+npm run build
+npm run deploy:local-4174
+npm run smoke:local-4174
+```
+
+如果需要同时验证公网地址：
+
+```bash
+OU_UI_LOCAL_4174_PUBLIC_URL=http://172.93.187.112:4174/ npm run smoke:local-4174
+```
+
 前端默认可以使用 mock API。需要连真实后端时，配置：
 
 ```bash
