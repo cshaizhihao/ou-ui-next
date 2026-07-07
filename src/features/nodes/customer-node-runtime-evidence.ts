@@ -3,8 +3,10 @@ import type {
   DeployTask,
   RuntimeConfigRevision,
   RuntimePreflightPlan,
-  RuntimeSnapshot
+  RuntimeSnapshot,
+  XrayInboundStatus
 } from '../../domain';
+import { readAgentRuntimeDeploymentProof } from '../../domain';
 import type { CommandOutboxSummary } from '../../services/api/control-plane-api';
 
 export type CustomerNodeRuntimeEvidenceState = 'verified' | 'failed' | 'waiting';
@@ -19,6 +21,7 @@ export type CustomerNodeRuntimeEvidenceStepId =
 export type CustomerNodeRuntimeEvidenceNode = {
   id: string;
   configVersion: string;
+  inboundStatus?: XrayInboundStatus;
   runtimeDeployment?: AgentRuntimeDeploymentProof;
 };
 
@@ -33,6 +36,7 @@ export type CustomerNodeRuntimeEvidenceNextActionCode =
   | 'none'
   | 'wait-command-result'
   | 'inspect-command-failure'
+  | 'retry-runtime-cleanup'
   | 'wait-agent-result'
   | 'inspect-agent-result'
   | 'wait-config-apply'
@@ -298,12 +302,14 @@ function resolveConfigRevision({
   node,
   proof,
   taskId,
-  configRevisions
+  configRevisions,
+  allowTargetFallback = true
 }: {
   node: CustomerNodeRuntimeEvidenceNode;
   proof: AgentRuntimeDeploymentProof | undefined;
   taskId?: string;
   configRevisions: RuntimeConfigRevision[];
+  allowTargetFallback?: boolean;
 }) {
   const proofRevision = proof?.appliedConfigRevisions
     .map((revisionId) => configRevisions.find((revision) => revision.id === revisionId))
@@ -330,10 +336,12 @@ function resolveConfigRevision({
     }
   }
 
-  return byNewestTimestamp(
-    configRevisions.filter((revision) => revision.targetId === node.id),
-    (revision) => revision.appliedAt ?? revision.failedAt ?? revision.createdAt
-  )[0];
+  return allowTargetFallback
+    ? byNewestTimestamp(
+        configRevisions.filter((revision) => revision.targetId === node.id),
+        (revision) => revision.appliedAt ?? revision.failedAt ?? revision.createdAt
+      )[0]
+    : undefined;
 }
 
 function resolveRollbackRecoveryEvidence({
@@ -383,9 +391,11 @@ function resolveRollbackRecoveryEvidence({
 
 function createRuntimeEvidenceNextAction({
   state,
+  task,
   steps
 }: {
   state: CustomerNodeRuntimeEvidenceState;
+  task?: DeployTask;
   steps: CustomerNodeRuntimeEvidenceStep[];
 }): CustomerNodeRuntimeEvidenceNextAction {
   if (state === 'verified') {
@@ -404,6 +414,16 @@ function createRuntimeEvidenceNextAction({
     return {
       code: 'none',
       severity: 'info'
+    };
+  }
+
+  if (state === 'failed' && task?.operation === 'inbound.delete') {
+    return {
+      code: 'retry-runtime-cleanup',
+      severity: 'critical',
+      stepId: step.id,
+      stepState: step.state,
+      detail: task.failureReason ?? step.detail ?? step.value
     };
   }
 
@@ -439,29 +459,39 @@ export function resolveCustomerNodeRuntimeEvidence({
   preflightPlans,
   runtimeSnapshots
 }: ResolveCustomerNodeRuntimeEvidenceInput): CustomerNodeRuntimeEvidenceBundle {
-  const proof = node.runtimeDeployment;
+  const latestInboundTask = byNewestTimestamp(
+    tasks.filter(
+      (item) =>
+        item.targetId === node.id &&
+        (item.operation === 'inbound.create' || item.operation === 'inbound.update' || item.operation === 'inbound.delete')
+    ),
+    (item) => item.updatedAt ?? item.createdAt
+  )[0];
+  const focusedDeleteTask =
+    latestInboundTask?.operation === 'inbound.delete' &&
+    (latestInboundTask.status !== 'succeeded' || node.inboundStatus === 'applying' || node.inboundStatus === 'error')
+      ? latestInboundTask
+      : undefined;
+  const proof = focusedDeleteTask
+    ? readAgentRuntimeDeploymentProof(focusedDeleteTask)
+    : node.runtimeDeployment;
   const proofCommandItems = proof?.commandIds
     .map((commandId) => commandOutbox.find((item) => item.commandId === commandId))
     .filter((item): item is CommandOutboxSummary => Boolean(item)) ?? [];
   const derivedTaskId = taskIdFromConfigVersion(node.configVersion);
   const commandTaskId = proofCommandItems[0]?.taskId;
   const configRevision = resolveConfigRevision({
-    node,
+    node: focusedDeleteTask ? { ...node, configVersion: '' } : node,
     proof,
-    taskId: commandTaskId ?? derivedTaskId,
-    configRevisions
+    taskId: focusedDeleteTask?.id ?? commandTaskId ?? derivedTaskId,
+    configRevisions,
+    allowTargetFallback: !focusedDeleteTask
   });
-  const taskId = configRevision?.taskId ?? commandTaskId ?? derivedTaskId;
+  const taskId = configRevision?.taskId ?? focusedDeleteTask?.id ?? commandTaskId ?? derivedTaskId;
   const task =
+    focusedDeleteTask ??
     (taskId ? tasks.find((item) => item.id === taskId) : undefined) ??
-    byNewestTimestamp(
-      tasks.filter(
-        (item) =>
-          item.targetId === node.id &&
-          (item.operation === 'inbound.create' || item.operation === 'inbound.update' || item.operation === 'inbound.delete')
-      ),
-      (item) => item.updatedAt ?? item.createdAt
-    )[0];
+    latestInboundTask;
   const resolvedTaskId = task?.id ?? taskId;
   const taskCommandItems =
     proofCommandItems.length > 0
@@ -482,7 +512,10 @@ export function resolveCustomerNodeRuntimeEvidence({
       ? runtimeSnapshots.find((snapshot) => snapshot.id === configRevision.snapshotBeforeId)
       : undefined) ??
     byNewestTimestamp(
-      runtimeSnapshots.filter((snapshot) => snapshot.taskId === resolvedTaskId || snapshot.targetId === node.id),
+      runtimeSnapshots.filter(
+        (snapshot) =>
+          snapshot.taskId === resolvedTaskId || (!focusedDeleteTask && snapshot.targetId === node.id)
+      ),
       (snapshot) => snapshot.verifiedAt ?? snapshot.restoredAt ?? snapshot.capturedAt
     )[0];
   const rollbackRecovery = resolveRollbackRecoveryEvidence({
@@ -555,6 +588,7 @@ export function resolveCustomerNodeRuntimeEvidence({
       : 'waiting';
   const nextAction = createRuntimeEvidenceNextAction({
     state,
+    task,
     steps
   });
 

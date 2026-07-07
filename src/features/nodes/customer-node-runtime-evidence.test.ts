@@ -269,6 +269,92 @@ describe('customer node runtime evidence', () => {
     );
   });
 
+  it('focuses the latest failed inbound delete instead of the previous verified apply proof', () => {
+    const evidence = resolveCustomerNodeRuntimeEvidence({
+      node: {
+        id: 'inbound-acme',
+        configVersion: 'cfg-task-0100',
+        inboundStatus: 'error',
+        runtimeDeployment: {
+          source: 'agent-result',
+          verifiedAt: '2026-06-04T04:00:30.000Z',
+          agentIds: ['agent-hkg-01'],
+          commandIds: ['cmd-task-0100'],
+          appliedConfigRevisions: ['cfg-task-0100']
+        }
+      },
+      tasks: [
+        createTask(),
+        createTask({
+          id: 'task-0101',
+          operation: 'inbound.delete',
+          status: 'failed',
+          failureReason: 'command.result.timeout',
+          updatedAt: '2026-06-04T04:12:00.000Z'
+        })
+      ],
+      commandOutbox: [
+        createCommand(),
+        createCommand({
+          id: 'outbox-0101',
+          taskId: 'task-0101',
+          commandId: 'cmd-task-0101',
+          status: 'dead_letter',
+          lastError: 'command.result.timeout',
+          resultAt: undefined,
+          updatedAt: '2026-06-04T04:12:00.000Z'
+        })
+      ],
+      configRevisions: [createConfigRevision()],
+      preflightPlans: [
+        createPreflightPlan(),
+        createPreflightPlan({
+          id: 'preflight-task-0101',
+          taskId: 'task-0101',
+          configRevisionId: 'cfg-task-0101',
+          status: 'failed',
+          failureReason: 'command.result.timeout'
+        })
+      ],
+      runtimeSnapshots: [
+        createRuntimeSnapshot(),
+        createRuntimeSnapshot({
+          id: 'snapshot-task-0101',
+          taskId: 'task-0101',
+          status: 'captured',
+          verifiedAt: undefined,
+          capturedAt: '2026-06-04T04:10:00.000Z'
+        })
+      ]
+    });
+
+    expect(evidence).toMatchObject({
+      state: 'failed',
+      taskId: 'task-0101',
+      evidenceStage: 'waiting',
+      task: {
+        id: 'task-0101',
+        operation: 'inbound.delete',
+        status: 'failed'
+      },
+      nextAction: {
+        code: 'retry-runtime-cleanup',
+        severity: 'critical',
+        stepId: 'command',
+        stepState: 'failed',
+        detail: 'command.result.timeout'
+      }
+    });
+    expect(evidence.proof).toBeUndefined();
+    expect(evidence.commandOutboxItems.map((item) => item.commandId)).toEqual(['cmd-task-0101']);
+    expect(evidence.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'command', state: 'failed', detail: 'command.result.timeout' }),
+        expect.objectContaining({ id: 'preflight', state: 'failed', detail: 'command.result.timeout' })
+      ])
+    );
+  });
+
   it('points the next action at the failed preflight when preflight blocks runtime apply', () => {
     const evidence = resolveCustomerNodeRuntimeEvidence({
       node: {

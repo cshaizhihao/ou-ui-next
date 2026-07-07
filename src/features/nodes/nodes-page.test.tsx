@@ -3561,6 +3561,102 @@ describe('NodesPage', () => {
     expect(onOpenRuntimeEvidenceWorkspace).toHaveBeenCalledTimes(1);
   });
 
+  it('offers a retry path when customer-node delete runtime cleanup fails', async () => {
+    const user = userEvent.setup();
+    const onDeleteCustomerNode = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            status: 'error',
+            configVersion: 'cfg-task-xray-apply-01',
+            runtimeDeployment: {
+              source: 'agent-result',
+              verifiedAt: '2026-06-04T04:05:00.000Z',
+              agentIds: ['agent-metered-01'],
+              commandIds: ['cmd-task-xray-apply-01'],
+              appliedConfigRevisions: ['cfg-task-xray-apply-01']
+            }
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[
+          createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-xray-delete-01',
+            operation: 'inbound.delete',
+            status: 'failed',
+            failureReason: 'command.result.timeout',
+            updatedAt: '2026-06-04T04:12:00.000Z'
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand(),
+          createRuntimeCommand({
+            id: 'outbox-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            commandId: 'cmd-task-xray-delete-01',
+            status: 'dead_letter',
+            lastError: 'command.result.timeout',
+            resultAt: undefined,
+            updatedAt: '2026-06-04T04:12:00.000Z'
+          })
+        ]}
+        configRevisions={[createRuntimeConfigRevision()]}
+        preflightPlans={[
+          createRuntimePreflightPlan(),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            configRevisionId: 'cfg-task-xray-delete-01',
+            status: 'failed',
+            failureReason: 'command.result.timeout'
+          })
+        ]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot(),
+          createRuntimeSnapshot({
+            id: 'snapshot-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            status: 'captured',
+            verifiedAt: undefined,
+            capturedAt: '2026-06-04T04:10:00.000Z'
+          })
+        ]}
+        onDeleteCustomerNode={onDeleteCustomerNode}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' }));
+
+    const drawer = screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' });
+
+    expect(within(drawer).getByText('task-xray-delete-01 · failed')).toBeInTheDocument();
+    expect(within(drawer).getByText('Retry Runtime Cleanup')).toBeInTheDocument();
+    expect(drawer.querySelector('[data-customer-runtime-evidence-next-action="retry-runtime-cleanup"]')).not.toBeNull();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Retry Runtime Cleanup' }));
+
+    expect(onDeleteCustomerNode).toHaveBeenCalledTimes(1);
+    expect(onDeleteCustomerNode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodeId: 'inbound-premium-vless',
+        customerNodeName: 'Acme Premium VLESS',
+        clientIdentity: 'client-acme-premium'
+      })
+    );
+    expect(screen.queryByRole('dialog', { name: 'Customer Node Runtime Evidence' })).not.toBeInTheDocument();
+  });
+
   it('starts rollback from the customer-node runtime evidence drawer when the source task is rollback-ready', async () => {
     const user = userEvent.setup();
     const onRollbackRuntimeTask = vi.fn();

@@ -794,6 +794,7 @@ const copy = {
     customerRuntimeEvidenceWorkspace: '打开任务证据',
     customerRuntimeEvidenceCopyPackage: '复制诊断包',
     customerRuntimeEvidenceRollbackAction: '发起回滚',
+    customerRuntimeEvidenceRetryDeleteAction: '重试运行时清理',
     customerRuntimeEvidenceRollbackRecovery: '回滚恢复',
     customerRuntimeEvidenceRollbackRestoredSnapshot: '恢复快照',
     customerRuntimeEvidenceTask: '任务',
@@ -833,6 +834,7 @@ const copy = {
       none: '无需动作，证据链已闭合。',
       'wait-command-result': '等待 Agent ACK/result；若长期停留，检查 Agent 会话和 command outbox。',
       'inspect-command-failure': '先检查 Agent command 错误、会话状态和关联日志。',
+      'retry-runtime-cleanup': '重新提交入站删除，让 Agent 再次执行 runtime cleanup，并继续跟踪 command/result 证据。',
       'wait-agent-result': '等待 Agent runtime result；超时后检查 Agent 在线状态和任务命令。',
       'inspect-agent-result': '先查看 Agent result 失败原因，再使用回滚或运行时诊断。',
       'wait-config-apply': '等待配置版本从 compiled/preflight_ready 进入 applied。',
@@ -1304,6 +1306,7 @@ const copy = {
     customerRuntimeEvidenceWorkspace: 'Open Task Evidence',
     customerRuntimeEvidenceCopyPackage: 'Copy Evidence Package',
     customerRuntimeEvidenceRollbackAction: 'Start Rollback',
+    customerRuntimeEvidenceRetryDeleteAction: 'Retry Runtime Cleanup',
     customerRuntimeEvidenceRollbackRecovery: 'Rollback Recovery',
     customerRuntimeEvidenceRollbackRestoredSnapshot: 'Restored Snapshot',
     customerRuntimeEvidenceTask: 'Task',
@@ -1343,6 +1346,7 @@ const copy = {
       none: 'No action required; the evidence chain is closed.',
       'wait-command-result': 'Wait for Agent ACK/result; if it stays pending, inspect the Agent session and command outbox.',
       'inspect-command-failure': 'Inspect the Agent command error, session state, and related logs first.',
+      'retry-runtime-cleanup': 'Submit the inbound delete again so the Agent retries runtime cleanup, then track command/result evidence.',
       'wait-agent-result': 'Wait for the Agent runtime result; if it times out, inspect Agent liveness and task command state.',
       'inspect-agent-result': 'Start with the Agent result failure reason, then use rollback or runtime diagnosis.',
       'wait-config-apply': 'Wait for the config revision to move from compiled/preflight_ready to applied.',
@@ -3903,6 +3907,7 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
   t,
   onCopyPackage,
   onOpenWorkspace,
+  onRetryDelete,
   onRollbackTask
 }: {
   evidence: CustomerNodeRuntimeEvidenceBundle;
@@ -3911,6 +3916,7 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
   t: NodesCopy;
   onCopyPackage: () => void;
   onOpenWorkspace?: () => void;
+  onRetryDelete?: () => void;
   onRollbackTask?: () => void;
 }) {
   const stateClass = {
@@ -4071,6 +4077,16 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
 
       <div className="flex flex-wrap justify-end gap-2">
         <GhostButton label={t.customerRuntimeEvidenceCopyPackage} onClick={onCopyPackage} />
+        {onRetryDelete ? (
+          <button
+            className="inline-flex items-center gap-2 border border-[#DC2626]/35 bg-[#DC2626]/10 px-4 py-2 text-xs font-black text-[#B91C1C] transition hover:border-[#DC2626]/60 hover:bg-[#DC2626]/15 dark:border-[#F87171]/30 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]"
+            onClick={onRetryDelete}
+            type="button"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t.customerRuntimeEvidenceRetryDeleteAction}
+          </button>
+        ) : null}
         {onOpenWorkspace ? (
           <GlowButton className="gap-2 px-4 py-2 text-xs" onClick={onOpenWorkspace}>
             <Terminal className="h-3.5 w-3.5" />
@@ -8280,6 +8296,15 @@ export function NodesPage({
                 ? () => {
                     setDrawer({ type: 'closed' });
                     onOpenRuntimeEvidenceWorkspace();
+                  }
+                : undefined
+            }
+            onRetryDelete={
+              selectedRuntimeEvidence.task?.operation === 'inbound.delete' &&
+              selectedRuntimeEvidence.task.status === 'failed'
+                ? () => {
+                    setDrawer({ type: 'closed' });
+                    handleDeleteCustomerNode(runtimeEvidenceCustomerNode);
                   }
                 : undefined
             }
