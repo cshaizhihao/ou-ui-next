@@ -109,6 +109,28 @@ type SubscriptionDeliveryCheckResult = {
   targets: SubscriptionDeliveryCheckTarget[];
 };
 
+type SourceSyncDiagnosisState = 'ready' | 'warning' | 'failed' | 'paused' | 'syncing';
+
+type SourceSyncWarningDetail = {
+  raw: string;
+  label: string;
+  nextAction: string;
+  severity: 'warning' | 'failed';
+};
+
+type SourceSyncDiagnosis = {
+  state: SourceSyncDiagnosisState;
+  stateLabel: string;
+  summary: string;
+  nextAction: string;
+  warnings: SourceSyncWarningDetail[];
+  budgetWarnings: string[];
+  fetchBudgetLabel: string;
+  byteBudgetLabel: string;
+  remoteLabel: string;
+  rulesLabel: string;
+};
+
 export type SubscriptionMixerFocusIntent = {
   id: string;
   kind: 'subscription.links';
@@ -234,6 +256,7 @@ type DrawerState =
   | { type: 'closed' }
   | { type: 'client'; id?: string }
   | { type: 'source' }
+  | { type: 'source-diagnostics'; sourceId: string }
   | { type: 'profile'; id?: string }
   | { type: 'links'; clientId: string }
   | { type: 'nodes'; clientId: string };
@@ -495,6 +518,41 @@ const copy = {
     sourceImpactNodePreview: '节点预览',
     sourceImpactRiskPreview: '风险提示',
     sourceImpactNoRisk: '暂无同步警告或异常来源',
+    sourceSyncDiagnosis: '同步诊断',
+    viewSourceSyncDiagnosis: '查看同步诊断',
+    copySourceSyncDiagnosis: '复制同步诊断',
+    sourceSyncDiagnosisState: '诊断状态',
+    sourceSyncDiagnosisNextAction: '下一步',
+    sourceSyncDiagnosisWarnings: '同步问题',
+    sourceSyncDiagnosisNoWarnings: '暂无同步问题。',
+    sourceSyncDiagnosisBudget: '抓取预算',
+    sourceSyncDiagnosisRemote: '远端配置',
+    sourceSyncDiagnosisRules: '来源规则',
+    sourceSyncDiagnosisReady: '正常',
+    sourceSyncDiagnosisWarning: '有警告',
+    sourceSyncDiagnosisFailed: '失败',
+    sourceSyncDiagnosisPaused: '已暂停',
+    sourceSyncDiagnosisSyncing: '同步中',
+    sourceSyncDiagnosisSummaryReady: '订阅源最近同步没有返回警告。',
+    sourceSyncDiagnosisSummaryWarning: '订阅源可用，但同步结果存在需要处理的问题。',
+    sourceSyncDiagnosisSummaryFailed: '订阅源同步失败，需要先修复远端或抓取配置。',
+    sourceSyncDiagnosisSummaryPaused: '订阅源已暂停，不会继续刷新节点。',
+    sourceSyncDiagnosisSummarySyncing: '订阅源正在同步，等待最新结果回写。',
+    sourceSyncDiagnosisNextReady: '可以继续使用该来源生成库存和订阅输出。',
+    sourceSyncDiagnosisNextWarning: '按问题列表处理协议、过滤、去重或远端响应，再重新同步。',
+    sourceSyncDiagnosisNextFailed: '先检查远端地址、鉴权、超时和响应大小，再重新同步。',
+    sourceSyncDiagnosisNextPaused: '恢复来源同步后再观察节点和告警状态。',
+    sourceSyncDiagnosisNextSyncing: '等待同步完成后查看最新诊断。',
+    sourceSyncWarningUnsupportedProtocolNext: '移除不兼容节点，或先把该协议标记为 Preview/转换能力后再交付。',
+    sourceSyncWarningInvalidNodesNext: '检查远端订阅格式和必需字段。',
+    sourceSyncWarningFilteredNodesNext: '调整 include/exclude/region 规则，或确认过滤结果符合预期。',
+    sourceSyncWarningDedupedNodesNext: '检查同源重复节点，必要时调整去重策略。',
+    sourceSyncWarningCrossSourceDuplicatesNext: '检查其它来源的重复节点，必要时调整来源优先级或去重键。',
+    sourceSyncWarningSyncFailedNext: '检查远端响应、网络、超时、响应大小和鉴权。',
+    sourceSyncWarningEmptyNext: '确认远端订阅包含可支持节点，或放宽过滤规则。',
+    sourceSyncWarningMockNext: '连接真实 Control Plane 后重新同步。',
+    sourceSyncWarningBudgetNext: '等待预算窗口刷新，或提高抓取预算。',
+    sourceSyncWarningGenericNext: '查看同步任务和系统告警中的上下文。',
     exportImpactPreflight: '生成影响预检',
     exportImpactFiles: '导出文件',
     exportImpactClients: '订阅身份',
@@ -789,6 +847,41 @@ const copy = {
     sourceImpactNodePreview: 'Node Preview',
     sourceImpactRiskPreview: 'Risk Notes',
     sourceImpactNoRisk: 'No sync warnings or source risks',
+    sourceSyncDiagnosis: 'Sync Diagnosis',
+    viewSourceSyncDiagnosis: 'View Sync Diagnosis',
+    copySourceSyncDiagnosis: 'Copy Sync Diagnosis',
+    sourceSyncDiagnosisState: 'Diagnosis State',
+    sourceSyncDiagnosisNextAction: 'Next Action',
+    sourceSyncDiagnosisWarnings: 'Sync Issues',
+    sourceSyncDiagnosisNoWarnings: 'No sync issues.',
+    sourceSyncDiagnosisBudget: 'Fetch Budget',
+    sourceSyncDiagnosisRemote: 'Remote Config',
+    sourceSyncDiagnosisRules: 'Source Rules',
+    sourceSyncDiagnosisReady: 'Ready',
+    sourceSyncDiagnosisWarning: 'Warning',
+    sourceSyncDiagnosisFailed: 'Failed',
+    sourceSyncDiagnosisPaused: 'Paused',
+    sourceSyncDiagnosisSyncing: 'Syncing',
+    sourceSyncDiagnosisSummaryReady: 'The source returned no warnings during the latest sync.',
+    sourceSyncDiagnosisSummaryWarning: 'The source is usable, but the sync result has issues to resolve.',
+    sourceSyncDiagnosisSummaryFailed: 'The source sync failed; fix the remote or fetch settings first.',
+    sourceSyncDiagnosisSummaryPaused: 'The source is paused and will not refresh nodes.',
+    sourceSyncDiagnosisSummarySyncing: 'The source is syncing; wait for the latest result.',
+    sourceSyncDiagnosisNextReady: 'Keep using this source for inventory and subscription output.',
+    sourceSyncDiagnosisNextWarning: 'Resolve protocol, filter, dedupe, or remote-response issues, then sync again.',
+    sourceSyncDiagnosisNextFailed: 'Check remote URL, auth, timeout, and response size before syncing again.',
+    sourceSyncDiagnosisNextPaused: 'Resume source sync before relying on node and warning state.',
+    sourceSyncDiagnosisNextSyncing: 'Wait for sync completion before reading the latest diagnosis.',
+    sourceSyncWarningUnsupportedProtocolNext: 'Remove incompatible nodes or keep the protocol as Preview until conversion is supported.',
+    sourceSyncWarningInvalidNodesNext: 'Check the remote subscription format and required fields.',
+    sourceSyncWarningFilteredNodesNext: 'Adjust include/exclude/region rules, or confirm the filtered result is expected.',
+    sourceSyncWarningDedupedNodesNext: 'Review same-source duplicate nodes and adjust the dedupe policy if needed.',
+    sourceSyncWarningCrossSourceDuplicatesNext: 'Review duplicates from other sources and adjust source priority or dedupe key.',
+    sourceSyncWarningSyncFailedNext: 'Check remote response, network, timeout, response size, and auth.',
+    sourceSyncWarningEmptyNext: 'Confirm the remote subscription contains supported nodes or loosen filters.',
+    sourceSyncWarningMockNext: 'Sync again with a real Control Plane connection.',
+    sourceSyncWarningBudgetNext: 'Wait for the budget window to refresh or raise the fetch budget.',
+    sourceSyncWarningGenericNext: 'Check related sync tasks and system alerts for context.',
     exportImpactPreflight: 'Generation Impact Preflight',
     exportImpactFiles: 'Export Files',
     exportImpactClients: 'Identities',
@@ -1315,6 +1408,225 @@ function formatSourceSyncWarning(warning: string, language: AppLanguage) {
   }
 
   return language === 'zh' ? '同步告警' : 'Sync warning';
+}
+
+function createSourceSyncWarningDetail(
+  warning: string,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+): SourceSyncWarningDetail {
+  const label = formatSourceSyncWarning(warning, language);
+  const nextAction =
+    /^subscription_source\.unsupported_protocol_nodes:/.test(warning)
+      ? t.sourceSyncWarningUnsupportedProtocolNext
+      : /^subscription_source\.invalid_nodes:/.test(warning)
+        ? t.sourceSyncWarningInvalidNodesNext
+        : /^subscription_source\.filtered_nodes:/.test(warning)
+          ? t.sourceSyncWarningFilteredNodesNext
+          : /^subscription_source\.deduped_nodes:/.test(warning)
+            ? t.sourceSyncWarningDedupedNodesNext
+            : /^subscription_source\.cross_source_duplicates:/.test(warning)
+              ? t.sourceSyncWarningCrossSourceDuplicatesNext
+              : warning.startsWith('subscription_source.sync_failed:')
+                ? t.sourceSyncWarningSyncFailedNext
+                : warning === 'subscription_source.empty_or_unsupported'
+                  ? t.sourceSyncWarningEmptyNext
+                  : warning === 'subscription_source.mock_sync_has_no_remote_fetch'
+                    ? t.sourceSyncWarningMockNext
+                    : t.sourceSyncWarningGenericNext;
+
+  return {
+    raw: warning,
+    label,
+    nextAction,
+    severity: warning.startsWith('subscription_source.sync_failed:') ? 'failed' : 'warning'
+  };
+}
+
+function createSourceSyncBudgetWarnings(
+  source: SubscriptionSource,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+) {
+  const warnings: string[] = [];
+
+  if (!source.syncBudget) {
+    return warnings;
+  }
+
+  const maxFetchesPerDay = source.syncBudget.maxFetchesPerDay ?? 0;
+  const maxBytesPerDay = source.syncBudget.maxBytesPerDay ?? 0;
+
+  if (maxFetchesPerDay > 0 && source.syncBudget.usedFetches >= maxFetchesPerDay) {
+    warnings.push(
+      language === 'zh'
+        ? `抓取次数预算已用尽：${formatNumber(source.syncBudget.usedFetches, language)} / ${formatNumber(maxFetchesPerDay, language)} ${t.budgetFetchUnit}`
+        : `Fetch budget exhausted: ${formatNumber(source.syncBudget.usedFetches, language)} / ${formatNumber(maxFetchesPerDay, language)} ${t.budgetFetchUnit}`
+    );
+  }
+
+  if (maxBytesPerDay > 0 && source.syncBudget.usedBytes >= maxBytesPerDay) {
+    warnings.push(
+      language === 'zh'
+        ? `抓取字节预算已用尽：${formatBytes(source.syncBudget.usedBytes)} / ${formatBytes(maxBytesPerDay)}`
+        : `Byte budget exhausted: ${formatBytes(source.syncBudget.usedBytes)} / ${formatBytes(maxBytesPerDay)}`
+    );
+  }
+
+  return warnings;
+}
+
+function getSourceSyncDiagnosisStateLabel(
+  state: SourceSyncDiagnosisState,
+  t: (typeof copy)[AppLanguage]
+) {
+  const labels = {
+    ready: t.sourceSyncDiagnosisReady,
+    warning: t.sourceSyncDiagnosisWarning,
+    failed: t.sourceSyncDiagnosisFailed,
+    paused: t.sourceSyncDiagnosisPaused,
+    syncing: t.sourceSyncDiagnosisSyncing
+  } satisfies Record<SourceSyncDiagnosisState, string>;
+
+  return labels[state];
+}
+
+function getSourceSyncDiagnosisSummary(
+  state: SourceSyncDiagnosisState,
+  t: (typeof copy)[AppLanguage]
+) {
+  const summaries = {
+    ready: t.sourceSyncDiagnosisSummaryReady,
+    warning: t.sourceSyncDiagnosisSummaryWarning,
+    failed: t.sourceSyncDiagnosisSummaryFailed,
+    paused: t.sourceSyncDiagnosisSummaryPaused,
+    syncing: t.sourceSyncDiagnosisSummarySyncing
+  } satisfies Record<SourceSyncDiagnosisState, string>;
+
+  return summaries[state];
+}
+
+function getSourceSyncDiagnosisNextAction(
+  state: SourceSyncDiagnosisState,
+  t: (typeof copy)[AppLanguage]
+) {
+  const nextActions = {
+    ready: t.sourceSyncDiagnosisNextReady,
+    warning: t.sourceSyncDiagnosisNextWarning,
+    failed: t.sourceSyncDiagnosisNextFailed,
+    paused: t.sourceSyncDiagnosisNextPaused,
+    syncing: t.sourceSyncDiagnosisNextSyncing
+  } satisfies Record<SourceSyncDiagnosisState, string>;
+
+  return nextActions[state];
+}
+
+function createSourceSyncDiagnosis(
+  source: SubscriptionSource,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+): SourceSyncDiagnosis {
+  const warnings = (source.syncWarnings ?? []).map((warning) => createSourceSyncWarningDetail(warning, language, t));
+  const budgetWarnings = createSourceSyncBudgetWarnings(source, language, t);
+  const state: SourceSyncDiagnosisState =
+    source.status === 'failed' || warnings.some((warning) => warning.severity === 'failed')
+      ? 'failed'
+      : source.status === 'paused'
+        ? 'paused'
+        : source.status === 'syncing'
+          ? 'syncing'
+          : source.status === 'warning' || warnings.length > 0 || budgetWarnings.length > 0
+            ? 'warning'
+            : 'ready';
+  const fetchBudgetLabel = source.syncBudget
+    ? `${formatNumber(source.syncBudget.usedFetches, language)} / ${
+        source.syncBudget.maxFetchesPerDay ? formatNumber(source.syncBudget.maxFetchesPerDay, language) : t.budgetUnlimited
+      } ${t.budgetFetchUnit}`
+    : '-';
+  const byteBudgetLabel = source.syncBudget
+    ? `${formatBytes(source.syncBudget.usedBytes)} / ${
+        source.syncBudget.maxBytesPerDay ? formatBytes(source.syncBudget.maxBytesPerDay) : t.budgetUnlimited
+      }`
+    : '-';
+  const remoteLabel = [
+    source.kind,
+    source.userAgent || 'OU-UI-Next/1.0',
+    `${source.fetchTimeoutSeconds ?? 20}s`,
+    source.maxBodyBytes ? formatBytes(source.maxBodyBytes) : t.budgetUnlimited
+  ].join(' / ');
+  const rulesLabel = [
+    `include=${source.includeFilter || '*'}`,
+    `exclude=${source.excludeFilter || '-'}`,
+    `dedupe=${source.dedupeKey}`
+  ].join(' / ');
+
+  return {
+    state,
+    stateLabel: getSourceSyncDiagnosisStateLabel(state, t),
+    summary: getSourceSyncDiagnosisSummary(state, t),
+    nextAction: getSourceSyncDiagnosisNextAction(state, t),
+    warnings,
+    budgetWarnings,
+    fetchBudgetLabel,
+    byteBudgetLabel,
+    remoteLabel,
+    rulesLabel
+  };
+}
+
+function redactSourceDiagnosticUrl(value: string) {
+  try {
+    const url = new URL(value);
+
+    if (url.username) {
+      url.username = 'redacted';
+    }
+
+    if (url.password) {
+      url.password = 'redacted';
+    }
+
+    Array.from(url.searchParams.keys()).forEach((key) => {
+      if (/token|key|secret|password|passwd|auth|access/i.test(key)) {
+        url.searchParams.set(key, 'REDACTED');
+      }
+    });
+
+    return url.toString();
+  } catch {
+    return value.replace(/((?:token|key|secret|password|passwd|auth|access)[^=&\s]*=)[^&\s]+/gi, '$1REDACTED');
+  }
+}
+
+function createSourceSyncDiagnosisText(
+  source: SubscriptionSource,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+) {
+  const diagnosis = createSourceSyncDiagnosis(source, language, t);
+  const lines = [
+    `Source Sync Diagnosis: ${diagnosis.stateLabel}`,
+    `Source ID: ${source.id}`,
+    `Source Name: ${source.name}`,
+    `Source URL: ${redactSourceDiagnosticUrl(source.url)}`,
+    `Status: ${source.status}`,
+    `Kind: ${source.kind}`,
+    `Nodes: ${source.nodeCount}`,
+    `Last Sync: ${source.lastSyncAt}`,
+    `Next Action: ${diagnosis.nextAction}`,
+    `Fetch Budget: ${diagnosis.fetchBudgetLabel}`,
+    `Byte Budget: ${diagnosis.byteBudgetLabel}`,
+    `Remote Config: ${diagnosis.remoteLabel}`,
+    `Source Rules: ${diagnosis.rulesLabel}`
+  ];
+  const warningLines = [
+    ...diagnosis.warnings.map((warning) => `- ${warning.label} | Next: ${warning.nextAction} | Raw: ${warning.raw}`),
+    ...diagnosis.budgetWarnings.map((warning) => `- ${warning} | Next: ${t.sourceSyncWarningBudgetNext}`)
+  ];
+
+  lines.push('Warnings:', ...(warningLines.length > 0 ? warningLines : ['- none']));
+
+  return lines.join('\n');
 }
 
 function createClientMetadataFromDraft(
@@ -2501,6 +2813,8 @@ export function SubscriptionMixerPage({
   const linkDrawerClient =
     drawer.type === 'links' ? subscriptionClients.find((client) => client.id === drawer.clientId) : undefined;
   const linkDrawerDeliveryCheck = linkDrawerClient ? deliveryChecks[linkDrawerClient.id] : undefined;
+  const sourceDiagnosticsDrawerSource =
+    drawer.type === 'source-diagnostics' ? sources.find((source) => source.id === drawer.sourceId) : undefined;
   const nodeDrawerClient =
     drawer.type === 'nodes' ? subscriptionClients.find((client) => client.id === drawer.clientId) : undefined;
   const nodeDrawerMatches = useMemo(
@@ -2641,6 +2955,10 @@ export function SubscriptionMixerPage({
 
   function openMatchedNodesDrawer(client: SubscriptionClientIdentity) {
     setDrawer({ type: 'nodes', clientId: client.id });
+  }
+
+  function openSourceDiagnosticsDrawer(source: SubscriptionSource) {
+    setDrawer({ type: 'source-diagnostics', sourceId: source.id });
   }
 
   function viewClientInInventory(client: SubscriptionClientIdentity) {
@@ -3758,6 +4076,9 @@ export function SubscriptionMixerPage({
                           </td>
                           <td className="px-3 py-2.5">
                             <div className="flex justify-end gap-2">
+                              <IconButton label={t.viewSourceSyncDiagnosis} onClick={() => openSourceDiagnosticsDrawer(source)}>
+                                <ListTree className="h-3.5 w-3.5" />
+                              </IconButton>
                               <IconButton label={t.syncNow} onClick={() => syncSource(source)}>
                                 <RefreshCcw className="h-3.5 w-3.5" />
                               </IconButton>
@@ -4610,6 +4931,26 @@ export function SubscriptionMixerPage({
       </ConfigDrawer>
 
       <ConfigDrawer
+        open={drawer.type === 'source-diagnostics'}
+        returnFocusRef={returnFocusRef}
+        title={sourceDiagnosticsDrawerSource ? `${sourceDiagnosticsDrawerSource.name} ${t.sourceSyncDiagnosis}` : t.sourceSyncDiagnosis}
+        onClose={() => setDrawer({ type: 'closed' })}
+      >
+        {sourceDiagnosticsDrawerSource ? (
+          <SourceSyncDiagnosisPanel
+            diagnosis={createSourceSyncDiagnosis(sourceDiagnosticsDrawerSource, language, t)}
+            language={language}
+            onCopy={() => {
+              void copyToClipboard(createSourceSyncDiagnosisText(sourceDiagnosticsDrawerSource, language, t));
+            }}
+            onSync={() => syncSource(sourceDiagnosticsDrawerSource)}
+            source={sourceDiagnosticsDrawerSource}
+            t={t}
+          />
+        ) : null}
+      </ConfigDrawer>
+
+      <ConfigDrawer
         open={drawer.type === 'nodes'}
         returnFocusRef={returnFocusRef}
         title={nodeDrawerClient ? t.matchedNodesTitle(nodeDrawerClient.displayName) : t.matchedNodes}
@@ -4682,6 +5023,22 @@ export function SubscriptionMixerPage({
                           {item.id}
                         </span>
                       </div>
+                      {item.source ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            className={compactNeutralActionButtonClass}
+                            onClick={() => {
+                              if (item.source) {
+                                openSourceDiagnosticsDrawer(item.source);
+                              }
+                            }}
+                            type="button"
+                          >
+                            <ListTree className="h-3.5 w-3.5" />
+                            {t.viewSourceSyncDiagnosis}
+                          </button>
+                        </div>
+                      ) : null}
                       {item.source?.syncWarnings?.length ? (
                         <div className="mt-2 space-y-1 text-xs font-semibold text-[#FF3D18] dark:text-[#FFD8C6]">
                           {item.source.syncWarnings.slice(0, 2).map((warning) => (
@@ -5338,6 +5695,132 @@ function SubscriptionDeliveryCheckPanel({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function SourceSyncDiagnosisPanel({
+  diagnosis,
+  language,
+  onCopy,
+  onSync,
+  source,
+  t
+}: {
+  diagnosis: SourceSyncDiagnosis;
+  language: AppLanguage;
+  onCopy: () => void;
+  onSync: () => void;
+  source: SubscriptionSource;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const panelClass = {
+    ready: subscriptionDrawerCommandPanelClass,
+    warning: subscriptionDrawerMutedPanelClass,
+    failed: subscriptionDrawerSignalPanelClass,
+    paused: subscriptionDrawerMutedPanelClass,
+    syncing: subscriptionDrawerCommandPanelClass
+  } satisfies Record<SourceSyncDiagnosisState, string>;
+  const badgeClass = {
+    ready: 'border-[#00A878]/35 bg-[#00A878]/12 text-[#006B50] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    warning: 'border-[#FFB020]/40 bg-[#FFF3C4]/70 text-[#8A5A00] dark:border-[#FFD166]/28 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    failed: 'border-[#FF3D18]/40 bg-[#FFF1EC]/80 text-[#9F2A13] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/14 dark:text-[#FFD8C6]',
+    paused: 'border-[#07111F]/18 bg-white/60 text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60',
+    syncing: 'border-[#1E3AFF]/35 bg-[#DCE1FF]/76 text-[#07111F] dark:border-[#6B7CFF]/28 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF]'
+  } satisfies Record<SourceSyncDiagnosisState, string>;
+  const budgetIssues = diagnosis.budgetWarnings.map((warning) => ({
+    label: warning,
+    nextAction: t.sourceSyncWarningBudgetNext,
+    severity: 'warning' as const
+  }));
+  const issues = [...diagnosis.warnings, ...budgetIssues];
+
+  return (
+    <div className="space-y-3">
+      <section
+        aria-label={t.sourceSyncDiagnosis}
+        className={panelClass[diagnosis.state]}
+        data-source-sync-diagnosis-state={diagnosis.state}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-widest">{t.sourceSyncDiagnosis}</p>
+            <p className="mt-2 break-words text-sm font-black">{diagnosis.summary}</p>
+          </div>
+          <span className={`border px-2.5 py-1 text-[10px] font-black uppercase ${badgeClass[diagnosis.state]}`}>
+            {diagnosis.stateLabel}
+          </span>
+        </div>
+        <p className="mt-3 border border-current/18 bg-white/45 px-2.5 py-2 text-[11px] font-semibold leading-5 dark:bg-white/[0.04]">
+          <span className="font-black uppercase tracking-widest">{t.sourceSyncDiagnosisNextAction}: </span>
+          {diagnosis.nextAction}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className={compactCommandActionButtonClass} onClick={onSync} type="button">
+            <RefreshCcw className="h-3.5 w-3.5" />
+            {t.syncNow}
+          </button>
+          <button className={compactNeutralActionButtonClass} onClick={onCopy} type="button">
+            <Copy className="h-3.5 w-3.5" />
+            {t.copySourceSyncDiagnosis}
+          </button>
+        </div>
+      </section>
+
+      <section className={subscriptionDrawerNeutralPanelClass}>
+        <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
+          {t.sourceSyncDiagnosisRemote}
+        </p>
+        <p className="mt-3 break-all border border-[#07111F]/14 bg-[#FDFFF1]/80 p-3 font-mono text-[11px] leading-5 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70">
+          {source.url}
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+          <SubscriptionDiagnosticField label={t.sourceSyncDiagnosisState} value={diagnosis.stateLabel} />
+          <SubscriptionDiagnosticField label={t.sourceStatus} value={source.status} />
+          <SubscriptionDiagnosticField label={t.sourceNodes} value={formatNumber(source.nodeCount, language)} />
+          <SubscriptionDiagnosticField label={t.lastSync} value={formatDateTime(source.lastSyncAt, language)} />
+          <SubscriptionDiagnosticField
+            label={t.sourceSyncDiagnosisBudget}
+            value={`${diagnosis.fetchBudgetLabel} / ${diagnosis.byteBudgetLabel}`}
+          />
+          <SubscriptionDiagnosticField label={t.sourceSyncDiagnosisRemote} value={diagnosis.remoteLabel} />
+          <SubscriptionDiagnosticField label={t.sourceSyncDiagnosisRules} value={diagnosis.rulesLabel} />
+          <SubscriptionDiagnosticField label={t.providerAccount} value={source.providerAccountId || '-'} />
+        </div>
+      </section>
+
+      <section className={issues.length > 0 ? subscriptionDrawerSignalPanelClass : subscriptionDrawerMutedPanelClass}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-widest">{t.sourceSyncDiagnosisWarnings}</p>
+          <span className="border border-current/18 bg-white/45 px-2.5 py-1 text-[10px] font-black uppercase dark:bg-white/[0.04]">
+            {formatNumber(issues.length, language)}
+          </span>
+        </div>
+        {issues.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {issues.map((issue) => (
+              <div
+                className={`border p-2.5 ${
+                  issue.severity === 'failed'
+                    ? 'border-[#FF3D18]/35 bg-[#FFF1EC]/76 dark:border-[#FF6A3A]/24 dark:bg-[#FF3D18]/10'
+                    : 'border-[#FFB020]/35 bg-[#FFF8DD]/76 dark:border-[#FFD166]/24 dark:bg-[#FFD166]/10'
+                }`}
+                key={issue.label}
+              >
+                <p className="text-xs font-black text-[#07111F] dark:text-white">{issue.label}</p>
+                <p className="mt-2 text-[11px] font-semibold leading-5 text-[#35405A] dark:text-white/60">
+                  <span className="font-black uppercase tracking-widest">{t.sourceSyncDiagnosisNextAction}: </span>
+                  {issue.nextAction}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm font-semibold text-[#35405A] dark:text-white/60">
+            {t.sourceSyncDiagnosisNoWarnings}
+          </p>
+        )}
+      </section>
+    </div>
   );
 }
 

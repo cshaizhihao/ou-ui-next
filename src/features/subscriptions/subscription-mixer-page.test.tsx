@@ -1499,6 +1499,12 @@ describe('SubscriptionMixerPage', () => {
 
   it('shows external source sync warnings without exposing raw warning codes', async () => {
     const user = userEvent.setup();
+    const writeText = vi.fn();
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
     renderPage({
       subscriptionSources: [
         {
@@ -1524,6 +1530,25 @@ describe('SubscriptionMixerPage', () => {
     expect(warning.closest('div')?.outerHTML).not.toContain('rose-');
     expect(screen.queryByText('subscription_source.cross_source_duplicates:2')).not.toBeInTheDocument();
     expect(screen.queryByText('subscription_source.unsupported_protocol_nodes:1')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '查看同步诊断' }));
+
+    const drawer = screen.getByLabelText('香港 Premium 源 同步诊断');
+    const diagnosis = within(drawer).getByRole('region', { name: '同步诊断' });
+
+    expect(diagnosis).toHaveAttribute('data-source-sync-diagnosis-state', 'warning');
+    expect(diagnosis).toHaveTextContent('有警告');
+    expect(diagnosis).toHaveTextContent('按问题列表处理协议、过滤、去重或远端响应，再重新同步。');
+    expect(drawer).toHaveTextContent('字段缺失或无法解析节点 3 个');
+    expect(drawer).toHaveTextContent('检查远端订阅格式和必需字段。');
+    expect(drawer).toHaveTextContent('检查其它来源的重复节点，必要时调整来源优先级或去重键。');
+    expect(drawer).not.toHaveTextContent('subscription_source.invalid_nodes:3');
+
+    await user.click(within(drawer).getByRole('button', { name: '复制同步诊断' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Source Sync Diagnosis: 有警告'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Raw: subscription_source.invalid_nodes:3'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Source URL: https://provider.example.com/hk.yaml'));
   });
 
   it('does not synthesize proxy providers or export files in the page layer', async () => {
