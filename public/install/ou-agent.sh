@@ -3953,7 +3953,7 @@ def upgrade_command(state_dir, command):
             [
                 "bash",
                 "-c",
-                'curl -fsSL "$1" | env OU_AGENT_UPDATE_MODE=1 OU_AGENT_DEFER_RESTART=1 bash',
+                'curl --connect-timeout 10 --max-time 120 --retry 2 -fsSL "$1" | env OU_AGENT_UPDATE_MODE=1 OU_AGENT_DEFER_RESTART=1 bash',
                 "ou-agent-update",
                 script_url,
             ],
@@ -5197,8 +5197,8 @@ do_update() {
   local tmp_script
   tmp_script="$(mktemp)"
 
-  log "正在从 GitHub 更新 Agent 运行时脚本：${script_url}"
-  if ! curl -fsSL "${script_url}" -o "${tmp_script}"; then
+  log "正在从指定地址更新 Agent 运行时脚本：${script_url}"
+  if ! curl --connect-timeout 10 --max-time 120 --retry 2 -fsSL "${script_url}" -o "${tmp_script}"; then
     rm -f "${tmp_script}"
     fail "Agent update failed: cannot download ${script_url}"
   fi
@@ -5349,9 +5349,13 @@ update_existing_agent_runtime() {
   require_env OU_AGENT_TOKEN
   require_env OU_AGENT_SESSION_ID
 
-  install_runtime_dependencies
-  install_xray_runtime
-  install_gost_runtime
+  if [[ "${OU_AGENT_UPDATE_REFRESH_MODULES:-0}" == "1" ]]; then
+    install_runtime_dependencies
+    install_xray_runtime
+    install_gost_runtime
+  else
+    log "Agent runtime module dependency refresh skipped during lightweight update; set OU_AGENT_UPDATE_REFRESH_MODULES=1 to refresh Xray/GOST dependencies."
+  fi
   ensure_service_user
   prepare_directories
   write_agent_env

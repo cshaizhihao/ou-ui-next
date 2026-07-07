@@ -394,6 +394,10 @@ describe('ou-agent install script contract', () => {
     expect(script).toContain('"runtime": "telemetry_collected"');
     expect(script).toContain('"runtime": "agent_upgraded" if succeeded else "agent_upgrade_failed"');
     expect(script).toContain('"OU_AGENT_DEFER_RESTART": "1"');
+    expect(script).toContain('curl --connect-timeout 10 --max-time 120 --retry 2 -fsSL "$1"');
+    expect(script).toContain('curl --connect-timeout 10 --max-time 120 --retry 2 -fsSL "${script_url}"');
+    expect(script).toContain('if [[ "${OU_AGENT_UPDATE_REFRESH_MODULES:-0}" == "1" ]]; then');
+    expect(script).toContain('Agent runtime module dependency refresh skipped during lightweight update');
     expect(script).toContain('"telemetry": telemetry,');
     expect(script).toContain('telemetry_agent_id = command.get("agentId") or os.environ.get("OU_AGENT_ID")');
     expect(script).toContain('telemetry_session_id = command.get("sessionId") or os.environ.get("OU_AGENT_SESSION_ID")');
