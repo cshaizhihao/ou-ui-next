@@ -569,6 +569,13 @@ function readStringMetadata(task: DeployTask, key: string) {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
+function readAgentUpgradeScriptUrl(task: DeployTask) {
+  const scriptUrl = readStringMetadata(task, 'scriptUrl');
+  return scriptUrl?.startsWith('http://') || scriptUrl?.startsWith('https://')
+    ? scriptUrl
+    : DEFAULT_AGENT_INSTALL_SCRIPT_URL;
+}
+
 function readRollbackModeMetadata(task: DeployTask): 'hot_reload' | 'graceful_restart' {
   const value = readStringMetadata(task, 'rollbackMode');
   return value === 'hot_reload' || value === 'graceful_restart' ? value : 'graceful_restart';
@@ -936,7 +943,7 @@ function createCommandOutboxItem(task: DeployTask, sequence: number, agentId: st
             type: 'upgrade',
             payload: {
               mode: 'update-runtime',
-              scriptUrl: DEFAULT_AGENT_INSTALL_SCRIPT_URL,
+              scriptUrl: readAgentUpgradeScriptUrl(task),
               reason: readStringMetadata(task, 'reason') ?? task.summary
             }
           }

@@ -1791,7 +1791,8 @@ describe('control-plane service', () => {
         targetLabel: 'Remote upgrade Agent',
         summary: 'Remote upgrade Agent runtime',
         metadata: {
-          reason: 'no_telemetry_sample'
+          reason: 'no_telemetry_sample',
+          scriptUrl: 'https://panel.example.com/install/ou-agent.sh'
         }
       },
       {
@@ -1811,7 +1812,7 @@ describe('control-plane service', () => {
         payload: {
           mode: 'update-runtime',
           reason: 'no_telemetry_sample',
-          scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+          scriptUrl: 'https://panel.example.com/install/ou-agent.sh'
         }
       }
     });
