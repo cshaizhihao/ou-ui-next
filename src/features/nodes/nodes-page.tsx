@@ -871,6 +871,16 @@ const copy = {
     customerNodeContextRuntimeState: '运行时证据',
     customerNodeContextClientCount: (count: string) => `${count} 客户端`,
     customerNodeContextSelectedCount: (count: string) => `${count} 已选`,
+    customerNodeContextInsightDeck: '客户节点运维摘要',
+    customerNodeContextDelivery: '交付',
+    customerNodeContextDiagnostics: '诊断',
+    customerNodeContextEntitlement: '权益',
+    customerNodeContextSharePreview: '单节点',
+    customerNodeContextSubscriptionPreview: '订阅',
+    customerNodeContextRuntimeNext: '下一步',
+    customerNodeContextUsage: '用量',
+    customerNodeContextQuota: '额度',
+    customerNodeContextExpiry: '到期',
     customerNodeActionComposer: '操作确认',
     customerNodeActionComposerScopeSingle: '单节点',
     customerNodeActionComposerScopeBulk: '批量',
@@ -1371,6 +1381,16 @@ const copy = {
     customerNodeContextRuntimeState: 'Runtime Evidence',
     customerNodeContextClientCount: (count: string) => `${count} clients`,
     customerNodeContextSelectedCount: (count: string) => `${count} selected`,
+    customerNodeContextInsightDeck: 'Customer Node Operations Brief',
+    customerNodeContextDelivery: 'Delivery',
+    customerNodeContextDiagnostics: 'Diagnostics',
+    customerNodeContextEntitlement: 'Entitlement',
+    customerNodeContextSharePreview: 'Single-node',
+    customerNodeContextSubscriptionPreview: 'Subscription',
+    customerNodeContextRuntimeNext: 'Next Action',
+    customerNodeContextUsage: 'Usage',
+    customerNodeContextQuota: 'Quota',
+    customerNodeContextExpiry: 'Expiry',
     customerNodeActionComposer: 'Action Confirmation',
     customerNodeActionComposerScopeSingle: 'Single Node',
     customerNodeActionComposerScopeBulk: 'Bulk',
@@ -3079,6 +3099,18 @@ function CustomerNodeContextActionBar({
           </>
         )}
       </div>
+      {singleSelection ? (
+        <CustomerNodeContextInsightDeck
+          clientCount={clientCount}
+          evidence={evidence}
+          node={node}
+          t={t}
+          onCopyShare={onCopyShare}
+          onCopySubscription={onCopySubscription}
+          onOpenEvidence={onOpenEvidence}
+          onOpenLinks={onOpenLinks}
+        />
+      ) : null}
       {singleSelection && actionFeedback ? (
         <div className="mt-3">
           <CustomerClientActionFeedbackBar
@@ -3095,6 +3127,137 @@ function CustomerNodeContextActionBar({
       {!singleSelection && bulkActionFeedbackItems && bulkActionFeedbackItems.length > 0 ? (
         <CustomerNodeBulkActionFeedbackQueue items={bulkActionFeedbackItems} t={t} />
       ) : null}
+    </section>
+  );
+}
+
+function CustomerNodeContextInsightDeck({
+  clientCount,
+  evidence,
+  node,
+  onCopyShare,
+  onCopySubscription,
+  onOpenEvidence,
+  onOpenLinks,
+  t
+}: {
+  clientCount?: number;
+  evidence?: CustomerNodeRuntimeEvidenceBundle;
+  node: CustomerNodeRecord;
+  onCopyShare: () => void;
+  onCopySubscription: () => void;
+  onOpenEvidence: () => void;
+  onOpenLinks: () => void;
+  t: NodesCopy;
+}) {
+  const linkMaterial = createCustomerNodeLinkMaterial(node, t.customerName);
+  const nextAction = evidence?.nextAction;
+  const nextActionLabel = nextAction
+    ? t.customerRuntimeEvidenceNextActionLabels[nextAction.code]
+    : t.customerRuntimeEvidenceNextActionLabels['wait-command-result'];
+  const runtimeTone = {
+    verified: 'border-[#00A878]/26 bg-[#00A878]/8 text-[#006B50] dark:border-[#35E68E]/20 dark:bg-[#35E68E]/8 dark:text-[#9EF4C4]',
+    failed: 'border-[#DC2626]/30 bg-[#DC2626]/8 text-[#B91C1C] dark:border-[#F87171]/22 dark:bg-[#DC2626]/12 dark:text-[#FCA5A5]',
+    waiting: 'border-[#FFB020]/32 bg-[#FFF3C4]/50 text-[#8A5A00] dark:border-[#FFD166]/22 dark:bg-[#FFD166]/8 dark:text-[#FFD166]'
+  } satisfies Record<CustomerNodeRuntimeEvidenceState, string>;
+  const evidenceState = evidence?.state ?? 'waiting';
+  const sharePreview = linkMaterial.shareLink.replace(/^([a-z0-9+.-]+:\/\/).+(@[^?#]+)/i, '$1...$2');
+  const subscriptionPreview = linkMaterial.subscriptionLink.replace(/^(https?:\/\/[^/]+\/).+\/sub\//i, '$1.../sub/');
+  const quotaValue =
+    node.trafficLimitBytes > 0
+      ? `${formatBytes(node.usedTrafficBytes)} / ${formatBytes(node.trafficLimitBytes)}`
+      : `${formatBytes(node.usedTrafficBytes)} / -`;
+  const expiryValue = t.unitDays === '天' ? `${node.remainingDays}${t.unitDays}` : `${node.remainingDays} ${t.unitDays}`;
+
+  return (
+    <section
+      aria-label={t.customerNodeContextInsightDeck}
+      className="mt-3 grid gap-2 lg:grid-cols-3"
+      data-customer-node-context-insight
+    >
+      <div className="min-w-0 border border-[#07111F]/14 bg-[#FFFDF5]/72 p-2.5 dark:border-[#6B7CFF]/16 dark:bg-white/[0.035]">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[#1E3AFF] dark:text-[#DCE1FF]">
+            {t.customerNodeContextDelivery}
+          </p>
+          <button
+            className="border border-[#1E3AFF]/32 px-2 py-1 text-[10px] font-black uppercase text-[#1E3AFF] transition hover:bg-[#DCE1FF]/50 dark:border-[#6B7CFF]/25 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/12"
+            onClick={onOpenLinks}
+            type="button"
+          >
+            {t.viewCustomerNodeLinks}
+          </button>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase text-[#35405A] dark:text-white/42">{t.customerNodeContextSharePreview}</p>
+            <p className="truncate font-mono text-[10px] font-bold text-[#07111F] dark:text-white/70">{sharePreview}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase text-[#35405A] dark:text-white/42">{t.customerNodeContextSubscriptionPreview}</p>
+            <p className="truncate font-mono text-[10px] font-bold text-[#07111F] dark:text-white/70">{subscriptionPreview}</p>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <button
+            className="border border-[#07111F]/16 bg-[#FFFDF5]/70 px-2 py-1 text-[10px] font-black uppercase text-[#35405A] transition hover:border-[#1E3AFF]/40 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/16 dark:bg-white/[0.035] dark:text-white/58"
+            onClick={onCopyShare}
+            type="button"
+          >
+            {t.copySingleNodeLink}
+          </button>
+          <button
+            className="border border-[#07111F]/16 bg-[#FFFDF5]/70 px-2 py-1 text-[10px] font-black uppercase text-[#35405A] transition hover:border-[#1E3AFF]/40 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/16 dark:bg-white/[0.035] dark:text-white/58"
+            onClick={onCopySubscription}
+            type="button"
+          >
+            {t.copySubscriptionLink}
+          </button>
+        </div>
+      </div>
+
+      <div className={cn('min-w-0 border p-2.5', runtimeTone[evidenceState])}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em]">
+            {t.customerNodeContextDiagnostics}
+          </p>
+          <button
+            className="border border-current/40 px-2 py-1 text-[10px] font-black uppercase transition hover:bg-white/35 dark:hover:bg-white/10"
+            onClick={onOpenEvidence}
+            type="button"
+          >
+            {t.customerRuntimeEvidenceOpen}
+          </button>
+        </div>
+        <p className="mt-2 text-sm font-black text-[#07111F] dark:text-white">
+          {t.customerRuntimeEvidenceStateLabels[evidenceState]}
+        </p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] opacity-75">
+          {t.customerNodeContextRuntimeNext}
+        </p>
+        <p className="mt-1 break-words text-[11px] font-semibold leading-5">{nextActionLabel}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold opacity-75">
+          <span>{evidence?.evidenceStage || '-'}</span>
+          <span>{evidence?.configRevision?.id ?? node.configVersion ?? '-'}</span>
+        </div>
+      </div>
+
+      <div className="min-w-0 border border-[#07111F]/14 bg-[#FFFDF5]/72 p-2.5 dark:border-[#6B7CFF]/16 dark:bg-white/[0.035]">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[#1E3AFF] dark:text-[#DCE1FF]">
+          {t.customerNodeContextEntitlement}
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <InfoField label={t.customerNodeContextUsage} value={formatBytes(node.usedTrafficBytes)} />
+          <InfoField label={t.customerNodeContextQuota} value={quotaValue} />
+          <InfoField label={t.customerNodeContextExpiry} value={expiryValue} />
+          <InfoField label={t.customerClientRuntime} value={t.customerNodeContextClientCount(String(clientCount ?? 1))} />
+        </div>
+        {node.guardrailReason ? (
+          <p className="mt-2 break-words text-[11px] font-bold text-[#B91C1C] dark:text-[#FCA5A5]">
+            {node.guardrailReason}
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -2392,7 +2392,19 @@ describe('NodesPage', () => {
     expect(within(contextBar).getByText('1 selected')).toBeInTheDocument();
     expect(within(contextBar).getByText('Runtime Evidence: Verified')).toBeInTheDocument();
     expect(within(contextBar).getByText('vless:443')).toBeInTheDocument();
-    expect(within(contextBar).getByText('1 clients')).toBeInTheDocument();
+    expect(within(contextBar).getAllByText('1 clients').length).toBeGreaterThanOrEqual(1);
+    const insight = within(contextBar).getByRole('region', { name: 'Customer Node Operations Brief' });
+
+    expect(within(insight).getByText('Delivery')).toBeInTheDocument();
+    expect(within(insight).getByText('Single-node')).toBeInTheDocument();
+    expect(within(insight).getByText('Subscription')).toBeInTheDocument();
+    expect(within(insight).getByText(/vless:\/\/.*@198\.51\.100\.30:443/)).toBeInTheDocument();
+    expect(within(insight).getByText((value) => value.includes('/sub/') && value.includes('/clash/premium-hk'))).toBeInTheDocument();
+    expect(within(insight).getByText('Diagnostics')).toBeInTheDocument();
+    expect(within(insight).getByText('No action required; the evidence chain is closed.')).toBeInTheDocument();
+    expect(within(insight).getByText('Entitlement')).toBeInTheDocument();
+    expect(within(insight).getByText('12.0 GB / 100.0 GB')).toBeInTheDocument();
+    expect(within(insight).getByText('30 days')).toBeInTheDocument();
 
     await user.click(within(contextBar).getByRole('button', { name: 'Renew' }));
     const composer = screen.getByRole('region', { name: 'Action Confirmation' });
@@ -2425,7 +2437,7 @@ describe('NodesPage', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /Inbound Clients/ })).not.toBeInTheDocument());
 
-    await user.click(within(contextBar).getByRole('button', { name: /View runtime evidence/i }));
+    await user.click(within(insight).getByRole('button', { name: /View runtime evidence/i }));
     expect(screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' })).toBeInTheDocument();
   });
 
