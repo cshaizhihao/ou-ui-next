@@ -324,6 +324,7 @@ OU_AGENT_LOG_MAX_BYTES=${OU_AGENT_LOG_MAX_BYTES:-5242880}
 OU_AGENT_LOG_BACKUP_COUNT=${OU_AGENT_LOG_BACKUP_COUNT:-3}
 OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}
 OU_AGENT_COMMAND_TIMEOUT_SECONDS=${OU_AGENT_COMMAND_TIMEOUT_SECONDS:-210}
+OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS=${OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS:-3}
 OU_AGENT_INSTALL_SCRIPT_URL=${DEFAULT_AGENT_SCRIPT_URL}
 EOF
 
@@ -478,9 +479,9 @@ def read_json(path, fallback):
     return fallback
 
 
-def send_event(master_poll_url, token, event):
+def send_event(master_poll_url, token, event, timeout=20):
     events_url = master_poll_url.rstrip("/").rsplit("/", 1)[0] + "/events"
-    return request_json(events_url, token, {"events": [event]}, timeout=20)
+    return request_json(events_url, token, {"events": [event]}, timeout=timeout)
 
 
 def pending_events_path(state_dir):
@@ -558,9 +559,9 @@ def flush_pending_events(state_dir, master_poll_url, token):
             raise RuntimeError(f"pending Agent event delivery failed: {error}") from error
 
 
-def send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failure=False):
+def send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failure=False, timeout=20):
     try:
-        send_event(master_poll_url, token, event)
+        send_event(master_poll_url, token, event, timeout=timeout)
         return True
     except Exception as error:
         if is_non_retryable_agent_event_error(error):
@@ -665,7 +666,15 @@ def emit_command_progress(stream, content):
         },
         minimum_seq=context["minimumSeq"],
     )
-    send_event_or_queue(context["stateDir"], context["masterPollUrl"], context["token"], event, queue_on_failure=True)
+    timeout = read_positive_int_env("OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS", 3, lower=1, upper=20)
+    send_event_or_queue(
+        context["stateDir"],
+        context["masterPollUrl"],
+        context["token"],
+        event,
+        queue_on_failure=True,
+        timeout=timeout,
+    )
 
 
 def consume_command_log_buffer():
@@ -710,6 +719,7 @@ def create_command_result_log_summary(command, payload, output_truncated):
 
 def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload, start_chunk_seq=1):
     max_chunks = read_positive_int_env("OU_AGENT_COMMAND_LOG_MAX_CHUNKS", 20, lower=1, upper=200)
+    event_timeout = read_positive_int_env("OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS", 3, lower=1, upper=20)
     output_limit = max(0, max_chunks - 1)
     output_entries = []
     output_truncated = False
@@ -746,7 +756,7 @@ def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_
             },
             minimum_seq=minimum_seq,
         )
-        send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failure=True)
+        send_event_or_queue(state_dir, master_poll_url, token, event, queue_on_failure=True, timeout=event_timeout)
 
 
 def read_cpu_times():
@@ -4084,10 +4094,10 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
         final_log_chunk_start_seq = clear_command_progress_context()
 
     payload = normalize_result_payload(payload)
-    send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload, final_log_chunk_start_seq)
     result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])
     if not send_event_or_queue(state_dir, master_poll_url, token, result_event, queue_on_failure=True):
         raise RuntimeError(f"result event queued for retry: {result_event['eventId']}")
+    send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload, final_log_chunk_start_seq)
     return command_seq
 
 

@@ -877,7 +877,7 @@ print(module.read_probe_target(state_dir))
     expect(script).toContain('return command_seq');
   });
 
-  it('sends bounded command output as Agent log chunk events before the command result', () => {
+  it('sends command results before best-effort log chunks so log uploads cannot block result delivery', () => {
     const processCommand = script.slice(
       script.indexOf('def process_command'),
       script.indexOf('def main()')
@@ -885,6 +885,7 @@ print(module.read_probe_target(state_dir))
 
     expect(script).toContain('OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}');
     expect(script).toContain('OU_AGENT_COMMAND_TIMEOUT_SECONDS=${OU_AGENT_COMMAND_TIMEOUT_SECONDS:-210}');
+    expect(script).toContain('OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS=${OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS:-3}');
     expect(script).toContain('COMMAND_LOG_CHUNK_MAX_CHARS = 60_000');
     expect(script).toContain('COMMAND_PROGRESS_CONTEXT = None');
     expect(script).toContain('def reset_command_log_buffer():');
@@ -895,6 +896,7 @@ print(module.read_probe_target(state_dir))
     expect(script).toContain('"chunkSeq": chunk_seq');
     expect(script).toContain('def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload, start_chunk_seq=1):');
     expect(script).toContain('read_positive_int_env("OU_AGENT_COMMAND_LOG_MAX_CHUNKS", 20');
+    expect(script).toContain('read_positive_int_env("OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS", 3');
     expect(script).toContain('def command_timeout_seconds(command):');
     expect(script).toContain('class AgentCommandTimeoutError(RuntimeError):');
     expect(script).toContain('signal.alarm(timeout_seconds)');
@@ -910,8 +912,8 @@ print(module.read_probe_target(state_dir))
     expect(script).toContain('"content": entry["content"]');
     expect(processCommand).toContain('reset_command_log_buffer()');
     expect(processCommand).toContain('emit_command_progress(\n            "agent",\n            f"command execution started type={command.get(\'type\')} task={command.get(\'taskId\')} timeoutSeconds={timeout_seconds}",\n        )');
-    expect(processCommand.indexOf('send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload, final_log_chunk_start_seq)')).toBeLessThan(
-      processCommand.indexOf('result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])')
+    expect(processCommand.indexOf('result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])')).toBeLessThan(
+      processCommand.indexOf('send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload, final_log_chunk_start_seq)')
     );
   });
 

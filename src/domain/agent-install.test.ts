@@ -164,6 +164,7 @@ describe('agent install command', () => {
     expect(script).toContain('OU_AGENT_LOG_MAX_BYTES=${OU_AGENT_LOG_MAX_BYTES:-5242880}');
     expect(script).toContain('OU_AGENT_LOG_BACKUP_COUNT=${OU_AGENT_LOG_BACKUP_COUNT:-3}');
     expect(script).toContain('OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}');
+    expect(script).toContain('OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS=${OU_AGENT_PROGRESS_EVENT_TIMEOUT_SECONDS:-3}');
     expect(script).toContain('def trim_pending_events(events, limit):');
     expect(script).toContain('def pending_event_drop_rank(event):');
     expect(script).toContain('def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload, start_chunk_seq=1):');
