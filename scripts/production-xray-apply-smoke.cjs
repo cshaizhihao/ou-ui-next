@@ -1075,6 +1075,51 @@ function summarizeXrayApplyEvidence(evidence) {
   };
 }
 
+function createXrayApplyFailureDetails({
+  evidence,
+  evidenceErrors = [],
+  expected = {},
+  observedAt = new Date().toISOString(),
+  readModelErrors = [],
+  snapshot,
+  targetId,
+  taskId
+}) {
+  const resolvedTargetId = targetId ?? evidence?.task?.targetId ?? expected.targetId;
+  const evidenceSummary = evidence ? summarizeXrayApplyEvidence(evidence) : undefined;
+
+  return {
+    observedAt,
+    phase: expected.phase,
+    taskId: taskId ?? evidence?.task?.id,
+    targetId: resolvedTargetId,
+    agentId: expected.agentId,
+    listenPort: expected.listenPort,
+    operation: expected.operation,
+    clientAction: expected.clientAction,
+    evidenceErrors,
+    readModelErrors,
+    evidence: evidenceSummary,
+    readModel: resolvedTargetId ? summarizeXrayReadModelState(snapshot, resolvedTargetId) : undefined
+  };
+}
+
+function createXrayApplyEvidenceError(message, details) {
+  const error = new Error(message);
+  error.xrayApplyFailure = details;
+  return error;
+}
+
+function createXraySmokeFailureDetails(error) {
+  const failure = readObject(error?.xrayApplyFailure);
+
+  return Object.keys(failure).length > 0
+    ? {
+        failure
+      }
+    : {};
+}
+
 function createXraySmokeReport(config, details = {}) {
   return {
     schemaVersion: 'ou-ui-next.xray-apply-smoke.v1',
@@ -1108,6 +1153,7 @@ async function waitForXrayApplyEvidence(config, context, taskId, targetId, expec
   const deadlineAt = Date.now() + config.waitMs;
   let lastErrors = [];
   let lastEvidence;
+  let lastFailureDetails;
 
   while (Date.now() <= deadlineAt) {
     const snapshot = await readSnapshot(config, context);
@@ -1121,10 +1167,20 @@ async function waitForXrayApplyEvidence(config, context, taskId, targetId, expec
     });
     lastErrors = [...errors, ...readModelErrors];
     lastEvidence = evidence;
+    lastFailureDetails = createXrayApplyFailureDetails({
+      evidence,
+      evidenceErrors: errors,
+      expected,
+      readModelErrors,
+      snapshot,
+      targetId,
+      taskId
+    });
 
     if (evidence.task?.status === 'failed') {
-      throw new Error(
-        `Xray apply task failed: ${evidence.task.failureReason ?? 'unknown failure'}; evidence errors: ${errors.join('; ')}`
+      throw createXrayApplyEvidenceError(
+        `Xray apply task failed: ${evidence.task.failureReason ?? 'unknown failure'}; evidence errors: ${errors.join('; ')}`,
+        lastFailureDetails
       );
     }
 
@@ -1138,9 +1194,10 @@ async function waitForXrayApplyEvidence(config, context, taskId, targetId, expec
     await delay(config.pollIntervalMs);
   }
 
-  throw new Error(
+  throw createXrayApplyEvidenceError(
     `Timed out waiting for Xray Agent runtime evidence for task ${taskId}: ${lastErrors.join('; ') || 'no evidence observed'}.` +
-      (lastEvidence?.task?.status ? ` Last task status: ${lastEvidence.task.status}.` : '')
+      (lastEvidence?.task?.status ? ` Last task status: ${lastEvidence.task.status}.` : ''),
+    lastFailureDetails
   );
 }
 
@@ -1193,7 +1250,8 @@ async function runXrayApplySmoke(config) {
     const { snapshot: createSnapshot, evidence } = await waitForXrayApplyEvidence(config, context, createdTask.taskId, taskInput.targetId, {
       agentId: agent.id,
       listenPort,
-      operation: 'inbound.create'
+      operation: 'inbound.create',
+      phase: 'create'
     });
     const evidenceSummary = summarizeXrayApplyEvidence(evidence);
     const createReadModelSummary = summarizeXrayReadModelState(createSnapshot, taskInput.targetId);
@@ -1219,7 +1277,8 @@ async function runXrayApplySmoke(config) {
       {
         agentId: agent.id,
         listenPort,
-        operation: 'inbound.update'
+        operation: 'inbound.update',
+        phase: 'update'
       }
     );
     const updateEvidenceSummary = summarizeXrayApplyEvidence(updateEvidence);
@@ -1254,6 +1313,7 @@ async function runXrayApplySmoke(config) {
           agentId: agent.id,
           listenPort,
           operation: 'inbound.update',
+          phase: 'add-client',
           clientAction: 'add-client',
           clientEmail: addClientEmail,
           clientCounters: {
@@ -1295,6 +1355,7 @@ async function runXrayApplySmoke(config) {
           agentId: agent.id,
           listenPort,
           operation: 'inbound.update',
+          phase: 'delete-client',
           clientAction: 'delete-client',
           clientEmail: addClientEmail,
           clientCounters: {
@@ -1331,6 +1392,7 @@ async function runXrayApplySmoke(config) {
           agentId: agent.id,
           listenPort,
           operation: 'inbound.delete',
+          phase: 'cleanup-delete',
           plannedInboundAction: 'remove_inbound',
           plannedBindingStatus: 'releasing',
           runtimeState: 'waiting',
@@ -1373,7 +1435,8 @@ async function runXrayApplySmoke(config) {
     return report;
   } catch (error) {
     markReportComplete(report, 'failed', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      ...createXraySmokeFailureDetails(error)
     });
 
     if (config.reportPath) {
@@ -1448,6 +1511,9 @@ module.exports = {
   collectReservedXrayPorts,
   createXraySmokeReport,
   createXrayClientActionTask,
+  createXrayApplyEvidenceError,
+  createXrayApplyFailureDetails,
+  createXraySmokeFailureDetails,
   extractXrayApplyEvidence,
   parseArgs,
   resolveXrayApplySmokeConfig,

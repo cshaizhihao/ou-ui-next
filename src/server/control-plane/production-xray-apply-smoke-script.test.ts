@@ -59,6 +59,20 @@ type XrayApplySmokeScript = {
     }
   ): Record<string, unknown>;
   collectReservedXrayPorts(snapshot: Record<string, unknown>, agentId: string): Set<number>;
+  createXrayApplyEvidenceError(message: string, details: Record<string, unknown>): Error & {
+    xrayApplyFailure?: Record<string, unknown>;
+  };
+  createXrayApplyFailureDetails(options: {
+    evidence?: Record<string, unknown>;
+    evidenceErrors?: string[];
+    expected?: Record<string, unknown>;
+    observedAt?: string;
+    readModelErrors?: string[];
+    snapshot?: Record<string, unknown>;
+    targetId?: string;
+    taskId?: string;
+  }): Record<string, unknown>;
+  createXraySmokeFailureDetails(error: unknown): Record<string, unknown>;
   extractXrayApplyEvidence(
     snapshot: Record<string, unknown>,
     taskId: string,
@@ -1108,29 +1122,30 @@ describe('production Xray apply smoke script helpers', () => {
   });
 
   it('returns operator-actionable evidence gaps while a task is still waiting for Agent result', () => {
+    const waitingSnapshot = {
+      ...createVerifiedSnapshot(),
+      tasks: [
+        {
+          id: 'task-apply-01',
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'xray-live-smoke-42003',
+          status: 'running'
+        }
+      ],
+      commandOutbox: [
+        {
+          taskId: 'task-apply-01',
+          commandId: 'cmd-task-apply-01',
+          status: 'acknowledged'
+        }
+      ],
+      configRevisions: [],
+      preflightPlans: [],
+      runtimeSnapshots: []
+    };
     const waitingEvidence = xraySmokeScript.extractXrayApplyEvidence(
-      {
-        ...createVerifiedSnapshot(),
-        tasks: [
-          {
-            id: 'task-apply-01',
-            operation: 'inbound.create',
-            resourceType: 'inbound',
-            targetId: 'xray-live-smoke-42003',
-            status: 'running'
-          }
-        ],
-        commandOutbox: [
-          {
-            taskId: 'task-apply-01',
-            commandId: 'cmd-task-apply-01',
-            status: 'acknowledged'
-          }
-        ],
-        configRevisions: [],
-        preflightPlans: [],
-        runtimeSnapshots: []
-      },
+      waitingSnapshot,
       'task-apply-01',
       'xray-live-smoke-42003'
     );
@@ -1145,5 +1160,94 @@ describe('production Xray apply smoke script helpers', () => {
         'runtime diagnosis evidenceStage is missing'
       ])
     );
+  });
+
+  it('builds a redacted failure report from the last observed Agent runtime evidence gaps', () => {
+    const waitingSnapshot = {
+      ...createVerifiedSnapshot(),
+      tasks: [
+        {
+          id: 'task-apply-01',
+          operation: 'inbound.create',
+          resourceType: 'inbound',
+          targetId: 'xray-live-smoke-42003',
+          status: 'running'
+        }
+      ],
+      commandOutbox: [
+        {
+          taskId: 'task-apply-01',
+          commandId: 'cmd-task-apply-01',
+          status: 'acknowledged',
+          agentId: 'agent-hkg-01'
+        }
+      ],
+      configRevisions: [],
+      preflightPlans: [],
+      runtimeSnapshots: []
+    };
+    const waitingEvidence = xraySmokeScript.extractXrayApplyEvidence(
+      waitingSnapshot,
+      'task-apply-01',
+      'xray-live-smoke-42003'
+    );
+    const evidenceErrors = xraySmokeScript.validateXrayApplyEvidence(waitingEvidence, {
+      agentId: 'agent-hkg-01',
+      listenPort: 42003
+    });
+    const failureDetails = xraySmokeScript.createXrayApplyFailureDetails({
+      evidence: waitingEvidence,
+      evidenceErrors,
+      expected: {
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.create',
+        phase: 'create'
+      },
+      observedAt: '2026-07-07T00:04:00.000Z',
+      readModelErrors: ['Xray inbound read model runtimeDeployment proof is stale'],
+      snapshot: waitingSnapshot,
+      targetId: 'xray-live-smoke-42003',
+      taskId: 'task-apply-01'
+    });
+    const error = xraySmokeScript.createXrayApplyEvidenceError('Timed out waiting for Agent result', failureDetails);
+    const smokeFailureDetails = xraySmokeScript.createXraySmokeFailureDetails(error);
+
+    expect(smokeFailureDetails).toEqual({
+      failure: expect.objectContaining({
+        observedAt: '2026-07-07T00:04:00.000Z',
+        phase: 'create',
+        taskId: 'task-apply-01',
+        targetId: 'xray-live-smoke-42003',
+        agentId: 'agent-hkg-01',
+        listenPort: 42003,
+        operation: 'inbound.create',
+        evidenceErrors: expect.arrayContaining([
+          'task status is running',
+          'Agent command status is acknowledged',
+          'runtime config revision is missing',
+          'preflight plan is missing',
+          'runtime snapshot is missing'
+        ]),
+        readModelErrors: ['Xray inbound read model runtimeDeployment proof is stale'],
+        evidence: expect.objectContaining({
+          taskId: 'task-apply-01',
+          taskStatus: 'running',
+          commandId: 'cmd-task-apply-01',
+          commandStatus: 'acknowledged'
+        }),
+        readModel: expect.objectContaining({
+          targetId: 'xray-live-smoke-42003',
+          present: true,
+          listenPort: 42003,
+          runtimeDeployment: expect.objectContaining({
+            source: 'agent-result'
+          })
+        })
+      })
+    });
+    expect(xraySmokeScript.createXraySmokeFailureDetails(new Error('plain failure'))).toEqual({});
+    expect(JSON.stringify(smokeFailureDetails)).not.toContain('11111111-1111-4111-8111-111111111111');
+    expect(JSON.stringify(smokeFailureDetails)).not.toContain('smoke@example.test');
   });
 });
