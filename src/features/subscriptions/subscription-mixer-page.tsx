@@ -470,6 +470,20 @@ const copy = {
     subscriptionDeliveryCheckSummaryPassed: 'Portal 和已选订阅输出均已响应。',
     subscriptionDeliveryCheckSummaryWarning: '订阅输出可访问，但存在格式转换或节点警告。',
     subscriptionDeliveryCheckSummaryFailed: '至少一个 Portal 或订阅输出请求失败。',
+    subscriptionDeliveryRecovery: '交付排查',
+    subscriptionDeliveryRecoveryReady: '当前交付诊断没有需要排查的节点或来源问题。',
+    subscriptionDeliveryRecoveryNoNodes: '当前订阅规则没有命中可交付库存节点。',
+    subscriptionDeliveryRecoveryRequestFailed: 'Portal 或订阅输出请求失败。',
+    subscriptionDeliveryRecoveryConversion: '输出存在未转换节点或格式转换告警。',
+    subscriptionDeliveryRecoverySourceWarnings: '关联来源存在同步告警。',
+    subscriptionDeliveryRecoveryNextAction: '排查路径',
+    subscriptionDeliveryRecoveryMatchedInventory: '命中库存',
+    subscriptionDeliveryRecoverySourceCoverage: '来源覆盖',
+    subscriptionDeliveryRecoveryFailedTargets: '失败目标',
+    subscriptionDeliveryRecoverySourceIssues: '异常来源',
+    viewDeliveryInventory: '查看命中库存',
+    viewDeliveryMatchedNodes: '打开命中节点',
+    openSourceDiagnosisFor: (name: string) => `同步诊断 ${name}`,
     copyFormatLink: (format: string) => `复制 ${format} 链接`,
     openFormatLink: (format: string) => `打开 ${format} 链接`,
     qrCodeLabel: (format: string) => `${format} 订阅二维码`,
@@ -797,6 +811,20 @@ const copy = {
     subscriptionDeliveryCheckSummaryPassed: 'Portal and selected subscription outputs responded successfully.',
     subscriptionDeliveryCheckSummaryWarning: 'Subscription outputs are reachable, but conversion or node warnings were returned.',
     subscriptionDeliveryCheckSummaryFailed: 'At least one portal or subscription output request failed.',
+    subscriptionDeliveryRecovery: 'Delivery Recovery',
+    subscriptionDeliveryRecoveryReady: 'The delivery check has no node or source issues to investigate.',
+    subscriptionDeliveryRecoveryNoNodes: 'The subscription rules did not match deliverable inventory nodes.',
+    subscriptionDeliveryRecoveryRequestFailed: 'Portal or subscription output request failed.',
+    subscriptionDeliveryRecoveryConversion: 'Output returned unconverted nodes or conversion warnings.',
+    subscriptionDeliveryRecoverySourceWarnings: 'Related sources have sync warnings.',
+    subscriptionDeliveryRecoveryNextAction: 'Recovery Path',
+    subscriptionDeliveryRecoveryMatchedInventory: 'Matched Inventory',
+    subscriptionDeliveryRecoverySourceCoverage: 'Source Coverage',
+    subscriptionDeliveryRecoveryFailedTargets: 'Failed Targets',
+    subscriptionDeliveryRecoverySourceIssues: 'Source Issues',
+    viewDeliveryInventory: 'View Matched Inventory',
+    viewDeliveryMatchedNodes: 'Open Matched Nodes',
+    openSourceDiagnosisFor: (name: string) => `Sync Diagnosis ${name}`,
     copyFormatLink: (format: string) => `Copy ${format} Link`,
     openFormatLink: (format: string) => `Open ${format} Link`,
     qrCodeLabel: (format: string) => `${format} Subscription QR Code`,
@@ -2434,6 +2462,42 @@ function findMatchedSources(nodes: SubscriptionInventoryNode[], sources: Subscri
   }));
 }
 
+function findClientConfiguredSources(client: SubscriptionClientIdentity, sources: SubscriptionSource[]) {
+  const sourceIds = new Set(client.sourceIds);
+
+  return sources.filter((source) => sourceIds.has(source.id));
+}
+
+function hasSourceSyncIssue(source: SubscriptionSource) {
+  return (
+    source.status === 'warning' ||
+    source.status === 'failed' ||
+    source.status === 'paused' ||
+    Boolean(source.syncWarnings?.length)
+  );
+}
+
+function mergeDeliveryRecoverySources(
+  matchedSources: Array<{ id: string; source?: SubscriptionSource; nodeCount: number }>,
+  configuredSources: SubscriptionSource[]
+) {
+  const sourcesById = new Map<string, { source: SubscriptionSource; nodeCount: number }>();
+
+  matchedSources.forEach((item) => {
+    if (item.source) {
+      sourcesById.set(item.source.id, { source: item.source, nodeCount: item.nodeCount });
+    }
+  });
+  configuredSources.forEach((source) => {
+    sourcesById.set(source.id, {
+      source,
+      nodeCount: sourcesById.get(source.id)?.nodeCount ?? 0
+    });
+  });
+
+  return Array.from(sourcesById.values());
+}
+
 type BulkClientImpactSummary = {
   customerLabels: string[];
   matchedNodes: SubscriptionInventoryNode[];
@@ -2813,6 +2877,18 @@ export function SubscriptionMixerPage({
   const linkDrawerClient =
     drawer.type === 'links' ? subscriptionClients.find((client) => client.id === drawer.clientId) : undefined;
   const linkDrawerDeliveryCheck = linkDrawerClient ? deliveryChecks[linkDrawerClient.id] : undefined;
+  const linkDrawerMatchedNodes = useMemo(
+    () => (linkDrawerClient ? findClientMatchingInventoryNodes(inventoryNodes, linkDrawerClient) : []),
+    [inventoryNodes, linkDrawerClient]
+  );
+  const linkDrawerMatchedSources = useMemo(
+    () => findMatchedSources(linkDrawerMatchedNodes, sources),
+    [linkDrawerMatchedNodes, sources]
+  );
+  const linkDrawerConfiguredSources = useMemo(
+    () => (linkDrawerClient ? findClientConfiguredSources(linkDrawerClient, sources) : []),
+    [linkDrawerClient, sources]
+  );
   const sourceDiagnosticsDrawerSource =
     drawer.type === 'source-diagnostics' ? sources.find((source) => source.id === drawer.sourceId) : undefined;
   const nodeDrawerClient =
@@ -4786,6 +4862,18 @@ export function SubscriptionMixerPage({
               result={linkDrawerDeliveryCheck}
               t={t}
             />
+            <SubscriptionDeliveryRecoveryPanel
+              client={linkDrawerClient}
+              configuredSources={linkDrawerConfiguredSources}
+              language={language}
+              matchedNodes={linkDrawerMatchedNodes}
+              matchedSources={linkDrawerMatchedSources}
+              onOpenMatchedNodes={() => openMatchedNodesDrawer(linkDrawerClient)}
+              onOpenSourceDiagnosis={openSourceDiagnosticsDrawer}
+              onViewInventory={() => viewClientInInventory(linkDrawerClient)}
+              result={linkDrawerDeliveryCheck}
+              t={t}
+            />
             <div className={subscriptionDrawerNeutralPanelClass}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
@@ -5692,6 +5780,152 @@ function SubscriptionDeliveryCheckPanel({
               </div>
             </div>
           ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SubscriptionDeliveryRecoveryPanel({
+  client,
+  configuredSources,
+  language,
+  matchedNodes,
+  matchedSources,
+  onOpenMatchedNodes,
+  onOpenSourceDiagnosis,
+  onViewInventory,
+  result,
+  t
+}: {
+  client: SubscriptionClientIdentity;
+  configuredSources: SubscriptionSource[];
+  language: AppLanguage;
+  matchedNodes: SubscriptionInventoryNode[];
+  matchedSources: Array<{ id: string; source?: SubscriptionSource; nodeCount: number }>;
+  onOpenMatchedNodes: () => void;
+  onOpenSourceDiagnosis: (source: SubscriptionSource) => void;
+  onViewInventory: () => void;
+  result?: SubscriptionDeliveryCheckResult;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const failedTargets = result?.targets.filter((target) => target.ok === false) ?? [];
+  const warningTargets = result?.targets.filter(hasSubscriptionDeliveryCheckWarning) ?? [];
+  const recoverySources = mergeDeliveryRecoverySources(matchedSources, configuredSources);
+  const issueSources = recoverySources.filter((item) => hasSourceSyncIssue(item.source));
+  const noDeliverableNodes = matchedNodes.length === 0 || client.generatedNodeCount <= 0;
+  const shouldShow =
+    failedTargets.length > 0 ||
+    warningTargets.length > 0 ||
+    noDeliverableNodes ||
+    issueSources.length > 0 ||
+    result?.state === 'failed' ||
+    result?.state === 'warning';
+
+  if (!shouldShow) {
+    return null;
+  }
+
+  const summary = failedTargets.length
+    ? t.subscriptionDeliveryRecoveryRequestFailed
+    : warningTargets.length
+      ? t.subscriptionDeliveryRecoveryConversion
+      : noDeliverableNodes
+        ? t.subscriptionDeliveryRecoveryNoNodes
+        : issueSources.length
+          ? t.subscriptionDeliveryRecoverySourceWarnings
+          : t.subscriptionDeliveryRecoveryReady;
+
+  return (
+    <section
+      aria-label={t.subscriptionDeliveryRecovery}
+      className={subscriptionDrawerSignalPanelClass}
+      data-subscription-delivery-recovery-state={failedTargets.length > 0 ? 'failed' : 'warning'}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-widest">{t.subscriptionDeliveryRecovery}</p>
+          <p className="mt-2 break-words text-sm font-black">{summary}</p>
+        </div>
+        <span className="border border-current/18 bg-white/45 px-2.5 py-1 text-[10px] font-black uppercase dark:bg-white/[0.04]">
+          {t.subscriptionDeliveryRecoveryNextAction}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button className={compactCommandActionButtonClass} onClick={onViewInventory} type="button">
+          <ListTree className="h-3.5 w-3.5" />
+          {t.viewDeliveryInventory}
+        </button>
+        <button className={compactNeutralActionButtonClass} onClick={onOpenMatchedNodes} type="button">
+          <Layers3 className="h-3.5 w-3.5" />
+          {t.viewDeliveryMatchedNodes}
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+        <SubscriptionDiagnosticField
+          label={t.subscriptionDeliveryRecoveryMatchedInventory}
+          value={formatNumber(matchedNodes.length, language)}
+        />
+        <SubscriptionDiagnosticField
+          label={t.subscriptionDeliveryRecoverySourceCoverage}
+          value={`${formatNumber(recoverySources.length, language)} / ${formatNumber(client.sourceIds.length, language)}`}
+        />
+        <SubscriptionDiagnosticField
+          label={t.subscriptionDeliveryRecoveryFailedTargets}
+          tone={failedTargets.length > 0 ? 'signal' : undefined}
+          value={formatNumber(failedTargets.length, language)}
+        />
+        <SubscriptionDiagnosticField
+          label={t.subscriptionDeliveryRecoverySourceIssues}
+          tone={issueSources.length > 0 ? 'signal' : undefined}
+          value={formatNumber(issueSources.length, language)}
+        />
+      </div>
+      {warningTargets.length > 0 || failedTargets.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {[...failedTargets, ...warningTargets].map((target) => (
+            <span className="border border-current/18 bg-white/42 px-2 py-1 text-[10px] font-bold dark:bg-white/[0.04]" key={target.id}>
+              {target.label}: {target.error ?? target.conversionWarning ?? target.unconvertedNodeCount ?? target.status ?? '-'}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {recoverySources.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {recoverySources.map((item) => {
+            const diagnosis = createSourceSyncDiagnosis(item.source, language, t);
+
+            return (
+              <div
+                className={`border p-2.5 ${
+                  hasSourceSyncIssue(item.source)
+                    ? 'border-[#FFB020]/35 bg-[#FFF8DD]/76 dark:border-[#FFD166]/24 dark:bg-[#FFD166]/10'
+                    : 'border-[#07111F]/14 bg-white/45 dark:border-white/10 dark:bg-white/[0.035]'
+                }`}
+                key={item.source.id}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-[#07111F] dark:text-white">{item.source.name}</p>
+                    <p className="mt-1 text-[11px] font-semibold uppercase text-[#35405A] dark:text-white/55">
+                      {diagnosis.stateLabel} / {formatNumber(item.nodeCount, language)} {t.matchedNodes}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/60">
+                      {diagnosis.warnings[0]?.label ?? diagnosis.budgetWarnings[0] ?? diagnosis.summary}
+                    </p>
+                  </div>
+                  <button
+                    className={compactNeutralActionButtonClass}
+                    onClick={() => onOpenSourceDiagnosis(item.source)}
+                    type="button"
+                  >
+                    <ListTree className="h-3.5 w-3.5" />
+                    {t.openSourceDiagnosisFor(item.source.name)}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : null}
     </section>

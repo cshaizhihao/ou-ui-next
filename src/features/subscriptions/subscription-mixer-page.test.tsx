@@ -2706,6 +2706,72 @@ describe('SubscriptionMixerPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Unconverted Nodes: 0'));
   });
 
+  it('links delivery check warnings to inventory and source sync diagnosis', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/portal/')) {
+        return new Response('<html><body>portal</body></html>', {
+          status: 200,
+          headers: {
+            'content-type': 'text/html; charset=utf-8'
+          }
+        });
+      }
+
+      return new Response(url.includes('/uri/') ? 'vless://node' : 'proxies: []', {
+        status: 200,
+        headers: {
+          'content-type': url.includes('/uri/') ? 'text/plain; charset=utf-8' : 'application/yaml',
+          'subscription-userinfo': 'upload=0; download=1; total=10; expire=1798761599',
+          'x-ou-ui-node-count': '2',
+          'x-ou-ui-selected-node-count': '2',
+          'x-ou-ui-converted-uri-count': '1',
+          'x-ou-ui-unconverted-node-count': url.includes('/clash/') ? '1' : '0',
+          'x-ou-ui-conversion-warning': url.includes('/clash/') ? '1 node was not convertible' : '',
+          'x-ou-ui-producer': url.includes('/mihomo/') ? 'mihomo' : url.includes('/clash/') ? 'clash' : 'uri'
+        }
+      });
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage({
+      subscriptionSources: [
+        {
+          ...source,
+          status: 'warning',
+          syncWarnings: ['subscription_source.invalid_nodes:3']
+        }
+      ],
+      subscriptionInventoryNodes: inventoryNodes,
+      subscriptionClients: [subscriptionClient]
+    });
+
+    await user.click(screen.getByRole('button', { name: '查看订阅链接' }));
+    const drawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
+    const deliveryCheck = within(drawer).getByRole('region', { name: '交付诊断' });
+
+    await user.click(within(deliveryCheck).getByRole('button', { name: '运行交付诊断' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(deliveryCheck).toHaveAttribute('data-subscription-delivery-check-state', 'warning'));
+
+    const recovery = within(drawer).getByRole('region', { name: '交付排查' });
+
+    expect(recovery).toHaveTextContent('输出存在未转换节点或格式转换告警。');
+    expect(recovery).toHaveTextContent('异常来源');
+    expect(recovery).toHaveTextContent('字段缺失或无法解析节点 3 个');
+    expect(within(recovery).getByRole('button', { name: '查看命中库存' })).toBeInTheDocument();
+    expect(within(recovery).getByRole('button', { name: '打开命中节点' })).toBeInTheDocument();
+
+    await user.click(within(recovery).getByRole('button', { name: '同步诊断 香港 Premium 源' }));
+
+    const sourceDrawer = screen.getByLabelText('香港 Premium 源 同步诊断');
+    expect(sourceDrawer).toHaveTextContent('字段缺失或无法解析节点 3 个');
+    expect(sourceDrawer).toHaveTextContent('检查远端订阅格式和必需字段。');
+  });
+
   it('opens a matched-node drawer from a subscription identity and copies node share links', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
