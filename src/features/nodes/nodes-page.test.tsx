@@ -337,6 +337,135 @@ describe('NodesPage', () => {
     expect(within(overview).queryByText(/Reset \/ renew/)).not.toBeInTheDocument();
   });
 
+  it('surfaces a customer-node Xray cockpit with runtime, delivery, and risk evidence', async () => {
+    const user = userEvent.setup();
+    const baseClient = createInbound().clients[0];
+    const verifiedInbound = createInbound({
+      runtimeDeployment: {
+        source: 'agent-result',
+        verifiedAt: '2026-06-04T04:05:00.000Z',
+        agentIds: ['agent-metered-01'],
+        commandIds: ['cmd-task-xray-apply-01'],
+        appliedConfigRevisions: ['cfg-task-xray-apply-01']
+      },
+      clients: [
+        baseClient,
+        {
+          ...baseClient,
+          id: 'client-acme-extra',
+          email: 'acme-extra@example.com',
+          subId: 'premium-hk-extra'
+        }
+      ]
+    });
+    const riskInbound = createInbound({
+      id: 'inbound-risk-vless',
+      label: 'Risk VLESS Edge',
+      customerName: 'Risk Co',
+      configVersion: 'cfg-task-risk-failed',
+      remainingDays: 0,
+      subscriptionRule: 'manual',
+      clients: [
+        {
+          ...baseClient,
+          id: 'client-risk',
+          email: 'risk@example.com',
+          enabled: true,
+          quotaExceeded: true,
+          runtimeDisabledByPolicy: true,
+          guardrailReason: 'xray_client_monthly_quota_exceeded',
+          usedTrafficBytes: 120 * GB,
+          trafficLimitBytes: 100 * GB,
+          expiresAt: '2026-01-01T00:00:00.000Z'
+        }
+      ]
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[verifiedInbound, riskInbound]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[
+          createRuntimeTask(),
+          createRuntimeTask({
+            id: 'task-risk-failed',
+            requestId: 'req-task-risk-failed',
+            resourceId: 'inbound-risk-vless',
+            status: 'failed',
+            targetId: 'inbound-risk-vless',
+            targetLabel: 'Risk VLESS Edge'
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand(),
+          createRuntimeCommand({
+            id: 'outbox-task-risk-failed',
+            taskId: 'task-risk-failed',
+            commandId: 'cmd-task-risk-failed',
+            status: 'dead_letter',
+            lastError: 'xray run -test failed'
+          })
+        ]}
+        configRevisions={[
+          createRuntimeConfigRevision(),
+          createRuntimeConfigRevision({
+            id: 'cfg-task-risk-failed',
+            taskId: 'task-risk-failed',
+            targetId: 'inbound-risk-vless',
+            targetLabel: 'Risk VLESS Edge',
+            status: 'failed',
+            failureReason: 'xray run -test failed',
+            artifact: {
+              runtimeDiagnosis: {
+                state: 'failed',
+                evidenceStage: 'agent-result-failed'
+              }
+            }
+          })
+        ]}
+        preflightPlans={[
+          createRuntimePreflightPlan(),
+          createRuntimePreflightPlan({
+            id: 'preflight-task-risk-failed',
+            taskId: 'task-risk-failed',
+            configRevisionId: 'cfg-task-risk-failed',
+            targetId: 'inbound-risk-vless',
+            status: 'failed',
+            failureReason: 'xray run -test failed'
+          })
+        ]}
+        runtimeSnapshots={[createRuntimeSnapshot()]}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    const cockpit = screen.getByRole('region', { name: 'Xray Customer Node Cockpit' });
+    expect(within(cockpit).getByText('3 clients')).toBeInTheDocument();
+    expect(within(cockpit).getByText('1 shared inbounds')).toBeInTheDocument();
+    expect(within(cockpit).getByText('1 bound · 1 manual')).toBeInTheDocument();
+    expect(within(cockpit).getByText('1 verified · 0 waiting · 1 failed')).toBeInTheDocument();
+    expect(within(cockpit).getByText('1 risk · 1 expiring')).toBeInTheDocument();
+
+    await user.click(within(cockpit).getByRole('button', { name: 'Open Failed Evidence' }));
+    expect(screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    await user.click(within(cockpit).getByRole('button', { name: 'Focus Risk Node' }));
+    expect(screen.getByRole('searchbox', { name: 'Search Customer Nodes' })).toHaveValue('Risk VLESS Edge');
+    const contextBar = screen.getByRole('region', { name: 'Customer Node Actions' });
+    expect(within(contextBar).getByText('Risk VLESS Edge')).toBeInTheDocument();
+
+    await user.click(within(cockpit).getByRole('button', { name: 'Clear Filters' }));
+    expect(screen.getByRole('searchbox', { name: 'Search Customer Nodes' })).toHaveValue('');
+  });
+
   it('keeps the nodes workspace focused on status and actions instead of explanatory workflow cards', () => {
     render(
       <NodesPage

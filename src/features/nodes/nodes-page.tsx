@@ -18,6 +18,7 @@ import {
   Pencil,
   PieChart,
   Plus,
+  Route,
   RotateCw,
   RotateCcw,
   Search,
@@ -418,6 +419,22 @@ type CustomerNodeBulkActionFeedbackItem = {
   runtimeEvidence?: CustomerClientActionRuntimeEvidence;
 };
 type CustomerNodeBulkActionFeedbackState = 'verified' | 'waiting' | 'failed';
+type CustomerNodeCockpitSummary = {
+  totalNodes: number;
+  filteredNodes: number;
+  totalClients: number;
+  enabledNodes: number;
+  disabledNodes: number;
+  multiClientInbounds: number;
+  subscriptionBoundNodes: number;
+  manualSubscriptionNodes: number;
+  expiringNodes: number;
+  guardrailRiskNodes: number;
+  evidenceStates: Record<CustomerNodeRuntimeEvidenceState, number>;
+  protocolCounts: Partial<Record<XrayRuntimeProtocol, number>>;
+  firstFailedNode?: CustomerNodeRecord;
+  firstRiskNode?: CustomerNodeRecord;
+};
 type CustomerClientActionEvidenceState = 'verified' | 'waiting' | 'failed' | 'missing';
 type CustomerClientActionEvidenceStepId = 'task' | 'command' | 'revision' | 'preflight' | 'snapshot';
 type CustomerClientActionEvidenceStep = {
@@ -653,6 +670,25 @@ const copy = {
     online: '在线',
     customerNodesTitle: '客户节点配置',
     customerNodesHint: '',
+    customerNodeCockpit: 'Xray 客户节点工作台',
+    customerNodeCockpitRuntime: '运行时',
+    customerNodeCockpitClients: '客户端',
+    customerNodeCockpitDelivery: '订阅交付',
+    customerNodeCockpitGuardrails: '策略风险',
+    customerNodeCockpitProtocols: '协议分布',
+    customerNodeCockpitInbounds: '入站',
+    customerNodeCockpitFiltered: (filtered: string, total: string) => `${filtered}/${total} 当前匹配`,
+    customerNodeCockpitEnabled: (count: string) => `${count} 启用`,
+    customerNodeCockpitDisabled: (count: string) => `${count} 停用`,
+    customerNodeCockpitClientCount: (count: string) => `${count} 客户端`,
+    customerNodeCockpitShared: (count: string) => `${count} 共享入站`,
+    customerNodeCockpitEvidenceSummary: (verified: string, waiting: string, failed: string) =>
+      `${verified} 已验证 · ${waiting} 等待 · ${failed} 失败`,
+    customerNodeCockpitDeliverySummary: (bound: string, manual: string) => `${bound} 已绑定 · ${manual} 手动`,
+    customerNodeCockpitRiskSummary: (risks: string, expiring: string) => `${risks} 风险 · ${expiring} 即将到期`,
+    customerNodeCockpitOpenFailure: '打开失败证据',
+    customerNodeCockpitFocusRisk: '定位风险节点',
+    customerNodeCockpitClearFilters: '清除过滤',
     searchCustomerNodes: '搜索客户节点',
     searchCustomerNodesPlaceholder: '节点、客户、邮箱、订阅规则、端口、SNI 或路径',
     customerNodeProtocolFilter: '协议',
@@ -1172,6 +1208,25 @@ const copy = {
     online: 'Online',
     customerNodesTitle: 'Customer Node Config',
     customerNodesHint: '',
+    customerNodeCockpit: 'Xray Customer Node Cockpit',
+    customerNodeCockpitRuntime: 'Runtime',
+    customerNodeCockpitClients: 'Clients',
+    customerNodeCockpitDelivery: 'Subscription Delivery',
+    customerNodeCockpitGuardrails: 'Policy Risk',
+    customerNodeCockpitProtocols: 'Protocol Mix',
+    customerNodeCockpitInbounds: 'Inbounds',
+    customerNodeCockpitFiltered: (filtered: string, total: string) => `${filtered}/${total} matching`,
+    customerNodeCockpitEnabled: (count: string) => `${count} enabled`,
+    customerNodeCockpitDisabled: (count: string) => `${count} disabled`,
+    customerNodeCockpitClientCount: (count: string) => `${count} clients`,
+    customerNodeCockpitShared: (count: string) => `${count} shared inbounds`,
+    customerNodeCockpitEvidenceSummary: (verified: string, waiting: string, failed: string) =>
+      `${verified} verified · ${waiting} waiting · ${failed} failed`,
+    customerNodeCockpitDeliverySummary: (bound: string, manual: string) => `${bound} bound · ${manual} manual`,
+    customerNodeCockpitRiskSummary: (risks: string, expiring: string) => `${risks} risk · ${expiring} expiring`,
+    customerNodeCockpitOpenFailure: 'Open Failed Evidence',
+    customerNodeCockpitFocusRisk: 'Focus Risk Node',
+    customerNodeCockpitClearFilters: 'Clear Filters',
     searchCustomerNodes: 'Search Customer Nodes',
     searchCustomerNodesPlaceholder: 'Node, customer, email, subscription rule, port, SNI, or path',
     customerNodeProtocolFilter: 'Protocol',
@@ -3280,6 +3335,174 @@ function CustomerNodeContextInsightDeck({
   );
 }
 
+function CustomerNodeCockpitOverview({
+  summary,
+  t,
+  onClearFilters,
+  onFocusRiskNode,
+  onOpenFailedEvidence
+}: {
+  summary: CustomerNodeCockpitSummary;
+  t: NodesCopy;
+  onClearFilters: () => void;
+  onFocusRiskNode?: () => void;
+  onOpenFailedEvidence?: () => void;
+}) {
+  const protocolSummary = Object.entries(summary.protocolCounts)
+    .filter((entry): entry is [XrayRuntimeProtocol, number] => typeof entry[1] === 'number' && entry[1] > 0)
+    .map(([protocol, count]) => `${protocol.toUpperCase()} ${count}`)
+    .join(' · ') || '-';
+  const runtimeFailed = summary.evidenceStates.failed;
+  const runtimeTone =
+    runtimeFailed > 0
+      ? 'border-[#DC2626]/30 bg-[#DC2626]/8 text-[#B91C1C] dark:border-[#F87171]/22 dark:bg-[#DC2626]/12 dark:text-[#FCA5A5]'
+      : summary.evidenceStates.waiting > 0
+        ? 'border-[#FFB020]/32 bg-[#FFF3C4]/50 text-[#8A5A00] dark:border-[#FFD166]/22 dark:bg-[#FFD166]/8 dark:text-[#FFD166]'
+        : 'border-[#00A878]/26 bg-[#00A878]/8 text-[#006B50] dark:border-[#35E68E]/20 dark:bg-[#35E68E]/8 dark:text-[#9EF4C4]';
+  const riskTone =
+    summary.guardrailRiskNodes > 0
+      ? 'border-[#DC2626]/30 bg-[#DC2626]/8 text-[#B91C1C] dark:border-[#F87171]/22 dark:bg-[#DC2626]/12 dark:text-[#FCA5A5]'
+      : summary.expiringNodes > 0
+        ? 'border-[#FFB020]/32 bg-[#FFF3C4]/50 text-[#8A5A00] dark:border-[#FFD166]/22 dark:bg-[#FFD166]/8 dark:text-[#FFD166]'
+        : 'border-[#00A878]/26 bg-[#00A878]/8 text-[#006B50] dark:border-[#35E68E]/20 dark:bg-[#35E68E]/8 dark:text-[#9EF4C4]';
+
+  return (
+    <section
+      aria-label={t.customerNodeCockpit}
+      className="nodes-customer-cockpit border-b border-[#07111F]/16 bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/18 dark:bg-[#101827]"
+      data-customer-node-cockpit
+    >
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,0.36fr)]">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] font-black uppercase tracking-[0.18em] text-[#1E3AFF] dark:text-[#DCE1FF]">
+                {t.customerNodeCockpit}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/55">
+                <span>{t.customerNodeCockpitFiltered(String(summary.filteredNodes), String(summary.totalNodes))}</span>
+                <span>{t.customerNodeCockpitEnabled(String(summary.enabledNodes))}</span>
+                <span>{t.customerNodeCockpitDisabled(String(summary.disabledNodes))}</span>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {onOpenFailedEvidence ? (
+                <button
+                  className="inline-flex min-h-9 items-center justify-center gap-1.5 border border-[#DC2626]/35 bg-[#DC2626]/8 px-3 text-xs font-black text-[#B91C1C] transition hover:bg-[#DC2626]/12 dark:border-[#F87171]/28 dark:bg-[#DC2626]/[0.14] dark:text-[#FCA5A5]"
+                  onClick={onOpenFailedEvidence}
+                  type="button"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {t.customerNodeCockpitOpenFailure}
+                </button>
+              ) : null}
+              {onFocusRiskNode ? (
+                <button
+                  className="inline-flex min-h-9 items-center justify-center gap-1.5 border border-[#FFB020]/35 bg-[#FFF3C4]/50 px-3 text-xs font-black text-[#8A5A00] transition hover:bg-[#FFF3C4]/70 dark:border-[#FFD166]/24 dark:bg-[#FFD166]/10 dark:text-[#FFD166]"
+                  onClick={onFocusRiskNode}
+                  type="button"
+                >
+                  <Activity className="h-3.5 w-3.5" />
+                  {t.customerNodeCockpitFocusRisk}
+                </button>
+              ) : null}
+              <button
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 border border-[#07111F]/18 bg-[#FFFDF5]/72 px-3 text-xs font-black text-[#35405A] transition hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/45 hover:text-[#1E3AFF] dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/60 dark:hover:bg-[#6B7CFF]/12 dark:hover:text-[#DCE1FF]"
+                onClick={onClearFilters}
+                type="button"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {t.customerNodeCockpitClearFilters}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <CustomerNodeCockpitMetric
+              icon={Network}
+              label={t.customerNodeCockpitInbounds}
+              meta={t.customerNodeCockpitFiltered(String(summary.filteredNodes), String(summary.totalNodes))}
+              value={String(summary.totalNodes)}
+            />
+            <CustomerNodeCockpitMetric
+              icon={UserRound}
+              label={t.customerNodeCockpitClients}
+              meta={t.customerNodeCockpitShared(String(summary.multiClientInbounds))}
+              value={t.customerNodeCockpitClientCount(String(summary.totalClients))}
+            />
+            <CustomerNodeCockpitMetric
+              icon={Route}
+              label={t.customerNodeCockpitDelivery}
+              meta={t.customerNodeCockpitDeliverySummary(
+                String(summary.subscriptionBoundNodes),
+                String(summary.manualSubscriptionNodes)
+              )}
+              value={String(summary.subscriptionBoundNodes)}
+            />
+            <CustomerNodeCockpitMetric
+              icon={ServerCog}
+              label={t.customerNodeCockpitProtocols}
+              meta={protocolSummary}
+              value={String(Object.keys(summary.protocolCounts).length)}
+            />
+          </div>
+        </div>
+
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          <div className={cn('min-w-0 border p-2.5', runtimeTone)} data-customer-node-cockpit-runtime>
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em]">
+              {t.customerNodeCockpitRuntime}
+            </p>
+            <p className="mt-2 break-words text-sm font-black text-[#07111F] dark:text-white">
+              {t.customerNodeCockpitEvidenceSummary(
+                String(summary.evidenceStates.verified),
+                String(summary.evidenceStates.waiting),
+                String(summary.evidenceStates.failed)
+              )}
+            </p>
+          </div>
+          <div className={cn('min-w-0 border p-2.5', riskTone)} data-customer-node-cockpit-risk>
+            <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em]">
+              {t.customerNodeCockpitGuardrails}
+            </p>
+            <p className="mt-2 break-words text-sm font-black text-[#07111F] dark:text-white">
+              {t.customerNodeCockpitRiskSummary(String(summary.guardrailRiskNodes), String(summary.expiringNodes))}
+            </p>
+            {summary.firstRiskNode ? (
+              <p className="mt-1 break-words text-[11px] font-semibold opacity-75">{summary.firstRiskNode.nodeName}</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CustomerNodeCockpitMetric({
+  icon: Icon,
+  label,
+  meta,
+  value
+}: {
+  icon: typeof Activity;
+  label: string;
+  meta: string;
+  value: string;
+}) {
+  return (
+    <div className="nodes-customer-cockpit-metric min-h-[72px] border border-[#07111F]/14 bg-[#FFFDF5]/72 p-2.5 dark:border-[#6B7CFF]/16 dark:bg-white/[0.035]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">{label}</p>
+          <p className="mt-1 break-words text-sm font-black text-[#07111F] dark:text-white">{value}</p>
+        </div>
+        <Icon className="h-4 w-4 shrink-0 text-[#1E3AFF] dark:text-[#DCE1FF]" />
+      </div>
+      <p className="mt-2 truncate font-mono text-[10px] font-bold text-[#35405A] dark:text-white/55">{meta}</p>
+    </div>
+  );
+}
+
 function CustomerNodeContextButton({
   icon: Icon,
   label,
@@ -4283,6 +4506,99 @@ function createCustomerNodeBulkImpactSummary(
     guardrailRisks,
     expiringNodeCount,
     disabledNodeCount
+  };
+}
+
+function customerNodeHasGuardrailRisk(node: CustomerNodeRecord) {
+  return (
+    node.quotaExceeded ||
+    node.clientExpired ||
+    node.runtimeDisabledByPolicy ||
+    Boolean(node.guardrailReason && node.guardrailReason !== 'ok')
+  );
+}
+
+function customerNodeIsExpiring(node: CustomerNodeRecord) {
+  const expiresAtMs = Date.parse(node.expiresAt);
+  const expiresSoon = Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now() + 7 * DAY_MS;
+
+  return node.clientExpired || node.remainingDays <= 7 || expiresSoon;
+}
+
+function createCustomerNodeCockpitSummary({
+  filteredNodes,
+  inboundsById,
+  nodes,
+  runtimeEvidenceByNodeId
+}: {
+  filteredNodes: CustomerNodeRecord[];
+  inboundsById: Map<string, RuntimeXrayInbound>;
+  nodes: CustomerNodeRecord[];
+  runtimeEvidenceByNodeId: Map<string, CustomerNodeRuntimeEvidenceBundle>;
+}): CustomerNodeCockpitSummary {
+  const evidenceStates: Record<CustomerNodeRuntimeEvidenceState, number> = {
+    verified: 0,
+    waiting: 0,
+    failed: 0
+  };
+  const protocolCounts: Partial<Record<XrayRuntimeProtocol, number>> = {};
+  let totalClients = 0;
+  let multiClientInbounds = 0;
+  let subscriptionBoundNodes = 0;
+  let manualSubscriptionNodes = 0;
+  let expiringNodes = 0;
+  let guardrailRiskNodes = 0;
+  let firstFailedNode: CustomerNodeRecord | undefined;
+  let firstRiskNode: CustomerNodeRecord | undefined;
+
+  nodes.forEach((node) => {
+    const inbound = inboundsById.get(node.id);
+    const clientCount = inbound?.clients.length ?? 1;
+    const evidenceState = runtimeEvidenceByNodeId.get(node.id)?.state ?? 'waiting';
+
+    totalClients += clientCount;
+    evidenceStates[evidenceState] += 1;
+    protocolCounts[node.protocol] = (protocolCounts[node.protocol] ?? 0) + 1;
+
+    if (clientCount > 1) {
+      multiClientInbounds += 1;
+    }
+
+    if (node.subscriptionRule && node.subscriptionRule !== 'manual') {
+      subscriptionBoundNodes += 1;
+    } else {
+      manualSubscriptionNodes += 1;
+    }
+
+    if (customerNodeIsExpiring(node)) {
+      expiringNodes += 1;
+    }
+
+    if (customerNodeHasGuardrailRisk(node)) {
+      guardrailRiskNodes += 1;
+      firstRiskNode ??= node;
+    }
+
+    if (evidenceState === 'failed') {
+      firstFailedNode ??= node;
+    }
+  });
+
+  return {
+    disabledNodes: nodes.filter((node) => !node.enabled || node.inboundStatus === 'disabled').length,
+    enabledNodes: nodes.filter((node) => node.enabled && node.inboundStatus !== 'disabled').length,
+    evidenceStates,
+    expiringNodes,
+    filteredNodes: filteredNodes.length,
+    firstFailedNode,
+    firstRiskNode,
+    guardrailRiskNodes,
+    manualSubscriptionNodes,
+    multiClientInbounds,
+    protocolCounts,
+    subscriptionBoundNodes,
+    totalClients,
+    totalNodes: nodes.length
   };
 }
 
@@ -5540,6 +5856,15 @@ export function NodesPage({
     () => customerNodes.filter((node) => visibleAgents.some((agent) => agent.id === node.agentId)),
     [customerNodes, visibleAgents]
   );
+  const runtimeInboundsById = useMemo(
+    () =>
+      new Map(
+        inbounds
+          .filter((inbound): inbound is RuntimeXrayInbound => isXrayRuntimeProtocol(inbound.protocol))
+          .map((inbound) => [inbound.id, inbound])
+      ),
+    [inbounds]
+  );
   const runtimeEvidenceByNodeId = useMemo(
     () =>
       new Map(
@@ -5579,6 +5904,16 @@ export function NodesPage({
       hostNamesById,
       visibleCustomerNodes
     ]
+  );
+  const customerNodeCockpitSummary = useMemo(
+    () =>
+      createCustomerNodeCockpitSummary({
+        filteredNodes: filteredCustomerNodes,
+        inboundsById: runtimeInboundsById,
+        nodes: visibleCustomerNodes,
+        runtimeEvidenceByNodeId
+      }),
+    [filteredCustomerNodes, runtimeEvidenceByNodeId, runtimeInboundsById, visibleCustomerNodes]
   );
   const selectedCustomerNodes = useMemo(
     () => visibleCustomerNodes.filter((node) => selectedCustomerNodeIds.includes(node.id)),
@@ -7096,6 +7431,33 @@ export function NodesPage({
     }
   }
 
+  function clearCustomerNodeCockpitFilters() {
+    setCustomerNodeSearch('');
+    setCustomerNodeProtocolFilter('all');
+    setCustomerNodeHostFilter('all');
+    setCustomerNodeStatusFilter('all');
+  }
+
+  function focusCustomerNodeCockpitRisk() {
+    const riskNode = customerNodeCockpitSummary.firstRiskNode;
+
+    if (!riskNode) {
+      return;
+    }
+
+    clearCustomerNodeCockpitFilters();
+    setCustomerNodeSearch(riskNode.nodeName);
+    setSelectedCustomerNodeIds([riskNode.id]);
+  }
+
+  function openFirstCustomerNodeFailureEvidence() {
+    const failedNode = customerNodeCockpitSummary.firstFailedNode;
+
+    if (failedNode) {
+      setDrawer({ type: 'customerRuntimeEvidence', nodeId: failedNode.id });
+    }
+  }
+
   return (
     <ResponsivePage>
       <section aria-label={t.operationalOverview} className="stagger-1 space-y-3">
@@ -7454,6 +7816,18 @@ export function NodesPage({
               {t.addCustomerNode}
             </GlowButton>
           </div>
+
+          {visibleCustomerNodes.length > 0 ? (
+            <CustomerNodeCockpitOverview
+              summary={customerNodeCockpitSummary}
+              t={t}
+              onClearFilters={clearCustomerNodeCockpitFilters}
+              onFocusRiskNode={customerNodeCockpitSummary.firstRiskNode ? focusCustomerNodeCockpitRisk : undefined}
+              onOpenFailedEvidence={
+                customerNodeCockpitSummary.firstFailedNode ? openFirstCustomerNodeFailureEvidence : undefined
+              }
+            />
+          ) : null}
 
           {visibleCustomerNodes.length > 0 ? (
             <div className="nodes-customer-filter-bar border-b border-[#07111F]/16 bg-[#EAF3D1]/45 p-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.025]">
