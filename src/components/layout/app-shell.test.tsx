@@ -392,10 +392,10 @@ describe('AppShell', () => {
     expect(statusStrip).toHaveTextContent('主控节点');
     expect(statusStrip).toHaveTextContent('证据链');
     expect(statusStrip).toHaveTextContent('在线');
-    expect(shellChromeHtml).toContain('#1E3AFF');
-    expect(shellChromeHtml).toContain('#FF3D18');
-    expect(shellChromeHtml).toContain('#D9FF00');
-    expect(shellChromeHtml).toContain('#00A878');
+    expect(shellChromeHtml).toContain('ou-tone-primary');
+    expect(shellChromeHtml).toContain('ou-tone-danger');
+    expect(shellChromeHtml).toContain('ou-tone-warning');
+    expect(shellChromeHtml).toContain('ou-tone-success');
     expect(shellChromeHtml).not.toContain('slate-');
     expect(shellChromeHtml).not.toContain('rounded-xl');
     expect(shellChromeHtml).not.toContain('rounded-2xl');
@@ -3262,8 +3262,7 @@ describe('AppShell', () => {
     expect(alert).toHaveTextContent('当前账号缺少 configure 权限');
     expect(alert).toHaveTextContent('资源组：group-premium');
     expect(alert).toHaveTextContent('已有权限：operate, read');
-    expect(alert.outerHTML).toContain('#DC2626');
-    expect(alert.outerHTML).toContain('#7F1D1D');
+    expect(alert).toHaveClass('ou-tone-danger');
     expect(alert.outerHTML).not.toMatch(/\b(?:border|bg|text|ring)-(?:red|slate|orange)-/u);
     expect(alert.outerHTML).not.toMatch(/\brounded-xl\b/u);
     expect(alert.outerHTML).not.toMatch(/\bbackdrop-blur/u);

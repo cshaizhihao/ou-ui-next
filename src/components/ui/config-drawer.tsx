@@ -206,7 +206,7 @@ export function ConfigDrawer({
   return (
     <div
       aria-hidden={!open}
-      className={cn('overlay ou-drawer-overlay fixed inset-0 z-50 flex items-center justify-center bg-[#07111F]/54 p-4', open && 'open')}
+      className={cn('overlay ou-drawer-overlay fixed inset-0 z-50 flex items-center justify-center bg-[var(--ou-scrim)] p-4', open && 'open')}
       ref={overlayRef}
       onClick={onClose}
     >
@@ -215,25 +215,25 @@ export function ConfigDrawer({
         aria-label={title}
         role="dialog"
         className={cn(
-          'modal-panel ou-config-drawer flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_28px_84px_-50px_rgba(7,17,31,0.42)] dark:border-[#6B7CFF]/28 dark:bg-[#101827] dark:shadow-[0_30px_96px_-54px_rgba(0,0,0,0.92)] max-md:max-h-[92vh]',
+          'modal-panel ou-config-drawer flex max-h-[min(88vh,760px)] w-full max-w-[720px] flex-col overflow-hidden border max-md:max-h-[92vh]',
           open && 'open'
         )}
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="border-b border-[#07111F]/18 bg-[#DCE1FF]/55 p-6 dark:border-[#6B7CFF]/20 dark:bg-[#192238] max-md:p-4">
+        <div className="border-b border-[var(--ou-divider)] bg-[var(--ou-surface-muted)] p-6 max-md:p-4">
           <div className="flex items-start justify-between gap-4 max-md:flex-col max-md:items-stretch">
             <div className="min-w-0 flex-1">
-              <h3 className="text-base font-semibold text-[#07111F] dark:text-white">{title}</h3>
+              <h3 className="text-base font-semibold text-[var(--ou-text)]">{title}</h3>
               {description ? (
-                <p className="mt-2 text-xs leading-6 text-[#35405A] dark:text-[#D8E0FF]/72">{description}</p>
+                <p className="mt-2 text-xs leading-6 text-[var(--ou-text-muted)]">{description}</p>
               ) : null}
               {headerActions ? <div className="mt-3 flex flex-wrap gap-2">{headerActions}</div> : null}
             </div>
             <button
               aria-label="Close"
-              className="ou-mini-button ou-drawer-close border border-[#1E3AFF]/32 bg-[#FFFDF5] p-2 text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:border-[#1E3AFF] hover:bg-[#DCE1FF] dark:border-[#6B7CFF]/32 dark:bg-[#101827] dark:text-[#DDE3FF] dark:focus-visible:ring-primary/55 dark:hover:bg-[#6B7CFF]/14"
+              className="ou-mini-button ou-drawer-close ou-tone-primary border p-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
               onClick={onClose}
               ref={closeButtonRef}
               type="button"
@@ -243,10 +243,10 @@ export function ConfigDrawer({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-[#FFFDF5] p-6 dark:bg-[#101827]">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[var(--ou-surface)] p-6">{children}</div>
 
         {footer ? (
-          <div className="border-t border-[#07111F]/18 bg-[#EAF3D1]/70 p-4 dark:border-[#6B7CFF]/20 dark:bg-[#192238]">{footer}</div>
+          <div className="border-t border-[var(--ou-divider)] bg-[var(--ou-surface-muted)] p-4">{footer}</div>
         ) : null}
       </section>
     </div>

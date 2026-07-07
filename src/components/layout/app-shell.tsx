@@ -3501,8 +3501,8 @@ export function AppShell({ ready }: AppShellProps) {
                 role={taskMutationState.status === 'failed' ? 'alert' : 'status'}
                 className={
                   taskMutationState.status === 'failed'
-                    ? 'mb-4 border border-[#DC2626]/45 bg-[#FEE2E2]/82 p-3 text-xs font-semibold text-[#7F1D1D] shadow-[0_10px_22px_-20px_rgba(127,29,29,0.45)] dark:border-[#DC2626]/30 dark:bg-[#DC2626]/14 dark:text-[#FECACA]'
-                    : 'mb-4 border border-[#07111F]/14 bg-[#FFFDF5]/90 p-3 text-xs font-semibold text-[#07111F]/72 shadow-[0_10px_22px_-20px_rgba(7,17,31,0.32)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white/72'
+                    ? 'ou-tone-danger mb-4 border p-3 text-xs font-semibold shadow-[var(--ou-shadow-interactive)]'
+                    : 'surface-muted mb-4 border p-3 text-xs font-semibold text-[var(--ou-text-muted)] shadow-[var(--ou-shadow-interactive)]'
                 }
               >
                 <span className="font-mono uppercase tracking-widest">

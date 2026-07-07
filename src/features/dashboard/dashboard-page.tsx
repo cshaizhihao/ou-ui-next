@@ -325,11 +325,18 @@ function getConnectivityStageTone(state: ConnectivityStageState, fallback: strin
   }
 
   if (state === 'issues') {
-    return '#FF3D18';
+    return 'var(--ou-danger)';
   }
 
-  return '#35405A';
+  return 'var(--ou-text-muted)';
 }
+
+const dashboardToneClasses = {
+  primary: 'ou-tone-primary',
+  success: 'ou-tone-success',
+  warning: 'ou-tone-warning',
+  danger: 'ou-tone-danger'
+} as const;
 
 export function DashboardPage({
   agents,
@@ -358,7 +365,7 @@ export function DashboardPage({
       evidence: t.connectivityHostEvidence(onlineAgents, agents.length, language),
       count: `${onlineAgents}/${agents.length}`,
       state: hostConnectivityState,
-      tone: getConnectivityStageTone(hostConnectivityState, '#1E3AFF')
+      tone: getConnectivityStageTone(hostConnectivityState, 'var(--ou-primary)')
     },
     {
       id: 'mounted-host',
@@ -367,7 +374,7 @@ export function DashboardPage({
       evidence: t.connectivityMountedHostEvidence(mountedHostCount, language),
       count: String(mountedHostCount),
       state: mountedHostConnectivityState,
-      tone: getConnectivityStageTone(mountedHostConnectivityState, '#D9FF00')
+      tone: getConnectivityStageTone(mountedHostConnectivityState, 'var(--ou-warning)')
     },
     {
       id: 'node',
@@ -376,7 +383,7 @@ export function DashboardPage({
       evidence: t.connectivityNodeEvidence(healthyNodes, nodes.length, language),
       count: `${healthyNodes}/${nodes.length}`,
       state: nodeConnectivityState,
-      tone: getConnectivityStageTone(nodeConnectivityState, '#00A878')
+      tone: getConnectivityStageTone(nodeConnectivityState, 'var(--ou-success)')
     }
   ];
 
@@ -386,28 +393,28 @@ export function DashboardPage({
       value: `${onlineAgents}/${agents.length}`,
       detail: language === 'zh' ? '在线 Agent' : 'online agents',
       icon: Activity,
-      tone: 'from-[#1E3AFF] to-[#FF3D18]'
+      tone: 'primary'
     },
     {
       label: language === 'zh' ? '客户节点' : 'Customer Nodes',
       value: `${healthyNodes}/${nodes.length}`,
       detail: language === 'zh' ? '健康节点' : 'healthy nodes',
       icon: RadioTower,
-      tone: 'from-[#00A878] to-[#1E3AFF]'
+      tone: 'success'
     },
     {
       label: language === 'zh' ? '端口转发' : 'Forwarding',
       value: formatNumber(activeForwarding, language),
       detail: language === 'zh' ? '启用规则' : 'active rules',
       icon: Network,
-      tone: 'from-[#D9FF00] to-[#FF3D18]'
+      tone: 'warning'
     },
     {
       label: language === 'zh' ? '订阅交付' : 'Subscriptions',
       value: formatNumber(subscriptions.length, language),
       detail: language === 'zh' ? '订阅包' : 'bundles',
       icon: Archive,
-      tone: 'from-[#07111F] to-[#1E3AFF]'
+      tone: 'danger'
     }
   ];
 
@@ -419,21 +426,24 @@ export function DashboardPage({
         compactOnMobile={false}
       >
         <section aria-label={t.controlSurfaceRegion} className="grid min-w-0 gap-3">
-          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-0 self-start overflow-hidden !border-[#07111F] !bg-[#FFFDF5] p-0 !shadow-[0_16px_42px_-34px_rgba(7,17,31,0.32)] dark:!border-[#6B7CFF]/25 dark:!bg-[#07111F] dark:!shadow-black/40">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(30,58,255,0.26)_0%,rgba(30,58,255,0.26)_25%,transparent_25%),linear-gradient(225deg,rgba(255,61,24,0.2)_0%,rgba(255,61,24,0.2)_22%,transparent_22%),linear-gradient(315deg,rgba(217,255,0,0.22)_0%,rgba(217,255,0,0.22)_18%,transparent_18%),linear-gradient(180deg,#FFFDF5_0%,#FDFFF1_100%)] dark:bg-[linear-gradient(135deg,rgba(107,124,255,0.2)_0%,rgba(107,124,255,0.2)_25%,transparent_25%),linear-gradient(225deg,rgba(255,106,58,0.18)_0%,rgba(255,106,58,0.18)_22%,transparent_22%),linear-gradient(315deg,rgba(234,255,90,0.16)_0%,rgba(234,255,90,0.16)_18%,transparent_18%),linear-gradient(180deg,#07111F_0%,#101827_100%)]" aria-hidden="true" />
+          <GlassCard className="dashboard-control-plane-surface relative isolate min-h-0 self-start overflow-hidden border-[var(--ou-border)] bg-[var(--ou-surface)] p-0 shadow-[var(--ou-shadow)]">
+            <div
+              className="absolute inset-0 bg-[linear-gradient(180deg,var(--ou-surface)_0%,var(--ou-surface-subtle)_100%)]"
+              aria-hidden="true"
+            />
             <div className="relative z-10 flex min-h-0 flex-col gap-4 p-3 md:p-4">
               <div className="max-w-3xl">
-                <p className="text-sm font-black tracking-[0.01em] text-[#1E3AFF] dark:text-[#6B7CFF]">
+                <p className="text-sm font-semibold tracking-[0.01em] text-[var(--ou-primary)]">
                   {t.controlPlaneLabel}
                 </p>
-                <h3 className="mt-2 max-w-4xl text-balance text-4xl font-black leading-[0.96] tracking-[-0.035em] text-[#07111F] md:text-5xl dark:text-[#F4F8FF]">
+                <h3 className="mt-2 max-w-4xl text-balance text-4xl font-semibold leading-[0.96] text-[var(--ou-text)] md:text-5xl">
                   {t.connectivityTitle}
                 </h3>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                <div className="dashboard-control-plane-media relative min-h-[8.5rem] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] shadow-[0_14px_34px_-26px_rgba(0,0,0,0.34)] dark:border-[#6B7CFF]/30 dark:bg-[#101827]">
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(7,17,31,0.06)_1px,transparent_1px),linear-gradient(135deg,rgba(30,58,255,0.12),transparent_34%),linear-gradient(225deg,rgba(255,61,24,0.12),transparent_28%)] bg-[length:36px_36px,36px_36px,100%_100%,100%_100%] dark:bg-[linear-gradient(rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(107,124,255,0.08)_1px,transparent_1px),linear-gradient(135deg,rgba(107,124,255,0.14),transparent_34%),linear-gradient(225deg,rgba(255,106,58,0.12),transparent_28%)]" aria-hidden="true" />
+                <div className="dashboard-control-plane-media relative min-h-[8.5rem] overflow-hidden rounded-lg border border-[var(--ou-border)] bg-[var(--ou-surface)] shadow-[var(--ou-shadow)]">
+                  <div className="absolute inset-0 bg-[linear-gradient(var(--ou-grid-line)_1px,transparent_1px),linear-gradient(90deg,var(--ou-grid-line)_1px,transparent_1px),linear-gradient(135deg,var(--ou-primary-softer),transparent_34%)] bg-[length:36px_36px,36px_36px,100%_100%]" aria-hidden="true" />
                   <svg
                     className="dashboard-connectivity-topology relative z-10 h-44 w-full"
                     data-connectivity-state={
@@ -449,9 +459,9 @@ export function DashboardPage({
                   >
                     <defs>
                       <linearGradient id="dashboard-control-plane-flow" x1="0" x2="1" y1="0" y2="0">
-                        <stop className="svg-flow-stop-1" offset="0%" stopColor="#1E3AFF" />
-                        <stop className="svg-flow-stop-2" offset="58%" stopColor="#D9FF00" />
-                        <stop className="svg-flow-stop-3" offset="100%" stopColor="#FF3D18" />
+                        <stop className="svg-flow-stop-1" offset="0%" stopColor="var(--ou-primary)" />
+                        <stop className="svg-flow-stop-2" offset="58%" stopColor="var(--ou-warning)" />
+                        <stop className="svg-flow-stop-3" offset="100%" stopColor="var(--ou-danger)" />
                       </linearGradient>
                     </defs>
                     <path
@@ -462,12 +472,12 @@ export function DashboardPage({
                       strokeLinecap="round"
                       strokeWidth="5"
                     />
-                    <circle className="dashboard-connectivity-packet dashboard-connectivity-packet-primary" r="7" fill="#D9FF00" stroke="#07111F" strokeWidth="2">
+                    <circle className="dashboard-connectivity-packet dashboard-connectivity-packet-primary" r="7" fill="var(--ou-warning)" stroke="var(--ou-text)" strokeWidth="2">
                       <animateMotion dur="3.2s" keyPoints="0;1" keyTimes="0;1" repeatCount="indefinite">
                         <mpath href="#dashboard-connectivity-route" />
                       </animateMotion>
                     </circle>
-                    <circle className="dashboard-connectivity-packet dashboard-connectivity-packet-secondary" r="5" fill="#1E3AFF" stroke="#FFFDF5" strokeWidth="2">
+                    <circle className="dashboard-connectivity-packet dashboard-connectivity-packet-secondary" r="5" fill="var(--ou-primary)" stroke="var(--ou-surface)" strokeWidth="2">
                       <animateMotion begin="1.1s" dur="3.2s" keyPoints="0;1" keyTimes="0;1" repeatCount="indefinite">
                         <mpath href="#dashboard-connectivity-route" />
                       </animateMotion>
@@ -488,15 +498,15 @@ export function DashboardPage({
                       >
                         <circle cx={node.cx} cy="92" r="38" fill="url(#dashboard-control-plane-flow)" opacity={0.1 + index * 0.03} />
                         <circle cx={node.cx} cy="92" r="25" fill={node.tone} opacity="0.16" />
-                        <circle cx={node.cx} cy="92" r="18" fill="#FFFDF5" stroke="#07111F" strokeWidth="2" />
+                        <circle cx={node.cx} cy="92" r="18" fill="var(--ou-surface)" stroke="var(--ou-border-strong)" strokeWidth="2" />
                         <circle cx={node.cx} cy="92" r="8" fill={node.tone} />
-                        <text x={node.cx} y="98" textAnchor="middle" className="fill-[#07111F] font-mono text-[9px] font-black dark:fill-[#07111F]">
+                        <text x={node.cx} y="98" textAnchor="middle" className="fill-[var(--ou-text)] font-mono text-[9px] font-black">
                           {node.count}
                         </text>
-                        <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[#07111F] text-[13px] font-black dark:fill-[#F4F8FF]">
+                        <text x={node.cx} y="154" textAnchor="middle" className="dashboard-connectivity-label fill-[var(--ou-text)] text-[13px] font-semibold">
                           {node.label}
                         </text>
-                        <text x={node.cx} y="178" textAnchor="middle" className="dashboard-connectivity-evidence fill-[#35405A] text-[11px] font-black dark:fill-[#B8C2E6]">
+                        <text x={node.cx} y="178" textAnchor="middle" className="dashboard-connectivity-evidence fill-[var(--ou-text-muted)] text-[11px] font-semibold">
                           {node.evidence}
                         </text>
                       </g>
@@ -517,19 +527,20 @@ export function DashboardPage({
               return (
                 <div
                   key={card.label}
-                  className="group relative min-h-[60px] overflow-hidden rounded-lg border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_12px_28px_-24px_rgba(7,17,31,0.3)] transition duration-200 hover:-translate-y-0.5 hover:bg-white dark:border-[#6B7CFF]/20 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:bg-white/[0.06]"
+                  className="group relative min-h-[60px] overflow-hidden rounded-lg border border-[var(--ou-border)] bg-[var(--ou-surface)] p-2.5 shadow-[var(--ou-shadow)] transition duration-200 hover:-translate-y-0.5"
+                  data-tone={card.tone}
                 >
-                  <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.tone}`} />
+                  <div className={`absolute inset-x-0 top-0 h-1 ${dashboardToneClasses[card.tone as keyof typeof dashboardToneClasses]}`} />
                   <div className="flex h-full flex-col justify-between gap-1.5">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/72">{card.label}</p>
-                      <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-md bg-gradient-to-br ${card.tone} text-[#F4F8FF] shadow-sm shadow-black/20 transition duration-200 group-hover:scale-105`}>
+                      <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-[var(--ou-text-muted)]">{card.label}</p>
+                      <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-md border transition duration-200 group-hover:scale-105 ${dashboardToneClasses[card.tone as keyof typeof dashboardToneClasses]}`}>
                         <Icon className="h-4 w-4" />
                       </span>
                     </div>
                     <div>
-                      <p className="text-[1.45rem] font-black leading-none tracking-[-0.03em] text-[#07111F] dark:text-[#F4F8FF]">{card.value}</p>
-                      <p className="mt-1 truncate text-[11px] font-semibold text-[#536078] dark:text-[#B8C2E6]/68">{card.detail}</p>
+                      <p className="text-[1.45rem] font-semibold leading-none text-[var(--ou-text)]">{card.value}</p>
+                      <p className="mt-1 truncate text-[11px] font-semibold text-[var(--ou-text-muted)]">{card.detail}</p>
                     </div>
                   </div>
                 </div>
@@ -541,10 +552,10 @@ export function DashboardPage({
 
         <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-3">
           <section aria-label={t.hostTelemetryRegion} className="min-w-0">
-            <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden border-[#07111F] bg-[#FFFDF5] p-3 dark:border-[#6B7CFF]/20 dark:bg-[#101827]">
+            <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden border-[var(--ou-border)] bg-[var(--ou-surface)] p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h4 className="text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{t.hostProbeTitle}</h4>
+                  <h4 className="text-sm font-semibold text-[var(--ou-text)]">{t.hostProbeTitle}</h4>
                 </div>
                 {onOpenHostWorkspace ? (
                   <GlowButton className="px-3 py-1.5 text-[11px] font-bold" onClick={onOpenHostWorkspace}>
@@ -575,24 +586,24 @@ function CompactHostProbeCard({ agent, language, t }: { agent: Agent; language: 
   const diskPercent = clampPercent(agent.telemetry.diskPercent ?? 0);
   const statusTone =
     agent.status === 'online'
-      ? 'bg-[#00A878] shadow-[0_0_12px_rgba(0,168,120,0.65)]'
+      ? 'bg-[var(--ou-success)] shadow-[0_0_12px_rgba(5,150,105,0.45)]'
       : agent.status === 'degraded'
-        ? 'bg-[#D9FF00] shadow-[0_0_12px_rgba(217,255,0,0.65)]'
-        : 'bg-[#536078] shadow-[0_0_12px_rgba(83,96,120,0.6)]';
+        ? 'bg-[var(--ou-warning)] shadow-[0_0_12px_rgba(202,138,4,0.42)]'
+        : 'bg-[var(--ou-text-subtle)] shadow-[0_0_12px_rgba(82,97,116,0.32)]';
 
   return (
-    <article className="group min-h-0 rounded-lg border border-[#07111F] bg-[#FFFDF5] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_-26px_rgba(7,17,31,0.38)] dark:border-[#6B7CFF]/20 dark:bg-white/[0.04]">
+    <article className="group min-h-0 rounded-lg border border-[var(--ou-border)] bg-[var(--ou-surface)] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--ou-shadow-interactive)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={cn('h-2.5 w-2.5 flex-shrink-0 rounded-full', statusTone)} />
           <div className="min-w-0">
-            <h5 className="truncate text-sm font-black text-[#07111F] dark:text-[#F4F8FF]">{agent.name}</h5>
-            <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">
+            <h5 className="truncate text-sm font-semibold text-[var(--ou-text)]">{agent.name}</h5>
+            <p className="truncate font-mono text-[10px] font-semibold uppercase tracking-widest text-[var(--ou-text-muted)]">
               {telemetryReported ? formatDateTime(agent.telemetry.reportedAt!, language) : t.waitingTelemetry}
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-[#07111F] bg-[#1E3AFF] px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-[#F4F8FF] dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF] dark:text-[#07111F]">
+        <span className="ou-tone-primary rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest">
           {t.statusLabels[agent.status]}
         </span>
       </div>
@@ -631,13 +642,13 @@ function countMountedForwardingHosts(forwardingRules: ForwardingRuleView[]) {
 
 function CompactProbeBar({ label, percent, value }: { label: string; percent: number; value: string }) {
   return (
-    <div className="min-w-0 rounded-md bg-[#EAF3D1]/70 p-2 dark:bg-white/[0.04]">
+    <div className="min-w-0 rounded-md bg-[var(--ou-surface-muted)] p-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[9px] font-black uppercase tracking-widest text-[#536078] dark:text-[#B8C2E6]/65">{label}</p>
-        <p className="truncate text-[10px] font-black text-[#07111F] dark:text-[#F4F8FF]/86">{value}</p>
+        <p className="truncate text-[9px] font-semibold uppercase tracking-widest text-[var(--ou-text-muted)]">{label}</p>
+        <p className="truncate text-[10px] font-semibold text-[var(--ou-text)]">{value}</p>
       </div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#BBC5FF]/60 dark:bg-white/10">
-        <div className="h-full rounded-full bg-gradient-to-r from-[#1E3AFF] via-[#00A878] to-[#FF3D18] shadow-[0_0_10px_rgba(30,58,255,0.32)]" style={{ width: `${percent}%` }} />
+      <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--ou-border)]">
+        <div className="ou-progress-runtime h-full rounded-full" style={{ width: `${percent}%` }} />
       </div>
     </div>
   );
@@ -645,7 +656,7 @@ function CompactProbeBar({ label, percent, value }: { label: string; percent: nu
 
 function EmptySignal({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#07111F] bg-[#FFFDF5]/78 p-4 text-xs font-semibold text-[#536078] dark:border-[#6B7CFF]/18 dark:bg-white/[0.03] dark:text-[#B8C2E6]/68">
+    <div className="rounded-lg border border-dashed border-[var(--ou-border)] bg-[var(--ou-surface-muted)] p-4 text-xs font-semibold text-[var(--ou-text-muted)]">
       {label}
     </div>
   );

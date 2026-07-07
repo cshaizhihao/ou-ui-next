@@ -35,7 +35,7 @@ describe('responsive workspace containers', () => {
     );
   });
 
-  it('keeps mobile metric tones on explicit OU palette colors instead of default template utilities', () => {
+  it('maps mobile metric tones onto semantic operations states instead of template utilities', () => {
     const { container } = render(
       <MobileMetricStrip
         className="mobile-metric-strip"
@@ -49,13 +49,21 @@ describe('responsive workspace containers', () => {
       />
     );
 
-    const markup = container.querySelector('.mobile-metric-strip')?.outerHTML ?? '';
+    const strip = container.querySelector('.mobile-metric-strip');
+    const metrics = Array.from(strip?.querySelectorAll('[data-tone]') ?? []);
+    const markup = strip?.outerHTML ?? '';
 
-    expect(markup).toContain('#1E3AFF');
-    expect(markup).toContain('#00A878');
-    expect(markup).toContain('#D9FF00');
-    expect(markup).toContain('#DC2626');
-    expect(markup).toContain('#07111F');
+    expect(metrics.map((metric) => metric.getAttribute('data-tone'))).toEqual([
+      'primary',
+      'success',
+      'warning',
+      'danger',
+      'neutral'
+    ]);
+    expect(markup).toContain('ou-tone-primary');
+    expect(markup).toContain('ou-tone-success');
+    expect(markup).toContain('ou-tone-warning');
+    expect(markup).toContain('ou-tone-danger');
     expect(markup).not.toMatch(/\b(?:border|bg|text|ring)-(?:blue|emerald|amber|red|slate)-/u);
     expect(markup).not.toMatch(/\b(?:dark:)?(?:border|bg|text|ring)-(?:blue|emerald|amber|red|slate)-/u);
   });

@@ -293,25 +293,25 @@ export function QuickActionPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex overscroll-contain bg-[#07111F]/55 p-4 pt-[10vh] max-sm:items-start max-sm:justify-center sm:items-start sm:justify-center"
+      className="fixed inset-0 z-50 flex overscroll-contain bg-[var(--ou-scrim)] p-4 pt-[10vh] max-sm:items-start max-sm:justify-center sm:items-start sm:justify-center"
       data-quick-action-overlay="true"
       onClick={onClose}
     >
       <section
         aria-label={t.title}
         aria-modal="true"
-        className="ou-surface w-full max-w-2xl overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_28px_84px_-50px_rgba(5,5,5,0.22)] backdrop-blur-xl dark:border-[#E2E8F0]/14 dark:bg-[#101827]"
+        className="ou-surface surface-shell w-full max-w-2xl overflow-hidden border"
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center gap-3 border-b border-[#07111F]/12 p-4 dark:border-[#E2E8F0]/10">
-          <Search className="h-5 w-5 flex-shrink-0 text-[#1E3AFF] dark:text-[#DDE3FF]" />
+        <div className="flex items-center gap-3 border-b border-[var(--ou-divider)] p-4">
+          <Search className="h-5 w-5 flex-shrink-0 text-[var(--ou-primary)]" />
           <input
             aria-label={t.placeholder}
             aria-controls="quick-action-results"
-            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-[#07111F] outline-none placeholder:text-[#35405A]/72 dark:text-[#F4F8FF] dark:placeholder:text-[#D8E0FF]/64 max-sm:text-base"
+            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-[var(--ou-text)] outline-none placeholder:text-[var(--ou-text-subtle)] max-sm:text-base"
             onChange={(event) => updateQuery(event.target.value)}
             onKeyDown={handleSearchKeyDown}
             placeholder={t.placeholder}
@@ -322,7 +322,7 @@ export function QuickActionPalette({
           />
           <button
             aria-label={t.close}
-            className="ou-mini-button grid h-8 w-8 flex-shrink-0 touch-manipulation place-items-center rounded-full border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:bg-[#1E3AFF] hover:text-white dark:border-[#1E3AFF]/35 dark:bg-[#1E3AFF]/14 dark:text-[#DDE3FF] dark:hover:bg-[#1E3AFF] dark:hover:text-[#07111F] dark:focus-visible:ring-primary/55 max-sm:h-11 max-sm:w-11"
+            className="ou-mini-button ou-tone-primary grid h-8 w-8 flex-shrink-0 touch-manipulation place-items-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 max-sm:h-11 max-sm:w-11"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -334,19 +334,17 @@ export function QuickActionPalette({
         <div className="max-h-[min(62vh,520px)] overflow-y-auto p-3">
           <section
             aria-label={t.scopeRegion}
-            className="mb-3 grid gap-2 border border-[#07111F]/18 bg-[#EAF3D1]/70 p-2 dark:border-[#E2E8F0]/10 dark:bg-white/[0.04] sm:grid-cols-3"
+            className="mb-3 grid gap-2 border border-[var(--ou-border)] bg-[var(--ou-surface-muted)] p-2 sm:grid-cols-3"
           >
             {scopeMetrics.map((metric) => (
               <div
                 className={cn(
-                  'min-w-0 border bg-[#FFFDF5] px-3 py-2 dark:bg-[#07111F]/42',
-                  metric.tone === 'blue' &&
-                    'border-[#1E3AFF]/35 text-[#1E3AFF] dark:border-[#6B7CFF]/35 dark:text-[#DDE3FF]',
-                  metric.tone === 'orange' &&
-                    'border-[#FF3D18]/35 text-[#FF3D18] dark:border-[#FF6A3A]/35 dark:text-[#FFB197]',
-                  metric.tone === 'verify' &&
-                    'border-[#D9FF00] text-[#07111F] dark:border-[#EAFF5A]/35 dark:text-[#F4FFC5]'
+                  'min-w-0 border bg-[var(--ou-surface)] px-3 py-2',
+                  metric.tone === 'blue' && 'ou-tone-primary',
+                  metric.tone === 'orange' && 'ou-tone-danger',
+                  metric.tone === 'verify' && 'ou-tone-warning'
                 )}
+                data-tone={metric.tone === 'blue' ? 'primary' : metric.tone === 'orange' ? 'danger' : 'warning'}
                 key={metric.label}
               >
                 <p className="truncate text-[10px] font-bold uppercase tracking-[0.08em] opacity-80">{metric.label}</p>
@@ -357,11 +355,11 @@ export function QuickActionPalette({
 
           <ul
             aria-label={t.shortcutsLabel}
-            className="mb-3 flex flex-wrap items-center gap-2 border border-[#07111F]/12 bg-[#FFFDF5] p-2 text-[10px] font-semibold text-[#35405A] dark:border-[#E2E8F0]/10 dark:bg-white/[0.03] dark:text-[#D8E0FF]/70"
+            className="mb-3 flex flex-wrap items-center gap-2 border border-[var(--ou-border)] bg-[var(--ou-surface)] p-2 text-[10px] font-semibold text-[var(--ou-text-muted)]"
           >
             {shortcutHints.map((shortcut) => (
               <li className="flex min-h-7 items-center gap-1.5" key={shortcut.key}>
-                <kbd className="rounded-full border border-[#07111F]/18 bg-[#07111F]/[0.06] px-2 py-1 font-mono text-[10px] font-bold leading-none text-[#07111F] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#F4F8FF]">
+                <kbd className="ou-chip rounded-full border px-2 py-1 font-mono text-[10px] font-bold leading-none">
                   {shortcut.key}
                 </kbd>
                 <span>{shortcut.label}</span>
@@ -377,9 +375,9 @@ export function QuickActionPalette({
                 return (
                   <div
                     className={cn(
-                      'group flex w-full min-w-0 items-stretch gap-2 border transition-colors hover:border-[#1E3AFF]/30 hover:bg-[#DCE1FF]/55 focus-within:border-[#1E3AFF]/30 focus-within:bg-[#DCE1FF]/55 dark:hover:border-[#1E3AFF]/35 dark:hover:bg-[#1E3AFF]/10 dark:focus-within:border-[#1E3AFF]/35 dark:focus-within:bg-[#1E3AFF]/10 max-sm:flex-col max-sm:gap-0',
+                      'group flex w-full min-w-0 items-stretch gap-2 border transition-colors hover:border-[var(--ou-primary)] hover:bg-[var(--ou-primary-softer)] focus-within:border-[var(--ou-primary)] focus-within:bg-[var(--ou-primary-softer)] max-sm:flex-col max-sm:gap-0',
                       item.id === activeItem?.id
-                        ? 'border-[#1E3AFF] bg-[#DCE1FF] dark:border-[#1E3AFF]/45 dark:bg-[#1E3AFF]/14'
+                        ? 'border-[var(--ou-primary)] bg-[var(--ou-primary-soft)]'
                         : 'border-transparent'
                     )}
                     id={`quick-action-result-${item.id}`}
@@ -394,30 +392,30 @@ export function QuickActionPalette({
                       type="button"
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-[#07111F] dark:text-[#F4F8FF]">{item.title}</span>
+                        <span className="block truncate text-sm font-semibold text-[var(--ou-text)]">{item.title}</span>
                       </span>
                       <span className="flex flex-shrink-0 items-center gap-2 max-sm:self-stretch max-sm:flex-wrap">
-                        <span className="rounded-full border border-[#FF3D18] px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-[#FF3D18] dark:border-[#FF6A3A]/35 dark:text-[#FFB197]">
+                        <span className="ou-tone-danger rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em]">
                           {item.group}
                         </span>
                         {item.badge ? (
-                          <span className="rounded-full bg-[#D9FF00]/[0.28] px-2.5 py-1 text-[10px] font-semibold text-[#07111F] dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
+                          <span className="ou-tone-warning rounded-full border px-2.5 py-1 text-[10px] font-semibold">
                             {item.badge}
                           </span>
                         ) : null}
                         {commands.length > 0 ? (
-                          <span className="rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2.5 py-1 text-[10px] font-semibold text-[#35405A] dark:border-white/10 dark:bg-white/5 dark:text-white/64">
+                          <span className="ou-chip rounded-full border px-2.5 py-1 text-[10px] font-semibold">
                             {t.actionCount(commands.length)}
                           </span>
                         ) : null}
                       </span>
                     </button>
                     {commands.length > 0 && onRunCommand ? (
-                      <span className="m-2 flex flex-shrink-0 items-center gap-2 max-sm:mt-0 max-sm:flex-wrap max-sm:border-t max-sm:border-[#07111F]/12 max-sm:pt-2 dark:max-sm:border-[#E2E8F0]/10">
+                      <span className="m-2 flex flex-shrink-0 items-center gap-2 max-sm:mt-0 max-sm:flex-wrap max-sm:border-t max-sm:border-[var(--ou-divider)] max-sm:pt-2">
                         {commands.map((command) => (
                           <button
                             aria-label={`${command.label} ${item.title}`}
-                            className="ou-mini-button flex min-w-14 touch-manipulation items-center justify-center border border-[#FF3D18] bg-[#FF3D18]/[0.12] px-3 text-xs font-semibold text-[#FF3D18] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F] dark:focus-visible:ring-primary/55 max-sm:min-h-11 max-sm:flex-1"
+                            className="ou-mini-button ou-tone-danger flex min-w-14 touch-manipulation items-center justify-center border px-3 text-xs font-semibold shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 max-sm:min-h-11 max-sm:flex-1"
                             key={`${command.kind}:${command.targetId}:${command.label}`}
                             onClick={() => onRunCommand(item, command)}
                             type="button"
@@ -432,10 +430,10 @@ export function QuickActionPalette({
               })}
             </div>
           ) : (
-            <div className="grid min-h-40 place-items-center border border-dashed border-[#D9FF00] bg-[#D9FF00]/[0.16] p-6 text-center dark:border-[#EAFF5A]/25 dark:bg-[#EAFF5A]/10">
+            <div className="ou-tone-warning grid min-h-40 place-items-center border border-dashed p-6 text-center">
               <div>
-                <p className="text-sm font-semibold text-[#07111F] dark:text-[#F4FFC5]">{t.empty}</p>
-                <p className="mt-2 text-xs text-[#35405A] dark:text-[#D8E0FF]/72">{t.hint}</p>
+                <p className="text-sm font-semibold text-[var(--ou-text)]">{t.empty}</p>
+                <p className="mt-2 text-xs text-[var(--ou-text-muted)]">{t.hint}</p>
               </div>
             </div>
           )}
@@ -445,8 +443,8 @@ export function QuickActionPalette({
           {activeItem ? activeItem.title : t.empty}
         </p>
 
-        <div className={cn('border-t border-[#07111F]/12 px-4 py-3 dark:border-[#E2E8F0]/10', visibleItems.length === 0 && 'hidden')}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#35405A] dark:text-[#D8E0FF]/56">
+        <div className={cn('border-t border-[var(--ou-divider)] px-4 py-3', visibleItems.length === 0 && 'hidden')}>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--ou-text-muted)]">
             {t.hint}
           </p>
         </div>

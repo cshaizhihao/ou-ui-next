@@ -13,10 +13,11 @@
   overflow: hidden;
   z-index: 0;
   background:
-    linear-gradient(135deg, rgba(30, 58, 255, 0.16) 0%, rgba(30, 58, 255, 0.16) 22%, transparent 22%),
-    linear-gradient(225deg, rgba(255, 61, 24, 0.16) 0%, rgba(255, 61, 24, 0.16) 18%, transparent 18%),
-    linear-gradient(315deg, rgba(217, 255, 0, 0.14) 0%, rgba(217, 255, 0, 0.14) 16%, transparent 16%);
-  background-size: 124% 124%, 132% 132%, 128% 128%;
+    linear-gradient(180deg, color-mix(in srgb, var(--ou-primary) 7%, transparent), transparent 30%),
+    linear-gradient(90deg, color-mix(in srgb, var(--ou-success) 7%, transparent) 0 0.35rem, transparent 0.35rem),
+    repeating-linear-gradient(135deg, transparent 0 18px, rgba(15, 23, 42, 0.035) 18px 19px),
+    var(--ou-bg);
+  background-size: 100% 100%, 100% 100%, 44px 44px, 100% 100%;
   transform: translate3d(0, 0, 0);
 }
 
@@ -24,23 +25,24 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(7, 17, 31, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(7, 17, 31, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.055) 1px, transparent 1px);
   background-size: 64px 64px;
-  mask-image: radial-gradient(circle at 50% 18%, rgba(0, 0, 0, 0.88), transparent 84%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 86%);
 }
 
 .dark .ou-shell-backdrop {
   background:
-    linear-gradient(135deg, rgba(107, 124, 255, 0.18) 0%, rgba(107, 124, 255, 0.18) 22%, transparent 22%),
-    linear-gradient(225deg, rgba(255, 106, 58, 0.18) 0%, rgba(255, 106, 58, 0.18) 18%, transparent 18%),
-    linear-gradient(315deg, rgba(234, 255, 90, 0.16) 0%, rgba(234, 255, 90, 0.16) 16%, transparent 16%);
+    linear-gradient(180deg, color-mix(in srgb, var(--ou-primary) 10%, transparent), transparent 34%),
+    linear-gradient(90deg, color-mix(in srgb, var(--ou-success) 10%, transparent) 0 0.35rem, transparent 0.35rem),
+    repeating-linear-gradient(135deg, transparent 0 18px, rgba(255, 255, 255, 0.035) 18px 19px),
+    var(--ou-bg);
 }
 
 .dark .ou-shell-grid {
   background-image:
-    linear-gradient(rgba(107, 124, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 106, 58, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(96, 165, 250, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
 }
 
 .ou-surface {
@@ -185,13 +187,13 @@ button:not([disabled]):not([aria-disabled='true']):active {
 .ou-skeleton {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, rgba(7, 17, 31, 0.08), rgba(30, 58, 255, 0.16), rgba(255, 61, 24, 0.14), rgba(7, 17, 31, 0.08));
+  background: linear-gradient(90deg, rgba(7, 17, 31, 0.08), rgba(37, 99, 235, 0.16), rgba(8, 145, 178, 0.14), rgba(7, 17, 31, 0.08));
   background-size: 200% 100%;
   animation: ouSkeleton 1.3s linear infinite;
 }
 
 .dark .ou-skeleton {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(107, 124, 255, 0.16), rgba(255, 106, 58, 0.14), rgba(255, 255, 255, 0.05));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(96, 165, 250, 0.16), rgba(34, 211, 238, 0.14), rgba(255, 255, 255, 0.05));
 }
 
 .ou-scroll-glow {
@@ -200,18 +202,18 @@ button:not([disabled]):not([aria-disabled='true']):active {
   z-index: 1;
   pointer-events: none;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(30, 58, 255, 0.26), rgba(255, 61, 24, 0.22), transparent);
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.26), rgba(8, 145, 178, 0.22), transparent);
 }
 
 .dashboard-connectivity-flow.svg-line-dash {
   stroke-dasharray: 18 14;
   animation: ouConnectivityFlow 2.8s linear infinite;
-  filter: drop-shadow(0 0 10px rgba(217, 255, 0, 0.34));
+  filter: drop-shadow(0 0 10px rgba(202, 138, 4, 0.34));
   will-change: stroke-dashoffset;
 }
 
 .dashboard-connectivity-packet {
-  filter: drop-shadow(0 0 10px rgba(30, 58, 255, 0.24));
+  filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.24));
   opacity: 0.96;
 }
 

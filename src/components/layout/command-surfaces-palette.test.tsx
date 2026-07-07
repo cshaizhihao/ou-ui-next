@@ -38,12 +38,12 @@ const quickActionItems: QuickActionItem[] = [
   }
 ];
 
-describe('command surfaces fauvist palette', () => {
+describe('command surfaces operations palette', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('frames quick actions as a fauvist command surface with active, badge, and command colors', () => {
+  it('frames quick actions as an operations command surface with active, badge, and command tones', () => {
     render(
       <QuickActionPalette
         items={quickActionItems}
@@ -61,13 +61,13 @@ describe('command surfaces fauvist palette', () => {
     const valueBadge = within(firstResult).getByText('443');
     const commandButton = screen.getByRole('button', { name: '应用 端口转发网络' });
 
-    expect(document.querySelector('[data-quick-action-overlay="true"]')).toHaveClass('bg-[#07111F]/55');
-    expect(dialog).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
-    expect(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' })).toHaveClass('text-[#07111F]');
-    expect(firstResult).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]');
-    expect(groupBadge).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
-    expect(valueBadge).toHaveClass('bg-[#D9FF00]/[0.28]', 'text-[#07111F]');
-    expect(commandButton).toHaveClass('border-[#FF3D18]', 'bg-[#FF3D18]/[0.12]', 'text-[#FF3D18]');
+    expect(document.querySelector('[data-quick-action-overlay="true"]')).toHaveClass('bg-[var(--ou-scrim)]');
+    expect(dialog).toHaveClass('surface-shell');
+    expect(screen.getByRole('searchbox', { name: '搜索控制面、主机、客户、转发和订阅' })).toHaveClass('text-[var(--ou-text)]');
+    expect(firstResult).toHaveClass('border-[var(--ou-primary)]', 'bg-[var(--ou-primary-soft)]');
+    expect(groupBadge).toHaveClass('ou-tone-danger');
+    expect(valueBadge).toHaveClass('ou-tone-warning');
+    expect(commandButton).toHaveClass('ou-tone-danger');
   });
 
   it('keeps quick action results free of visible explanatory descriptions', () => {
@@ -260,7 +260,7 @@ describe('command surfaces fauvist palette', () => {
     expect(within(firstResult).getByText('1 action')).toBeInTheDocument();
   });
 
-  it('uses fauvist colors for quick action empty state after filtering', () => {
+  it('uses warning tone for quick action empty state after filtering', () => {
     render(
       <QuickActionPalette
         items={quickActionItems}
@@ -276,10 +276,7 @@ describe('command surfaces fauvist palette', () => {
       target: { value: 'missing-query' }
     });
 
-    expect(screen.getAllByText('没有匹配结果')[0].closest('div')?.parentElement).toHaveClass(
-      'border-[#D9FF00]',
-      'bg-[#D9FF00]/[0.16]'
-    );
+    expect(screen.getAllByText('没有匹配结果')[0].closest('div')?.parentElement).toHaveClass('ou-tone-warning');
   });
 
   it('keeps action overlays compact without fixed runtime-impact filler copy', () => {
@@ -297,27 +294,27 @@ describe('command surfaces fauvist palette', () => {
 
     const dialog = screen.getByRole('dialog', { name: '应用主机设置' });
 
-    expect(document.querySelector('[data-action-overlay="true"]')).toHaveClass('bg-[#07111F]/55');
-    expect(dialog).toHaveClass('border-[#FF3D18]', 'bg-[#FFFDF5]');
-    expect(screen.getByRole('button', { name: '关闭浮窗' })).toHaveClass('border-[#1E3AFF]', 'text-[#1E3AFF]');
+    expect(document.querySelector('[data-action-overlay="true"]')).toHaveClass('bg-[var(--ou-scrim)]');
+    expect(dialog).toHaveClass('modal-panel', 'ou-surface');
+    expect(screen.getByRole('button', { name: '关闭浮窗' })).toHaveClass('ou-tone-primary');
     expect(dialog).toHaveTextContent('应用端口转发策略');
     expect(dialog).not.toHaveTextContent('运行影响');
     expect(dialog).not.toHaveTextContent('应用前先生成配置快照');
     expect(dialog).not.toHaveTextContent('通知主机代理执行变更');
     expect(dialog).not.toHaveTextContent('成功后保留回滚点');
-    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('border-[#07111F]/25', 'text-[#35405A]');
+    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('text-[var(--ou-text-muted)]');
   });
 
-  it('uses a compact fauvist loading status for the control-plane skeleton', () => {
+  it('uses a compact operations loading status for the control-plane skeleton', () => {
     render(<ControlPlaneSkeleton language="zh" />);
 
     const skeleton = screen.getByRole('status', { name: '同步中' });
     const loadingCards = skeleton.querySelectorAll('[data-skeleton-card="true"]');
 
-    expect(skeleton).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]', 'p-3');
-    expect(screen.getByText('同步中')).toHaveClass('text-[#07111F]');
+    expect(skeleton).toHaveClass('surface-shell', 'p-3');
+    expect(screen.getByText('同步中')).toHaveClass('text-[var(--ou-text)]');
     expect(screen.queryByText('正在并行拉取主机、客户节点、端口转发、订阅和审计证据。')).not.toBeInTheDocument();
     expect(loadingCards).toHaveLength(0);
-    expect(skeleton.querySelector('.ou-skeleton')).toHaveClass('bg-[#DCE1FF]');
+    expect(skeleton.querySelector('.ou-skeleton')).toHaveClass('bg-[var(--ou-primary-soft)]');
   });
 });

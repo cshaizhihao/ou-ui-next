@@ -60,8 +60,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           'control-plane-nav-item ou-nav-item nav-item flex w-full min-w-0 items-center gap-3 border px-3 py-2.5 text-left',
           depth > 0 && 'ml-3 w-[calc(100%-0.75rem)]',
           activePage === item.id
-            ? 'nav-active border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/45 dark:bg-[#6B7CFF]/15 dark:text-white dark:shadow-black/30'
-            : 'border-transparent text-[#35405A] hover:border-[#1E3AFF] hover:bg-[#DCE1FF]/70 hover:text-[#07111F] dark:text-white/70 dark:hover:border-[#6B7CFF]/25 dark:hover:bg-[#6B7CFF]/10 dark:hover:text-white'
+            ? 'nav-active'
+            : 'border-transparent text-[var(--ou-text-muted)] hover:border-[var(--ou-border-strong)] hover:bg-[var(--ou-surface-muted)] hover:text-[var(--ou-text)]'
         )}
         key={item.id}
         onClick={() => onPageChange(item.id)}
@@ -90,8 +90,8 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
           className={cn(
             'ou-nav-item flex w-full min-w-0 items-center justify-between gap-3 border px-3 py-2.5 text-left',
             containsActivePage
-              ? 'border-[#D9FF00] bg-[#D9FF00]/[0.18] text-[#07111F] shadow-sm shadow-[#D9FF00]/15 dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/10 dark:text-[#F4FFC5]'
-              : 'border-transparent text-[#35405A] hover:border-[#D9FF00] hover:bg-[#D9FF00]/[0.16] hover:text-[#07111F] dark:text-white/60 dark:hover:border-[#EAFF5A]/25 dark:hover:bg-[#EAFF5A]/10 dark:hover:text-white/85'
+              ? 'ou-tone-warning shadow-sm'
+              : 'border-transparent text-[var(--ou-text-muted)] hover:border-[var(--ou-warning)] hover:bg-[var(--ou-warning-soft)] hover:text-[var(--ou-text)]'
           )}
           onClick={() => toggleGroup(group.id)}
           type="button"
@@ -121,25 +121,25 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   return (
     <aside
       aria-label={sidebarLabel}
-      className="control-plane-sidebar ou-shell-sidebar h-full min-h-0 w-[272px] flex-shrink-0 overflow-hidden border border-[#07111F] bg-[#FFFDF5] shadow-[0_22px_64px_-42px_rgba(7,17,31,0.24)] max-md:hidden dark:border-[#6B7CFF]/25 dark:bg-[#101827] dark:shadow-[0_30px_96px_-54px_rgba(0,0,0,0.9)]"
+      className="control-plane-sidebar ou-shell-sidebar h-full min-h-0 w-[272px] flex-shrink-0 overflow-hidden border max-md:hidden"
     >
-      <div className="flex h-20 shrink-0 items-center justify-between border-b border-[#07111F]/25 bg-[#DCE1FF]/70 px-6 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10">
+      <div className="flex h-20 shrink-0 items-center justify-between border-b px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center border border-[#1E3AFF] bg-[#FFFDF5] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/15 dark:border-[#6B7CFF]/35 dark:bg-[#192238] dark:text-[#DDE3FF]">
+          <div className="ou-tone-primary flex h-9 w-9 items-center justify-center border shadow-sm">
             <BrandLogo />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-tight text-[#07111F] dark:text-white">OU-UI NEXT</h1>
-            <p className="truncate text-[10px] font-medium text-[#35405A] dark:text-white/55">
+            <h1 className="truncate text-base font-semibold tracking-tight text-[var(--ou-text)]">OU-UI NEXT</h1>
+            <p className="truncate text-[10px] font-medium text-[var(--ou-text-muted)]">
               {isZh ? '商业级 Master 控制平面' : 'Commercial Master control plane'}
             </p>
           </div>
         </div>
         <div className="hidden items-center gap-2 lg:flex">
-          <span className="flex h-8 w-8 items-center justify-center border border-[#1E3AFF]/30 bg-[#FFFDF5] text-[#1E3AFF] dark:border-[#6B7CFF]/28 dark:bg-[#192238] dark:text-[#DDE3FF]">
+          <span className="ou-tone-primary flex h-8 w-8 items-center justify-center border">
             <LayoutGrid className="h-3.5 w-3.5" />
           </span>
-          <span className="flex h-8 w-8 items-center justify-center border border-[#D9FF00] bg-[#D9FF00]/[0.26] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]">
+          <span className="ou-tone-warning flex h-8 w-8 items-center justify-center border">
             <ShieldCheck className="h-3.5 w-3.5" />
           </span>
         </div>
@@ -152,24 +152,24 @@ export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
       <div className="shrink-0 p-5 max-md:hidden">
         <div
           aria-label={statusLabel}
-          className="control-plane-shell-status-strip grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border border-[#00A878] bg-[#00A878]/[0.12] p-3 shadow-sm shadow-[#00A878]/10 dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10"
+          className="control-plane-shell-status-strip grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border p-3 shadow-sm"
           role="region"
         >
-          <div className="flex h-9 w-9 items-center justify-center border border-[#00A878] bg-[#FFFDF5] text-xs font-semibold text-[#007D5E] shadow-sm dark:border-[#35E68E]/35 dark:bg-[#07111F] dark:text-[#9EF4C4]">
+          <div className="ou-tone-success flex h-9 w-9 items-center justify-center border text-xs font-semibold shadow-sm">
             M
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold tracking-tight text-[#07111F] dark:text-white">{controlNodeTitle}</p>
-            <p className="mt-0.5 truncate text-[9px] font-medium text-[#35405A] dark:text-white/55">
+            <p className="truncate text-xs font-semibold tracking-tight text-[var(--ou-text)]">{controlNodeTitle}</p>
+            <p className="mt-0.5 truncate text-[9px] font-medium text-[var(--ou-text-muted)]">
               {controlNodeSubtitle}
             </p>
           </div>
-          <div className="col-span-2 grid grid-cols-2 gap-2 text-[9px] font-black uppercase tracking-[0.08em] text-[#07111F] dark:text-[#D8FFF0]">
-            <span className="flex min-w-0 items-center gap-1.5 border border-[#D9FF00] bg-[#D9FF00]/[0.30] px-2 py-1">
+          <div className="col-span-2 grid grid-cols-2 gap-2 text-[9px] font-black uppercase tracking-[0.08em] text-[var(--ou-text)]">
+            <span className="ou-tone-warning flex min-w-0 items-center gap-1.5 border px-2 py-1">
               <ShieldCheck className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{evidenceLabel}</span>
             </span>
-            <span className="flex min-w-0 items-center gap-1.5 border border-[#00A878]/50 bg-[#FFFDF5] px-2 py-1 dark:bg-[#07111F]">
+            <span className="ou-tone-success flex min-w-0 items-center gap-1.5 border px-2 py-1">
               <Signal className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{onlineLabel}</span>
             </span>

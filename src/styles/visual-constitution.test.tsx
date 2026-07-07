@@ -27,26 +27,30 @@ function collectProductionUiFiles(directory: string): string[] {
 
 describe('visual constitution', () => {
   it('keeps the mandatory OU-UI Next visual tokens', () => {
-    expect(visualTokens.colors.primary).toBe('#1E3AFF');
-    expect(visualTokens.colors.secondary).toBe('#07111F');
-    expect(visualTokens.colors.accent).toBe('#FF3D18');
-    expect(visualTokens.colors.lightBackground).toBe('#FDFFF1');
-    expect(visualTokens.colors.lightSurface).toBe('#FFFDF5');
-    expect(visualTokens.colors.lightSurfaceMuted).toBe('#EAF3D1');
-    expect(visualTokens.colors.border).toBe('#07111F');
-    expect(visualTokens.colors.textStrong).toBe('#07111F');
-    expect(visualTokens.colors.textMuted).toBe('#35405A');
-    expect(visualTokens.colors.darkBackground).toBe('#07111F');
+    expect(visualTokens.colors.primary).toBe('#2563EB');
+    expect(visualTokens.colors.secondary).toBe('#0B1220');
+    expect(visualTokens.colors.accent).toBe('#0891B2');
+    expect(visualTokens.colors.success).toBe('#059669');
+    expect(visualTokens.colors.warning).toBe('#CA8A04');
+    expect(visualTokens.colors.danger).toBe('#DC2626');
+    expect(visualTokens.colors.lightBackground).toBe('#F7F9FC');
+    expect(visualTokens.colors.lightSurface).toBe('#FFFFFF');
+    expect(visualTokens.colors.lightSurfaceMuted).toBe('#EEF2F7');
+    expect(visualTokens.colors.border).toBe('#D7DEE8');
+    expect(visualTokens.colors.textStrong).toBe('#0B1220');
+    expect(visualTokens.colors.textMuted).toBe('#526174');
+    expect(visualTokens.colors.darkBackground).toBe('#080D16');
     expect(visualTokens.colors.darkSurface).toBe('#101827');
-    expect(visualTokens.visualDialect).toBe('fauvist-control-plane');
+    expect(visualTokens.visualDialect).toBe('ops-control-plane');
     expect(visualTokens.darkModeStrategy).toBe('class');
-    expect(visualTokens.fontFamilySans).toContain('Geist');
+    expect(visualTokens.fontFamilySans).toContain('Inter');
   });
 
-  it('uses a high-contrast fauvist control palette instead of the muted cobalt deck', () => {
+  it('uses a tokenized operations control palette instead of the old fauvist deck', () => {
     const sharedThemeSources = [
       'tailwind.config.ts',
       'src/styles/visual-constitution.ts',
+      'src/styles/tokens.css',
       'src/styles/globals.css',
       'src/styles/glass.css',
       'src/styles/animations.css'
@@ -54,21 +58,25 @@ describe('visual constitution', () => {
 
     const sharedTheme = sharedThemeSources.join('\n');
 
-    expect(sharedTheme).toMatch(/#1e3aff/);
-    expect(sharedTheme).toMatch(/#ff3d18/);
-    expect(sharedTheme).toMatch(/#00a878/);
-    expect(sharedTheme).toMatch(/#d9ff00/);
-    expect(sharedTheme).not.toMatch(/#2563eb|#1d4ed8|#60a5fa|#f97316|#fb923c|#2f55ff|#f15a24|#14b7aa|#f4b400/);
+    expect(sharedTheme).toMatch(/#2563eb/);
+    expect(sharedTheme).toMatch(/#0891b2/);
+    expect(sharedTheme).toMatch(/#059669/);
+    expect(sharedTheme).toMatch(/#ca8a04/);
+    expect(sharedTheme).toMatch(/#dc2626/);
+    expect(sharedTheme).not.toMatch(/#1e3aff|#ff3d18|#d9ff00|#00a878|#fffdf5|#fdfff1|#dce1ff/);
   });
 
-  it('keeps shared cockpit CSS off the stale cobalt and orange RGB ramps', () => {
-    const glassCss = readFileSync(join(process.cwd(), 'src/styles/glass.css'), 'utf8');
+  it('defines the shared visual system as primitive, semantic, and component tokens', () => {
+    const tokensCss = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8');
 
-    expect(glassCss).toMatch(/rgba\(30,\s*58,\s*255,/);
-    expect(glassCss).toMatch(/rgba\(255,\s*61,\s*24,/);
-    expect(glassCss).not.toMatch(
-      /rgba\((?:37,\s*99,\s*235|96,\s*165,\s*250|249,\s*115,\s*22|248,\s*250,\s*252|8,\s*15,\s*28),/
-    );
+    expect(tokensCss).toContain('Primitive color ramps');
+    expect(tokensCss).toContain('Semantic colors');
+    expect(tokensCss).toContain('Component tokens');
+    expect(tokensCss).toContain('--ou-state-verified');
+    expect(tokensCss).toContain('--ou-state-pending');
+    expect(tokensCss).toContain('--ou-state-failed');
+    expect(tokensCss).toContain('--ou-focus-ring');
+    expect(tokensCss).not.toMatch(/--ou-radius:\s*0;/u);
   });
 
   it('exports every class that must survive the React migration', () => {
@@ -165,13 +173,14 @@ describe('visual constitution', () => {
     expect(rowSelectors.filter((selector) => !reducedSelectors.has(selector))).toEqual([]);
   });
 
-  it('keeps the global Fauvist backdrop static while preserving reduced-motion safe transitions', () => {
+  it('keeps the global operations backdrop static while preserving reduced-motion safe transitions', () => {
     const animationsCss = readFileSync(join(process.cwd(), 'src/styles/animations.css'), 'utf8');
 
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*position:\s*fixed/u);
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*width:\s*100vw/u);
     expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*max-width:\s*100vw/u);
-    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*background-size:\s*124%\s+124%,\s*132%\s+132%,\s*128%\s+128%/u);
+    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*repeating-linear-gradient\(135deg/u);
+    expect(animationsCss).toMatch(/\.ou-shell-backdrop\s*\{[\s\S]*var\(--ou-bg\)/u);
     expect(animationsCss).toMatch(/\.btn-glow,[\s\S]*\.ou-select,[\s\S]*summary\s*\{[\s\S]*transition:/u);
     expect(animationsCss).toMatch(/\.btn-glow:hover,[\s\S]*\.ou-select:hover,[\s\S]*summary:hover\s*\{[\s\S]*translateY\(-1px\)/u);
     expect(animationsCss).toMatch(/\.btn-glow:active,[\s\S]*\.ou-select:active,[\s\S]*summary:active\s*\{[\s\S]*translateY\(1px\)\s*scale\(0\.99\)/u);

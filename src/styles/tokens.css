@@ -1,0 +1,156 @@
+/* Round 2 visual system: primitive -> semantic -> component tokens. */
+:root {
+  color-scheme: light;
+
+  /* Primitive color ramps */
+  --ou-color-ink-950: #0b1220;
+  --ou-color-ink-900: #111827;
+  --ou-color-ink-800: #1f2937;
+  --ou-color-slate-700: #334155;
+  --ou-color-slate-600: #475569;
+  --ou-color-slate-500: #64748b;
+  --ou-color-slate-300: #cbd5e1;
+  --ou-color-slate-200: #d7dee8;
+  --ou-color-slate-100: #eef2f7;
+  --ou-color-slate-50: #f7f9fc;
+  --ou-color-white: #ffffff;
+  --ou-color-blue-700: #1d4ed8;
+  --ou-color-blue-600: #2563eb;
+  --ou-color-blue-500: #3b82f6;
+  --ou-color-blue-400: #60a5fa;
+  --ou-color-emerald-600: #059669;
+  --ou-color-emerald-500: #10b981;
+  --ou-color-emerald-400: #34d399;
+  --ou-color-amber-700: #b45309;
+  --ou-color-amber-600: #ca8a04;
+  --ou-color-amber-400: #fbbf24;
+  --ou-color-red-700: #b91c1c;
+  --ou-color-red-600: #dc2626;
+  --ou-color-red-400: #f87171;
+  --ou-color-cyan-600: #0891b2;
+  --ou-color-cyan-400: #22d3ee;
+
+  /* Primitive spacing and shape */
+  --ou-space-1: 0.25rem;
+  --ou-space-2: 0.5rem;
+  --ou-space-3: 0.75rem;
+  --ou-space-4: 1rem;
+  --ou-space-5: 1.25rem;
+  --ou-space-6: 1.5rem;
+  --ou-space-8: 2rem;
+  --ou-radius-xs: 0.25rem;
+  --ou-radius-sm: 0.375rem;
+  --ou-radius-md: 0.5rem;
+  --ou-radius-lg: 0.625rem;
+  --ou-radius-pill: 999px;
+
+  /* Semantic colors */
+  --ou-bg: var(--ou-color-slate-50);
+  --ou-bg-elevated: #f3f6fb;
+  --ou-surface: var(--ou-color-white);
+  --ou-surface-strong: var(--ou-color-white);
+  --ou-surface-muted: var(--ou-color-slate-100);
+  --ou-surface-subtle: #f9fbfe;
+  --ou-border: rgba(15, 23, 42, 0.14);
+  --ou-border-strong: rgba(15, 23, 42, 0.28);
+  --ou-divider: rgba(15, 23, 42, 0.1);
+  --ou-text: var(--ou-color-ink-950);
+  --ou-text-muted: #526174;
+  --ou-text-subtle: #69778d;
+  --ou-primary: var(--ou-color-blue-600);
+  --ou-primary-hover: var(--ou-color-blue-700);
+  --ou-primary-contrast: #ffffff;
+  --ou-primary-soft: rgba(37, 99, 235, 0.1);
+  --ou-primary-softer: rgba(37, 99, 235, 0.06);
+  --ou-accent: var(--ou-color-cyan-600);
+  --ou-accent-soft: rgba(8, 145, 178, 0.1);
+  --ou-success: var(--ou-color-emerald-600);
+  --ou-success-soft: rgba(5, 150, 105, 0.1);
+  --ou-warning: var(--ou-color-amber-600);
+  --ou-warning-soft: rgba(202, 138, 4, 0.14);
+  --ou-danger: var(--ou-color-red-600);
+  --ou-danger-soft: rgba(220, 38, 38, 0.1);
+  --ou-info: var(--ou-color-cyan-600);
+  --ou-info-soft: rgba(8, 145, 178, 0.1);
+  --ou-focus-ring: rgba(37, 99, 235, 0.58);
+  --ou-scrim: rgba(11, 18, 32, 0.58);
+  --ou-grid-line: rgba(15, 23, 42, 0.06);
+
+  /* Semantic runtime states */
+  --ou-state-verified: var(--ou-success);
+  --ou-state-verified-soft: var(--ou-success-soft);
+  --ou-state-pending: var(--ou-warning);
+  --ou-state-pending-soft: var(--ou-warning-soft);
+  --ou-state-failed: var(--ou-danger);
+  --ou-state-failed-soft: var(--ou-danger-soft);
+  --ou-state-info: var(--ou-info);
+  --ou-state-info-soft: var(--ou-info-soft);
+
+  /* Typography */
+  --ou-font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --ou-font-mono:
+    "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --ou-font-size-xs: 0.75rem;
+  --ou-font-size-sm: 0.875rem;
+  --ou-font-size-md: 1rem;
+
+  /* Component tokens */
+  --ou-container: 88rem;
+  --ou-radius: var(--ou-radius-md);
+  --ou-radius-soft: var(--ou-radius-md);
+  --ou-radius-tight: var(--ou-radius-sm);
+  --ou-shadow:
+    0 22px 60px -42px rgba(15, 23, 42, 0.24),
+    0 8px 18px -14px rgba(15, 23, 42, 0.12);
+  --ou-shadow-strong:
+    0 30px 84px -54px rgba(15, 23, 42, 0.32),
+    0 12px 26px -18px rgba(15, 23, 42, 0.14);
+  --ou-shadow-interactive: 0 12px 28px -22px rgba(37, 99, 235, 0.36);
+  --ou-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+  --ou-transition: cubic-bezier(0.16, 1, 0.3, 1);
+  --ou-duration-fast: 160ms;
+  --ou-duration-normal: 220ms;
+}
+
+.dark {
+  color-scheme: dark;
+  --ou-bg: #080d16;
+  --ou-bg-elevated: #0b111d;
+  --ou-surface: #101827;
+  --ou-surface-strong: #121c2d;
+  --ou-surface-muted: #182235;
+  --ou-surface-subtle: #0f172a;
+  --ou-border: rgba(203, 213, 225, 0.14);
+  --ou-border-strong: rgba(203, 213, 225, 0.26);
+  --ou-divider: rgba(203, 213, 225, 0.1);
+  --ou-text: #f8fafc;
+  --ou-text-muted: #b8c4d8;
+  --ou-text-subtle: #8fa0b8;
+  --ou-primary: var(--ou-color-blue-400);
+  --ou-primary-hover: #93c5fd;
+  --ou-primary-contrast: #08111f;
+  --ou-primary-soft: rgba(96, 165, 250, 0.16);
+  --ou-primary-softer: rgba(96, 165, 250, 0.09);
+  --ou-accent: var(--ou-color-cyan-400);
+  --ou-accent-soft: rgba(34, 211, 238, 0.12);
+  --ou-success: var(--ou-color-emerald-400);
+  --ou-success-soft: rgba(52, 211, 153, 0.13);
+  --ou-warning: var(--ou-color-amber-400);
+  --ou-warning-soft: rgba(251, 191, 36, 0.14);
+  --ou-danger: var(--ou-color-red-400);
+  --ou-danger-soft: rgba(248, 113, 113, 0.14);
+  --ou-info: var(--ou-color-cyan-400);
+  --ou-info-soft: rgba(34, 211, 238, 0.12);
+  --ou-focus-ring: rgba(96, 165, 250, 0.66);
+  --ou-scrim: rgba(1, 5, 12, 0.68);
+  --ou-grid-line: rgba(96, 165, 250, 0.08);
+  --ou-shadow:
+    0 32px 92px -58px rgba(0, 0, 0, 0.84),
+    0 10px 26px -18px rgba(0, 0, 0, 0.58);
+  --ou-shadow-strong:
+    0 42px 118px -66px rgba(0, 0, 0, 0.94),
+    0 16px 40px -24px rgba(0, 0, 0, 0.68);
+  --ou-shadow-interactive: 0 14px 34px -24px rgba(96, 165, 250, 0.42);
+  --ou-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}

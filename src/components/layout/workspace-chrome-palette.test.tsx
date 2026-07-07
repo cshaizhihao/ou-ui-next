@@ -5,12 +5,12 @@ import { OperationsLaunchpad } from './operations-launchpad';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 
-describe('workspace chrome fauvist palette', () => {
+describe('workspace chrome operations palette', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('maps launchpad task paths to the fauvist operational signal palette', () => {
+  it('maps launchpad task paths to semantic operational tones', () => {
     render(
       <OperationsLaunchpad
         activePage="dashboard"
@@ -24,7 +24,7 @@ describe('workspace chrome fauvist palette', () => {
       />
     );
 
-    expect(screen.getByText('操作启动台').closest('section')).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(screen.getByText('操作启动台').closest('section')).toHaveClass('surface-shell');
     expect(screen.getByText('操作启动台').closest('section')).not.toHaveTextContent(
       '首屏直达主机、节点、转发与订阅，必要时可压缩成指标带。'
     );
@@ -32,14 +32,11 @@ describe('workspace chrome fauvist palette', () => {
     expect(screen.queryByText('创建客户节点、复制分享链接并重置流量')).not.toBeInTheDocument();
     expect(screen.queryByText('管理多主机端口、配额、限速与策略状态')).not.toBeInTheDocument();
     expect(screen.queryByText('聚合订阅源、导出客户端配置与链接')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '搜索 / 执行动作' })).toHaveClass(
-      'border-[#1E3AFF]',
-      'text-[#1E3AFF]'
-    );
-    expect(screen.getByText('1 台主机').closest('button')).toHaveClass('border-[#1E3AFF]', 'bg-[#DCE1FF]');
-    expect(screen.getByText('2 个节点').closest('button')).toHaveClass('border-[#00A878]', 'bg-[#00A878]/[0.12]');
-    expect(screen.getByText('3 条规则').closest('button')).toHaveClass('border-[#FF3D18]', 'bg-[#FF3D18]/[0.12]');
-    expect(screen.getByText('4 个订阅').closest('button')).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.28]');
+    expect(screen.getByRole('button', { name: '搜索 / 执行动作' })).toHaveClass('ou-command-pill');
+    expect(screen.getByText('1 台主机').closest('button')).toHaveAttribute('data-tone', 'primary');
+    expect(screen.getByText('2 个节点').closest('button')).toHaveAttribute('data-tone', 'success');
+    expect(screen.getByText('3 条规则').closest('button')).toHaveAttribute('data-tone', 'danger');
+    expect(screen.getByText('4 个订阅').closest('button')).toHaveAttribute('data-tone', 'warning');
   });
 
   it('marks launchpad expand and collapse states for first-screen motion continuity', () => {
@@ -93,20 +90,17 @@ describe('workspace chrome fauvist palette', () => {
     expect(actionButton).not.toHaveClass('min-h-[92px]', 'p-3');
   });
 
-  it('uses fauvist wayfinding on the sidebar active path and master-node status block', () => {
+  it('uses semantic wayfinding on the sidebar active path and master-node status block', () => {
     render(<Sidebar activePage="forwarding" language="zh" onPageChange={vi.fn()} />);
 
     const sidebar = screen.getByRole('complementary');
     const activeItem = screen.getByRole('button', { name: '端口转发' });
     const masterNode = screen.getByText('主控节点').closest('div');
 
-    expect(sidebar).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
-    expect(screen.getByRole('button', { name: '收起 控制面' })).toHaveClass(
-      'border-[#D9FF00]',
-      'bg-[#D9FF00]/[0.18]'
-    );
-    expect(activeItem).toHaveClass('nav-active', 'border-[#1E3AFF]', 'bg-[#DCE1FF]');
-    expect(masterNode?.parentElement).toHaveClass('border-[#00A878]', 'bg-[#00A878]/[0.12]');
+    expect(sidebar).toHaveClass('control-plane-sidebar');
+    expect(screen.getByRole('button', { name: '收起 控制面' })).toHaveClass('ou-tone-warning');
+    expect(activeItem).toHaveClass('nav-active');
+    expect(masterNode?.parentElement).toHaveClass('control-plane-shell-status-strip');
     expect(sidebar).not.toHaveTextContent('运行状态');
     expect(sidebar).not.toHaveTextContent('多主机端口转发');
     expect(sidebar).not.toHaveTextContent('主机、节点、转发、订阅');
@@ -126,7 +120,7 @@ describe('workspace chrome fauvist palette', () => {
     expect(chromeHtml).not.toMatch(/\bbg-white\/|\bbg-black\//u);
   });
 
-  it('keeps topbar global controls on the same fauvist command, execute, and verify colors', () => {
+  it('keeps topbar global controls on command, danger, and warning tones', () => {
     render(
       <Topbar
         title="概览"
@@ -140,16 +134,16 @@ describe('workspace chrome fauvist palette', () => {
       />
     );
 
-    expect(screen.getByRole('banner')).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
+    expect(screen.getByRole('banner')).toHaveClass('control-plane-topbar');
     expect(screen.getByRole('heading', { name: '概览' })).toBeInTheDocument();
     expect(screen.queryByText('运行状态')).not.toBeInTheDocument();
     const quickActionButton = screen.getByRole('button', { name: '打开控制面搜索' });
-    expect(quickActionButton).toHaveClass('border-[#1E3AFF]', 'text-[#1E3AFF]');
+    expect(quickActionButton).toHaveClass('control-plane-search-trigger', 'ou-command-pill');
     expect(within(quickActionButton).getByText('12 对象')).toBeInTheDocument();
     expect(within(quickActionButton).getByText('5 动作')).toBeInTheDocument();
     expect(within(quickActionButton).getByText('Ctrl K')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '退出登录' })).toHaveClass('border-[#FF3D18]', 'text-[#FF3D18]');
-    expect(screen.getByRole('button', { name: '切换深浅主题' })).toHaveClass('border-[#D9FF00]', 'text-[#07111F]');
+    expect(screen.getByRole('button', { name: '退出登录' })).toHaveClass('ou-tone-danger');
+    expect(screen.getByRole('button', { name: '切换深浅主题' })).toHaveClass('ou-tone-warning');
   });
 
   it('keeps topbar controls compact and square-edged outside expected pill controls', () => {
@@ -174,7 +168,7 @@ describe('workspace chrome fauvist palette', () => {
     expect(screen.getByRole('button', { name: '切换深浅主题' })).not.toHaveClass('rounded-full');
   });
 
-  it('keeps mobile navigation saturated without falling back to gray admin chrome', () => {
+  it('keeps mobile navigation on semantic operations tones', () => {
     vi.stubGlobal(
       'matchMedia',
       vi.fn().mockImplementation((query: string) => ({
@@ -200,31 +194,17 @@ describe('workspace chrome fauvist palette', () => {
     );
 
     const mobileNavigation = screen.getByRole('navigation', { name: '手机快捷导航' });
-    expect(mobileNavigation).toHaveClass('border-[#07111F]', 'bg-[#FFFDF5]');
     expect(mobileNavigation).toHaveClass('ou-mobile-nav');
     expect(mobileNavigation.outerHTML).not.toMatch(/\brounded-2xl\b|\bbackdrop-blur\b/u);
-    expect(within(mobileNavigation).getByRole('button', { name: '治理' })).toHaveClass(
-      'border',
-      'border-[#D9FF00]',
-      'bg-[#D9FF00]/[0.32]',
-      'text-[#07111F]'
-    );
+    expect(within(mobileNavigation).getByRole('button', { name: '治理' })).toHaveClass('ou-tone-warning');
     fireEvent.click(within(mobileNavigation).getByRole('button', { name: '治理' }));
 
     const governanceTray = screen.getByRole('region', { name: '手机治理入口' });
-    expect(governanceTray).toHaveClass('mobile-governance-tray', 'border-[#07111F]', 'bg-[#FFFDF5]');
-    expect(within(governanceTray).getByRole('button', { name: '执行记录' })).toHaveClass(
-      'border-[#1E3AFF]',
-      'bg-[#1E3AFF]',
-      'text-white'
-    );
-    expect(within(mobileNavigation).getByRole('button', { name: '搜索' })).toHaveClass(
-      'border-[#FF3D18]',
-      'bg-[#FF3D18]/[0.14]',
-      'text-[#07111F]'
-    );
+    expect(governanceTray).toHaveClass('mobile-governance-tray');
+    expect(within(governanceTray).getByRole('button', { name: '执行记录' })).toHaveAttribute('aria-current', 'page');
+    expect(within(mobileNavigation).getByRole('button', { name: '搜索' })).toHaveClass('ou-tone-danger');
     const quickActionButton = within(mobileNavigation).getByRole('button', { name: '搜索' });
     const commandBadge = within(quickActionButton).getByText('5 动作');
-    expect(commandBadge).toHaveClass('border-[#D9FF00]', 'bg-[#D9FF00]/[0.28]', 'text-[#07111F]', 'whitespace-nowrap');
+    expect(commandBadge).toHaveClass('ou-chip', 'ou-tone-warning', 'whitespace-nowrap');
   });
 });

@@ -1,23 +1,26 @@
 export const visualTokens = {
   darkModeStrategy: 'class',
-  visualDialect: 'fauvist-control-plane',
+  visualDialect: 'ops-control-plane',
   colors: {
-    primary: '#1E3AFF',
-    secondary: '#07111F',
-    accent: '#FF3D18',
-    lightBackground: '#FDFFF1',
-    lightSurface: '#FFFDF5',
-    lightSurfaceMuted: '#EAF3D1',
-    border: '#07111F',
-    textStrong: '#07111F',
-    textMuted: '#35405A',
-    darkBackground: '#07111F',
+    primary: '#2563EB',
+    secondary: '#0B1220',
+    accent: '#0891B2',
+    success: '#059669',
+    warning: '#CA8A04',
+    danger: '#DC2626',
+    lightBackground: '#F7F9FC',
+    lightSurface: '#FFFFFF',
+    lightSurfaceMuted: '#EEF2F7',
+    border: '#D7DEE8',
+    textStrong: '#0B1220',
+    textMuted: '#526174',
+    darkBackground: '#080D16',
     darkSurface: '#101827',
-    surface: '#FFFDF5',
-    terminal: '#07111F'
+    surface: '#FFFFFF',
+    terminal: '#0B1220'
   },
   fontFamilySans:
-    'Geist, Cabinet Grotesk, Satoshi, Outfit, Inter, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, sans-serif'
 } as const;
 
 export const visualClassNames = [

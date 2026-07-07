@@ -22,7 +22,7 @@ type LaunchpadAction = {
   label: string;
   pageId: PageId;
   metric: string;
-  tone: 'blue' | 'cyan' | 'orange' | 'slate';
+  tone: 'primary' | 'success' | 'danger' | 'warning';
 };
 
 const copy = {
@@ -67,25 +67,17 @@ const copy = {
 } as const;
 
 const toneClasses = {
-  blue: 'border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/15 dark:text-[#DDE3FF]',
-  cyan: 'border-[#00A878] bg-[#00A878]/[0.12] text-[#007D5E] dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
-  orange:
-    'border-[#FF3D18] bg-[#FF3D18]/[0.12] text-[#C9220C] dark:border-[#FF6A3A]/35 dark:bg-[#FF6A3A]/12 dark:text-[#FFB197]',
-  slate:
-    'border-[#D9FF00] bg-[#D9FF00]/[0.28] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]',
-  amber:
-    'border-[#D9FF00] bg-[#D9FF00]/[0.28] text-[#07111F] dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5]'
+  primary: 'ou-tone-primary text-[var(--ou-primary)]',
+  success: 'ou-tone-success text-[var(--ou-success)]',
+  danger: 'ou-tone-danger text-[var(--ou-danger)]',
+  warning: 'ou-tone-warning text-[var(--ou-warning)]'
 } as const;
 
 const actionToneClasses = {
-  blue:
-    'border-[#1E3AFF] bg-[#DCE1FF] text-[#07111F] hover:bg-[#1E3AFF] hover:text-white dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/14 dark:text-[#F4F8FF] dark:hover:bg-[#6B7CFF] dark:hover:text-[#07111F]',
-  cyan:
-    'border-[#00A878] bg-[#00A878]/[0.12] text-[#07111F] hover:bg-[#00A878] hover:text-white dark:border-[#35E68E]/35 dark:bg-[#35E68E]/10 dark:text-[#F4F8FF] dark:hover:bg-[#35E68E] dark:hover:text-[#07111F]',
-  orange:
-    'border-[#FF3D18] bg-[#FF3D18]/[0.12] text-[#07111F] hover:bg-[#FF3D18] hover:text-white dark:border-[#FF6A3A]/40 dark:bg-[#FF6A3A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#FF6A3A] dark:hover:text-[#07111F]',
-  slate:
-    'border-[#D9FF00] bg-[#D9FF00]/[0.28] text-[#07111F] hover:bg-[#D9FF00] hover:text-[#07111F] dark:border-[#EAFF5A]/40 dark:bg-[#EAFF5A]/12 dark:text-[#F4F8FF] dark:hover:bg-[#EAFF5A] dark:hover:text-[#07111F]'
+  primary: 'ou-tone-primary hover:border-[var(--ou-primary)] hover:bg-[var(--ou-primary-softer)]',
+  success: 'ou-tone-success hover:border-[var(--ou-success)] hover:bg-[var(--ou-success-soft)]',
+  danger: 'ou-tone-danger hover:border-[var(--ou-danger)] hover:bg-[var(--ou-danger-soft)]',
+  warning: 'ou-tone-warning hover:border-[var(--ou-warning)] hover:bg-[var(--ou-warning-soft)]'
 } as const;
 
 export function OperationsLaunchpad({
@@ -107,7 +99,7 @@ export function OperationsLaunchpad({
       label: t.actions.hosts,
       pageId: 'nodes',
       metric: t.metricLabels.hosts(agentsCount),
-      tone: 'blue'
+      tone: 'primary'
     },
     {
       id: 'customerNodes',
@@ -115,7 +107,7 @@ export function OperationsLaunchpad({
       label: t.actions.customerNodes,
       pageId: 'customerNodes',
       metric: t.metricLabels.nodes(nodesCount),
-      tone: 'cyan'
+      tone: 'success'
     },
     {
       id: 'forwarding',
@@ -123,7 +115,7 @@ export function OperationsLaunchpad({
       label: t.actions.forwarding,
       pageId: 'forwarding',
       metric: t.metricLabels.forwarding(forwardingRulesCount),
-      tone: 'orange'
+      tone: 'danger'
     },
     {
       id: 'subscriptions',
@@ -131,7 +123,7 @@ export function OperationsLaunchpad({
       label: t.actions.subscriptions,
       pageId: 'subscriptions',
       metric: t.metricLabels.subscriptions(subscriptionsCount),
-      tone: 'slate'
+      tone: 'warning'
     }
   ];
 
@@ -139,26 +131,26 @@ export function OperationsLaunchpad({
 
   return (
     <section
-      className="ou-card-enter mb-3 overflow-hidden border border-[#07111F] bg-[#FFFDF5] p-2.5 shadow-[0_18px_44px_-34px_rgba(7,17,31,0.38)] backdrop-blur-xl dark:border-[#6B7CFF]/25 dark:bg-[#101827] max-md:mb-2"
+      className="surface-shell ou-card-enter mb-3 overflow-hidden p-2.5 max-md:mb-2"
       data-state={expanded ? 'expanded' : 'collapsed'}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-9 w-9 flex-shrink-0 place-items-center border border-[#1E3AFF] bg-[#DCE1FF] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/20 dark:border-[#6B7CFF]/35 dark:bg-[#6B7CFF]/15 dark:text-[#DDE3FF]">
+          <span className="ou-tone-primary grid h-9 w-9 flex-shrink-0 place-items-center border">
             <Activity className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-[#1E3AFF] dark:text-[#DDE3FF]">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-[var(--ou-primary)]">
               {t.eyebrow}
             </p>
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-sm font-semibold tracking-tight text-[#07111F] dark:text-white">{t.title}</h3>
+              <h3 className="truncate text-sm font-semibold tracking-tight text-[var(--ou-text)]">{t.title}</h3>
             </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border border-[#1E3AFF] bg-[#FFFDF5] px-3 text-[11px] font-semibold tracking-[0.02em] text-[#1E3AFF] shadow-sm shadow-[#1E3AFF]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-[#6B7CFF]/35 dark:bg-white/[0.05] dark:text-[#DDE3FF] dark:focus-visible:ring-primary/55 max-md:hidden"
+            className="ou-command-pill inline-flex h-9 items-center justify-center gap-2 rounded-full border px-3 text-[11px] font-semibold tracking-[0.02em] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 max-md:hidden"
             onClick={(event) => onOpenQuickActions(event.currentTarget)}
             type="button"
           >
@@ -167,7 +159,7 @@ export function OperationsLaunchpad({
           </button>
           <button
             aria-expanded={expanded}
-            className="ou-command-pill inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D9FF00] bg-[#D9FF00]/[0.22] px-3 text-[11px] font-semibold tracking-[0.02em] text-[#07111F] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:border-[#EAFF5A]/35 dark:bg-[#EAFF5A]/12 dark:text-[#F4FFC5] dark:focus-visible:ring-primary/55"
+            className="ou-command-pill ou-tone-warning inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold tracking-[0.02em] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45"
             onClick={() => setExpanded((value) => !value)}
             type="button"
           >
@@ -188,6 +180,7 @@ export function OperationsLaunchpad({
                 'ou-action-card group min-h-12 border px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
                 actionToneClasses[action.tone]
               )}
+              data-tone={action.tone}
               key={action.id}
               onClick={() => onSelectPage(action.pageId)}
               onFocus={() => onPrefetchPage?.(action.pageId)}
@@ -214,10 +207,10 @@ export function OperationsLaunchpad({
               <button
                 className={cn(
                   'ou-action-card group min-h-[68px] border p-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 dark:focus-visible:ring-primary/55',
-                  active
-                    ? 'border-[#1E3AFF] bg-[#DCE1FF] shadow-lg shadow-[#1E3AFF]/12 dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF]/14'
-                    : actionToneClasses[action.tone]
+                  active ? 'shadow-[var(--ou-shadow-interactive)]' : actionToneClasses[action.tone]
                 )}
+                aria-current={active ? 'page' : undefined}
+                data-tone={action.tone}
                 key={action.id}
                 onClick={() => onSelectPage(action.pageId)}
                 onFocus={() => onPrefetchPage?.(action.pageId)}
@@ -225,10 +218,10 @@ export function OperationsLaunchpad({
                 type="button"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <span className={cn('grid h-8 w-8 place-items-center border', toneClasses[action.tone])}>
+                  <span className={cn('grid h-8 w-8 place-items-center border', toneClasses[action.tone])} data-tone={action.tone}>
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="rounded-full border border-[#07111F]/20 bg-[#FFFDF5] px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-[#35405A] shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/50">
+                  <span className="ou-chip rounded-full border px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] shadow-sm">
                     {action.metric}
                   </span>
                 </div>
