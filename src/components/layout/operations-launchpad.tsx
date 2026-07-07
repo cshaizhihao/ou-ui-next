@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, Boxes, ChevronDown, Network, Route, Search, ServerCog } from 'lucide-react';
+import { Activity, Boxes, ChevronDown, ClipboardCheck, Network, Route, Search, ServerCog, Settings } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import type { PageId } from '../../app/navigation';
 import { cn } from '../../lib/cn';
@@ -11,6 +11,8 @@ type OperationsLaunchpadProps = {
   language: AppLanguage;
   nodesCount: number;
   subscriptionsCount: number;
+  tasksCount: number;
+  alertsCount: number;
   onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
   onPrefetchPage?: (pageId: PageId) => void;
   onSelectPage: (pageId: PageId) => void;
@@ -36,13 +38,17 @@ const copy = {
       hosts: '接入服务器',
       customerNodes: '交付客户节点',
       forwarding: '配置端口转发',
-      subscriptions: '生成订阅'
+      subscriptions: '生成订阅',
+      evidence: '查看任务证据',
+      settings: '进入设置'
     },
     metricLabels: {
       hosts: (count: number) => `${count} 台主机`,
       nodes: (count: number) => `${count} 个节点`,
       forwarding: (count: number) => `${count} 条规则`,
-      subscriptions: (count: number) => `${count} 个订阅`
+      subscriptions: (count: number) => `${count} 个订阅`,
+      tasks: (count: number) => `${count} 条记录`,
+      alerts: (count: number) => `${count} 个告警`
     }
   },
   en: {
@@ -55,13 +61,17 @@ const copy = {
       hosts: 'Enroll Servers',
       customerNodes: 'Deliver Customer Nodes',
       forwarding: 'Configure Forwarding',
-      subscriptions: 'Generate Subscriptions'
+      subscriptions: 'Generate Subscriptions',
+      evidence: 'Review Evidence',
+      settings: 'Open Settings'
     },
     metricLabels: {
       hosts: (count: number) => `${count} hosts`,
       nodes: (count: number) => `${count} nodes`,
       forwarding: (count: number) => `${count} rules`,
-      subscriptions: (count: number) => `${count} bundles`
+      subscriptions: (count: number) => `${count} bundles`,
+      tasks: (count: number) => `${count} records`,
+      alerts: (count: number) => `${count} alerts`
     }
   }
 } as const;
@@ -86,10 +96,12 @@ export function OperationsLaunchpad({
   forwardingRulesCount,
   language,
   nodesCount,
+  alertsCount,
   onOpenQuickActions,
   onPrefetchPage,
   onSelectPage,
-  subscriptionsCount
+  subscriptionsCount,
+  tasksCount
 }: OperationsLaunchpadProps) {
   const t = copy[language];
   const actions: LaunchpadAction[] = [
@@ -124,6 +136,22 @@ export function OperationsLaunchpad({
       pageId: 'subscriptions',
       metric: t.metricLabels.subscriptions(subscriptionsCount),
       tone: 'warning'
+    },
+    {
+      id: 'evidence',
+      icon: ClipboardCheck,
+      label: t.actions.evidence,
+      pageId: 'tasks',
+      metric: t.metricLabels.tasks(tasksCount),
+      tone: 'primary'
+    },
+    {
+      id: 'settings',
+      icon: Settings,
+      label: t.actions.settings,
+      pageId: 'adminAccounts',
+      metric: t.metricLabels.alerts(alertsCount),
+      tone: alertsCount > 0 ? 'danger' : 'success'
     }
   ];
 
@@ -171,7 +199,7 @@ export function OperationsLaunchpad({
 
       {!expanded ? (
         <div
-          className="ou-launchpad-metric-rail mt-2 grid grid-cols-4 gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+          className="ou-launchpad-metric-rail mt-2 grid grid-cols-2 gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] md:grid-cols-3 xl:grid-cols-6 max-md:auto-cols-[46%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
           data-allow-horizontal-scroll="true"
         >
           {actions.map((action) => (
@@ -196,7 +224,7 @@ export function OperationsLaunchpad({
 
       {expanded ? (
         <div
-          className="ou-launchpad-panel mt-2 grid gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] lg:grid-cols-4 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
+          className="ou-launchpad-panel mt-2 grid gap-2 motion-safe:animate-[ou-panel-in_180ms_ease-out] md:grid-cols-3 xl:grid-cols-6 max-md:auto-cols-[72%] max-md:grid-flow-col max-md:grid-cols-none max-md:overflow-x-auto max-md:pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden"
           data-allow-horizontal-scroll="true"
         >
           {actions.map((action) => {

@@ -239,6 +239,10 @@ describe('production browser smoke script helpers', () => {
     expect(scriptSource).toContain('高级功能');
     expect(scriptSource).toContain('Advanced Features');
     expect(scriptSource).toContain('治理与证据');
+    expect(scriptSource).toContain('客户与策略');
+    expect(scriptSource).toContain('证据与设置');
+    expect(scriptSource).toContain('Customers & Policy');
+    expect(scriptSource).toContain('Evidence & Settings');
     expect(scriptSource).toContain('手机治理入口');
     expect(scriptSource).toContain('Master Control Plane');
     expect(scriptSource).toContain('概览|Overview');

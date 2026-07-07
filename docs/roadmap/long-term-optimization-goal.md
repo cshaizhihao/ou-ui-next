@@ -18,6 +18,11 @@ Known completed V2.0.0 foundation work:
 
 Post-V2.0.0 progress already landed on `main`:
 
+- Round 3 replaced the ambiguous two-group sidebar with a three-part information architecture: Operations, Customers & Policy, and Evidence & Settings.
+- Dashboard chrome now exposes task evidence and account/settings as first-screen task paths alongside servers, customer nodes, forwarding, and subscriptions.
+- A snapshot-derived status center now summarizes online Agents, active runtime apply tasks, failed tasks, and quota/policy-risk Xray clients without adding demo-only state.
+- Global quick actions now include state destinations for status center, failed tasks, quota risk, Runtime Apply, and accounts/settings.
+- Production browser smoke selectors now recognize the new navigation hierarchy while retaining compatibility with the older advanced-group labels.
 - Forwarding UI now reuses the same supported / blocked runtime control registry as runtime artifacts.
 - Forwarding entry selection disables Agents without `port-forwarding` capability instead of silently accepting unsupported hosts.
 - Forwarding rules now expose rule-level runtime diagnosis states: `ready`, `waiting`, `degraded`, `blocked`, and `failed`.

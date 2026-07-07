@@ -23,12 +23,21 @@ async function switchLoginToEnglish() {
 }
 
 async function openAdvancedNavigation(user: TestUser) {
-  const button =
-    screen.queryByRole('button', { name: '展开 治理与证据' }) ??
-    screen.queryByRole('button', { name: 'Expand Governance & Evidence' });
+  const labels = [
+    '展开 客户与策略',
+    'Expand Customers & Policy',
+    '展开 证据与设置',
+    'Expand Evidence & Settings',
+    '展开 治理与证据',
+    'Expand Governance & Evidence'
+  ];
 
-  if (button) {
-    await user.click(button);
+  for (const label of labels) {
+    const button = screen.queryByRole('button', { name: label });
+
+    if (button) {
+      await user.click(button);
+    }
   }
 }
 
@@ -102,24 +111,22 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '节点' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '端口转发' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '订阅' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '执行记录' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '展开 治理与证据' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '审计' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '账户' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '展开 客户与策略' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '收起 证据与设置' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '受控主机' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '客户' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '调优' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '权限与配额' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '通知' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '账户' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '审计' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '展开 治理与证据' }));
+    await user.click(screen.getByRole('button', { name: '展开 客户与策略' }));
     expect(screen.getByRole('button', { name: '客户' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '分流策略' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '调优' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '权限与配额' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '账户' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '执行记录' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '审计' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '节点订阅' })).not.toBeInTheDocument();
     expect(document.querySelector('header .btn-glow')).not.toBeInTheDocument();
     expect(document.getElementById('login-overlay')).toBeNull();
@@ -135,7 +142,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Connectivity' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh View' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Accounts' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accounts' })).toBeInTheDocument();
     await openAdvancedNavigation(user);
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accounts' })).toBeInTheDocument();

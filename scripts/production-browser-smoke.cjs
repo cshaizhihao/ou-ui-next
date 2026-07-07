@@ -413,7 +413,11 @@ async function openMobileGovernancePage(page, label, timeoutMs, headingMatcher =
 }
 
 async function openAdvancedNavigation(page, timeoutMs) {
-  const expandButton = page.getByRole('button', { name: /展开 (高级功能|治理与证据)|Expand (Advanced Features|Governance & Evidence)/i }).first();
+  const expandButton = page
+    .getByRole('button', {
+      name: /展开 (高级功能|客户与策略|证据与设置|治理与证据)|Expand (Advanced Features|Customers & Policy|Evidence & Settings|Governance & Evidence)/i
+    })
+    .first();
   if (await expandButton.count()) {
     await expandButton.click({ timeout: timeoutMs });
   }

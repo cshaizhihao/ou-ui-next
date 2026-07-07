@@ -10,37 +10,46 @@ function flattenEntryPageIds(entries: NavigationEntry[]): PageId[] {
 describe('navigation groups', () => {
   it('keeps the core path focused on control-plane operations', () => {
     const groups = getNavigationGroups('zh');
-    const core = groups.find((group) => group.id === 'core');
-    const advanced = groups.find((group) => group.id === 'advanced');
+    const operations = groups.find((group) => group.id === 'operations');
+    const delivery = groups.find((group) => group.id === 'delivery');
+    const evidence = groups.find((group) => group.id === 'evidence');
 
-    expect(core).toBeDefined();
-    expect(advanced).toBeDefined();
+    expect(operations).toBeDefined();
+    expect(delivery).toBeDefined();
+    expect(evidence).toBeDefined();
 
-    const coreIds = flattenEntryPageIds(core?.children ?? []);
-    const advancedIds = flattenEntryPageIds(advanced?.children ?? []);
+    const operationsIds = flattenEntryPageIds(operations?.children ?? []);
+    const deliveryIds = flattenEntryPageIds(delivery?.children ?? []);
+    const evidenceIds = flattenEntryPageIds(evidence?.children ?? []);
 
-    expect(coreIds).toEqual(expect.arrayContaining(['dashboard', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
-    expect(coreIds).not.toContain('permissions');
-    expect(coreIds).not.toContain('tasks');
-    expect(coreIds).not.toContain('audit');
-    expect(advancedIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
-    expect(advancedIds).not.toContain('permissions');
+    expect(operationsIds).toEqual(expect.arrayContaining(['dashboard', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
+    expect(operationsIds).not.toContain('permissions');
+    expect(operationsIds).not.toContain('tasks');
+    expect(operationsIds).not.toContain('audit');
+    expect(deliveryIds).toEqual(expect.arrayContaining(['customers', 'routing', 'tuning', 'telegram']));
+    expect(deliveryIds).not.toContain('adminAccounts');
+    expect(evidenceIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'adminAccounts']));
+    expect(evidenceIds).not.toContain('permissions');
   });
 
   it('uses the same control-plane grouping in English navigation', () => {
     const groups = getNavigationGroups('en');
-    const core = groups.find((group) => group.id === 'core');
-    const advanced = groups.find((group) => group.id === 'advanced');
+    const operations = groups.find((group) => group.id === 'operations');
+    const delivery = groups.find((group) => group.id === 'delivery');
+    const evidence = groups.find((group) => group.id === 'evidence');
 
-    const coreIds = flattenEntryPageIds(core?.children ?? []);
-    const advancedIds = flattenEntryPageIds(advanced?.children ?? []);
+    const operationsIds = flattenEntryPageIds(operations?.children ?? []);
+    const deliveryIds = flattenEntryPageIds(delivery?.children ?? []);
+    const evidenceIds = flattenEntryPageIds(evidence?.children ?? []);
 
-    expect(coreIds).toEqual(expect.arrayContaining(['dashboard', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
-    expect(coreIds).not.toContain('permissions');
-    expect(coreIds).not.toContain('tasks');
-    expect(coreIds).not.toContain('audit');
-    expect(advancedIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'customers', 'routing', 'tuning', 'telegram', 'adminAccounts']));
-    expect(advancedIds).not.toContain('permissions');
+    expect(operationsIds).toEqual(expect.arrayContaining(['dashboard', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
+    expect(operationsIds).not.toContain('permissions');
+    expect(operationsIds).not.toContain('tasks');
+    expect(operationsIds).not.toContain('audit');
+    expect(deliveryIds).toEqual(expect.arrayContaining(['customers', 'routing', 'tuning', 'telegram']));
+    expect(deliveryIds).not.toContain('adminAccounts');
+    expect(evidenceIds).toEqual(expect.arrayContaining(['tasks', 'audit', 'adminAccounts']));
+    expect(evidenceIds).not.toContain('permissions');
   });
 
   it('does not keep the removed access and quota workspace as a hidden frontend module', () => {

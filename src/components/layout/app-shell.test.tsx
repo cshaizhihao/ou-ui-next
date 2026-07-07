@@ -277,12 +277,21 @@ function renderShell(api: ControlPlaneApi) {
 }
 
 async function openAdvancedNavigation(user: TestUser) {
-  const button =
-    screen.queryByRole('button', { name: '展开 治理与证据' }) ??
-    screen.queryByRole('button', { name: 'Expand Governance & Evidence' });
+  const labels = [
+    '展开 客户与策略',
+    'Expand Customers & Policy',
+    '展开 证据与设置',
+    'Expand Evidence & Settings',
+    '展开 治理与证据',
+    'Expand Governance & Evidence'
+  ];
 
-  if (button) {
-    await user.click(button);
+  for (const label of labels) {
+    const button = screen.queryByRole('button', { name: label });
+
+    if (button) {
+      await user.click(button);
+    }
   }
 }
 
@@ -387,7 +396,7 @@ describe('AppShell', () => {
     expect(quickActionButton.querySelectorAll('.control-plane-search-scope-chip')).toHaveLength(2);
     expect(activeNavItem).toHaveAttribute('aria-current', 'page');
     expect(activeNavItem).toHaveClass('control-plane-nav-item');
-    expect(sidebar.querySelectorAll('.control-plane-nav-group')).toHaveLength(2);
+    expect(sidebar.querySelectorAll('.control-plane-nav-group')).toHaveLength(3);
     expect(statusStrip).toHaveClass('control-plane-shell-status-strip');
     expect(statusStrip).toHaveTextContent('主控节点');
     expect(statusStrip).toHaveTextContent('证据链');
@@ -424,6 +433,13 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: /交付客户节点/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /配置端口转发/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /生成订阅/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /查看任务证据/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /进入设置/ })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '控制面状态中心' })).toBeInTheDocument();
+    expect(screen.getByText('Agent 在线')).toBeInTheDocument();
+    expect(screen.getByText('Runtime Apply')).toBeInTheDocument();
+    expect(screen.getByText('失败任务')).toBeInTheDocument();
+    expect(screen.getByText('配额风险')).toBeInTheDocument();
     expect(screen.queryByText('安装 Agent、查看遥测并应用运行时配置')).not.toBeInTheDocument();
     expect(screen.queryByText('创建客户节点、复制分享链接并重置流量')).not.toBeInTheDocument();
     expect(screen.queryByText('管理多主机端口、配额、限速与策略状态')).not.toBeInTheDocument();

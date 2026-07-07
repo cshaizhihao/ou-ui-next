@@ -1,16 +1,23 @@
 import type { AppLanguage } from '../../app/app-store';
 import type { PageId } from '../../app/navigation';
+import { ControlPlaneStatusCenter } from './control-plane-status-center';
 import { OperationsLaunchpad } from './operations-launchpad';
 import { ControlPlaneSkeleton } from './control-plane-skeleton';
 
 type AppShellWorkspaceChromeProps = {
   activePage: PageId;
   agentsCount: number;
+  agentsOnlineCount: number;
+  alertsCount: number;
+  failedTasksCount: number;
   forwardingRulesCount: number;
   language: AppLanguage;
   loading: boolean;
   nodesCount: number;
+  quotaRiskCount: number;
+  runtimeApplyingCount: number;
   subscriptionsCount: number;
+  tasksCount: number;
   onOpenQuickActions: (returnFocusTarget?: HTMLElement | null) => void;
   onPrefetchPage?: (pageId: PageId) => void;
   onSelectPage: (pageId: PageId) => void;
@@ -19,14 +26,20 @@ type AppShellWorkspaceChromeProps = {
 export function AppShellWorkspaceChrome({
   activePage,
   agentsCount,
+  agentsOnlineCount,
+  alertsCount,
+  failedTasksCount,
   forwardingRulesCount,
   language,
   loading,
   nodesCount,
+  quotaRiskCount,
+  runtimeApplyingCount,
   onOpenQuickActions,
   onPrefetchPage,
   onSelectPage,
-  subscriptionsCount
+  subscriptionsCount,
+  tasksCount
 }: AppShellWorkspaceChromeProps) {
   if (activePage !== 'dashboard') {
     return null;
@@ -37,16 +50,31 @@ export function AppShellWorkspaceChrome({
   }
 
   return (
-    <OperationsLaunchpad
-      activePage={activePage}
-      agentsCount={agentsCount}
-      forwardingRulesCount={forwardingRulesCount}
-      language={language}
-      nodesCount={nodesCount}
-      subscriptionsCount={subscriptionsCount}
-      onOpenQuickActions={onOpenQuickActions}
-      onPrefetchPage={onPrefetchPage}
-      onSelectPage={onSelectPage}
-    />
+    <>
+      <OperationsLaunchpad
+        activePage={activePage}
+        agentsCount={agentsCount}
+        alertsCount={alertsCount}
+        forwardingRulesCount={forwardingRulesCount}
+        language={language}
+        nodesCount={nodesCount}
+        subscriptionsCount={subscriptionsCount}
+        tasksCount={tasksCount}
+        onOpenQuickActions={onOpenQuickActions}
+        onPrefetchPage={onPrefetchPage}
+        onSelectPage={onSelectPage}
+      />
+      <ControlPlaneStatusCenter
+        agentsOnlineCount={agentsOnlineCount}
+        agentsTotalCount={agentsCount}
+        alertsCount={alertsCount}
+        failedTasksCount={failedTasksCount}
+        language={language}
+        quotaRiskCount={quotaRiskCount}
+        runtimeApplyingCount={runtimeApplyingCount}
+        onPrefetchPage={onPrefetchPage}
+        onSelectPage={onSelectPage}
+      />
+    </>
   );
 }

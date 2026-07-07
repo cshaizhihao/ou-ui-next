@@ -484,6 +484,8 @@ function createQuickActionItems({
   language,
   nodes,
   quotaPolicies,
+  systemAlerts,
+  tasks,
   subscriptionClients,
   subscriptionSources
 }: {
@@ -494,6 +496,8 @@ function createQuickActionItems({
   language: AppLanguage;
   nodes: ManagedNode[];
   quotaPolicies: QuotaPolicy[];
+  systemAlerts: ControlPlaneSnapshot['systemAlerts'];
+  tasks: ControlPlaneSnapshot['tasks'];
   subscriptionClients: ControlPlaneSnapshot['subscriptionClients'];
   subscriptionSources: ControlPlaneSnapshot['subscriptionSources'];
 }): QuickActionItem[] {
@@ -503,6 +507,7 @@ function createQuickActionItems({
   const customerNodeGroup = language === 'zh' ? '客户节点' : 'Customer Node';
   const forwardingGroup = language === 'zh' ? '转发' : 'Forward';
   const subscriptionGroup = language === 'zh' ? '订阅' : 'Sub';
+  const statusGroup = language === 'zh' ? '状态' : 'Status';
   const openText = language === 'zh' ? '打开' : 'Open';
   const applyForwardingCommand = language === 'zh' ? '应用' : 'Apply';
   const pauseForwardingCommand = language === 'zh' ? '暂停' : 'Pause';
@@ -518,8 +523,74 @@ function createQuickActionItems({
   const copyAllSubscriptionLinksCommand = language === 'zh' ? '复制全部' : 'Copy All';
   const managedNodesById = new Map(nodes.map((node) => [node.id, node]));
   const runtimeInbounds = inbounds.filter((inbound) => isXrayRuntimeProtocol(inbound.protocol));
+  const activeRuntimeTasks = tasks.filter((task) =>
+    task.status === 'queued' || task.status === 'running' || task.status === 'retrying'
+  );
+  const failedRuntimeTasks = tasks.filter((task) => task.status === 'failed');
+  const quotaRiskClients = runtimeInbounds.flatMap((inbound) =>
+    inbound.clients.filter(
+      (client) =>
+        client.quotaExceeded === true ||
+        client.clientExpired === true ||
+        client.runtimeDisabledByPolicy === true ||
+        Boolean(client.guardrailReason && client.guardrailReason !== 'ok')
+    )
+  );
 
   return [
+    {
+      id: 'status:control-plane',
+      title: language === 'zh' ? '状态中心' : 'Status Center',
+      description:
+        language === 'zh'
+          ? `${openText} ${getNavigationItem('dashboard', language).label} · Agent、Runtime、配额`
+          : `${openText} ${getNavigationItem('dashboard', language).label} · Agent, runtime, quota`,
+      group: statusGroup,
+      keywords: language === 'zh'
+        ? ['状态', '状态中心', 'Agent 在线', 'Runtime Apply', '失败任务', '配额风险']
+        : ['status', 'status center', 'agent online', 'runtime apply', 'failed tasks', 'quota risk'],
+      pageId: 'dashboard',
+      badge: String(systemAlerts.length)
+    },
+    {
+      id: 'status:failed-tasks',
+      title: language === 'zh' ? '失败任务' : 'Failed Tasks',
+      description: `${openText} ${getNavigationItem('tasks', language).label} · ${failedRuntimeTasks.length}`,
+      group: statusGroup,
+      keywords: language === 'zh' ? ['失败', '任务', '证据', '回滚'] : ['failed', 'tasks', 'evidence', 'rollback'],
+      pageId: 'tasks',
+      badge: String(failedRuntimeTasks.length)
+    },
+    {
+      id: 'status:quota-risk',
+      title: language === 'zh' ? '配额风险' : 'Quota Risk',
+      description: `${openText} ${getNavigationItem('customerNodes', language).label} · ${quotaRiskClients.length}`,
+      group: statusGroup,
+      keywords: language === 'zh'
+        ? ['配额', '到期', '流量', '停用', '客户节点']
+        : ['quota', 'expired', 'traffic', 'disabled', 'customer nodes'],
+      pageId: 'customerNodes',
+      badge: String(quotaRiskClients.length)
+    },
+    {
+      id: 'status:runtime-apply',
+      title: language === 'zh' ? 'Runtime Apply' : 'Runtime Apply',
+      description: `${openText} ${getNavigationItem('tasks', language).label} · ${activeRuntimeTasks.length}`,
+      group: statusGroup,
+      keywords: language === 'zh'
+        ? ['运行时', '应用', '排队', '执行中', 'Agent']
+        : ['runtime', 'apply', 'queued', 'running', 'agent'],
+      pageId: 'tasks',
+      badge: String(activeRuntimeTasks.length)
+    },
+    {
+      id: 'status:settings',
+      title: language === 'zh' ? '账户与设置' : 'Accounts & Settings',
+      description: `${openText} ${getNavigationItem('adminAccounts', language).label}`,
+      group: statusGroup,
+      keywords: language === 'zh' ? ['设置', '账户', '会话', '安全'] : ['settings', 'accounts', 'sessions', 'security'],
+      pageId: 'adminAccounts'
+    },
     ...getNavigationItems(language).map((item): QuickActionItem => ({
       id: `page:${item.id}`,
       title: item.label,
@@ -1354,6 +1425,28 @@ export function AppShell({ ready }: AppShellProps) {
       ),
     [snapshot.data]
   );
+  const agentsOnlineCount = useMemo(() => agents.filter((agent) => agent.status === 'online').length, [agents]);
+  const runtimeApplyingCount = useMemo(
+    () => tasks.filter((task) => task.status === 'queued' || task.status === 'running' || task.status === 'retrying').length,
+    [tasks]
+  );
+  const failedTasksCount = useMemo(() => tasks.filter((task) => task.status === 'failed').length, [tasks]);
+  const quotaRiskCount = useMemo(
+    () =>
+      inbounds.reduce(
+        (total, inbound) =>
+          total +
+          inbound.clients.filter(
+            (client) =>
+              client.quotaExceeded === true ||
+              client.clientExpired === true ||
+              client.runtimeDisabledByPolicy === true ||
+              Boolean(client.guardrailReason && client.guardrailReason !== 'ok')
+          ).length,
+        0
+      ),
+    [inbounds]
+  );
   const quickActionItems = useMemo(
     () =>
       createQuickActionItems({
@@ -1364,10 +1457,24 @@ export function AppShell({ ready }: AppShellProps) {
         language,
         nodes,
         quotaPolicies,
+        systemAlerts,
+        tasks,
         subscriptionClients,
         subscriptionSources
       }),
-    [agents, customers, forwardingRules, inbounds, language, nodes, quotaPolicies, subscriptionClients, subscriptionSources]
+    [
+      agents,
+      customers,
+      forwardingRules,
+      inbounds,
+      language,
+      nodes,
+      quotaPolicies,
+      systemAlerts,
+      tasks,
+      subscriptionClients,
+      subscriptionSources
+    ]
   );
   const quickActionScope = useMemo(
     () => ({
@@ -3516,11 +3623,17 @@ export function AppShell({ ready }: AppShellProps) {
             <AppShellWorkspaceChrome
               activePage={activePage}
               agentsCount={agents.length}
+              agentsOnlineCount={agentsOnlineCount}
+              alertsCount={systemAlerts.length}
+              failedTasksCount={failedTasksCount}
               forwardingRulesCount={forwardingRules.length}
               language={language}
               loading={snapshot.isLoading}
               nodesCount={nodes.length}
+              quotaRiskCount={quotaRiskCount}
+              runtimeApplyingCount={runtimeApplyingCount}
               subscriptionsCount={subscriptions.length}
+              tasksCount={tasks.length}
               onOpenQuickActions={openQuickActions}
               onPrefetchPage={prefetchAppShellPage}
               onSelectPage={navigateToPage}

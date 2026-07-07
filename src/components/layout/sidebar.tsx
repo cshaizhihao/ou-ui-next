@@ -30,7 +30,7 @@ function collectActiveGroupIds(entries: NavigationEntry[], pageId: PageId): stri
 
 export function Sidebar({ activePage, language, onPageChange }: SidebarProps) {
   const navigationGroups = useMemo(() => getNavigationGroups(language), [language]);
-  const [openGroupIds, setOpenGroupIds] = useState<string[]>(['core']);
+  const [openGroupIds, setOpenGroupIds] = useState<string[]>(['operations', 'evidence']);
   const controlNodeTitle = language === 'zh' ? '主控节点' : 'Master Node';
   const controlNodeSubtitle = language === 'zh' ? '控制面主节点' : 'Control Plane';
   const sidebarLabel = language === 'zh' ? 'Master 控制面导航' : 'Master control-plane navigation';

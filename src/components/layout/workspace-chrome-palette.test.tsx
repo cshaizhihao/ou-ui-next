@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ControlPlaneStatusCenter } from './control-plane-status-center';
 import { MobileBottomNav } from './mobile-bottom-nav';
 import { OperationsLaunchpad } from './operations-launchpad';
 import { Sidebar } from './sidebar';
@@ -19,6 +20,8 @@ describe('workspace chrome operations palette', () => {
         language="zh"
         nodesCount={2}
         subscriptionsCount={4}
+        tasksCount={5}
+        alertsCount={1}
         onOpenQuickActions={vi.fn()}
         onSelectPage={vi.fn()}
       />
@@ -37,6 +40,8 @@ describe('workspace chrome operations palette', () => {
     expect(screen.getByText('2 个节点').closest('button')).toHaveAttribute('data-tone', 'success');
     expect(screen.getByText('3 条规则').closest('button')).toHaveAttribute('data-tone', 'danger');
     expect(screen.getByText('4 个订阅').closest('button')).toHaveAttribute('data-tone', 'warning');
+    expect(screen.getByText('5 条记录').closest('button')).toHaveAttribute('data-tone', 'primary');
+    expect(screen.getByText('1 个告警').closest('button')).toHaveAttribute('data-tone', 'danger');
   });
 
   it('marks launchpad expand and collapse states for first-screen motion continuity', () => {
@@ -48,6 +53,8 @@ describe('workspace chrome operations palette', () => {
         language="zh"
         nodesCount={2}
         subscriptionsCount={4}
+        tasksCount={5}
+        alertsCount={1}
         onOpenQuickActions={vi.fn()}
         onSelectPage={vi.fn()}
       />
@@ -77,6 +84,8 @@ describe('workspace chrome operations palette', () => {
         language="zh"
         nodesCount={2}
         subscriptionsCount={4}
+        tasksCount={5}
+        alertsCount={0}
         onOpenQuickActions={vi.fn()}
         onSelectPage={vi.fn()}
       />
@@ -90,6 +99,35 @@ describe('workspace chrome operations palette', () => {
     expect(actionButton).not.toHaveClass('min-h-[92px]', 'p-3');
   });
 
+  it('surfaces a real control-plane status center on dashboard chrome', () => {
+    const onSelectPage = vi.fn();
+
+    render(
+      <ControlPlaneStatusCenter
+        agentsOnlineCount={2}
+        agentsTotalCount={3}
+        alertsCount={7}
+        failedTasksCount={1}
+        language="zh"
+        quotaRiskCount={4}
+        runtimeApplyingCount={2}
+        onSelectPage={onSelectPage}
+      />
+    );
+
+    const statusCenter = screen.getByRole('region', { name: '控制面状态中心' });
+    expect(statusCenter).toHaveClass('surface-shell');
+    expect(screen.getByText('Agent 在线')).toBeInTheDocument();
+    expect(screen.getByText('Runtime Apply')).toBeInTheDocument();
+    expect(screen.getByText('失败任务')).toBeInTheDocument();
+    expect(screen.getByText('配额风险')).toBeInTheDocument();
+    expect(screen.getByText('2/3')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('失败任务').closest('button')!);
+    expect(onSelectPage).toHaveBeenCalledWith('tasks');
+  });
+
   it('uses semantic wayfinding on the sidebar active path and master-node status block', () => {
     render(<Sidebar activePage="forwarding" language="zh" onPageChange={vi.fn()} />);
 
@@ -98,7 +136,7 @@ describe('workspace chrome operations palette', () => {
     const masterNode = screen.getByText('主控节点').closest('div');
 
     expect(sidebar).toHaveClass('control-plane-sidebar');
-    expect(screen.getByRole('button', { name: '收起 控制面' })).toHaveClass('ou-tone-warning');
+    expect(screen.getByRole('button', { name: '收起 运行工作台' })).toHaveClass('ou-tone-warning');
     expect(activeItem).toHaveClass('nav-active');
     expect(masterNode?.parentElement).toHaveClass('control-plane-shell-status-strip');
     expect(sidebar).not.toHaveTextContent('运行状态');
