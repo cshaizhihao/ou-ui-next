@@ -1215,6 +1215,12 @@ function createRuntimeVerificationEvidence(
   t: (typeof copy)[AppLanguage]
 ): RuntimeVerificationEvidence {
   const runtimeDiagnosis = readForwardingRuntimeDiagnosis(bundle) ?? readXrayRuntimeDiagnosis(bundle);
+  const failedPreflightCheck = bundle.preflightPlan?.checks.find((check) => check.status === 'failed');
+  const runtimeFailureReason =
+    bundle.configRevision?.failureReason ??
+    bundle.preflightPlan?.failureReason ??
+    bundle.task.failureReason ??
+    failedPreflightCheck?.label;
   const commandCount = bundle.commandOutboxItems.length;
   const completedCommandCount = bundle.commandOutboxItems.filter((item) => item.status === 'completed').length;
   const failedCommand = bundle.commandOutboxItems.find((item) => commandFailureStatuses.has(item.status));
@@ -1241,7 +1247,7 @@ function createRuntimeVerificationEvidence(
           ? 'confirmed'
           : 'waiting',
     value: runtimeDiagnosis?.evidenceStage ?? t.pendingArtifact,
-    detail: runtimeDiagnosis?.plannedBindingStatus
+    detail: runtimeDiagnosis?.evidenceStage === 'agent-result-failed' ? runtimeFailureReason : runtimeDiagnosis?.plannedBindingStatus
   };
   const configRevisionStep: RuntimeVerificationStep = {
     id: 'configRevision',
@@ -1252,7 +1258,10 @@ function createRuntimeVerificationEvidence(
           ? 'confirmed'
           : 'waiting',
     value: bundle.configRevision?.id ?? t.pendingArtifact,
-    detail: bundle.configRevision?.status
+    detail:
+      bundle.configRevision?.status === 'failed' || bundle.configRevision?.status === 'rolled_back'
+        ? bundle.configRevision.failureReason ?? bundle.task.failureReason ?? bundle.configRevision.status
+        : bundle.configRevision?.status
   };
   const preflightStep: RuntimeVerificationStep = {
     id: 'preflight',
@@ -1263,7 +1272,15 @@ function createRuntimeVerificationEvidence(
           ? 'confirmed'
           : 'waiting',
     value: bundle.preflightPlan?.id ?? t.pendingArtifact,
-    detail: bundle.preflightPlan?.status
+    detail:
+      bundle.preflightPlan?.status === 'failed'
+        ? bundle.preflightPlan.failureReason ??
+          (failedPreflightCheck
+            ? `${failedPreflightCheck.label}: ${failedPreflightCheck.status}`
+            : undefined) ??
+          bundle.task.failureReason ??
+          bundle.preflightPlan.status
+        : bundle.preflightPlan?.status
   };
   const snapshotStep: RuntimeVerificationStep = {
     id: 'snapshot',

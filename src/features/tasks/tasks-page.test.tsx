@@ -903,7 +903,7 @@ describe('TasksPage', () => {
 
     expect(diagnosis).toHaveTextContent('Xray config preflight');
     expect(diagnosis).toHaveTextContent('ou-ui-xray.service');
-    expect(within(dialog).getAllByText('xray config preflight failed: invalid reality short id')).toHaveLength(2);
+    expect(within(dialog).getAllByText('xray config preflight failed: invalid reality short id').length).toBeGreaterThanOrEqual(4);
 
     await user.click(within(dialog).getByRole('button', { name: 'Copy Failure Evidence Package' }));
 
@@ -911,7 +911,7 @@ describe('TasksPage', () => {
       runtimeArtifacts: {
         runtimeVerification?: {
           nextAction?: string;
-          steps?: Array<{ id: string; actionHint?: string }>;
+          steps?: Array<{ id: string; actionHint?: string; detail?: string }>;
         };
         runtimeDiagnosis?: {
           plannedInbound?: { protocol: string; action: string };
@@ -933,6 +933,18 @@ describe('TasksPage', () => {
     expect(copiedPayload.runtimeArtifacts.runtimeVerification).toMatchObject({
       nextAction: expect.stringContaining('Inspect the config revision failure reason')
     });
+    expect(copiedPayload.runtimeArtifacts.runtimeVerification?.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'configRevision',
+          detail: 'xray config preflight failed: invalid reality short id'
+        }),
+        expect.objectContaining({
+          id: 'preflight',
+          detail: 'xray config preflight failed: invalid reality short id'
+        })
+      ])
+    );
   });
 
   it('shows failed Xray Agent result and rollback evidence as the top failure verdict', async () => {
@@ -1002,6 +1014,7 @@ describe('TasksPage', () => {
     expect(runtimeVerification).toHaveAttribute('data-runtime-verification-state', 'failed');
     expect(runtimeVerification).toHaveTextContent('Agent Failed');
     expect(runtimeVerification).toHaveTextContent('agent-result-failed');
+    expect(runtimeVerification).toHaveTextContent('post-apply health check failed: xray api probe failed');
     expect(runtimeVerification).toHaveTextContent('Start with the Agent result failure reason');
     expect(runtimeVerification).toHaveTextContent('Rollback Task: task-auto-rollback-xray-001');
     expect(within(dialog).getByRole('group', { name: 'Xray Runtime Diagnosis' })).toHaveTextContent('Rollback');
