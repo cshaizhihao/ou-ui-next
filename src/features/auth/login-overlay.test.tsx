@@ -293,4 +293,90 @@ describe('LoginOverlay', () => {
       })
     );
   });
+
+  it('creates a server-side operator session with same-origin HTTP mode when no base URL is configured', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'unauthorized'
+            },
+            requestId: 'req-login-overlay-same-origin-missing-session'
+          }),
+          {
+            status: 401,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              authenticated: true,
+              csrfToken: 'csrf-login-same-origin-001',
+              sessionId: 'operator-session-same-origin-001'
+            },
+            requestId: 'req-login-overlay-same-origin-session'
+          }),
+          {
+            status: 201,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+      );
+    const onAuthenticated = vi.fn();
+    const user = userEvent.setup();
+
+    vi.stubEnv('VITE_CONTROL_PLANE_MODE', 'http');
+    vi.stubGlobal('fetch', fetcher);
+
+    render(
+      <LoginOverlay
+        authenticated={false}
+        language="zh"
+        onAuthenticated={onAuthenticated}
+        onLanguageChange={vi.fn()}
+      />
+    );
+
+    await screen.findByRole('textbox', { name: '用户名' });
+    await user.type(screen.getByRole('textbox', { name: '用户名' }), 'admin');
+    await user.type(screen.getByLabelText('密码'), 'admin');
+    await user.click(screen.getByRole('button', { name: '安全登录' }));
+
+    await waitFor(() => expect(onAuthenticated).toHaveBeenCalledTimes(1));
+    expect(onAuthenticated).toHaveBeenCalledWith({
+      csrfToken: 'csrf-login-same-origin-001',
+      operatorSessionId: 'operator-session-same-origin-001'
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/auth/session',
+      expect.objectContaining({
+        method: 'GET',
+        credentials: 'include'
+      })
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/auth/session',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: 'admin',
+          password: 'admin'
+        })
+      })
+    );
+  });
 });

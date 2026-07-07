@@ -66,9 +66,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
   const [password, setPassword] = useState('');
   const [hasError, setHasError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCheckingSession, setIsCheckingSession] = useState(
-    runtimeConfig.controlPlaneMode === 'http' && Boolean(runtimeConfig.controlPlaneBaseUrl)
-  );
+  const [isCheckingSession, setIsCheckingSession] = useState(runtimeConfig.controlPlaneMode === 'http');
   const usernameInputId = 'operator-login-username';
   const passwordInputId = 'operator-login-password';
   const errorId = 'operator-login-error';
@@ -87,8 +85,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     if (
       authenticated ||
       runtimeConfig.disableInAppLogin ||
-      runtimeConfig.controlPlaneMode !== 'http' ||
-      !runtimeConfig.controlPlaneBaseUrl
+      runtimeConfig.controlPlaneMode !== 'http'
     ) {
       setIsCheckingSession(false);
       return;
@@ -97,7 +94,7 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
     let cancelled = false;
 
     setIsCheckingSession(true);
-    void fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl), {
+    void fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl ?? ''), {
       method: 'GET',
       credentials: 'include'
     })
@@ -150,15 +147,10 @@ export function LoginOverlay({ authenticated, language, onLanguageChange, onAuth
       return;
     }
 
-    if (!runtimeConfig.controlPlaneBaseUrl) {
-      setHasError(true);
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl), {
+      const response = await fetch(createOperatorSessionUrl(runtimeConfig.controlPlaneBaseUrl ?? ''), {
         method: 'POST',
         credentials: 'include',
         headers: {
