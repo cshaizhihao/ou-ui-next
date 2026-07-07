@@ -380,6 +380,25 @@ const copy = {
       'reset-quota': '重置配额',
       'enable-rule': '启用规则'
     },
+    runtimeRecovery: '运行恢复',
+    runtimeRecoveryForRule: (name: string) => `${name} 的运行恢复`,
+    runtimeRecoverySummaryReady: '运行时链路没有需要处理的阻断。',
+    runtimeRecoverySummaryWaiting: '运行时还在等待入口绑定或服务证据。',
+    runtimeRecoverySummaryDegraded: '运行时可用但证据不完整，需要检查 Agent 或阻断控制项。',
+    runtimeRecoverySummaryBlocked: '运行时已被配额、策略或阻断控制项暂停。',
+    runtimeRecoverySummaryFailed: '运行时下发失败，需要重新下发或修复规则。',
+    runtimeRecoveryBlockedControls: '阻断控制项',
+    runtimeRecoveryBindings: '受影响绑定',
+    runtimeRecoveryServices: '运行服务',
+    runtimeRecoveryGuardrail: '守护原因',
+    runtimeRecoveryNoGuardrail: '无',
+    runtimeRecoveryDeploy: '恢复下发',
+    runtimeRecoveryPause: '恢复暂停',
+    runtimeRecoveryResume: '恢复启用',
+    runtimeRecoveryEdit: '编辑恢复',
+    runtimeRecoveryCopy: '复制恢复上下文',
+    runtimeRecoveryNoService: '无运行服务证据',
+    runtimeRecoveryContextCopied: '已复制恢复上下文',
     strategyOptions: {
       fifo: '顺序',
       'round-robin': '轮询',
@@ -595,6 +614,25 @@ const copy = {
       'reset-quota': 'Reset quota',
       'enable-rule': 'Enable rule'
     },
+    runtimeRecovery: 'Runtime Recovery',
+    runtimeRecoveryForRule: (name: string) => `Runtime recovery for ${name}`,
+    runtimeRecoverySummaryReady: 'Runtime path has no blockers to recover.',
+    runtimeRecoverySummaryWaiting: 'Runtime is waiting for entry binding or service evidence.',
+    runtimeRecoverySummaryDegraded: 'Runtime is usable but evidence is incomplete; inspect Agent or blocked controls.',
+    runtimeRecoverySummaryBlocked: 'Runtime is paused by quota, policy, or blocked controls.',
+    runtimeRecoverySummaryFailed: 'Runtime apply failed; redeploy or repair the rule.',
+    runtimeRecoveryBlockedControls: 'Blocked Controls',
+    runtimeRecoveryBindings: 'Impacted Bindings',
+    runtimeRecoveryServices: 'Runtime Services',
+    runtimeRecoveryGuardrail: 'Guardrail Reason',
+    runtimeRecoveryNoGuardrail: 'None',
+    runtimeRecoveryDeploy: 'Recovery Deploy',
+    runtimeRecoveryPause: 'Recovery Pause',
+    runtimeRecoveryResume: 'Recovery Resume',
+    runtimeRecoveryEdit: 'Recovery Edit',
+    runtimeRecoveryCopy: 'Copy Recovery Context',
+    runtimeRecoveryNoService: 'No runtime service evidence',
+    runtimeRecoveryContextCopied: 'Recovery context copied',
     strategyOptions: {
       fifo: 'FIFO',
       'round-robin': 'Round Robin',
@@ -1003,6 +1041,41 @@ function createForwardingMetadataFromRule(rule: ForwardingRuleView, entryNodeIds
 
 function getBlockedRuntimeControlsFromRule(rule: ForwardingRuleView): ForwardingRuntimeBlockedControl[] {
   return collectBlockedForwardingRuntimeControls(rule);
+}
+
+function createForwardingRuntimeRecoveryText(
+  rule: ForwardingRuleView,
+  diagnosis: ForwardingRuntimeDiagnosis,
+  agents: Agent[],
+  t: (typeof copy)['zh' | 'en']
+) {
+  const blockedControls = getBlockedRuntimeControlsFromRule(rule);
+  const runtimeServices = Array.from(new Set(rule.bindings.flatMap((binding) => binding.runtimeServiceNames ?? [])));
+  const bindingLines = rule.bindings.map((binding) => {
+    const agentName = agents.find((agent) => agent.id === binding.agentId)?.name ?? binding.agentId;
+
+    return `${agentName} ${normalizeListenAddress(binding.listenAddress)}:${binding.listenPort}/${binding.protocol} -> ${binding.targetAddress}:${binding.targetPort} [${binding.status}]`;
+  });
+  const lines = [
+    `Forwarding Runtime Recovery: ${rule.name}`,
+    `Rule ID: ${rule.id}`,
+    `State: ${t.runtimeDiagnosisStateLabels[diagnosis.state]}`,
+    `Reasons: ${diagnosis.reasons.map((reason) => t.runtimeDiagnosisReasonLabels[reason]).join(', ') || '-'}`,
+    `Next Actions: ${diagnosis.nextActions.map((action) => t.runtimeDiagnosisActionLabels[action]).join(', ') || '-'}`,
+    `Enabled: ${rule.enabled}`,
+    `Port Status: ${rule.portStatus}`,
+    `Guardrail: ${rule.guardrailReason || (rule.quotaExceeded ? t.quotaExceeded : rule.runtimeDisabledByPolicy ? t.quotaSuspended : '-')}`,
+    `Quota: ${formatBytes(rule.usedBytes)} / ${formatBytes(rule.quotaBytes)}`,
+    `Target: ${rule.targetAddress}:${rule.targetPort}`,
+    `Blocked Controls: ${blockedControls.map((control) => t.runtimeControlLabels[control]).join(', ') || '-'}`,
+    `Blocked Control Values: ${rule.blockedRuntimeControlValues ? JSON.stringify(rule.blockedRuntimeControlValues) : '-'}`,
+    'Bindings:',
+    ...(bindingLines.length > 0 ? bindingLines.map((line) => `- ${line}`) : ['- none']),
+    'Runtime Services:',
+    ...(runtimeServices.length > 0 ? runtimeServices.map((service) => `- ${service}`) : [`- ${t.runtimeRecoveryNoService}`])
+  ];
+
+  return lines.join('\n');
 }
 
 export function ForwardingPage({
@@ -1698,13 +1771,28 @@ export function ForwardingPage({
                           </p>
                         </td>
                         <td className="px-3 py-2.5">
-                          <ForwardingRuleActions
-                            onDelete={() => deleteRule(rule)}
-                            onEdit={() => openEditDrawer(rule)}
-                            onRun={(action) => runRuleTask(rule, action)}
-                            rule={rule}
-                            t={t}
-                          />
+                          <div className="flex flex-col items-end gap-2">
+                            <ForwardingRuleActions
+                              onDelete={() => deleteRule(rule)}
+                              onEdit={() => openEditDrawer(rule)}
+                              onRun={(action) => runRuleTask(rule, action)}
+                              rule={rule}
+                              t={t}
+                            />
+                            <ForwardingRuntimeRecoveryPanel
+                              diagnosis={createForwardingRuntimeDiagnosis(rule)}
+                              language={language}
+                              onCopy={() => {
+                                void copyToClipboard(
+                                  createForwardingRuntimeRecoveryText(rule, createForwardingRuntimeDiagnosis(rule), agents, t)
+                                );
+                              }}
+                              onEdit={() => openEditDrawer(rule)}
+                              onRun={(action) => runRuleTask(rule, action)}
+                              rule={rule}
+                              t={t}
+                            />
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1759,6 +1847,19 @@ export function ForwardingPage({
                     <ForwardingRuleActions
                       className="mt-3 justify-start"
                       onDelete={() => deleteRule(rule)}
+                      onEdit={() => openEditDrawer(rule)}
+                      onRun={(action) => runRuleTask(rule, action)}
+                      rule={rule}
+                      t={t}
+                    />
+                    <ForwardingRuntimeRecoveryPanel
+                      diagnosis={createForwardingRuntimeDiagnosis(rule)}
+                      language={language}
+                      onCopy={() => {
+                        void copyToClipboard(
+                          createForwardingRuntimeRecoveryText(rule, createForwardingRuntimeDiagnosis(rule), agents, t)
+                        );
+                      }}
                       onEdit={() => openEditDrawer(rule)}
                       onRun={(action) => runRuleTask(rule, action)}
                       rule={rule}
@@ -2125,6 +2226,187 @@ function ForwardingRuntimeDiagnosisStrip({
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ForwardingRuntimeRecoveryPanel({
+  diagnosis,
+  language,
+  onCopy,
+  onEdit,
+  onRun,
+  rule,
+  t
+}: {
+  diagnosis: ForwardingRuntimeDiagnosis;
+  language: AppLanguage;
+  onCopy: () => void;
+  onEdit: () => void;
+  onRun: (action: 'apply' | 'pause' | 'resume') => void;
+  rule: ForwardingRuleView;
+  t: (typeof copy)['zh' | 'en'];
+}) {
+  if (diagnosis.state === 'ready') {
+    return null;
+  }
+
+  const blockedControls = getBlockedRuntimeControlsFromRule(rule);
+  const runtimeServices = Array.from(new Set(rule.bindings.flatMap((binding) => binding.runtimeServiceNames ?? [])));
+  const summary = {
+    ready: t.runtimeRecoverySummaryReady,
+    waiting: t.runtimeRecoverySummaryWaiting,
+    degraded: t.runtimeRecoverySummaryDegraded,
+    blocked: t.runtimeRecoverySummaryBlocked,
+    failed: t.runtimeRecoverySummaryFailed
+  } satisfies Record<ForwardingRuntimeDiagnosisState, string>;
+  const shouldDeploy = diagnosis.nextActions.includes('apply') || diagnosis.nextActions.includes('repair') || diagnosis.state === 'failed';
+  const shouldPause = diagnosis.nextActions.includes('pause');
+  const shouldResume = diagnosis.nextActions.includes('resume');
+  const shouldEdit =
+    diagnosis.nextActions.some((action) =>
+      action === 'resolve-conflict' ||
+      action === 'reset-quota' ||
+      action === 'inspect-agent' ||
+      action === 'enable-rule'
+    ) ||
+    blockedControls.length > 0 ||
+    diagnosis.reasons.includes('blocked-runtime-controls') ||
+    diagnosis.reasons.includes('quota-exceeded');
+
+  return (
+    <section
+      aria-label={t.runtimeRecoveryForRule(rule.name)}
+      className="forwarding-runtime-recovery w-full max-w-[18rem] border border-[#FF3D18]/35 bg-[#FFD8C6]/50 p-2.5 text-[#07111F] shadow-[0_12px_28px_-24px_rgba(7,17,31,0.36)] dark:border-[#FF6A3A]/28 dark:bg-[#FF3D18]/12 dark:text-[#FFD8C6]"
+      data-forwarding-recovery-state={diagnosis.state}
+      role="region"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest">{t.runtimeRecovery}</p>
+          <p className="mt-1 text-[11px] font-bold leading-4">{summary[diagnosis.state]}</p>
+        </div>
+        <span className="border border-current/20 bg-white/45 px-2 py-0.5 text-[9px] font-black uppercase dark:bg-white/[0.04]">
+          {t.runtimeDiagnosisStateLabels[diagnosis.state]}
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <ForwardingRecoveryFact
+          label={t.runtimeRecoveryBindings}
+          tone={diagnosis.impactedBindingCount > 0 ? 'signal' : undefined}
+          value={formatNumber(diagnosis.impactedBindingCount, language)}
+        />
+        <ForwardingRecoveryFact
+          label={t.runtimeRecoveryServices}
+          tone={runtimeServices.length === 0 ? 'signal' : undefined}
+          value={formatNumber(runtimeServices.length, language)}
+        />
+        <ForwardingRecoveryFact
+          label={t.runtimeRecoveryBlockedControls}
+          tone={blockedControls.length > 0 ? 'signal' : undefined}
+          value={formatNumber(blockedControls.length, language)}
+        />
+        <ForwardingRecoveryFact
+          label={t.runtimeRecoveryGuardrail}
+          tone={rule.guardrailReason || rule.quotaExceeded || rule.runtimeDisabledByPolicy ? 'signal' : undefined}
+          value={rule.guardrailReason || (rule.quotaExceeded ? t.quotaExceeded : rule.runtimeDisabledByPolicy ? t.quotaSuspended : t.runtimeRecoveryNoGuardrail)}
+        />
+      </div>
+      {blockedControls.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {blockedControls.map((control) => (
+            <span
+              className="border border-[#FF3D18]/35 bg-white/48 px-2 py-0.5 text-[9px] font-black uppercase text-[#B93C17] dark:border-[#FF6A3A]/24 dark:bg-white/[0.04] dark:text-[#FFB197]"
+              data-runtime-control={control}
+              key={control}
+            >
+              {t.runtimeControlLabels[control]}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {shouldDeploy ? (
+          <button
+            className="inline-flex min-h-7 items-center justify-center gap-1.5 border border-[#1E3AFF]/45 bg-[#DCE1FF]/80 px-2 text-[10px] font-black text-[#07111F] transition hover:bg-[#DCE1FF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:border-[#6B7CFF]/35 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF]"
+            onClick={() => onRun('apply')}
+            type="button"
+          >
+            <Send className="h-3 w-3" />
+            {t.runtimeRecoveryDeploy}
+          </button>
+        ) : null}
+        {shouldResume ? (
+          <button
+            className="inline-flex min-h-7 items-center justify-center gap-1.5 border border-[#00A878]/38 bg-[#00A878]/12 px-2 text-[10px] font-black text-[#07111F] transition hover:bg-[#00A878]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00A878]/35 dark:border-[#00A878]/30 dark:bg-[#00A878]/14 dark:text-[#C7FFE9]"
+            onClick={() => onRun('resume')}
+            type="button"
+          >
+            <Play className="h-3 w-3" />
+            {t.runtimeRecoveryResume}
+          </button>
+        ) : null}
+        {shouldPause ? (
+          <button
+            className="inline-flex min-h-7 items-center justify-center gap-1.5 border border-[#07111F]/25 bg-[#FFFDF5]/82 px-2 text-[10px] font-black text-[#35405A] transition hover:bg-[#EAF3D1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70"
+            onClick={() => onRun('pause')}
+            type="button"
+          >
+            <Pause className="h-3 w-3" />
+            {t.runtimeRecoveryPause}
+          </button>
+        ) : null}
+        {shouldEdit ? (
+          <button
+            className="inline-flex min-h-7 items-center justify-center gap-1.5 border border-[#07111F]/25 bg-[#FFFDF5]/82 px-2 text-[10px] font-black text-[#35405A] transition hover:bg-[#EAF3D1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70"
+            onClick={onEdit}
+            type="button"
+          >
+            <Pencil className="h-3 w-3" />
+            {t.runtimeRecoveryEdit}
+          </button>
+        ) : null}
+        <button
+          className="inline-flex min-h-7 items-center justify-center gap-1.5 border border-[#07111F]/25 bg-[#FFFDF5]/82 px-2 text-[10px] font-black text-[#35405A] transition hover:bg-[#EAF3D1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70"
+          onClick={onCopy}
+          type="button"
+        >
+          <Copy className="h-3 w-3" />
+          {t.runtimeRecoveryCopy}
+        </button>
+      </div>
+      <div className="mt-2 space-y-1">
+        {(runtimeServices.length > 0 ? runtimeServices : [t.runtimeRecoveryNoService]).slice(0, 2).map((service) => (
+          <p className="break-all font-mono text-[9px] font-semibold leading-4 text-[#35405A] dark:text-white/55" key={service}>
+            {service}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ForwardingRecoveryFact({
+  label,
+  tone,
+  value
+}: {
+  label: string;
+  tone?: 'signal';
+  value: string;
+}) {
+  return (
+    <div
+      className={
+        tone === 'signal'
+          ? 'min-w-0 border border-[#FF3D18]/30 bg-[#FFF1EC]/70 px-2 py-1.5 dark:border-[#FF6A3A]/22 dark:bg-[#FF3D18]/10'
+          : 'min-w-0 border border-[#07111F]/16 bg-white/45 px-2 py-1.5 dark:border-white/10 dark:bg-white/[0.035]'
+      }
+    >
+      <p className="text-[9px] font-bold uppercase tracking-widest text-[#35405A] dark:text-white/45">{label}</p>
+      <p className="mt-1 truncate text-[10px] font-black text-[#07111F] dark:text-white/75" title={value}>
+        {value}
+      </p>
     </div>
   );
 }

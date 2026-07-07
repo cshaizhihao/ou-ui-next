@@ -22,6 +22,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Forwarding entry selection disables Agents without `port-forwarding` capability instead of silently accepting unsupported hosts.
 - Forwarding rules now expose rule-level runtime diagnosis states: `ready`, `waiting`, `degraded`, `blocked`, and `failed`.
 - Forwarding diagnosis includes rule and binding status, runtime service evidence, nftables/GOST counter evidence, quota/guardrail suspension, blocked Agent controls, impacted binding count, and next-action hints.
+- Forwarding rule rows now surface a runtime-recovery panel for waiting / degraded / blocked / failed diagnosis states, turning diagnosis hints into real Deploy / Pause / Resume / Edit actions plus a safe copied recovery context with bindings, services, guardrail, quota, and blocked-control evidence.
 - Forwarding and tunnel runtime artifacts now carry a `control-plane-compiled` runtime diagnosis with planned service names, planned binding status, blocked controls, and next-action hints so task previews and later Agent evidence can align with UI diagnosis.
 - The `/api/v1/boundary` descriptor now exposes Agent capability vocabulary, Xray runtime supported protocols, and Forwarding supported/blocked runtime controls, giving external clients the same capability boundary used by the UI and artifact compiler.
 - Task release evidence now reads forwarding runtime diagnosis from runtime artifacts and surfaces it in release rows, task details, failure drawers, copied task context, and copied failure evidence packages.

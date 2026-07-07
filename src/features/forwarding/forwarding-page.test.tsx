@@ -821,6 +821,76 @@ describe('ForwardingPage', () => {
     expect(within(failedDiagnosis).getByText('Repair')).toHaveAttribute('data-runtime-diagnosis-action', 'repair');
   });
 
+  it('surfaces actionable runtime recovery controls from forwarding diagnosis', async () => {
+    const user = userEvent.setup();
+    const onRunTask = vi.fn();
+    const writeText = vi.fn();
+    const confirm = vi.fn(() => false);
+
+    vi.stubGlobal('confirm', confirm);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[
+          createRule({
+            id: 'forward-apply-failed',
+            name: 'Apply Failed Forward',
+            portStatus: 'failed',
+            bindings: [
+              {
+                agentId: 'agent-hkg-01',
+                listenAddress: '0.0.0.0',
+                listenPort: 4443,
+                targetAddress: '10.0.0.30',
+                targetPort: 9443,
+                protocol: 'tcp+udp',
+                status: 'failed',
+                runtimeServiceNames: ['ou-forward-forward-apply-failed-agent-hkg-01.service']
+              }
+            ]
+          })
+        ]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={onRunTask}
+      />
+    );
+
+    const tableRegion = getForwardingRuleTableRegion();
+    const recovery = within(tableRegion).getByRole('region', { name: 'Runtime recovery for Apply Failed Forward' });
+
+    expect(recovery).toHaveAttribute('data-forwarding-recovery-state', 'failed');
+    expect(recovery).toHaveTextContent('Runtime apply failed; redeploy or repair the rule.');
+    expect(recovery).toHaveTextContent('Impacted Bindings');
+    expect(recovery).toHaveTextContent('Runtime Services');
+    expect(recovery).toHaveTextContent('ou-forward-forward-apply-failed-agent-hkg-01.service');
+
+    await user.click(within(recovery).getByRole('button', { name: 'Recovery Deploy' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Deploy Apply Failed Forward'));
+    expect(onRunTask).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(within(recovery).getByRole('button', { name: 'Recovery Deploy' }));
+
+    expect(onRunTask).toHaveBeenCalledWith('forward-apply-failed', 'apply');
+
+    await user.click(within(recovery).getByRole('button', { name: 'Copy Recovery Context' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Forwarding Runtime Recovery: Apply Failed Forward'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('State: Failed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Reasons: Apply failed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('ou-forward-forward-apply-failed-agent-hkg-01.service'));
+  });
+
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
@@ -1117,8 +1187,8 @@ describe('ForwardingPage', () => {
     expect(quotaRow).not.toBeNull();
     expect(within(policyRow).getByText('Quota suspended')).toHaveClass('border-[#DC2626]', 'bg-[#DC2626]/[0.10]', 'text-[#B91C1C]');
     expect(within(quotaRow).getAllByText('Quota exceeded')[0]).toHaveClass('border-[#FF3D18]', 'bg-[#FFD8C6]/72', 'text-[#B93C17]');
-    expect(within(policyRow).getByText('forward_rule_disabled_by_policy')).toHaveClass('text-[#B91C1C]');
-    expect(within(quotaRow).getByText('forward_rule_quota_exceeded')).toHaveClass('text-[#B93C17]');
+    expect(within(policyRow).getAllByText('forward_rule_disabled_by_policy')[0]).toHaveClass('text-[#B91C1C]');
+    expect(within(quotaRow).getAllByText('forward_rule_quota_exceeded')[0]).toHaveClass('text-[#B93C17]');
     expect(deleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');
     expect(bulkDeleteButton).toHaveClass('border-[#DC2626]', 'text-[#DC2626]');
 
