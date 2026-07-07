@@ -3208,9 +3208,52 @@ describe('control-plane service', () => {
       }
     });
 
+    await service.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-service-agent-log-chunk-sampled-agent-progress',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 5,
+      sessionId: 'sess-agent-log-chunk-sampled',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {
+        chunkSeq: 4,
+        stream: 'agent',
+        content: 'command execution started type=apply task=task-progress timeoutSeconds=210'
+      }
+    });
+
+    await service.receiveAgentEvent({
+      type: 'log_chunk',
+      eventId: 'evt-service-agent-log-chunk-sampled-result-summary',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 6,
+      sessionId: 'sess-agent-log-chunk-sampled',
+      observedAt: '2026-06-02T00:00:06.000Z',
+      payload: {
+        chunkSeq: 5,
+        stream: 'stdout',
+        content: 'command result {"status":"succeeded","outputTruncated":false}'
+      }
+    });
+
     const persistedLogChunks = (await backingRepository.listAgentEvents()).filter((event) => event.type === 'log_chunk');
 
-    expect(persistedLogChunks).toEqual([
+    expect(persistedLogChunks).toHaveLength(4);
+    expect(persistedLogChunks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventId: 'evt-service-agent-log-chunk-sampled-result-summary',
+        type: 'log_chunk',
+        payload: expect.objectContaining({ chunkSeq: 5 })
+      }),
+      expect.objectContaining({
+        eventId: 'evt-service-agent-log-chunk-sampled-agent-progress',
+        type: 'log_chunk',
+        payload: expect.objectContaining({ chunkSeq: 4 })
+      }),
       expect.objectContaining({
         eventId: 'evt-service-agent-log-chunk-sampled-3',
         type: 'log_chunk',
@@ -3221,7 +3264,14 @@ describe('control-plane service', () => {
         type: 'log_chunk',
         payload: expect.objectContaining({ chunkSeq: 1 })
       })
-    ]);
+    ]));
+    expect(persistedLogChunks).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventId: 'evt-service-agent-log-chunk-sampled-2'
+        })
+      ])
+    );
 
     await service.receiveAgentEvent({
       type: 'result',
@@ -3229,9 +3279,9 @@ describe('control-plane service', () => {
       commandId: outboxItem.commandId,
       taskId: task.id,
       agentId: 'agent-hkg-01',
-      seq: outboxItem.seq + 5,
+      seq: outboxItem.seq + 7,
       sessionId: 'sess-agent-log-chunk-sampled',
-      observedAt: '2026-06-02T00:00:05.000Z',
+      observedAt: '2026-06-02T00:00:07.000Z',
       payload: {
         status: 'succeeded',
         appliedConfigRevision:

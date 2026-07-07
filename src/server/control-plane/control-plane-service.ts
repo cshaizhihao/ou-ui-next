@@ -3100,6 +3100,13 @@ export function createControlPlaneService({
       return true;
     }
 
+    const stream = agentEvent.payload.stream;
+    const content = String(agentEvent.payload.content ?? '');
+
+    if (stream === 'agent' || stream === 'runtime' || content.startsWith('command result ')) {
+      return true;
+    }
+
     return agentEvent.payload.chunkSeq === 1 || agentEvent.payload.chunkSeq % agentLogChunkPersistence.persistEvery === 0;
   }
 

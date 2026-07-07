@@ -166,7 +166,7 @@ describe('agent install command', () => {
     expect(script).toContain('OU_AGENT_COMMAND_LOG_MAX_CHUNKS=${OU_AGENT_COMMAND_LOG_MAX_CHUNKS:-20}');
     expect(script).toContain('def trim_pending_events(events, limit):');
     expect(script).toContain('def pending_event_drop_rank(event):');
-    expect(script).toContain('def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload):');
+    expect(script).toContain('def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload, start_chunk_seq=1):');
     expect(script).toContain('COMMAND_LOG_CHUNK_MAX_CHARS = 60_000');
     expect(script).toContain('record_command_log("stdout", result.stdout)');
     expect(script).toContain('record_command_log("stderr", result.stderr)');

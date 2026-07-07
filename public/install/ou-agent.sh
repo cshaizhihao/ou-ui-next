@@ -637,7 +637,9 @@ def set_command_progress_context(state_dir, master_poll_url, token, command, min
 
 def clear_command_progress_context():
     global COMMAND_PROGRESS_CONTEXT
+    context = COMMAND_PROGRESS_CONTEXT
     COMMAND_PROGRESS_CONTEXT = None
+    return int(context.get("nextChunkSeq", 1)) if context else 1
 
 
 def emit_command_progress(stream, content):
@@ -650,11 +652,14 @@ def emit_command_progress(stream, content):
         record_command_log(stream, text)
         return
 
+    chunk_seq = int(context.get("nextChunkSeq", 1))
+    context["nextChunkSeq"] = chunk_seq + 1
     event = build_command_event(
         context["stateDir"],
         context["command"],
         "log_chunk",
         {
+            "chunkSeq": chunk_seq,
             "stream": stream if stream in ("stdout", "stderr", "agent", "runtime") else "runtime",
             "content": text[:COMMAND_LOG_CHUNK_MAX_CHARS],
         },
@@ -703,7 +708,7 @@ def create_command_result_log_summary(command, payload, output_truncated):
     return "command result " + json.dumps(summary, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload):
+def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_seq, payload, start_chunk_seq=1):
     max_chunks = read_positive_int_env("OU_AGENT_COMMAND_LOG_MAX_CHUNKS", 20, lower=1, upper=200)
     output_limit = max(0, max_chunks - 1)
     output_entries = []
@@ -729,7 +734,7 @@ def send_command_log_chunks(state_dir, master_poll_url, token, command, minimum_
         },
     ]
 
-    for chunk_seq, entry in enumerate(entries, start=1):
+    for chunk_seq, entry in enumerate(entries, start=max(1, int(start_chunk_seq))):
         event = build_command_event(
             state_dir,
             command,
@@ -3985,6 +3990,7 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
 
     timeout_seconds = command_timeout_seconds(command)
     previous_alarm_handler = signal.getsignal(signal.SIGALRM)
+    final_log_chunk_start_seq = 1
     set_command_progress_context(state_dir, master_poll_url, token, command, ack_event["seq"])
     signal.signal(signal.SIGALRM, handle_command_timeout)
     signal.alarm(timeout_seconds)
@@ -4075,10 +4081,10 @@ def process_command(state_dir, master_poll_url, token, outbox_item):
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, previous_alarm_handler)
-        clear_command_progress_context()
+        final_log_chunk_start_seq = clear_command_progress_context()
 
     payload = normalize_result_payload(payload)
-    send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload)
+    send_command_log_chunks(state_dir, master_poll_url, token, command, ack_event["seq"], payload, final_log_chunk_start_seq)
     result_event = build_command_event(state_dir, command, "result", payload, minimum_seq=ack_event["seq"])
     if not send_event_or_queue(state_dir, master_poll_url, token, result_event, queue_on_failure=True):
         raise RuntimeError(f"result event queued for retry: {result_event['eventId']}")
