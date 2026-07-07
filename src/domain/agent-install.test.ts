@@ -60,7 +60,8 @@ describe('agent install command', () => {
     const command = composeAgentUpgradeCommand(
       {
         agentId: 'agent-poll-only-01',
-        reason: 'no_telemetry_sample'
+        reason: 'no_telemetry_sample',
+        scriptUrl: 'https://panel.example.com/install/ou-agent.sh'
       },
       {
         issuedAt: '2026-06-07T10:00:00.000Z'
@@ -72,12 +73,15 @@ describe('agent install command', () => {
       issuedAt: '2026-06-07T10:00:00.000Z',
       mode: 'update-runtime',
       requiresExistingRuntimeCredential: true,
-      scriptUrl: 'https://raw.githubusercontent.com/cshaizhihao/ou-ui-next/main/public/install/ou-agent.sh'
+      scriptUrl: 'https://panel.example.com/install/ou-agent.sh'
     });
     expect(command.command).toContain('OU_AGENT_SUDO');
     expect(command.command).toContain('id -u');
     expect(command.command).toContain('ou-agent update');
     expect(command.command).toContain('OU_AGENT_UPDATE_MODE=1');
+    expect(command.command).toContain('OU_AGENT_INSTALL_SCRIPT_URL=');
+    expect(command.command).toContain('https://panel.example.com/install/ou-agent.sh');
+    expect(command.command).toContain('curl --connect-timeout 10 --max-time 120 --retry 2 -fsSL');
     expect(command.command).not.toContain('OU_INSTALL_TOKEN=');
     expect(command.command).not.toContain('OU_AGENT_TOKEN=');
     expect(command.command).not.toContain('/agent/v1/register');

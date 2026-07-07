@@ -1384,7 +1384,8 @@ describe('OpenAPI v1 contract', () => {
     expect(document.components.schemas.AgentUpgradeCommandRequest.properties).toEqual(
       expect.objectContaining({
         agentId: expect.objectContaining({ $ref: '#/components/schemas/AgentId' }),
-        reason: expect.objectContaining({ type: 'string' })
+        reason: expect.objectContaining({ type: 'string' }),
+        scriptUrl: expect.objectContaining({ type: 'string', format: 'uri' })
       })
     );
     expect(document.components.schemas.AgentInstallCommandRequest.allOf).toBeUndefined();

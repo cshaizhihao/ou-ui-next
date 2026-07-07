@@ -795,6 +795,13 @@ const copy = {
     customerRuntimeEvidenceCopyPackage: '复制诊断包',
     customerRuntimeEvidenceRollbackAction: '发起回滚',
     customerRuntimeEvidenceRetryDeleteAction: '重试运行时清理',
+    customerRuntimeEvidenceAgentRecovery: 'Agent 恢复路径',
+    customerRuntimeEvidenceAgentRecoveryHint: (name: string) =>
+      `${name} 已 ACK 运行命令但没有回传 result。优先复制恢复命令到目标主机执行，恢复后再重试运行时清理。`,
+    customerRuntimeEvidenceCopyAgentRecoveryCommand: '复制 Agent 恢复命令',
+    customerRuntimeEvidenceRemoteAgentRecovery: '远程升级 Agent',
+    customerRuntimeEvidenceAgentRecoveryCopied: '恢复命令已生成并复制',
+    customerRuntimeEvidenceAgentRecoveryError: '恢复命令生成失败',
     customerRuntimeEvidenceRollbackRecovery: '回滚恢复',
     customerRuntimeEvidenceRollbackRestoredSnapshot: '恢复快照',
     customerRuntimeEvidenceTask: '任务',
@@ -1307,6 +1314,13 @@ const copy = {
     customerRuntimeEvidenceCopyPackage: 'Copy Evidence Package',
     customerRuntimeEvidenceRollbackAction: 'Start Rollback',
     customerRuntimeEvidenceRetryDeleteAction: 'Retry Runtime Cleanup',
+    customerRuntimeEvidenceAgentRecovery: 'Agent Recovery Path',
+    customerRuntimeEvidenceAgentRecoveryHint: (name: string) =>
+      `${name} acknowledged the runtime command but did not return a result. Copy the recovery command to the host first, then retry runtime cleanup after the Agent recovers.`,
+    customerRuntimeEvidenceCopyAgentRecoveryCommand: 'Copy Agent Recovery Command',
+    customerRuntimeEvidenceRemoteAgentRecovery: 'Remote Upgrade Agent',
+    customerRuntimeEvidenceAgentRecoveryCopied: 'Recovery command generated and copied',
+    customerRuntimeEvidenceAgentRecoveryError: 'Recovery command generation failed',
     customerRuntimeEvidenceRollbackRecovery: 'Rollback Recovery',
     customerRuntimeEvidenceRollbackRestoredSnapshot: 'Restored Snapshot',
     customerRuntimeEvidenceTask: 'Task',
@@ -3901,22 +3915,34 @@ function CustomerClientActionFeedbackBar({
 }
 
 function CustomerNodeRuntimeEvidenceDrawerContent({
+  agentRecovery,
   evidence,
   language,
   node,
   t,
+  onCopyAgentRecoveryCommand,
   onCopyPackage,
   onOpenWorkspace,
   onRetryDelete,
+  onRemoteAgentRecovery,
   onRollbackTask
 }: {
+  agentRecovery?: {
+    agent: Agent;
+    canRemoteUpgrade: boolean;
+    command?: AgentUpgradeCommand;
+    error: boolean;
+    busy: boolean;
+  };
   evidence: CustomerNodeRuntimeEvidenceBundle;
   language: AppLanguage;
   node: CustomerNodeRecord;
   t: NodesCopy;
+  onCopyAgentRecoveryCommand?: () => void;
   onCopyPackage: () => void;
   onOpenWorkspace?: () => void;
   onRetryDelete?: () => void;
+  onRemoteAgentRecovery?: () => void;
   onRollbackTask?: () => void;
 }) {
   const stateClass = {
@@ -4029,6 +4055,64 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
           ) : null}
         </div>
       </section>
+
+      {agentRecovery ? (
+        <section
+          aria-label={t.customerRuntimeEvidenceAgentRecovery}
+          className="border border-[#D9FF00] bg-[#D9FF00]/[0.16] p-3 text-[#07111F] dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5]"
+          data-customer-runtime-agent-recovery="agent-result-missing-after-ack"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em]">
+                {t.customerRuntimeEvidenceAgentRecovery}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[#35405A] dark:text-white/65">
+                {t.customerRuntimeEvidenceAgentRecoveryHint(agentRecovery.agent.name)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {onCopyAgentRecoveryCommand ? (
+                <button
+                  className="inline-flex items-center gap-2 border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 text-xs font-black text-[#07111F] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#E9FF6A]/25 dark:bg-[#101827] dark:text-[#F4FFC5]"
+                  disabled={agentRecovery.busy}
+                  onClick={onCopyAgentRecoveryCommand}
+                  type="button"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {agentRecovery.busy ? t.submitting : t.customerRuntimeEvidenceCopyAgentRecoveryCommand}
+                </button>
+              ) : null}
+              {agentRecovery.canRemoteUpgrade && onRemoteAgentRecovery ? (
+                <button
+                  className="inline-flex items-center gap-2 border border-[#1E3AFF]/35 bg-[#DCE1FF] px-3 py-2 text-xs font-black text-[#1E3AFF] transition hover:bg-[#DCE1FF]/75 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF]"
+                  disabled={agentRecovery.busy}
+                  onClick={onRemoteAgentRecovery}
+                  type="button"
+                >
+                  <RotateCw className="h-3.5 w-3.5" />
+                  {t.customerRuntimeEvidenceRemoteAgentRecovery}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {agentRecovery.error ? (
+            <p className="mt-2 text-[11px] font-semibold text-[#B91C1C] dark:text-[#FFB4B4]">
+              {t.customerRuntimeEvidenceAgentRecoveryError}
+            </p>
+          ) : null}
+          {agentRecovery.command ? (
+            <>
+              <p className="mt-2 text-[11px] font-semibold text-[#007D5E] dark:text-[#9EF4C4]">
+                {t.customerRuntimeEvidenceAgentRecoveryCopied}
+              </p>
+              <code className="mt-2 block max-h-24 overflow-auto break-all border-l border-[#D9FF00] pl-2 font-mono text-[10px] leading-5 text-[#35405A] dark:border-[#E9FF6A]/20 dark:text-white/65">
+                {agentRecovery.command.command}
+              </code>
+            </>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         {evidence.steps.map((step) => (
@@ -4806,6 +4890,29 @@ function getAgentRecoveryReason(agent: Agent) {
   return !hasTelemetryReport(agent) ? 'no_telemetry_sample' : agent.telemetry.sampleGapReason ?? 'telemetry_sampling_gap';
 }
 
+function readRuntimeEvidenceHealthSummaryString(evidence: CustomerNodeRuntimeEvidenceBundle | undefined, key: string) {
+  const value = evidence?.configRevision?.healthSummary?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function isAckSilentRuntimeEvidence(evidence: CustomerNodeRuntimeEvidenceBundle | undefined) {
+  return evidence?.state === 'failed' && readRuntimeEvidenceHealthSummaryString(evidence, 'failureStage') === 'agent-result-missing-after-ack';
+}
+
+function getRuntimeEvidenceAgentId(evidence: CustomerNodeRuntimeEvidenceBundle | undefined, node: CustomerNodeRecord | undefined) {
+  return (
+    readRuntimeEvidenceHealthSummaryString(evidence, 'agentId') ??
+    evidence?.commandOutboxItems.find((item) => item.agentId)?.agentId ??
+    evidence?.configRevision?.agentId ??
+    node?.agentId
+  );
+}
+
+function getRuntimeEvidenceAgentRecoveryReason(evidence: CustomerNodeRuntimeEvidenceBundle) {
+  const taskId = evidence.task?.id ?? evidence.taskId ?? 'runtime-evidence';
+  return `agent_result_missing_after_ack:${taskId}`;
+}
+
 function runtimeServiceIssueCount(agent: Agent) {
   return (agent.telemetry.runtimeServices ?? []).filter(
     (service) => service.required && service.status !== 'active'
@@ -5552,6 +5659,30 @@ export function NodesPage({
     !selectedRuntimeEvidence.rollbackRecovery
       ? selectedRuntimeEvidence.task.id
       : undefined;
+  const selectedRuntimeEvidenceRecoveryAgentId = getRuntimeEvidenceAgentId(selectedRuntimeEvidence, runtimeEvidenceCustomerNode);
+  const selectedRuntimeEvidenceRecoveryAgent =
+    selectedRuntimeEvidenceRecoveryAgentId
+      ? visibleAgents.find((agent) => agent.id === selectedRuntimeEvidenceRecoveryAgentId) ??
+        agents.find((agent) => agent.id === selectedRuntimeEvidenceRecoveryAgentId)
+      : undefined;
+  const selectedRuntimeEvidenceRecoveryReason = selectedRuntimeEvidence
+    ? getRuntimeEvidenceAgentRecoveryReason(selectedRuntimeEvidence)
+    : undefined;
+  const selectedRuntimeEvidenceAgentRecovery =
+    selectedRuntimeEvidence &&
+    selectedRuntimeEvidenceRecoveryAgent &&
+    selectedRuntimeEvidenceRecoveryReason &&
+    isAckSilentRuntimeEvidence(selectedRuntimeEvidence)
+      ? {
+          agent: selectedRuntimeEvidenceRecoveryAgent,
+          canRemoteUpgrade: Boolean(
+            onRemoteAgentUpgrade && selectedRuntimeEvidenceRecoveryAgent.capabilities.includes('self-update')
+          ),
+          command: upgradeCommands[selectedRuntimeEvidenceRecoveryAgent.id],
+          error: upgradeErrorAgentIds.includes(selectedRuntimeEvidenceRecoveryAgent.id),
+          busy: upgradeBusyAgentIds.includes(selectedRuntimeEvidenceRecoveryAgent.id)
+        }
+      : undefined;
   const customerClientsRuntimeEvidence = customerClientsNode
     ? runtimeEvidenceByNodeId.get(customerClientsNode.id) ??
       resolveCustomerNodeRuntimeEvidence({
@@ -6233,8 +6364,7 @@ export function NodesPage({
     void copyText(installCommand.command);
   }
 
-  async function copyAgentUpgradeCommand(agent: Agent) {
-    const reason = getAgentRecoveryReason(agent);
+  async function copyAgentUpgradeCommand(agent: Agent, reason = getAgentRecoveryReason(agent)) {
 
     setUpgradeBusyAgentIds((current) => [...new Set([...current, agent.id])]);
     setUpgradeErrorAgentIds((current) => current.filter((agentId) => agentId !== agent.id));
@@ -6254,7 +6384,7 @@ export function NodesPage({
     }
   }
 
-  function remoteUpgradeAgentWithConfirmation(agent: Agent) {
+  function remoteUpgradeAgentWithConfirmation(agent: Agent, reason = getAgentRecoveryReason(agent)) {
     if (!onRemoteAgentUpgrade) {
       return;
     }
@@ -6265,7 +6395,7 @@ export function NodesPage({
       return;
     }
 
-    onRemoteAgentUpgrade(agent, getAgentRecoveryReason(agent));
+    onRemoteAgentUpgrade(agent, reason);
   }
 
   function toggleCustomerNodeSelection(nodeId: string) {
@@ -8275,10 +8405,16 @@ export function NodesPage({
       >
         {runtimeEvidenceCustomerNode && selectedRuntimeEvidence ? (
           <CustomerNodeRuntimeEvidenceDrawerContent
+            agentRecovery={selectedRuntimeEvidenceAgentRecovery}
             evidence={selectedRuntimeEvidence}
             language={language}
             node={runtimeEvidenceCustomerNode}
             t={t}
+            onCopyAgentRecoveryCommand={
+              selectedRuntimeEvidenceAgentRecovery && selectedRuntimeEvidenceRecoveryReason
+                ? () => copyAgentUpgradeCommand(selectedRuntimeEvidenceAgentRecovery.agent, selectedRuntimeEvidenceRecoveryReason)
+                : undefined
+            }
             onCopyPackage={() =>
               void copyText(
                 JSON.stringify(
@@ -8306,6 +8442,11 @@ export function NodesPage({
                     setDrawer({ type: 'closed' });
                     handleDeleteCustomerNode(runtimeEvidenceCustomerNode);
                   }
+                : undefined
+            }
+            onRemoteAgentRecovery={
+              selectedRuntimeEvidenceAgentRecovery?.canRemoteUpgrade && selectedRuntimeEvidenceRecoveryReason
+                ? () => remoteUpgradeAgentWithConfirmation(selectedRuntimeEvidenceAgentRecovery.agent, selectedRuntimeEvidenceRecoveryReason)
                 : undefined
             }
             onRollbackTask={

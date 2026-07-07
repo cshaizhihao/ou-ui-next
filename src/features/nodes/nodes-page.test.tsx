@@ -3657,6 +3657,132 @@ describe('NodesPage', () => {
     expect(screen.queryByRole('dialog', { name: 'Customer Node Runtime Evidence' })).not.toBeInTheDocument();
   });
 
+  it('offers an Agent recovery command when customer-node runtime evidence shows ACK-silent failure', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const onPreviewAgentUpgradeCommand = vi.fn().mockResolvedValue({
+      agentId: 'agent-metered-01',
+      command: 'sudo env OU_AGENT_INSTALL_SCRIPT_URL=https://panel.example.com/install/ou-agent.sh ou-agent update',
+      issuedAt: '2026-06-07T10:00:00.000Z',
+      mode: 'update-runtime',
+      requiresExistingRuntimeCredential: true,
+      scriptUrl: 'https://panel.example.com/install/ou-agent.sh'
+    });
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    render(
+      <NodesPage
+        agents={[createAgent()]}
+        inbounds={[
+          createInbound({
+            status: 'error',
+            configVersion: 'cfg-task-xray-delete-01'
+          })
+        ]}
+        language="en"
+        workspaceMode="customerNodes"
+        tasks={[
+          createRuntimeTask({
+            id: 'task-xray-delete-01',
+            operation: 'inbound.delete',
+            status: 'failed',
+            failureReason: 'command.result.timeout',
+            updatedAt: '2026-06-04T04:12:00.000Z'
+          })
+        ]}
+        commandOutbox={[
+          createRuntimeCommand({
+            id: 'outbox-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            commandId: 'cmd-task-xray-delete-01',
+            status: 'dead_letter',
+            lastError: 'command.result.timeout',
+            resultAt: undefined,
+            updatedAt: '2026-06-04T04:12:00.000Z'
+          })
+        ]}
+        configRevisions={[
+          createRuntimeConfigRevision({
+            id: 'cfg-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            operation: 'inbound.delete',
+            status: 'failed',
+            appliedAt: undefined,
+            failedAt: '2026-06-04T04:12:00.000Z',
+            failureReason: 'command.result.timeout',
+            preflightPlanId: 'preflight-task-xray-delete-01',
+            snapshotBeforeId: 'snapshot-task-xray-delete-01',
+            healthSummary: {
+              runtime: 'command_failed',
+              agentId: 'agent-metered-01',
+              failureReason: 'command.result.timeout',
+              failureStage: 'agent-result-missing-after-ack',
+              acknowledgedBeforeFailure: true,
+              operatorAction: 'Agent acknowledged the command but did not return a result before the runtime deadline.'
+            },
+            artifact: {
+              runtimeDiagnosis: {
+                evidenceStage: 'waiting'
+              }
+            }
+          })
+        ]}
+        preflightPlans={[
+          createRuntimePreflightPlan({
+            id: 'preflight-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            configRevisionId: 'cfg-task-xray-delete-01',
+            status: 'failed',
+            failureReason: 'command.result.timeout',
+            checks: [{ id: 'result-verification', label: 'Verify Agent result', status: 'failed', severity: 'critical' }]
+          })
+        ]}
+        runtimeSnapshots={[
+          createRuntimeSnapshot({
+            id: 'snapshot-task-xray-delete-01',
+            taskId: 'task-xray-delete-01',
+            status: 'captured',
+            verifiedAt: undefined,
+            capturedAt: '2026-06-04T04:10:00.000Z'
+          })
+        ]}
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onPreviewAgentUpgradeCommand={onPreviewAgentUpgradeCommand}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'View runtime evidence Acme Premium VLESS' }));
+
+    const drawer = screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' });
+    const recovery = within(drawer).getByRole('region', { name: 'Agent Recovery Path' });
+
+    expect(recovery).toHaveAttribute('data-customer-runtime-agent-recovery', 'agent-result-missing-after-ack');
+    expect(within(recovery).getByText(/Metered Host acknowledged the runtime command/u)).toBeInTheDocument();
+
+    await user.click(within(recovery).getByRole('button', { name: 'Copy Agent Recovery Command' }));
+
+    await waitFor(() => {
+      expect(onPreviewAgentUpgradeCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'agent-metered-01' }),
+        'agent_result_missing_after_ack:task-xray-delete-01'
+      );
+      expect(writeText).toHaveBeenCalledWith(
+        'sudo env OU_AGENT_INSTALL_SCRIPT_URL=https://panel.example.com/install/ou-agent.sh ou-agent update'
+      );
+    });
+    expect(within(recovery).getByText('Recovery command generated and copied')).toBeInTheDocument();
+  });
+
   it('starts rollback from the customer-node runtime evidence drawer when the source task is rollback-ready', async () => {
     const user = userEvent.setup();
     const onRollbackRuntimeTask = vi.fn();

@@ -414,7 +414,8 @@ export const agentInstallCommandRequestSchema = z.object({
 export const agentUpgradeCommandRequestSchema = z
   .object({
     agentId: z.string().trim().min(1).max(160),
-    reason: z.string().trim().min(1).max(500).optional()
+    reason: z.string().trim().min(1).max(500).optional(),
+    scriptUrl: z.string().trim().min(1).url().optional()
   })
   .strict();
 

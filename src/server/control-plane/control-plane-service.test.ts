@@ -1680,7 +1680,8 @@ describe('control-plane service', () => {
     const upgradeCommand = await service.createAgentUpgradeCommand(
       {
         agentId: command.agentId,
-        reason: 'no_telemetry_sample'
+        reason: 'no_telemetry_sample',
+        scriptUrl: 'https://panel.example.com/install/ou-agent.sh'
       },
       {
         ...context,
@@ -1697,6 +1698,8 @@ describe('control-plane service', () => {
     expect(upgradeCommand.command).toContain('OU_AGENT_SUDO');
     expect(upgradeCommand.command).toContain('ou-agent update');
     expect(upgradeCommand.command).toContain('OU_AGENT_UPDATE_MODE=1');
+    expect(upgradeCommand.command).toContain('https://panel.example.com/install/ou-agent.sh');
+    expect(upgradeCommand.scriptUrl).toBe('https://panel.example.com/install/ou-agent.sh');
     expect(JSON.stringify(upgradeCommand)).not.toContain(command.installToken);
     expect(JSON.stringify(upgradeCommand)).not.toContain(registration.agentToken);
 

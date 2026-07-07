@@ -29,6 +29,7 @@ export type AgentInstallCommand = {
 export type AgentUpgradeCommandRequest = {
   agentId: string;
   reason?: string;
+  scriptUrl?: string;
 };
 
 export type AgentUpgradeCommand = {
@@ -174,16 +175,19 @@ export function composeAgentUpgradeCommand(
   } = {}
 ): AgentUpgradeCommand {
   const issuedAt = options.issuedAt ?? new Date().toISOString();
-  const scriptUrl = DEFAULT_AGENT_INSTALL_SCRIPT_URL;
+  const scriptUrl =
+    input.scriptUrl?.trim().startsWith('http://') || input.scriptUrl?.trim().startsWith('https://')
+      ? input.scriptUrl.trim()
+      : DEFAULT_AGENT_INSTALL_SCRIPT_URL;
   const command = [
     "OU_AGENT_SUDO='sudo';",
     'if [ "$(id -u)" -eq 0 ]; then OU_AGENT_SUDO=\'\'; fi;',
     'if command -v ou-agent >/dev/null 2>&1; then',
-    '${OU_AGENT_SUDO} ou-agent update;',
+    `${'${OU_AGENT_SUDO}'} env OU_AGENT_INSTALL_SCRIPT_URL=${shellQuote(scriptUrl)} ou-agent update;`,
     'elif [ -x /usr/local/bin/ou-agent ]; then',
-    '${OU_AGENT_SUDO} /usr/local/bin/ou-agent update;',
+    `${'${OU_AGENT_SUDO}'} env OU_AGENT_INSTALL_SCRIPT_URL=${shellQuote(scriptUrl)} /usr/local/bin/ou-agent update;`,
     'else',
-    `curl -fsSL ${shellQuote(scriptUrl)} | \${OU_AGENT_SUDO} env OU_AGENT_UPDATE_MODE=1 bash;`,
+    `curl --connect-timeout 10 --max-time 120 --retry 2 -fsSL ${shellQuote(scriptUrl)} | ${'${OU_AGENT_SUDO}'} env OU_AGENT_UPDATE_MODE=1 OU_AGENT_INSTALL_SCRIPT_URL=${shellQuote(scriptUrl)} bash;`,
     'fi'
   ].join(' ');
 

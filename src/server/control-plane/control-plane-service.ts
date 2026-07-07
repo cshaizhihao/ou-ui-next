@@ -3436,7 +3436,8 @@ export function createControlPlaneService({
       const mutationContext = parseMutationContext(context);
       const normalizedInput: AgentUpgradeCommandRequest = {
         agentId: input.agentId.trim(),
-        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {})
+        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+        ...(input.scriptUrl?.trim() ? { scriptUrl: input.scriptUrl.trim() } : {})
       };
       const requestBodyHash = createAgentUpgradeCommandRequestHash(normalizedInput);
       const issuedAt = readNow();

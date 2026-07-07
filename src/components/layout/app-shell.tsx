@@ -1792,11 +1792,13 @@ export function AppShell({ ready }: AppShellProps) {
   const previewAgentUpgradeCommand = useCallback(
     (agent: Agent, reason: string) => {
       const requestId = createBoundedMutationKey(`ui:agent-upgrade-command:${agent.id}:${Date.now()}`, 150);
+      const scriptUrl = `${createBrowserPublicBaseUrl()}/install/ou-agent.sh`;
 
       return api.createAgentUpgradeCommand(
         {
           agentId: agent.id,
-          reason
+          reason,
+          scriptUrl
         },
         {
           actor: runtimeConfig?.loginUsername ?? 'local-operator',
@@ -1832,6 +1834,8 @@ export function AppShell({ ready }: AppShellProps) {
 
   const handleRemoteAgentUpgrade = useCallback(
     (agent: Agent, reason: string) => {
+      const scriptUrl = `${createBrowserPublicBaseUrl()}/install/ou-agent.sh`;
+
       void runTask(
         {
           operation: 'agent.upgrade',
@@ -1840,7 +1844,8 @@ export function AppShell({ ready }: AppShellProps) {
           targetLabel: agent.name,
           summary: t.upgradeAgentSummary,
           metadata: {
-            reason
+            reason,
+            scriptUrl
           }
         },
         {
