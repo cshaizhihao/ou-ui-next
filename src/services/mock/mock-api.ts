@@ -1992,6 +1992,42 @@ function updatePreflightChecksForFailure(
 
 type RuntimeCommandFailureReason = 'command.deadline.expired' | 'command.ack.timeout' | 'command.result.timeout';
 
+function createRuntimeCommandFailureHealthSummary(
+  outboxItem: CommandOutboxItem,
+  failureReason: RuntimeCommandFailureReason,
+  existingSummary: Record<string, unknown> | undefined
+) {
+  const acknowledgedBeforeFailure = Boolean(outboxItem.ackedAt);
+  const failedAfterAck =
+    failureReason === 'command.result.timeout' ||
+    (failureReason === 'command.deadline.expired' && acknowledgedBeforeFailure);
+  const failureStage = failedAfterAck
+    ? 'agent-result-missing-after-ack'
+    : failureReason === 'command.ack.timeout'
+      ? 'agent-ack-timeout'
+      : 'command-deadline-before-ack';
+  const operatorAction = failedAfterAck
+    ? 'Agent acknowledged the command but did not return a result before the runtime deadline. Inspect the Agent service on the host, reinstall or run the Agent recovery command if needed, then retry the runtime task.'
+    : failureReason === 'command.ack.timeout'
+      ? 'Agent did not acknowledge the dispatched command. Verify Agent liveness, runtime credentials, and the command polling loop before retrying.'
+      : 'The command deadline expired before Agent result verification. Verify Agent liveness and command execution state before retrying.';
+
+  return {
+    ...(existingSummary ?? {}),
+    runtime: 'command_failed',
+    commandType: outboxItem.command.type,
+    commandId: outboxItem.commandId,
+    agentId: outboxItem.agentId,
+    failureReason,
+    failureStage,
+    acknowledgedBeforeFailure,
+    ackedAt: outboxItem.ackedAt,
+    resultAt: outboxItem.resultAt,
+    deadlineAt: outboxItem.deadlineAt,
+    operatorAction
+  };
+}
+
 function inferCommandFailurePreflightCheckIds(
   outboxItem: CommandOutboxItem,
   failureReason: RuntimeCommandFailureReason,
@@ -2206,14 +2242,11 @@ function updateMockRuntimeReleaseFromCommandFailure(
     configRevision.status = 'failed';
     configRevision.failedAt = observedAt;
     configRevision.failureReason = failureReason;
-    configRevision.healthSummary = {
-      ...(configRevision.healthSummary ?? {}),
-      runtime: 'command_failed',
-      commandType: command.type,
-      commandId: outboxItem.commandId,
-      agentId: outboxItem.agentId,
-      failureReason
-    };
+    configRevision.healthSummary = createRuntimeCommandFailureHealthSummary(
+      outboxItem,
+      failureReason,
+      configRevision.healthSummary
+    );
   }
 
   if (preflightPlan) {

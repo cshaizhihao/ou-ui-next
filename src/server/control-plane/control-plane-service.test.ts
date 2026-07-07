@@ -4976,6 +4976,99 @@ describe('control-plane service', () => {
     ]);
   });
 
+  it('marks ACKed command deadline expiry as missing Agent result evidence', async () => {
+    const { repository, service } = createService();
+    const task = await service.createTask(
+      {
+        operation: 'inbound.create',
+        resourceType: 'inbound',
+        targetId: 'inbound-acked-deadline',
+        targetLabel: 'ACKed deadline inbound',
+        summary: 'Expire command after ACK without Agent result',
+        metadata: {
+          agentId: 'agent-hkg-01',
+          nodeId: 'inbound-acked-deadline',
+          customerNodeName: 'ACKed deadline inbound',
+          customerName: 'ACME',
+          serverAddress: 'edge.example.com',
+          xrayProtocol: 'vless',
+          listenPort: 46001,
+          clientIdentity: '2cd5fd47-6c87-4cc5-94fd-f73d430ba001',
+          clientEmail: 'acked-deadline@example.test',
+          clientCredential: '2cd5fd47-6c87-4cc5-94fd-f73d430ba001',
+          streamNetwork: 'tcp',
+          security: 'none',
+          trafficLimitGb: 1,
+          remainingDays: 1,
+          enabled: true
+        }
+      },
+      {
+        ...context,
+        requestId: 'req-service-acked-deadline-task',
+        idempotencyKey: 'idem-service-acked-deadline-task',
+        ifMatch: undefined
+      }
+    );
+    const [outboxItem] = await repository.listCommandOutbox();
+
+    await service.receiveAgentEvent({
+      type: 'ack',
+      eventId: 'evt-service-acked-deadline-ack',
+      commandId: outboxItem.commandId,
+      taskId: task.id,
+      agentId: 'agent-hkg-01',
+      seq: outboxItem.seq + 1,
+      sessionId: 'sess-agent-hkg-acked-deadline',
+      observedAt: '2026-06-02T00:00:05.000Z',
+      payload: {}
+    });
+
+    await expect(
+      service.sweepCommandTimeouts({
+        requestId: 'req-command-timeout-sweep-acked-deadline',
+        now: '2026-06-02T00:05:01.000Z',
+        ackTimeoutMs: 10_000,
+        resultTimeoutMs: 600_000
+      })
+    ).resolves.toEqual({
+      scanned: 1,
+      expired: 1,
+      deadLettered: 0,
+      taskFailures: 1
+    });
+
+    await expect(repository.listConfigRevisions()).resolves.toEqual([
+      expect.objectContaining({
+        id: outboxItem.command.type === 'apply' ? outboxItem.command.payload.configRevision : '',
+        status: 'failed',
+        failureReason: 'command.deadline.expired',
+        healthSummary: expect.objectContaining({
+          runtime: 'command_failed',
+          commandId: outboxItem.commandId,
+          agentId: 'agent-hkg-01',
+          failureReason: 'command.deadline.expired',
+          failureStage: 'agent-result-missing-after-ack',
+          acknowledgedBeforeFailure: true,
+          ackedAt: '2026-06-02T00:00:05.000Z',
+          deadlineAt: outboxItem.deadlineAt,
+          operatorAction: expect.stringContaining('Agent acknowledged the command but did not return a result')
+        })
+      })
+    ]);
+    await expect(repository.listPreflightPlans()).resolves.toEqual([
+      expect.objectContaining({
+        id: outboxItem.command.type === 'apply' ? outboxItem.command.payload.preflightPlanId : '',
+        status: 'failed',
+        failureReason: 'command.deadline.expired',
+        checks: expect.arrayContaining([
+          expect.objectContaining({ id: 'runtime-availability', status: 'pending' }),
+          expect.objectContaining({ id: 'result-verification', status: 'failed' })
+        ])
+      })
+    ]);
+  });
+
   it('rejects Agent ACKs observed after command deadline and writes a task failure audit', async () => {
     const { repository, service } = createService();
     const task = await service.createTask(

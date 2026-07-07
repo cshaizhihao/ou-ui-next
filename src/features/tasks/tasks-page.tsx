@@ -1209,6 +1209,11 @@ function pickRuntimeVerificationNextAction(
   );
 }
 
+function readConfigHealthSummaryString(configRevision: RuntimeConfigRevision | undefined, key: string) {
+  const value = configRevision?.healthSummary?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 function createRuntimeVerificationEvidence(
   bundle: RuntimeReleaseBundle,
   language: AppLanguage,
@@ -1225,6 +1230,12 @@ function createRuntimeVerificationEvidence(
   const completedCommandCount = bundle.commandOutboxItems.filter((item) => item.status === 'completed').length;
   const failedCommand = bundle.commandOutboxItems.find((item) => commandFailureStatuses.has(item.status));
   const firstCommand = bundle.commandOutboxItems[0];
+  const commandFailureAction = failedCommand
+    ? readConfigHealthSummaryString(bundle.configRevision, 'operatorAction')
+    : undefined;
+  const commandFailureStage = failedCommand
+    ? readConfigHealthSummaryString(bundle.configRevision, 'failureStage')
+    : undefined;
   const commandStep: RuntimeVerificationStep = {
     id: 'command',
     state: failedCommand ? 'failed' : commandCount > 0 && completedCommandCount === commandCount ? 'confirmed' : 'waiting',
@@ -1233,7 +1244,7 @@ function createRuntimeVerificationEvidence(
         ? t.runtimeVerificationCommandProgress(completedCommandCount, commandCount, language)
         : t.pendingArtifact,
     detail: failedCommand
-      ? failedCommand.lastError ?? failedCommand.commandId
+      ? commandFailureAction ?? commandFailureStage ?? failedCommand.lastError ?? failedCommand.commandId
       : firstCommand
         ? t.agentCommandDetail(firstCommand.commandType, firstCommand.agentId, firstCommand.commandId)
         : undefined

@@ -269,6 +269,11 @@ function readRuntimeDiagnosisSummary(configRevision: RuntimeConfigRevision | und
   );
 }
 
+function readHealthSummaryString(configRevision: RuntimeConfigRevision | undefined, key: string) {
+  const value = configRevision?.healthSummary?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 function createCommandSummary(item: CommandOutboxSummary) {
   return {
     commandId: item.commandId,
@@ -423,7 +428,7 @@ function createRuntimeEvidenceNextAction({
       severity: 'critical',
       stepId: step.id,
       stepState: step.state,
-      detail: task.failureReason ?? step.detail ?? step.value
+      detail: step.detail ?? task.failureReason ?? step.value
     };
   }
 
@@ -530,6 +535,8 @@ export function resolveCustomerNodeRuntimeEvidence({
   });
   const evidenceStage = readRuntimeEvidenceStage(configRevision);
   const failedCommand = taskCommandItems.find((item) => failedCommandStatuses.has(item.status));
+  const commandFailureAction = failedCommand ? readHealthSummaryString(configRevision, 'operatorAction') : undefined;
+  const commandFailureStage = failedCommand ? readHealthSummaryString(configRevision, 'failureStage') : undefined;
   const commandStep: CustomerNodeRuntimeEvidenceStep = {
     id: 'command',
     state:
@@ -542,7 +549,7 @@ export function resolveCustomerNodeRuntimeEvidence({
       taskCommandItems.length > 0
         ? `${taskCommandItems.filter((item) => item.status === 'completed').length}/${taskCommandItems.length}`
         : undefined,
-    detail: failedCommand?.lastError ?? taskCommandItems[0]?.commandId
+    detail: commandFailureAction ?? commandFailureStage ?? failedCommand?.lastError ?? taskCommandItems[0]?.commandId
   };
   const agentResultStep: CustomerNodeRuntimeEvidenceStep = {
     id: 'agentResult',

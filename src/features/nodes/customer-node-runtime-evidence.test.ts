@@ -364,6 +364,93 @@ describe('customer node runtime evidence', () => {
     );
   });
 
+  it('surfaces ACKed command silence as an operator recovery action', () => {
+    const operatorAction =
+      'Agent acknowledged the command but did not return a result before the runtime deadline. Inspect the Agent service on the host, reinstall or run the Agent recovery command if needed, then retry the runtime task.';
+    const evidence = resolveCustomerNodeRuntimeEvidence({
+      node: {
+        id: 'inbound-acme',
+        configVersion: 'cfg-task-0101',
+        inboundStatus: 'error'
+      },
+      tasks: [
+        createTask({
+          id: 'task-0101',
+          operation: 'inbound.delete',
+          status: 'failed',
+          failureReason: 'command.deadline.expired',
+          updatedAt: '2026-06-04T04:12:00.000Z'
+        })
+      ],
+      commandOutbox: [
+        createCommand({
+          id: 'outbox-0101',
+          taskId: 'task-0101',
+          commandId: 'cmd-task-0101',
+          status: 'expired',
+          lastError: 'command.deadline.expired',
+          resultAt: undefined,
+          updatedAt: '2026-06-04T04:12:00.000Z'
+        })
+      ],
+      configRevisions: [
+        createConfigRevision({
+          id: 'cfg-task-0101',
+          taskId: 'task-0101',
+          status: 'failed',
+          appliedAt: undefined,
+          failedAt: '2026-06-04T04:12:00.000Z',
+          failureReason: 'command.deadline.expired',
+          healthSummary: {
+            runtime: 'command_failed',
+            failureReason: 'command.deadline.expired',
+            failureStage: 'agent-result-missing-after-ack',
+            acknowledgedBeforeFailure: true,
+            operatorAction
+          },
+          artifact: {
+            runtimeDiagnosis: {
+              evidenceStage: 'waiting'
+            }
+          }
+        })
+      ],
+      preflightPlans: [
+        createPreflightPlan({
+          id: 'preflight-task-0101',
+          taskId: 'task-0101',
+          configRevisionId: 'cfg-task-0101',
+          status: 'failed',
+          failureReason: 'command.deadline.expired'
+        })
+      ],
+      runtimeSnapshots: [
+        createRuntimeSnapshot({
+          id: 'snapshot-task-0101',
+          taskId: 'task-0101',
+          status: 'captured',
+          verifiedAt: undefined,
+          capturedAt: '2026-06-04T04:10:00.000Z'
+        })
+      ]
+    });
+
+    expect(evidence.nextAction).toMatchObject({
+      code: 'retry-runtime-cleanup',
+      severity: 'critical',
+      stepId: 'command',
+      stepState: 'failed',
+      detail: operatorAction
+    });
+    expect(evidence.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'command', state: 'failed', detail: operatorAction }),
+        expect.objectContaining({ id: 'configRevision', state: 'failed', detail: 'command.deadline.expired' }),
+        expect.objectContaining({ id: 'preflight', state: 'failed', detail: 'command.deadline.expired' })
+      ])
+    );
+  });
+
   it('points the next action at the failed preflight when preflight blocks runtime apply', () => {
     const evidence = resolveCustomerNodeRuntimeEvidence({
       node: {
