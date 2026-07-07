@@ -64,6 +64,21 @@ type SubscriptionMixerPageProps = {
   onGenerateExportFile: (file: SubscriptionExportFile) => void;
 };
 
+type SubscriptionDeliveryState = 'ready' | 'warning' | 'blocked';
+
+type SubscriptionDeliveryBrief = {
+  state: SubscriptionDeliveryState;
+  statusLabel: string;
+  reasonText: string;
+  reasons: string[];
+  nextAction: string;
+  outputFormats: SubscriptionClientOutputFormat[];
+  outputFormatLabel: string;
+  usageValue: string;
+  requestLimitValue: string;
+  portalUrl: string;
+};
+
 export type SubscriptionMixerFocusIntent = {
   id: string;
   kind: 'subscription.links';
@@ -360,6 +375,25 @@ const copy = {
     requestLimitShort: '请求上限',
     quotaReset: '重置窗口',
     guardrailStatus: '守护状态',
+    subscriptionDeliveryBrief: '交付状态',
+    subscriptionDeliveryState: '访问状态',
+    subscriptionDeliveryNextAction: '下一步',
+    subscriptionDeliveryFormats: '输出格式',
+    subscriptionDeliveryUsage: '用量',
+    subscriptionDeliveryReady: '可交付',
+    subscriptionDeliveryWarning: '需关注',
+    subscriptionDeliveryBlocked: '已阻断',
+    subscriptionDeliveryReasonReady: '门户和订阅输出可交付。',
+    subscriptionDeliveryReasonDisabled: '订阅身份已停用。',
+    subscriptionDeliveryReasonRuntimePolicy: '运行策略已暂停交付',
+    subscriptionDeliveryReasonQuota: '订阅流量额度已用尽。',
+    subscriptionDeliveryReasonExpired: '订阅身份已过期。',
+    subscriptionDeliveryReasonRequestLimit: '请求上限为 0，公开访问会被限流。',
+    subscriptionDeliveryReasonNoNodes: '当前没有可生成节点。',
+    subscriptionDeliveryReasonNoFormats: '未选择任何公开输出格式。',
+    subscriptionDeliveryNextReady: '可以复制门户或客户端格式链接交付给客户。',
+    subscriptionDeliveryNextWarning: '先检查生成节点、输出格式或来源过滤，再交付给客户。',
+    subscriptionDeliveryNextBlocked: '先恢复启用状态、额度、到期时间或运行策略，再交付链接。',
     copyFormatLink: (format: string) => `复制 ${format} 链接`,
     openFormatLink: (format: string) => `打开 ${format} 链接`,
     qrCodeLabel: (format: string) => `${format} 订阅二维码`,
@@ -610,6 +644,25 @@ const copy = {
     requestLimitShort: 'Request Limit',
     quotaReset: 'Quota Reset',
     guardrailStatus: 'Guardrail',
+    subscriptionDeliveryBrief: 'Delivery Status',
+    subscriptionDeliveryState: 'Access State',
+    subscriptionDeliveryNextAction: 'Next Action',
+    subscriptionDeliveryFormats: 'Output Formats',
+    subscriptionDeliveryUsage: 'Usage',
+    subscriptionDeliveryReady: 'Ready',
+    subscriptionDeliveryWarning: 'Attention',
+    subscriptionDeliveryBlocked: 'Blocked',
+    subscriptionDeliveryReasonReady: 'Portal and subscription outputs are deliverable.',
+    subscriptionDeliveryReasonDisabled: 'The subscription identity is disabled.',
+    subscriptionDeliveryReasonRuntimePolicy: 'Runtime policy has suspended delivery',
+    subscriptionDeliveryReasonQuota: 'The subscription traffic quota is exhausted.',
+    subscriptionDeliveryReasonExpired: 'The subscription identity is expired.',
+    subscriptionDeliveryReasonRequestLimit: 'Request limit is 0; public access will be rate limited.',
+    subscriptionDeliveryReasonNoNodes: 'No generated nodes are available.',
+    subscriptionDeliveryReasonNoFormats: 'No public output format is selected.',
+    subscriptionDeliveryNextReady: 'Copy the portal or client format links to deliver this subscription.',
+    subscriptionDeliveryNextWarning: 'Check generated nodes, output formats, or source filters before delivery.',
+    subscriptionDeliveryNextBlocked: 'Restore enabled state, quota, expiry, or runtime policy before sharing links.',
     copyFormatLink: (format: string) => `Copy ${format} Link`,
     openFormatLink: (format: string) => `Open ${format} Link`,
     qrCodeLabel: (format: string) => `${format} Subscription QR Code`,
@@ -1470,8 +1523,94 @@ function createSubscriptionGuardrailStatus(client: SubscriptionClientIdentity) {
   return client.enabled ? 'active' : 'disabled';
 }
 
+function isSubscriptionExpired(client: SubscriptionClientIdentity) {
+  const expiresAt = Date.parse(client.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+}
+
+function isSubscriptionQuotaExceeded(client: SubscriptionClientIdentity) {
+  return Boolean(
+    client.quotaExceeded ||
+      (client.trafficLimitBytes > 0 && client.usedTrafficBytes >= client.trafficLimitBytes)
+  );
+}
+
+function createSubscriptionDeliveryBrief(
+  client: SubscriptionClientIdentity,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+): SubscriptionDeliveryBrief {
+  const outputFormats = readClientOutputFormats(client);
+  const blockingReasons: string[] = [];
+  const warningReasons: string[] = [];
+  const requestLimit = client.requestLimitPerHour ?? 360;
+
+  if (!client.enabled) {
+    blockingReasons.push(t.subscriptionDeliveryReasonDisabled);
+  }
+
+  if (client.runtimeDisabledByPolicy) {
+    blockingReasons.push(
+      client.guardrailReason
+        ? `${t.subscriptionDeliveryReasonRuntimePolicy}: ${client.guardrailReason}`
+        : t.subscriptionDeliveryReasonRuntimePolicy
+    );
+  }
+
+  if (isSubscriptionQuotaExceeded(client)) {
+    blockingReasons.push(t.subscriptionDeliveryReasonQuota);
+  }
+
+  if (isSubscriptionExpired(client)) {
+    blockingReasons.push(t.subscriptionDeliveryReasonExpired);
+  }
+
+  if (requestLimit <= 0) {
+    blockingReasons.push(t.subscriptionDeliveryReasonRequestLimit);
+  }
+
+  if (client.generatedNodeCount <= 0) {
+    warningReasons.push(t.subscriptionDeliveryReasonNoNodes);
+  }
+
+  if (outputFormats.length === 0) {
+    warningReasons.push(t.subscriptionDeliveryReasonNoFormats);
+  }
+
+  const state: SubscriptionDeliveryState =
+    blockingReasons.length > 0 ? 'blocked' : warningReasons.length > 0 ? 'warning' : 'ready';
+  const statusLabel = {
+    ready: t.subscriptionDeliveryReady,
+    warning: t.subscriptionDeliveryWarning,
+    blocked: t.subscriptionDeliveryBlocked
+  } satisfies Record<SubscriptionDeliveryState, string>;
+  const nextAction = {
+    ready: t.subscriptionDeliveryNextReady,
+    warning: t.subscriptionDeliveryNextWarning,
+    blocked: t.subscriptionDeliveryNextBlocked
+  } satisfies Record<SubscriptionDeliveryState, string>;
+  const reasons = [...blockingReasons, ...warningReasons];
+
+  return {
+    state,
+    statusLabel: statusLabel[state],
+    reasonText: reasons[0] ?? t.subscriptionDeliveryReasonReady,
+    reasons,
+    nextAction: nextAction[state],
+    outputFormats,
+    outputFormatLabel: outputFormats.map((format) => getClientOutputFormatLabel(format, language)).join(', ') || '-',
+    usageValue:
+      client.trafficLimitBytes > 0
+        ? `${formatBytes(client.usedTrafficBytes)} / ${formatBytes(client.trafficLimitBytes)}`
+        : `${formatBytes(client.usedTrafficBytes)} / -`,
+    requestLimitValue: `${formatNumber(requestLimit, language)} req/h`,
+    portalUrl: createClientSubscriptionPortalUrl(client)
+  };
+}
+
 function createSubscriptionDiagnosticsText(client: SubscriptionClientIdentity) {
   const requestLimitPerHour = client.requestLimitPerHour ?? 360;
+  const deliveryBrief = createSubscriptionDeliveryBrief(client, 'en', copy.en);
 
   return [
     `Sub ID: ${client.subId}`,
@@ -1479,6 +1618,11 @@ function createSubscriptionDiagnosticsText(client: SubscriptionClientIdentity) {
     `Email: ${client.email}`,
     `Group: ${client.group}`,
     `Protocol: ${client.protocol}`,
+    `Delivery Status: ${deliveryBrief.statusLabel}`,
+    `Delivery Reason: ${deliveryBrief.reasonText}`,
+    `Delivery Next Action: ${deliveryBrief.nextAction}`,
+    `Delivery Formats: ${deliveryBrief.outputFormatLabel}`,
+    `Portal URL: ${deliveryBrief.portalUrl}`,
     createSubscriptionUsageHeaderLine(client),
     `Generated Nodes: ${client.generatedNodeCount}`,
     `Request Limit: ${requestLimitPerHour} req/h`,
@@ -4056,6 +4200,10 @@ export function SubscriptionMixerPage({
       >
         {linkDrawerClient ? (
           <div className="space-y-3">
+            <SubscriptionDeliveryBriefPanel
+              brief={createSubscriptionDeliveryBrief(linkDrawerClient, language, t)}
+              t={t}
+            />
             <div className={subscriptionDrawerNeutralPanelClass}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
@@ -4729,6 +4877,66 @@ function SubscriptionDiagnosticField({ label, tone, value }: { label: string; to
       <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{label}</p>
       <p className="mt-1 break-words font-mono text-[11px] font-bold leading-5 text-[#07111F] dark:text-white/75">{value}</p>
     </div>
+  );
+}
+
+function SubscriptionDeliveryBriefPanel({
+  brief,
+  t
+}: {
+  brief: SubscriptionDeliveryBrief;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const panelClass = {
+    ready: subscriptionDrawerCommandPanelClass,
+    warning: subscriptionDrawerMutedPanelClass,
+    blocked: subscriptionDrawerSignalPanelClass
+  } satisfies Record<SubscriptionDeliveryState, string>;
+  const badgeClass = {
+    ready: 'border-[#00A878]/35 bg-[#00A878]/12 text-[#006B50] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    warning: 'border-[#FFB020]/40 bg-[#FFF3C4]/70 text-[#8A5A00] dark:border-[#FFD166]/28 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    blocked: 'border-[#FF3D18]/40 bg-[#FFF1EC]/80 text-[#9F2A13] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/14 dark:text-[#FFD8C6]'
+  } satisfies Record<SubscriptionDeliveryState, string>;
+
+  return (
+    <section
+      aria-label={t.subscriptionDeliveryBrief}
+      className={panelClass[brief.state]}
+      data-subscription-delivery-state={brief.state}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-widest">
+            {t.subscriptionDeliveryBrief}
+          </p>
+          <p className="mt-2 break-words text-sm font-black">
+            {brief.reasonText}
+          </p>
+        </div>
+        <span className={`border px-2.5 py-1 text-[10px] font-black uppercase ${badgeClass[brief.state]}`}>
+          {brief.statusLabel}
+        </span>
+      </div>
+      <p className="mt-3 border border-current/18 bg-white/45 px-2.5 py-2 text-[11px] font-semibold leading-5 dark:bg-white/[0.04]">
+        <span className="font-black uppercase tracking-widest">{t.subscriptionDeliveryNextAction}: </span>
+        {brief.nextAction}
+      </p>
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+        <SubscriptionDiagnosticField label={t.subscriptionDeliveryState} value={brief.statusLabel} />
+        <SubscriptionDiagnosticField label={t.subscriptionDeliveryFormats} value={brief.outputFormatLabel} />
+        <SubscriptionDiagnosticField label={t.subscriptionDeliveryUsage} value={brief.usageValue} />
+        <SubscriptionDiagnosticField label={t.requestLimitShort} value={brief.requestLimitValue} />
+      </div>
+      {brief.reasons.length > 1 ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {brief.reasons.map((reason) => (
+            <span className="border border-current/18 bg-white/42 px-2 py-1 text-[10px] font-bold dark:bg-white/[0.04]" key={reason}>
+              {reason}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

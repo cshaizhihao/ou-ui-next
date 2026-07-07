@@ -2479,6 +2479,12 @@ describe('SubscriptionMixerPage', () => {
     expect(within(drawer).getByText('URI')).toBeInTheDocument();
     expect(within(drawer).getByText('Clash')).toBeInTheDocument();
     expect(within(drawer).getByText('Mihomo')).toBeInTheDocument();
+    const deliveryBrief = within(drawer).getByRole('region', { name: '交付状态' });
+    expect(deliveryBrief).toHaveAttribute('data-subscription-delivery-state', 'blocked');
+    expect(deliveryBrief).toHaveTextContent('已阻断');
+    expect(deliveryBrief).toHaveTextContent('运行策略已暂停交付: subscription.quota_exceeded');
+    expect(deliveryBrief).toHaveTextContent('先恢复启用状态、额度、到期时间或运行策略，再交付链接。');
+    expect(deliveryBrief).toHaveTextContent('URI, Clash, Mihomo');
     expect(within(drawer).getByText('门户链接')).toBeInTheDocument();
     expect(within(drawer).getByText(/\/portal\/secure-acme-hkg\/sub_acme_hkg_premium$/)).toBeInTheDocument();
     expect(within(drawer).getByText('Subscription-Userinfo')).toBeInTheDocument();
@@ -2491,8 +2497,8 @@ describe('SubscriptionMixerPage', () => {
     expect(within(drawer).getByText('重置窗口')).toBeInTheDocument();
     expect(within(drawer).getByText('生成节点')).toBeInTheDocument();
     expect(within(drawer).getByText('2')).toBeInTheDocument();
-    expect(within(drawer).getByText('请求上限')).toBeInTheDocument();
-    expect(within(drawer).getByText('360 req/h')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('请求上限').length).toBeGreaterThanOrEqual(1);
+    expect(within(drawer).getAllByText('360 req/h').length).toBeGreaterThanOrEqual(1);
     expect(within(drawer).getByText('守护状态')).toBeInTheDocument();
     expect(within(drawer).getByText('subscription.quota_exceeded')).toBeInTheDocument();
     expect(within(drawer).getByText(/\/sub\/secure-acme-hkg\/clash\/sub_acme_hkg_premium$/)).toBeInTheDocument();
@@ -2515,6 +2521,17 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(drawer).getByRole('button', { name: '复制订阅诊断' }));
     expect(writeText).toHaveBeenCalledWith(
       expect.stringContaining('Sub ID: sub_acme_hkg_premium')
+    );
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Status: Blocked'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('Delivery Reason: Runtime policy has suspended delivery: subscription.quota_exceeded')
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('Delivery Next Action: Restore enabled state, quota, expiry, or runtime policy before sharing links.')
+    );
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Formats: URI, Clash, Mihomo'));
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringMatching(/^Portal URL: http:\/\/localhost(?::\d+)?\/portal\/secure-acme-hkg\/sub_acme_hkg_premium$/m)
     );
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Generated Nodes: 2'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Request Limit: 360 req/h'));
@@ -3126,6 +3143,9 @@ describe('SubscriptionMixerPage', () => {
     expect(copiedDiagnostics).toContain('Display Name: Backup 新加坡 Standard 订阅');
     expect(copiedDiagnostics).toContain('Email: backup@example.com');
     expect(copiedDiagnostics).toContain('Subscription-Userinfo:');
+    expect(copiedDiagnostics).toContain('Delivery Status: Ready');
+    expect(copiedDiagnostics).toContain('Delivery Reason: Portal and subscription outputs are deliverable.');
+    expect(copiedDiagnostics).toContain('Delivery Formats: URI, Clash, Mihomo');
     expect(copiedDiagnostics).toContain('Generated Nodes: 1');
     expect(copiedDiagnostics).toContain('Request Limit: 360 req/h');
     expect(copiedDiagnostics).toContain('Guardrail: active');
