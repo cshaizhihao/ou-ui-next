@@ -92,10 +92,13 @@ type XrayApplySmokeScript = {
     portMax: number;
     waitMs: number;
     pollIntervalMs: number;
+    snapshotRetryAttempts: number;
+    snapshotRetryDelayMs: number;
     cleanup: boolean;
     serverAddress: string;
     reportPath?: string;
   };
+  isRetriableSnapshotReadError(error: unknown): boolean;
   selectXrayAgent(snapshot: Record<string, unknown>, preferredAgentId?: string): Record<string, unknown>;
   summarizeXrayApplyEvidence(evidence: Record<string, unknown>): Record<string, unknown>;
   summarizeXrayReadModelState(snapshot: Record<string, unknown>, targetId: string): Record<string, unknown>;
@@ -593,6 +596,8 @@ describe('production Xray apply smoke script helpers', () => {
         OU_UI_XRAY_SMOKE_LISTEN_PORT: '42424',
         OU_UI_XRAY_SMOKE_WAIT_MS: '120000',
         OU_UI_XRAY_SMOKE_POLL_INTERVAL_MS: '2500',
+        OU_UI_XRAY_SMOKE_SNAPSHOT_RETRY_ATTEMPTS: '4',
+        OU_UI_XRAY_SMOKE_SNAPSHOT_RETRY_DELAY_MS: '750',
         OU_UI_XRAY_SMOKE_PORT_MIN: '42000',
         OU_UI_XRAY_SMOKE_PORT_MAX: '42100',
         OU_UI_XRAY_SMOKE_CLIENT_ACTIONS: 'true',
@@ -609,6 +614,8 @@ describe('production Xray apply smoke script helpers', () => {
       listenPort: 42424,
       waitMs: 120_000,
       pollIntervalMs: 2_500,
+      snapshotRetryAttempts: 4,
+      snapshotRetryDelayMs: 750,
       portMin: 42_000,
       portMax: 42_100,
       serverAddress: 'edge.example.com',
@@ -624,6 +631,10 @@ describe('production Xray apply smoke script helpers', () => {
         'agent-hkg-01',
         '--listen-port',
         '42003',
+        '--snapshot-retry-attempts',
+        '5',
+        '--snapshot-retry-delay-ms',
+        '250',
         '--client-actions',
         '--skip-cleanup'
       ])
@@ -631,9 +642,28 @@ describe('production Xray apply smoke script helpers', () => {
       baseUrl: 'https://panel.example/panel',
       agentId: 'agent-hkg-01',
       listenPort: '42003',
+      snapshotRetryAttempts: '5',
+      snapshotRetryDelayMs: '250',
       clientActions: true,
       cleanup: false
     });
+  });
+
+  it('retries only transient snapshot transport failures in the production diagnostic', () => {
+    expect(
+      xraySmokeScript.isRetriableSnapshotReadError(
+        new Error('snapshot HTTP 502; expected 200 (Backend proxy failed: read ECONNRESET).')
+      )
+    ).toBe(true);
+    expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('snapshot HTTP 504; expected 200 (Gateway Timeout).'))).toBe(
+      true
+    );
+    expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('Request timed out after 45000ms.'))).toBe(true);
+    expect(xraySmokeScript.isRetriableSnapshotReadError(new SyntaxError('Unexpected end of JSON input'))).toBe(true);
+    expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('snapshot HTTP 401; expected 200 (unauthorized).'))).toBe(
+      false
+    );
+    expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('task status is failed'))).toBe(false);
   });
 
   it('selects an online Xray Agent and allocates an unused listen port from runtime evidence', () => {

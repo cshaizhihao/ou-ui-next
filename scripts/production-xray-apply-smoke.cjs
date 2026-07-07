@@ -16,6 +16,9 @@ const defaultWaitMs = 180_000;
 const defaultPollIntervalMs = 3_000;
 const defaultPortMin = 42_000;
 const defaultPortMax = 48_999;
+const defaultSnapshotRetryAttempts = 3;
+const defaultSnapshotRetryDelayMs = 1_000;
+const transientSnapshotHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 function parseBoolean(value) {
   return /^(1|true|yes|on)$/i.test(String(value ?? '').trim());
@@ -68,6 +71,18 @@ function parseArgs(argv) {
 
     if (arg === '--poll-interval-ms') {
       options.pollIntervalMs = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--snapshot-retry-attempts') {
+      options.snapshotRetryAttempts = argv[index + 1];
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--snapshot-retry-delay-ms') {
+      options.snapshotRetryDelayMs = argv[index + 1];
       index += 1;
       continue;
     }
@@ -259,6 +274,16 @@ function resolveXrayApplySmokeConfig(env = process.env, argv = process.argv.slic
       args.pollIntervalMs ?? env.OU_UI_XRAY_SMOKE_POLL_INTERVAL_MS,
       defaultPollIntervalMs,
       'pollIntervalMs'
+    ),
+    snapshotRetryAttempts: readPositiveInteger(
+      args.snapshotRetryAttempts ?? env.OU_UI_XRAY_SMOKE_SNAPSHOT_RETRY_ATTEMPTS,
+      defaultSnapshotRetryAttempts,
+      'snapshotRetryAttempts'
+    ),
+    snapshotRetryDelayMs: readPositiveInteger(
+      args.snapshotRetryDelayMs ?? env.OU_UI_XRAY_SMOKE_SNAPSHOT_RETRY_DELAY_MS,
+      defaultSnapshotRetryDelayMs,
+      'snapshotRetryDelayMs'
     ),
     insecureTls: Boolean(args.insecureTls) || parseBoolean(env.OU_UI_XRAY_SMOKE_INSECURE_TLS ?? env.OU_UI_SMOKE_INSECURE_TLS),
     agentId: args.agentId ?? env.OU_UI_XRAY_SMOKE_AGENT_ID,
@@ -678,10 +703,45 @@ async function logout(config, context) {
   });
 }
 
+function isRetriableSnapshotReadError(error) {
+  const message = String(error?.message ?? error ?? '');
+  const httpStatusMatch = message.match(/snapshot HTTP (\d{3})/);
+
+  if (httpStatusMatch) {
+    return transientSnapshotHttpStatuses.has(Number(httpStatusMatch[1]));
+  }
+
+  return /ECONNRESET|ECONNREFUSED|EPIPE|ETIMEDOUT|socket hang up|fetch failed|terminated|Request timed out|Unexpected end of JSON input/i.test(
+    message
+  );
+}
+
 async function readSnapshot(config, context) {
-  const result = await requestJson(config, context, 'GET', '/api/v1/snapshot');
-  assertStatus('snapshot', result.response, result.payload, [200]);
-  return assertEnvelopeData('snapshot', result.payload);
+  const maxAttempts = Math.max(1, config.snapshotRetryAttempts ?? defaultSnapshotRetryAttempts);
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const result = await requestJson(config, context, 'GET', '/api/v1/snapshot');
+      assertStatus('snapshot', result.response, result.payload, [200]);
+      return assertEnvelopeData('snapshot', result.payload);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= maxAttempts || !isRetriableSnapshotReadError(error)) {
+        throw error;
+      }
+
+      process.stdout.write(
+        `WARN snapshot read transient failure ${attempt}/${maxAttempts}: ${
+          error instanceof Error ? error.message : String(error)
+        }\n`
+      );
+      await delay(config.snapshotRetryDelayMs ?? defaultSnapshotRetryDelayMs);
+    }
+  }
+
+  throw lastError;
 }
 
 async function createTask(config, context, taskInput, label = 'create Xray inbound task') {
@@ -1158,6 +1218,8 @@ function createXraySmokeReport(config, details = {}) {
     baseUrl: config.baseUrl.toString(),
     waitMs: config.waitMs,
     pollIntervalMs: config.pollIntervalMs,
+    snapshotRetryAttempts: config.snapshotRetryAttempts ?? defaultSnapshotRetryAttempts,
+    snapshotRetryDelayMs: config.snapshotRetryDelayMs ?? defaultSnapshotRetryDelayMs,
     ...details
   };
 }
@@ -1508,6 +1570,8 @@ Options:
   --timeout-ms <ms>            Per-request timeout, default ${defaultTimeoutMs}
   --wait-ms <ms>               Total Agent evidence wait, default ${defaultWaitMs}
   --poll-interval-ms <ms>      Snapshot polling interval, default ${defaultPollIntervalMs}
+  --snapshot-retry-attempts <n> Retry transient snapshot transport failures, default ${defaultSnapshotRetryAttempts}
+  --snapshot-retry-delay-ms <n> Delay between snapshot retry attempts, default ${defaultSnapshotRetryDelayMs}
   --report <path>              Write a redacted JSON report
   --insecure-tls               Allow self-signed TLS certificates
 `);
@@ -1545,6 +1609,7 @@ module.exports = {
   createXrayApplyFailureDetails,
   createXraySmokeFailureDetails,
   extractXrayApplyEvidence,
+  isRetriableSnapshotReadError,
   parseArgs,
   resolveXrayApplySmokeConfig,
   runXrayApplySmoke,
