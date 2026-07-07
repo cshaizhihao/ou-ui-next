@@ -79,6 +79,36 @@ type SubscriptionDeliveryBrief = {
   portalUrl: string;
 };
 
+type SubscriptionDeliveryCheckState = 'idle' | 'running' | 'passed' | 'warning' | 'failed';
+
+type SubscriptionDeliveryCheckTargetKind = 'portal' | 'format';
+
+type SubscriptionDeliveryCheckTarget = {
+  id: string;
+  kind: SubscriptionDeliveryCheckTargetKind;
+  label: string;
+  url: string;
+  status?: number;
+  ok?: boolean;
+  contentType?: string;
+  subscriptionUserinfo?: string;
+  nodeCount?: string;
+  selectedNodeCount?: string;
+  convertedUriCount?: string;
+  unconvertedNodeCount?: string;
+  conversionWarning?: string;
+  producer?: string;
+  error?: string;
+};
+
+type SubscriptionDeliveryCheckResult = {
+  clientId: string;
+  state: SubscriptionDeliveryCheckState;
+  checkedAt?: string;
+  summary: string;
+  targets: SubscriptionDeliveryCheckTarget[];
+};
+
 export type SubscriptionMixerFocusIntent = {
   id: string;
   kind: 'subscription.links';
@@ -394,6 +424,29 @@ const copy = {
     subscriptionDeliveryNextReady: '可以复制门户或客户端格式链接交付给客户。',
     subscriptionDeliveryNextWarning: '先检查生成节点、输出格式或来源过滤，再交付给客户。',
     subscriptionDeliveryNextBlocked: '先恢复启用状态、额度、到期时间或运行策略，再交付链接。',
+    subscriptionDeliveryCheck: '交付诊断',
+    runSubscriptionDeliveryCheck: '运行交付诊断',
+    copySubscriptionDeliveryCheck: '复制交付诊断',
+    subscriptionDeliveryCheckIdle: '未运行',
+    subscriptionDeliveryCheckRunning: '诊断中',
+    subscriptionDeliveryCheckPassed: '通过',
+    subscriptionDeliveryCheckWarning: '有警告',
+    subscriptionDeliveryCheckFailed: '失败',
+    subscriptionDeliveryCheckCheckedAt: '检查时间',
+    subscriptionDeliveryCheckPortal: 'Portal',
+    subscriptionDeliveryCheckTargetStatus: 'HTTP',
+    subscriptionDeliveryCheckContentType: 'Content-Type',
+    subscriptionDeliveryCheckNodes: '节点',
+    subscriptionDeliveryCheckSelected: '已选择',
+    subscriptionDeliveryCheckConverted: '已转换',
+    subscriptionDeliveryCheckUnconverted: '未转换',
+    subscriptionDeliveryCheckProducer: '生成器',
+    subscriptionDeliveryCheckUserinfo: 'Userinfo',
+    subscriptionDeliveryCheckError: '错误',
+    subscriptionDeliveryCheckNoResult: '尚未运行交付诊断。',
+    subscriptionDeliveryCheckSummaryPassed: 'Portal 和已选订阅输出均已响应。',
+    subscriptionDeliveryCheckSummaryWarning: '订阅输出可访问，但存在格式转换或节点警告。',
+    subscriptionDeliveryCheckSummaryFailed: '至少一个 Portal 或订阅输出请求失败。',
     copyFormatLink: (format: string) => `复制 ${format} 链接`,
     openFormatLink: (format: string) => `打开 ${format} 链接`,
     qrCodeLabel: (format: string) => `${format} 订阅二维码`,
@@ -663,6 +716,29 @@ const copy = {
     subscriptionDeliveryNextReady: 'Copy the portal or client format links to deliver this subscription.',
     subscriptionDeliveryNextWarning: 'Check generated nodes, output formats, or source filters before delivery.',
     subscriptionDeliveryNextBlocked: 'Restore enabled state, quota, expiry, or runtime policy before sharing links.',
+    subscriptionDeliveryCheck: 'Delivery Check',
+    runSubscriptionDeliveryCheck: 'Run Delivery Check',
+    copySubscriptionDeliveryCheck: 'Copy Delivery Check',
+    subscriptionDeliveryCheckIdle: 'Not Run',
+    subscriptionDeliveryCheckRunning: 'Checking',
+    subscriptionDeliveryCheckPassed: 'Passed',
+    subscriptionDeliveryCheckWarning: 'Warning',
+    subscriptionDeliveryCheckFailed: 'Failed',
+    subscriptionDeliveryCheckCheckedAt: 'Checked At',
+    subscriptionDeliveryCheckPortal: 'Portal',
+    subscriptionDeliveryCheckTargetStatus: 'HTTP',
+    subscriptionDeliveryCheckContentType: 'Content-Type',
+    subscriptionDeliveryCheckNodes: 'Nodes',
+    subscriptionDeliveryCheckSelected: 'Selected',
+    subscriptionDeliveryCheckConverted: 'Converted',
+    subscriptionDeliveryCheckUnconverted: 'Unconverted',
+    subscriptionDeliveryCheckProducer: 'Producer',
+    subscriptionDeliveryCheckUserinfo: 'Userinfo',
+    subscriptionDeliveryCheckError: 'Error',
+    subscriptionDeliveryCheckNoResult: 'Delivery check has not run yet.',
+    subscriptionDeliveryCheckSummaryPassed: 'Portal and selected subscription outputs responded successfully.',
+    subscriptionDeliveryCheckSummaryWarning: 'Subscription outputs are reachable, but conversion or node warnings were returned.',
+    subscriptionDeliveryCheckSummaryFailed: 'At least one portal or subscription output request failed.',
     copyFormatLink: (format: string) => `Copy ${format} Link`,
     openFormatLink: (format: string) => `Open ${format} Link`,
     qrCodeLabel: (format: string) => `${format} Subscription QR Code`,
@@ -1608,6 +1684,151 @@ function createSubscriptionDeliveryBrief(
   };
 }
 
+function createSubscriptionDeliveryCheckTargets(
+  client: SubscriptionClientIdentity,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+): SubscriptionDeliveryCheckTarget[] {
+  return [
+    {
+      id: 'portal',
+      kind: 'portal',
+      label: t.subscriptionDeliveryCheckPortal,
+      url: createClientSubscriptionPortalUrl(client)
+    },
+    ...readClientOutputFormats(client).map((format) => ({
+      id: format,
+      kind: 'format' as const,
+      label: getClientOutputFormatLabel(format, language),
+      url: createClientSubscriptionUrl(client, format)
+    }))
+  ];
+}
+
+function readResponseHeader(headers: Headers, name: string) {
+  const value = headers.get(name);
+  return value && value.trim().length > 0 ? value : undefined;
+}
+
+function formatUnknownDeliveryCheckError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function checkSubscriptionDeliveryTarget(
+  target: SubscriptionDeliveryCheckTarget
+): Promise<SubscriptionDeliveryCheckTarget> {
+  try {
+    const response = await fetch(target.url, { cache: 'no-store', method: 'GET' });
+    let error: string | undefined;
+
+    if (!response.ok) {
+      try {
+        error = (await response.text()).slice(0, 180) || response.statusText;
+      } catch {
+        error = response.statusText;
+      }
+    }
+
+    return {
+      ...target,
+      status: response.status,
+      ok: response.ok,
+      contentType: readResponseHeader(response.headers, 'content-type'),
+      subscriptionUserinfo: readResponseHeader(response.headers, 'subscription-userinfo'),
+      nodeCount: readResponseHeader(response.headers, 'x-ou-ui-node-count'),
+      selectedNodeCount: readResponseHeader(response.headers, 'x-ou-ui-selected-node-count'),
+      convertedUriCount: readResponseHeader(response.headers, 'x-ou-ui-converted-uri-count'),
+      unconvertedNodeCount: readResponseHeader(response.headers, 'x-ou-ui-unconverted-node-count'),
+      conversionWarning: readResponseHeader(response.headers, 'x-ou-ui-conversion-warning'),
+      producer: readResponseHeader(response.headers, 'x-ou-ui-producer'),
+      error
+    };
+  } catch (error) {
+    return {
+      ...target,
+      ok: false,
+      error: formatUnknownDeliveryCheckError(error)
+    };
+  }
+}
+
+function hasSubscriptionDeliveryCheckWarning(target: SubscriptionDeliveryCheckTarget) {
+  const unconverted = Number.parseInt(target.unconvertedNodeCount ?? '0', 10);
+  return Boolean(target.conversionWarning || (Number.isFinite(unconverted) && unconverted > 0));
+}
+
+function createSubscriptionDeliveryCheckResult(
+  clientId: string,
+  targets: SubscriptionDeliveryCheckTarget[],
+  t: (typeof copy)[AppLanguage]
+): SubscriptionDeliveryCheckResult {
+  const hasFailure = targets.some((target) => !target.ok);
+  const hasWarning = targets.some(hasSubscriptionDeliveryCheckWarning);
+  const state: SubscriptionDeliveryCheckState = hasFailure ? 'failed' : hasWarning ? 'warning' : 'passed';
+  const summary = {
+    passed: t.subscriptionDeliveryCheckSummaryPassed,
+    warning: t.subscriptionDeliveryCheckSummaryWarning,
+    failed: t.subscriptionDeliveryCheckSummaryFailed
+  } satisfies Record<Exclude<SubscriptionDeliveryCheckState, 'idle' | 'running'>, string>;
+
+  return {
+    clientId,
+    state,
+    checkedAt: new Date().toISOString(),
+    summary: summary[state],
+    targets
+  };
+}
+
+function getSubscriptionDeliveryCheckStateLabel(
+  state: SubscriptionDeliveryCheckState,
+  t: (typeof copy)[AppLanguage]
+) {
+  const labels = {
+    idle: t.subscriptionDeliveryCheckIdle,
+    running: t.subscriptionDeliveryCheckRunning,
+    passed: t.subscriptionDeliveryCheckPassed,
+    warning: t.subscriptionDeliveryCheckWarning,
+    failed: t.subscriptionDeliveryCheckFailed
+  } satisfies Record<SubscriptionDeliveryCheckState, string>;
+
+  return labels[state];
+}
+
+function createSubscriptionDeliveryCheckText(result: SubscriptionDeliveryCheckResult) {
+  const stateLabels = {
+    idle: 'Not Run',
+    running: 'Running',
+    passed: 'Passed',
+    warning: 'Warning',
+    failed: 'Failed'
+  } satisfies Record<SubscriptionDeliveryCheckState, string>;
+  const lines = [
+    `Delivery Check: ${stateLabels[result.state]}`,
+    `Checked At: ${result.checkedAt ?? '-'}`,
+    `Summary: ${result.summary}`
+  ];
+
+  for (const target of result.targets) {
+    lines.push(
+      '',
+      `${target.label}: ${target.status ? `HTTP ${target.status}` : 'Network Error'}${target.ok ? ' ok' : ' failed'}`,
+      `URL: ${target.url}`,
+      `Content-Type: ${target.contentType ?? '-'}`,
+      `Subscription-Userinfo: ${target.subscriptionUserinfo ?? '-'}`,
+      `Nodes: ${target.nodeCount ?? '-'}`,
+      `Selected Nodes: ${target.selectedNodeCount ?? '-'}`,
+      `Converted URIs: ${target.convertedUriCount ?? '-'}`,
+      `Unconverted Nodes: ${target.unconvertedNodeCount ?? '-'}`,
+      `Conversion Warning: ${target.conversionWarning ?? '-'}`,
+      `Producer: ${target.producer ?? '-'}`,
+      `Error: ${target.error ?? '-'}`
+    );
+  }
+
+  return lines.join('\n');
+}
+
 function createSubscriptionDiagnosticsText(client: SubscriptionClientIdentity) {
   const requestLimitPerHour = client.requestLimitPerHour ?? 360;
   const deliveryBrief = createSubscriptionDeliveryBrief(client, 'en', copy.en);
@@ -2158,6 +2379,7 @@ export function SubscriptionMixerPage({
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(createDefaultSourceDraft);
   const [profileDraft, setProfileDraft] = useState<ExportProfileDraft>(createDefaultExportProfileDraft);
   const [profileLayoutEditing, setProfileLayoutEditing] = useState(false);
+  const [deliveryChecks, setDeliveryChecks] = useState<Record<string, SubscriptionDeliveryCheckResult>>({});
   const profileLayoutStorageKey = `${subscriptionLayoutStorageKey}:${profileDraft.profileId || 'draft'}`;
   const filteredClients = useMemo(() => filterSubscriptionClients(clients, clientSearch), [clientSearch, clients]);
   const selectedClients = useMemo(
@@ -2278,6 +2500,7 @@ export function SubscriptionMixerPage({
     drawer.type === 'profile' && drawer.id ? subscriptionExportProfiles.find((profile) => profile.id === drawer.id) : undefined;
   const linkDrawerClient =
     drawer.type === 'links' ? subscriptionClients.find((client) => client.id === drawer.clientId) : undefined;
+  const linkDrawerDeliveryCheck = linkDrawerClient ? deliveryChecks[linkDrawerClient.id] : undefined;
   const nodeDrawerClient =
     drawer.type === 'nodes' ? subscriptionClients.find((client) => client.id === drawer.clientId) : undefined;
   const nodeDrawerMatches = useMemo(
@@ -2717,6 +2940,31 @@ export function SubscriptionMixerPage({
     const metadata = createClientMetadataFromDraft(draft, client.generatedNodeCount, client.id);
 
     onSaveClient(metadata, 'update');
+  }
+
+  async function runSubscriptionDeliveryCheck(client: SubscriptionClientIdentity) {
+    const targets = createSubscriptionDeliveryCheckTargets(client, language, t);
+
+    setDeliveryChecks((current) => ({
+      ...current,
+      [client.id]: {
+        clientId: client.id,
+        state: 'running',
+        summary: t.subscriptionDeliveryCheckRunning,
+        targets
+      }
+    }));
+
+    const checkedTargets: SubscriptionDeliveryCheckTarget[] = [];
+
+    for (const target of targets) {
+      checkedTargets.push(await checkSubscriptionDeliveryTarget(target));
+    }
+
+    setDeliveryChecks((current) => ({
+      ...current,
+      [client.id]: createSubscriptionDeliveryCheckResult(client.id, checkedTargets, t)
+    }));
   }
 
   function copyNodeRawUrl(node: SubscriptionInventoryNode) {
@@ -4204,6 +4452,19 @@ export function SubscriptionMixerPage({
               brief={createSubscriptionDeliveryBrief(linkDrawerClient, language, t)}
               t={t}
             />
+            <SubscriptionDeliveryCheckPanel
+              language={language}
+              onCopy={() => {
+                if (linkDrawerDeliveryCheck) {
+                  void copyToClipboard(createSubscriptionDeliveryCheckText(linkDrawerDeliveryCheck));
+                }
+              }}
+              onRun={() => {
+                void runSubscriptionDeliveryCheck(linkDrawerClient);
+              }}
+              result={linkDrawerDeliveryCheck}
+              t={t}
+            />
             <div className={subscriptionDrawerNeutralPanelClass}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
@@ -4933,6 +5194,146 @@ function SubscriptionDeliveryBriefPanel({
             <span className="border border-current/18 bg-white/42 px-2 py-1 text-[10px] font-bold dark:bg-white/[0.04]" key={reason}>
               {reason}
             </span>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SubscriptionDeliveryCheckPanel({
+  language,
+  onCopy,
+  onRun,
+  result,
+  t
+}: {
+  language: AppLanguage;
+  onCopy: () => void;
+  onRun: () => void;
+  result?: SubscriptionDeliveryCheckResult;
+  t: (typeof copy)[AppLanguage];
+}) {
+  const state = result?.state ?? 'idle';
+  const canCopy = Boolean(result?.checkedAt);
+  const isRunning = state === 'running';
+  const panelClass = {
+    idle: subscriptionDrawerNeutralPanelClass,
+    running: subscriptionDrawerCommandPanelClass,
+    passed: subscriptionDrawerCommandPanelClass,
+    warning: subscriptionDrawerMutedPanelClass,
+    failed: subscriptionDrawerSignalPanelClass
+  } satisfies Record<SubscriptionDeliveryCheckState, string>;
+  const badgeClass = {
+    idle: 'border-[#07111F]/18 bg-white/60 text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/60',
+    running: 'border-[#1E3AFF]/35 bg-[#DCE1FF]/76 text-[#07111F] dark:border-[#6B7CFF]/28 dark:bg-[#1E3AFF]/16 dark:text-[#DDE3FF]',
+    passed: 'border-[#00A878]/35 bg-[#00A878]/12 text-[#006B50] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    warning: 'border-[#FFB020]/40 bg-[#FFF3C4]/70 text-[#8A5A00] dark:border-[#FFD166]/28 dark:bg-[#FFD166]/10 dark:text-[#FFD166]',
+    failed: 'border-[#FF3D18]/40 bg-[#FFF1EC]/80 text-[#9F2A13] dark:border-[#FF6A3A]/30 dark:bg-[#FF3D18]/14 dark:text-[#FFD8C6]'
+  } satisfies Record<SubscriptionDeliveryCheckState, string>;
+
+  return (
+    <section
+      aria-label={t.subscriptionDeliveryCheck}
+      aria-live="polite"
+      className={panelClass[state]}
+      data-subscription-delivery-check-state={state}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-widest">
+            {t.subscriptionDeliveryCheck}
+          </p>
+          <p className="mt-2 break-words text-sm font-black">
+            {result?.summary ?? t.subscriptionDeliveryCheckNoResult}
+          </p>
+        </div>
+        <span className={`border px-2.5 py-1 text-[10px] font-black uppercase ${badgeClass[state]}`}>
+          {getSubscriptionDeliveryCheckStateLabel(state, t)}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          className={compactCommandActionButtonClass}
+          disabled={isRunning}
+          onClick={onRun}
+          type="button"
+        >
+          <RefreshCcw className={`h-3.5 w-3.5 ${isRunning ? 'motion-safe:animate-spin' : ''}`} />
+          {t.runSubscriptionDeliveryCheck}
+        </button>
+        <button
+          className={compactNeutralActionButtonClass}
+          disabled={!canCopy}
+          onClick={onCopy}
+          type="button"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {t.copySubscriptionDeliveryCheck}
+        </button>
+      </div>
+      {result?.checkedAt ? (
+        <p className="mt-3 border border-current/18 bg-white/45 px-2.5 py-2 font-mono text-[11px] font-semibold leading-5 dark:bg-white/[0.04]">
+          <span className="font-black uppercase tracking-widest">{t.subscriptionDeliveryCheckCheckedAt}: </span>
+          {formatDateTime(result.checkedAt, language)}
+        </p>
+      ) : null}
+      {result?.targets.length ? (
+        <div className="mt-3 space-y-2">
+          {result.targets.map((target) => (
+            <div
+              className={`border p-2.5 ${
+                target.ok === false
+                  ? 'border-[#FF3D18]/35 bg-[#FFF1EC]/76 dark:border-[#FF6A3A]/24 dark:bg-[#FF3D18]/10'
+                  : hasSubscriptionDeliveryCheckWarning(target)
+                    ? 'border-[#FFB020]/35 bg-[#FFF8DD]/76 dark:border-[#FFD166]/24 dark:bg-[#FFD166]/10'
+                    : 'border-[#07111F]/14 bg-white/45 dark:border-white/10 dark:bg-white/[0.035]'
+              }`}
+              key={target.id}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-black uppercase tracking-widest">{target.label}</p>
+                <span className="border border-current/18 bg-white/48 px-2 py-1 font-mono text-[10px] font-black dark:bg-white/[0.04]">
+                  {target.status ? `HTTP ${target.status}` : target.ok === false ? t.subscriptionDeliveryCheckFailed : '-'}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckContentType}
+                  value={target.contentType ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckUserinfo}
+                  value={target.subscriptionUserinfo ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckNodes}
+                  value={target.nodeCount ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckSelected}
+                  value={target.selectedNodeCount ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckConverted}
+                  value={target.convertedUriCount ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckUnconverted}
+                  tone={hasSubscriptionDeliveryCheckWarning(target) ? 'signal' : undefined}
+                  value={target.unconvertedNodeCount ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckProducer}
+                  value={target.producer ?? '-'}
+                />
+                <SubscriptionDiagnosticField
+                  label={t.subscriptionDeliveryCheckError}
+                  tone={target.ok === false ? 'signal' : undefined}
+                  value={target.error ?? target.conversionWarning ?? '-'}
+                />
+              </div>
+            </div>
           ))}
         </div>
       ) : null}

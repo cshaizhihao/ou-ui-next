@@ -2611,6 +2611,76 @@ describe('SubscriptionMixerPage', () => {
     expect(await within(drawer).findByRole('img', { name: 'Mihomo 订阅二维码' })).toBeInTheDocument();
   });
 
+  it('runs an executable subscription delivery check from the link drawer', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes('/portal/')) {
+        return new Response('<html><body>portal</body></html>', {
+          status: 200,
+          headers: {
+            'content-type': 'text/html; charset=utf-8'
+          }
+        });
+      }
+
+      return new Response(url.includes('/uri/') ? 'vless://node' : 'proxies: []', {
+        status: 200,
+        headers: {
+          'content-type': url.includes('/uri/') ? 'text/plain; charset=utf-8' : 'application/yaml',
+          'subscription-userinfo': 'upload=0; download=1; total=10; expire=1798761599',
+          'x-ou-ui-node-count': '2',
+          'x-ou-ui-selected-node-count': '2',
+          'x-ou-ui-converted-uri-count': '2',
+          'x-ou-ui-unconverted-node-count': '0',
+          'x-ou-ui-producer': url.includes('/mihomo/') ? 'mihomo' : url.includes('/clash/') ? 'clash' : 'uri'
+        }
+      });
+    });
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage({ subscriptionClients: [subscriptionClient] });
+
+    await user.click(screen.getByRole('button', { name: '查看订阅链接' }));
+    const drawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
+    const deliveryCheck = within(drawer).getByRole('region', { name: '交付诊断' });
+
+    expect(deliveryCheck).toHaveAttribute('data-subscription-delivery-check-state', 'idle');
+    expect(deliveryCheck).toHaveTextContent('尚未运行交付诊断。');
+
+    await user.click(within(deliveryCheck).getByRole('button', { name: '运行交付诊断' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(deliveryCheck).toHaveAttribute('data-subscription-delivery-check-state', 'passed'));
+
+    expect(deliveryCheck).toHaveTextContent('通过');
+    expect(deliveryCheck).toHaveTextContent('Portal 和已选订阅输出均已响应。');
+    expect(deliveryCheck).toHaveTextContent('Portal');
+    expect(deliveryCheck).toHaveTextContent('URI');
+    expect(deliveryCheck).toHaveTextContent('Clash');
+    expect(deliveryCheck).toHaveTextContent('Mihomo');
+    expect(within(deliveryCheck).getAllByText('HTTP 200').length).toBeGreaterThanOrEqual(4);
+    expect(deliveryCheck).toHaveTextContent('upload=0; download=1; total=10; expire=1798761599');
+    expect(deliveryCheck).toHaveTextContent('clash');
+    expect(deliveryCheck).toHaveTextContent('mihomo');
+
+    await user.click(within(deliveryCheck).getByRole('button', { name: '复制交付诊断' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Check: Passed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Portal: HTTP 200 ok'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Clash: HTTP 200 ok'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Subscription-Userinfo: upload=0; download=1; total=10; expire=1798761599'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Converted URIs: 2'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Unconverted Nodes: 0'));
+  });
+
   it('opens a matched-node drawer from a subscription identity and copies node share links', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
