@@ -2395,13 +2395,23 @@ describe('NodesPage', () => {
     expect(within(contextBar).getByText('1 clients')).toBeInTheDocument();
 
     await user.click(within(contextBar).getByRole('button', { name: 'Renew' }));
+    const composer = screen.getByRole('region', { name: 'Action Confirmation' });
+
+    expect(within(composer).getByText('Renew · Acme Premium VLESS')).toBeInTheDocument();
+    expect(within(composer).getByText('Current Days')).toBeInTheDocument();
+    expect(within(composer).getByText('Projected Days')).toBeInTheDocument();
+    await user.clear(within(composer).getByRole('spinbutton', { name: 'Renew Days' }));
+    await user.type(within(composer).getByRole('spinbutton', { name: 'Renew Days' }), '45');
+    expect(onApplyCustomerNodeClientAction).not.toHaveBeenCalled();
+    await user.click(within(composer).getByRole('button', { name: 'Confirm Action' }));
+
     await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledWith({
       inboundId: 'inbound-premium-vless',
       clientId: 'client-acme-premium',
       clientEmail: 'acme-premium@example.com',
       action: {
         kind: 'renew',
-        addedDays: 30
+        addedDays: 45
       },
       reason: 'customer-node:renew'
     }));
@@ -2512,14 +2522,22 @@ describe('NodesPage', () => {
     expect(within(contextBar).getByText('2 Inbound Ports')).toBeInTheDocument();
 
     await user.click(within(contextBar).getByRole('button', { name: 'Bulk Add Traffic 100GB' }));
+    const composer = screen.getByRole('region', { name: 'Action Confirmation' });
+
+    expect(within(composer).getByText('Bulk Add Traffic · Acme Premium VLESS · Beta VLESS Edge')).toBeInTheDocument();
+    expect(within(composer).getByText('2 targets')).toBeInTheDocument();
+    await user.clear(within(composer).getByRole('spinbutton', { name: 'Traffic Delta GB' }));
+    await user.type(within(composer).getByRole('spinbutton', { name: 'Traffic Delta GB' }), '75');
+    expect(onApplyCustomerNodeClientAction).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+    await user.click(within(composer).getByRole('button', { name: 'Confirm Action' }));
 
     await waitFor(() => expect(onApplyCustomerNodeClientAction).toHaveBeenCalledTimes(2));
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Add 100 GB to 2 selected customer nodes'));
     expect(onApplyCustomerNodeClientAction).toHaveBeenNthCalledWith(1, expect.objectContaining({
       inboundId: 'inbound-premium-vless',
       action: {
         kind: 'add-traffic',
-        addedTrafficGb: 100
+        addedTrafficGb: 75
       },
       reason: 'customer-node:bulk-add-traffic'
     }));
@@ -2527,7 +2545,7 @@ describe('NodesPage', () => {
       inboundId: 'inbound-beta-vless',
       action: {
         kind: 'add-traffic',
-        addedTrafficGb: 100
+        addedTrafficGb: 75
       },
       reason: 'customer-node:bulk-add-traffic'
     }));

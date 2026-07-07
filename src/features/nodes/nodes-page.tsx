@@ -402,6 +402,16 @@ type CustomerNodeSaveFeedback = {
   runtimeTaskId?: string;
   subscriptionTaskId?: string;
 };
+type CustomerNodeActionComposerKind = 'add-traffic' | 'renew' | 'set-enabled' | 'reset-used-traffic';
+type CustomerNodeActionComposerState = {
+  id: string;
+  scope: 'single' | 'bulk';
+  kind: CustomerNodeActionComposerKind;
+  nodeId?: string;
+  enabled?: boolean;
+  trafficGb: string;
+  days: string;
+};
 type CustomerNodeBulkActionFeedbackItem = {
   feedback: CustomerClientActionFeedback;
   nodeLabel: string;
@@ -861,6 +871,26 @@ const copy = {
     customerNodeContextRuntimeState: '运行时证据',
     customerNodeContextClientCount: (count: string) => `${count} 客户端`,
     customerNodeContextSelectedCount: (count: string) => `${count} 已选`,
+    customerNodeActionComposer: '操作确认',
+    customerNodeActionComposerScopeSingle: '单节点',
+    customerNodeActionComposerScopeBulk: '批量',
+    customerNodeActionComposerTarget: '目标',
+    customerNodeActionComposerRuntime: '运行时',
+    customerNodeActionComposerTrafficDelta: '增加流量 GB',
+    customerNodeActionComposerRenewDays: '续期天数',
+    customerNodeActionComposerCurrentQuota: '当前额度',
+    customerNodeActionComposerProjectedQuota: '预计额度',
+    customerNodeActionComposerCurrentDays: '当前天数',
+    customerNodeActionComposerProjectedDays: '预计天数',
+    customerNodeActionComposerUsedTraffic: '当前已用',
+    customerNodeActionComposerProjectedUsedTraffic: '预计已用',
+    customerNodeActionComposerStateChange: '状态变更',
+    customerNodeActionComposerProjectedState: '预计状态',
+    customerNodeActionComposerSelected: (count: string) => `${count} 个目标`,
+    customerNodeActionComposerConfirm: '确认提交',
+    customerNodeActionComposerCancel: '取消',
+    customerNodeActionComposerEvidence: 'Xray client action evidence',
+    customerNodeActionComposerEnabledValue: (enabled: string) => (enabled === 'true' ? '启用' : '停用'),
     bulkCopyCustomerNodeLinks: '批量复制链接',
     bulkResetCustomerNodeTraffic: '批量重置流量',
     bulkResetCustomerNodeUsedTraffic: '批量清已用流量',
@@ -1341,6 +1371,26 @@ const copy = {
     customerNodeContextRuntimeState: 'Runtime Evidence',
     customerNodeContextClientCount: (count: string) => `${count} clients`,
     customerNodeContextSelectedCount: (count: string) => `${count} selected`,
+    customerNodeActionComposer: 'Action Confirmation',
+    customerNodeActionComposerScopeSingle: 'Single Node',
+    customerNodeActionComposerScopeBulk: 'Bulk',
+    customerNodeActionComposerTarget: 'Target',
+    customerNodeActionComposerRuntime: 'Runtime',
+    customerNodeActionComposerTrafficDelta: 'Traffic Delta GB',
+    customerNodeActionComposerRenewDays: 'Renew Days',
+    customerNodeActionComposerCurrentQuota: 'Current Quota',
+    customerNodeActionComposerProjectedQuota: 'Projected Quota',
+    customerNodeActionComposerCurrentDays: 'Current Days',
+    customerNodeActionComposerProjectedDays: 'Projected Days',
+    customerNodeActionComposerUsedTraffic: 'Current Used',
+    customerNodeActionComposerProjectedUsedTraffic: 'Projected Used',
+    customerNodeActionComposerStateChange: 'State Change',
+    customerNodeActionComposerProjectedState: 'Projected State',
+    customerNodeActionComposerSelected: (count: string) => `${count} target${count === '1' ? '' : 's'}`,
+    customerNodeActionComposerConfirm: 'Confirm Action',
+    customerNodeActionComposerCancel: 'Cancel',
+    customerNodeActionComposerEvidence: 'Xray client action evidence',
+    customerNodeActionComposerEnabledValue: (enabled: string) => (enabled === 'true' ? 'Enabled' : 'Disabled'),
     bulkCopyCustomerNodeLinks: 'Bulk Copy Links',
     bulkResetCustomerNodeTraffic: 'Bulk Reset Traffic',
     bulkResetCustomerNodeUsedTraffic: 'Bulk Reset Used Traffic',
@@ -3082,6 +3132,174 @@ function CustomerNodeContextButton({
   );
 }
 
+function CustomerNodeActionComposerPanel({
+  composer,
+  language,
+  nodes,
+  onCancel,
+  onChange,
+  onConfirm,
+  t
+}: {
+  composer: CustomerNodeActionComposerState;
+  language: AppLanguage;
+  nodes: CustomerNodeRecord[];
+  onCancel: () => void;
+  onChange: (patch: Partial<Pick<CustomerNodeActionComposerState, 'days' | 'trafficGb'>>) => void;
+  onConfirm: () => void;
+  t: NodesCopy;
+}) {
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  const actionLabel = getCustomerNodeActionComposerLabel(composer, t);
+  const targetLabel =
+    composer.scope === 'single'
+      ? nodes[0].nodeName
+      : nodes.slice(0, 3).map((node) => node.nodeName).join(' · ') + (nodes.length > 3 ? ` +${nodes.length - 3}` : '');
+  const trafficGb = Math.max(Number.parseInt(composer.trafficGb, 10) || 0, 0);
+  const days = Math.max(Number.parseInt(composer.days, 10) || 0, 0);
+  const totalLimitBytes = nodes.reduce((sum, node) => sum + node.trafficLimitBytes, 0);
+  const totalUsedBytes = nodes.reduce((sum, node) => sum + node.usedTrafficBytes, 0);
+  const projectedLimitBytes = totalLimitBytes + bytesFromGb(trafficGb) * nodes.length;
+  const remainingDays = nodes.map((node) => node.remainingDays);
+  const minRemainingDays = Math.min(...remainingDays);
+  const maxRemainingDays = Math.max(...remainingDays);
+  const currentDaysValue =
+    minRemainingDays === maxRemainingDays
+      ? `${minRemainingDays}${t.unitDays}`
+      : `${minRemainingDays}-${maxRemainingDays}${t.unitDays}`;
+  const projectedDaysValue =
+    minRemainingDays === maxRemainingDays
+      ? `${minRemainingDays + days}${t.unitDays}`
+      : `${minRemainingDays + days}-${maxRemainingDays + days}${t.unitDays}`;
+  const enabledCount = nodes.filter((node) => node.enabled).length;
+  const disabledCount = nodes.length - enabledCount;
+  const invalid = (composer.kind === 'add-traffic' && trafficGb <= 0) || (composer.kind === 'renew' && days <= 0);
+  const metricRows =
+    composer.kind === 'add-traffic'
+      ? [
+          [t.customerNodeActionComposerCurrentQuota, formatBytes(totalLimitBytes)],
+          [t.customerNodeActionComposerProjectedQuota, formatBytes(projectedLimitBytes)]
+        ]
+      : composer.kind === 'renew'
+        ? [
+            [t.customerNodeActionComposerCurrentDays, currentDaysValue],
+            [t.customerNodeActionComposerProjectedDays, projectedDaysValue]
+          ]
+        : composer.kind === 'reset-used-traffic'
+          ? [
+              [t.customerNodeActionComposerUsedTraffic, formatBytes(totalUsedBytes)],
+              [t.customerNodeActionComposerProjectedUsedTraffic, formatBytes(0)]
+            ]
+          : [
+              [
+                t.customerNodeActionComposerStateChange,
+                `${t.customerNodeActionComposerEnabledValue('true')} ${enabledCount} / ${t.customerNodeActionComposerEnabledValue('false')} ${disabledCount}`
+              ],
+              [
+                t.customerNodeActionComposerProjectedState,
+                t.customerNodeActionComposerEnabledValue(String(Boolean(composer.enabled)))
+              ]
+            ];
+
+  return (
+    <section
+      aria-label={t.customerNodeActionComposer}
+      className="border-b border-[#07111F]/16 bg-[#FFFDF5] px-3 py-3 dark:border-[#6B7CFF]/18 dark:bg-white/[0.015]"
+      data-customer-node-action-composer={composer.kind}
+    >
+      <form
+        className="border border-[#1E3AFF]/24 bg-[#DCE1FF]/24 p-3 dark:border-[#6B7CFF]/24 dark:bg-[#6B7CFF]/8"
+        onSubmit={(event) => {
+          event.preventDefault();
+
+          if (!invalid) {
+            onConfirm();
+          }
+        }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#1E3AFF] dark:text-[#DCE1FF]">
+                {composer.scope === 'single' ? t.customerNodeActionComposerScopeSingle : t.customerNodeActionComposerScopeBulk}
+              </span>
+              <span className="border border-[#07111F]/14 bg-[#FFFDF5]/72 px-2 py-0.5 text-[10px] font-black uppercase text-[#35405A] dark:border-[#6B7CFF]/18 dark:bg-white/[0.045] dark:text-white/58">
+                {t.customerNodeActionComposerSelected(String(nodes.length))}
+              </span>
+              <span className="border border-[#00A878]/28 bg-[#00A878]/10 px-2 py-0.5 text-[10px] font-black uppercase text-[#007D5E] dark:border-[#35E68E]/24 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]">
+                {t.customerNodeActionComposerEvidence}
+              </span>
+            </div>
+            <p className="mt-1 break-words text-sm font-black text-[#07111F] dark:text-white">
+              {actionLabel} · {targetLabel}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1.5 font-mono text-[10px] font-bold text-[#35405A] dark:text-white/55">
+              <span>{t.customerNodeActionComposerTarget}: {targetLabel}</span>
+              <span>{t.customerNodeActionComposerRuntime}: xray.client.action</span>
+              <span>{formatDateTime(new Date().toISOString(), language)}</span>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-1.5">
+            <button
+              className="inline-flex min-h-8 items-center justify-center border border-[#07111F]/18 bg-[#FFFDF5]/72 px-3 text-[11px] font-black uppercase text-[#35405A] transition hover:border-[#1E3AFF]/45 hover:bg-[#DCE1FF]/45 dark:border-[#6B7CFF]/18 dark:bg-white/[0.035] dark:text-white/62 dark:hover:bg-[#6B7CFF]/12"
+              onClick={onCancel}
+              type="button"
+            >
+              {t.customerNodeActionComposerCancel}
+            </button>
+            <button
+              className="inline-flex min-h-8 items-center justify-center border border-[#1E3AFF]/40 bg-[#1E3AFF] px-3 text-[11px] font-black uppercase text-white transition hover:bg-[#1730D0] disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#6B7CFF]/40 dark:bg-[#6B7CFF] dark:hover:bg-[#5A6BFF]"
+              disabled={invalid}
+              type="submit"
+            >
+              {t.customerNodeActionComposerConfirm}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,18rem)_1fr]">
+          {composer.kind === 'add-traffic' ? (
+            <InputField
+              label={t.customerNodeActionComposerTrafficDelta}
+              suffix={t.unitGb}
+              type="number"
+              value={composer.trafficGb}
+              onChange={(value) => onChange({ trafficGb: value })}
+            />
+          ) : composer.kind === 'renew' ? (
+            <InputField
+              label={t.customerNodeActionComposerRenewDays}
+              suffix={t.unitDays}
+              type="number"
+              value={composer.days}
+              onChange={(value) => onChange({ days: value })}
+            />
+          ) : (
+            <div className="min-h-[58px] border border-[#07111F]/14 bg-[#FFFDF5]/70 px-3 py-2 dark:border-[#6B7CFF]/16 dark:bg-white/[0.035]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:text-white/42">
+                {t.customerNodeActionComposerStateChange}
+              </p>
+              <p className="mt-1 text-sm font-black text-[#07111F] dark:text-white">
+                {composer.kind === 'set-enabled'
+                  ? t.customerNodeActionComposerEnabledValue(String(Boolean(composer.enabled)))
+                  : t.bulkResetCustomerNodeUsedTraffic}
+              </p>
+            </div>
+          )}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {metricRows.map(([label, value]) => (
+              <InfoField key={label} label={label} value={value} />
+            ))}
+          </div>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function CustomerNodeBulkActionFeedbackQueue({
   items,
   t
@@ -4547,6 +4765,19 @@ function getCustomerNodeSaveActionLabel(action: CustomerNodeSaveAction, t: Nodes
   return action === 'create' ? t.customerNodeSaveCreateAction : t.customerNodeSaveUpdateAction;
 }
 
+function getCustomerNodeActionComposerLabel(composer: CustomerNodeActionComposerState, t: NodesCopy) {
+  switch (composer.kind) {
+    case 'add-traffic':
+      return composer.scope === 'bulk' ? t.bulkAddCustomerNodeTraffic : t.addCustomerNodeTraffic;
+    case 'renew':
+      return composer.scope === 'bulk' ? t.bulkRenewCustomerNodes : t.renewCustomerNode;
+    case 'reset-used-traffic':
+      return composer.scope === 'bulk' ? t.bulkResetCustomerNodeUsedTraffic : t.bulkResetCustomerNodeUsedTraffic;
+    case 'set-enabled':
+      return composer.enabled ? t.enableCustomerNode : t.disableCustomerNode;
+  }
+}
+
 function createCustomerNodeSaveFeedback({
   action,
   metadata,
@@ -4950,6 +5181,7 @@ export function NodesPage({
   const [bulkCustomerNodeRenewDays, setBulkCustomerNodeRenewDays] = useState('30');
   const [bulkCustomerNodeResetPolicy, setBulkCustomerNodeResetPolicy] = useState<XrayClientResetPolicy>('monthly');
   const [bulkCustomerNodeDeleteConfirming, setBulkCustomerNodeDeleteConfirming] = useState(false);
+  const [customerNodeActionComposer, setCustomerNodeActionComposer] = useState<CustomerNodeActionComposerState>();
   const [removedAgentIds, setRemovedAgentIds] = useState<string[]>([]);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(() =>
     createCustomerDraft(agents.find(agentSupportsXrayRuntime))
@@ -5066,6 +5298,19 @@ export function NodesPage({
     () => visibleCustomerNodes.filter((node) => selectedCustomerNodeIds.includes(node.id)),
     [selectedCustomerNodeIds, visibleCustomerNodes]
   );
+  const customerNodeActionComposerNodes = useMemo(() => {
+    if (!customerNodeActionComposer) {
+      return [];
+    }
+
+    if (customerNodeActionComposer.scope === 'single') {
+      return customerNodeActionComposer.nodeId
+        ? visibleCustomerNodes.filter((node) => node.id === customerNodeActionComposer.nodeId)
+        : [];
+    }
+
+    return selectedCustomerNodes;
+  }, [customerNodeActionComposer, selectedCustomerNodes, visibleCustomerNodes]);
   const primarySelectedCustomerNode = selectedCustomerNodes.length === 1 ? selectedCustomerNodes[0] : undefined;
   const primarySelectedCustomerNodeEvidence = primarySelectedCustomerNode
     ? runtimeEvidenceByNodeId.get(primarySelectedCustomerNode.id)
@@ -6219,6 +6464,129 @@ export function NodesPage({
     }
   }
 
+  function openCustomerNodeActionComposer(
+    scope: 'single' | 'bulk',
+    kind: CustomerNodeActionComposerKind,
+    options: { node?: CustomerNodeRecord; enabled?: boolean } = {}
+  ) {
+    if (scope === 'single' && !options.node) {
+      return;
+    }
+
+    if (scope === 'bulk' && selectedCustomerNodes.length === 0) {
+      return;
+    }
+
+    setBulkCustomerNodeDeleteConfirming(false);
+    setCustomerNodeActionComposer({
+      id: [scope, kind, options.node?.id, options.enabled, Date.now()].filter((item) => item !== undefined).join(':'),
+      scope,
+      kind,
+      nodeId: options.node?.id,
+      enabled: options.enabled,
+      trafficGb: scope === 'bulk' ? bulkCustomerNodeTrafficGb : '100',
+      days: scope === 'bulk' ? bulkCustomerNodeRenewDays : '30'
+    });
+  }
+
+  function applyCustomerNodeActionComposer() {
+    if (!customerNodeActionComposer || customerNodeActionComposerNodes.length === 0) {
+      return;
+    }
+
+    const trafficGb = Math.max(Number.parseInt(customerNodeActionComposer.trafficGb, 10) || 0, 0);
+    const days = Math.max(Number.parseInt(customerNodeActionComposer.days, 10) || 0, 0);
+    const scope = customerNodeActionComposer.scope;
+    const singleNode = scope === 'single' ? customerNodeActionComposerNodes[0] : undefined;
+
+    setCustomerNodeActionComposer(undefined);
+
+    if (customerNodeActionComposer.kind === 'add-traffic') {
+      if (trafficGb <= 0) {
+        return;
+      }
+
+      if (scope === 'single' && singleNode) {
+        void applyCustomerNodeClientAction(
+          singleNode,
+          { kind: 'add-traffic', addedTrafficGb: trafficGb },
+          (metadata) => createCustomerNodeTrafficUpdate(metadata, trafficGb),
+          'customer-node:add-traffic'
+        );
+        return;
+      }
+
+      void applySelectedCustomerNodeClientAction(
+        { kind: 'add-traffic', addedTrafficGb: trafficGb },
+        (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'add-traffic', addedTrafficGb: trafficGb }),
+        'customer-node:bulk-add-traffic'
+      );
+      return;
+    }
+
+    if (customerNodeActionComposer.kind === 'renew') {
+      if (days <= 0) {
+        return;
+      }
+
+      if (scope === 'single' && singleNode) {
+        void applyCustomerNodeClientAction(
+          singleNode,
+          { kind: 'renew', addedDays: days },
+          (metadata) => createCustomerNodeRenewalUpdate(metadata, days),
+          'customer-node:renew'
+        );
+        return;
+      }
+
+      void applySelectedCustomerNodeClientAction(
+        { kind: 'renew', addedDays: days },
+        (metadata) => createCustomerNodeRenewalUpdate(metadata, days),
+        'customer-node:bulk-renew'
+      );
+      return;
+    }
+
+    if (customerNodeActionComposer.kind === 'reset-used-traffic') {
+      if (scope === 'single' && singleNode) {
+        void applyCustomerNodeClientAction(
+          singleNode,
+          { kind: 'reset-used-traffic' },
+          (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'reset-used-traffic' }),
+          'customer-node:reset-used-traffic'
+        );
+        return;
+      }
+
+      void applySelectedCustomerNodeClientAction(
+        { kind: 'reset-used-traffic' },
+        (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'reset-used-traffic' }),
+        'customer-node:bulk-reset-used-traffic'
+      );
+      return;
+    }
+
+    if (customerNodeActionComposer.kind === 'set-enabled') {
+      const enabled = Boolean(customerNodeActionComposer.enabled);
+
+      if (scope === 'single' && singleNode) {
+        void applyCustomerNodeClientAction(
+          singleNode,
+          { kind: 'set-enabled', enabled },
+          (metadata) => createCustomerNodeEnabledUpdate(metadata, enabled),
+          `customer-node:${enabled ? 'enable' : 'disable'}`
+        );
+        return;
+      }
+
+      void applySelectedCustomerNodeClientAction(
+        { kind: 'set-enabled', enabled },
+        (metadata) => createCustomerNodeClientActionUpdate(metadata, { kind: 'set-enabled', enabled }),
+        `customer-node:bulk-${enabled ? 'enable' : 'disable'}`
+      );
+    }
+  }
+
   function setCustomerNodeEnabled(node: CustomerNodeRecord, enabled: boolean) {
     const actionLabel = enabled ? t.enableCustomerNode : t.disableCustomerNode;
     const confirmed =
@@ -7059,7 +7427,10 @@ export function NodesPage({
                 node={primarySelectedCustomerNode}
                 selectedCount={selectedCustomerNodes.length}
                 t={t}
-                onAddTraffic={() => primarySelectedCustomerNode && addTrafficToCustomerNode(primarySelectedCustomerNode)}
+                onAddTraffic={() =>
+                  primarySelectedCustomerNode &&
+                  openCustomerNodeActionComposer('single', 'add-traffic', { node: primarySelectedCustomerNode })
+                }
                 onActionCopyDiagnostics={
                   selectedCustomerNodeActionRuntimeEvidence
                     ? () =>
@@ -7083,11 +7454,11 @@ export function NodesPage({
                     ? () => onRollbackRuntimeTask(selectedCustomerNodeActionRollbackTaskId)
                     : undefined
                 }
-                onBulkAddTraffic={addTrafficToSelectedCustomerNodes}
-                onBulkDisable={() => updateSelectedCustomerNodesEnabled(false)}
-                onBulkEnable={() => updateSelectedCustomerNodesEnabled(true)}
-                onBulkRenew={renewSelectedCustomerNodes}
-                onBulkResetUsedTraffic={resetSelectedCustomerNodeUsedTraffic}
+                onBulkAddTraffic={() => openCustomerNodeActionComposer('bulk', 'add-traffic')}
+                onBulkDisable={() => openCustomerNodeActionComposer('bulk', 'set-enabled', { enabled: false })}
+                onBulkEnable={() => openCustomerNodeActionComposer('bulk', 'set-enabled', { enabled: true })}
+                onBulkRenew={() => openCustomerNodeActionComposer('bulk', 'renew')}
+                onBulkResetUsedTraffic={() => openCustomerNodeActionComposer('bulk', 'reset-used-traffic')}
                 onClearSelection={clearCustomerNodeSelection}
                 onCopySelectedLinks={copySelectedCustomerNodeLinks}
                 onCopyShare={() => primarySelectedCustomerNode && copyCustomerNodeShareLink(primarySelectedCustomerNode)}
@@ -7098,14 +7469,33 @@ export function NodesPage({
                   primarySelectedCustomerNode && setDrawer({ type: 'customerRuntimeEvidence', nodeId: primarySelectedCustomerNode.id })
                 }
                 onOpenLinks={() => primarySelectedCustomerNode && setDrawer({ type: 'customerLinks', nodeId: primarySelectedCustomerNode.id })}
-                onRenew={() => primarySelectedCustomerNode && renewCustomerNode(primarySelectedCustomerNode)}
+                onRenew={() =>
+                  primarySelectedCustomerNode &&
+                  openCustomerNodeActionComposer('single', 'renew', { node: primarySelectedCustomerNode })
+                }
                 onResetTraffic={
                   primarySelectedCustomerNode && primarySelectedCustomerNodeQuotaPolicy && onResetCustomerNodeTraffic
                     ? () => resetCustomerNodeTraffic(primarySelectedCustomerNode, primarySelectedCustomerNodeQuotaPolicy)
                     : undefined
                 }
-                onSetEnabled={(enabled) => primarySelectedCustomerNode && setCustomerNodeEnabled(primarySelectedCustomerNode, enabled)}
+                onSetEnabled={(enabled) =>
+                  primarySelectedCustomerNode &&
+                  openCustomerNodeActionComposer('single', 'set-enabled', { node: primarySelectedCustomerNode, enabled })
+                }
               />
+              {customerNodeActionComposer ? (
+                <CustomerNodeActionComposerPanel
+                  composer={customerNodeActionComposer}
+                  language={language}
+                  nodes={customerNodeActionComposerNodes}
+                  t={t}
+                  onCancel={() => setCustomerNodeActionComposer(undefined)}
+                  onChange={(patch) =>
+                    setCustomerNodeActionComposer((current) => (current ? { ...current, ...patch } : current))
+                  }
+                  onConfirm={applyCustomerNodeActionComposer}
+                />
+              ) : null}
               <div className="overflow-x-auto">
                 <table className="nodes-customer-node-table w-full min-w-[860px] table-fixed text-left">
                 <thead className="bg-[#EAF3D1]/58 text-[10px] font-bold uppercase tracking-[0.08em] text-[#35405A] dark:bg-white/[0.03] dark:text-white/42">
