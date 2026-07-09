@@ -125,6 +125,8 @@ type SourceSyncDiagnosis = {
   nextAction: string;
   warnings: SourceSyncWarningDetail[];
   budgetWarnings: string[];
+  impactSummary: string;
+  impactNextAction: string;
   fetchBudgetLabel: string;
   byteBudgetLabel: string;
   remoteLabel: string;
@@ -540,6 +542,7 @@ const copy = {
     sourceSyncDiagnosisNextAction: '下一步',
     sourceSyncDiagnosisWarnings: '同步问题',
     sourceSyncDiagnosisNoWarnings: '暂无同步问题。',
+    sourceSyncDiagnosisImpact: '导入/转换影响',
     sourceSyncDiagnosisBudget: '抓取预算',
     sourceSyncDiagnosisRemote: '远端配置',
     sourceSyncDiagnosisRules: '来源规则',
@@ -558,6 +561,14 @@ const copy = {
     sourceSyncDiagnosisNextFailed: '先检查远端地址、鉴权、超时和响应大小，再重新同步。',
     sourceSyncDiagnosisNextPaused: '恢复来源同步后再观察节点和告警状态。',
     sourceSyncDiagnosisNextSyncing: '等待同步完成后查看最新诊断。',
+    sourceSyncDiagnosisImpactReady: '当前没有导入或转换损失。',
+    sourceSyncDiagnosisImpactBlocked: (count: string) => `${count} 个节点未能进入可交付库存。`,
+    sourceSyncDiagnosisImpactPartial: (count: string) => `${count} 个节点被过滤、去重或需要复核。`,
+    sourceSyncDiagnosisImpactFailed: '来源同步失败，未能生成可交付库存。',
+    sourceSyncDiagnosisImpactNextReady: '可以继续生成订阅输出。',
+    sourceSyncDiagnosisImpactNextBlocked: '先修复远端格式、协议兼容或过滤规则，再重新同步。',
+    sourceSyncDiagnosisImpactNextPartial: '确认过滤/去重是否符合预期，必要时调整规则后重新同步。',
+    sourceSyncDiagnosisImpactNextFailed: '先修复远端地址、鉴权、超时或响应大小，再重新同步。',
     sourceSyncWarningUnsupportedProtocolNext: '移除不兼容节点，或先把该协议标记为 Preview/转换能力后再交付。',
     sourceSyncWarningInvalidNodesNext: '检查远端订阅格式和必需字段。',
     sourceSyncWarningFilteredNodesNext: '调整 include/exclude/region 规则，或确认过滤结果符合预期。',
@@ -884,6 +895,7 @@ const copy = {
     sourceSyncDiagnosisNextAction: 'Next Action',
     sourceSyncDiagnosisWarnings: 'Sync Issues',
     sourceSyncDiagnosisNoWarnings: 'No sync issues.',
+    sourceSyncDiagnosisImpact: 'Import / Conversion Impact',
     sourceSyncDiagnosisBudget: 'Fetch Budget',
     sourceSyncDiagnosisRemote: 'Remote Config',
     sourceSyncDiagnosisRules: 'Source Rules',
@@ -902,6 +914,14 @@ const copy = {
     sourceSyncDiagnosisNextFailed: 'Check remote URL, auth, timeout, and response size before syncing again.',
     sourceSyncDiagnosisNextPaused: 'Resume source sync before relying on node and warning state.',
     sourceSyncDiagnosisNextSyncing: 'Wait for sync completion before reading the latest diagnosis.',
+    sourceSyncDiagnosisImpactReady: 'No import or conversion loss is currently reported.',
+    sourceSyncDiagnosisImpactBlocked: (count: string) => `${count} nodes did not enter deliverable inventory.`,
+    sourceSyncDiagnosisImpactPartial: (count: string) => `${count} nodes were filtered, deduped, or need review.`,
+    sourceSyncDiagnosisImpactFailed: 'The source sync failed and did not produce deliverable inventory.',
+    sourceSyncDiagnosisImpactNextReady: 'Continue generating subscription output.',
+    sourceSyncDiagnosisImpactNextBlocked: 'Fix remote format, protocol compatibility, or filters, then sync again.',
+    sourceSyncDiagnosisImpactNextPartial: 'Confirm filters/dedupe are expected; adjust rules and sync again if needed.',
+    sourceSyncDiagnosisImpactNextFailed: 'Fix remote URL, auth, timeout, or response size before syncing again.',
     sourceSyncWarningUnsupportedProtocolNext: 'Remove incompatible nodes or keep the protocol as Preview until conversion is supported.',
     sourceSyncWarningInvalidNodesNext: 'Check the remote subscription format and required fields.',
     sourceSyncWarningFilteredNodesNext: 'Adjust include/exclude/region rules, or confirm the filtered result is expected.',
@@ -1506,6 +1526,57 @@ function createSourceSyncBudgetWarnings(
   return warnings;
 }
 
+function readSourceSyncWarningCount(warnings: string[], warningKind: string) {
+  return warnings.reduce((total, warning) => {
+    const match = new RegExp(`^subscription_source\\.${warningKind}:(\\d+)$`).exec(warning);
+    const count = match?.[1] ? Number.parseInt(match[1], 10) : 0;
+
+    return total + (Number.isFinite(count) ? count : 0);
+  }, 0);
+}
+
+function createSourceSyncImpactSummary(
+  source: SubscriptionSource,
+  language: AppLanguage,
+  t: (typeof copy)[AppLanguage]
+) {
+  const warnings = source.syncWarnings ?? [];
+  const unsupported = readSourceSyncWarningCount(warnings, 'unsupported_protocol_nodes');
+  const invalid = readSourceSyncWarningCount(warnings, 'invalid_nodes');
+  const filtered = readSourceSyncWarningCount(warnings, 'filtered_nodes');
+  const deduped = readSourceSyncWarningCount(warnings, 'deduped_nodes');
+  const crossSourceDuplicates = readSourceSyncWarningCount(warnings, 'cross_source_duplicates');
+  const blockedCount = unsupported + invalid;
+  const reviewCount = filtered + deduped + crossSourceDuplicates;
+  const failed = source.status === 'failed' || warnings.some((warning) => warning.startsWith('subscription_source.sync_failed:'));
+
+  if (failed) {
+    return {
+      summary: t.sourceSyncDiagnosisImpactFailed,
+      nextAction: t.sourceSyncDiagnosisImpactNextFailed
+    };
+  }
+
+  if (blockedCount > 0) {
+    return {
+      summary: t.sourceSyncDiagnosisImpactBlocked(formatNumber(blockedCount, language)),
+      nextAction: t.sourceSyncDiagnosisImpactNextBlocked
+    };
+  }
+
+  if (reviewCount > 0) {
+    return {
+      summary: t.sourceSyncDiagnosisImpactPartial(formatNumber(reviewCount, language)),
+      nextAction: t.sourceSyncDiagnosisImpactNextPartial
+    };
+  }
+
+  return {
+    summary: t.sourceSyncDiagnosisImpactReady,
+    nextAction: t.sourceSyncDiagnosisImpactNextReady
+  };
+}
+
 function getSourceSyncDiagnosisStateLabel(
   state: SourceSyncDiagnosisState,
   t: (typeof copy)[AppLanguage]
@@ -1558,6 +1629,7 @@ function createSourceSyncDiagnosis(
 ): SourceSyncDiagnosis {
   const warnings = (source.syncWarnings ?? []).map((warning) => createSourceSyncWarningDetail(warning, language, t));
   const budgetWarnings = createSourceSyncBudgetWarnings(source, language, t);
+  const impact = createSourceSyncImpactSummary(source, language, t);
   const state: SourceSyncDiagnosisState =
     source.status === 'failed' || warnings.some((warning) => warning.severity === 'failed')
       ? 'failed'
@@ -1597,6 +1669,8 @@ function createSourceSyncDiagnosis(
     nextAction: getSourceSyncDiagnosisNextAction(state, t),
     warnings,
     budgetWarnings,
+    impactSummary: impact.summary,
+    impactNextAction: impact.nextAction,
     fetchBudgetLabel,
     byteBudgetLabel,
     remoteLabel,
@@ -1644,6 +1718,8 @@ function createSourceSyncDiagnosisText(
     `Nodes: ${source.nodeCount}`,
     `Last Sync: ${source.lastSyncAt}`,
     `Next Action: ${diagnosis.nextAction}`,
+    `Import / Conversion Impact: ${diagnosis.impactSummary}`,
+    `Impact Next Action: ${diagnosis.impactNextAction}`,
     `Fetch Budget: ${diagnosis.fetchBudgetLabel}`,
     `Byte Budget: ${diagnosis.byteBudgetLabel}`,
     `Remote Config: ${diagnosis.remoteLabel}`,
@@ -6045,6 +6121,28 @@ function SourceSyncDiagnosisPanel({
             {t.copySourceSyncDiagnosis}
           </button>
         </div>
+      </section>
+
+      <section aria-label={t.sourceSyncDiagnosisImpact} className={subscriptionDrawerNeutralPanelClass}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-widest text-[#07111F] dark:text-white">
+              {t.sourceSyncDiagnosisImpact}
+            </p>
+            <p className="mt-2 break-words text-sm font-black text-[#07111F] dark:text-white">
+              {diagnosis.impactSummary}
+            </p>
+          </div>
+          <span className="border border-[#07111F]/14 bg-white/55 px-2.5 py-1 text-[10px] font-black uppercase text-[#35405A] dark:border-white/10 dark:bg-white/[0.04] dark:text-white/65">
+            {diagnosis.stateLabel}
+          </span>
+        </div>
+        <p className="mt-3 border border-[#07111F]/14 bg-[#FDFFF1]/80 px-2.5 py-2 text-[11px] font-semibold leading-5 text-[#35405A] dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70">
+          <span className="font-black uppercase tracking-widest text-[#07111F] dark:text-white">
+            {t.sourceSyncDiagnosisNextAction}:
+          </span>
+          {diagnosis.impactNextAction}
+        </p>
       </section>
 
       <section className={subscriptionDrawerNeutralPanelClass}>

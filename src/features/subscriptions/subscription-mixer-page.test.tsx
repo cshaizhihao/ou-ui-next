@@ -1539,6 +1539,9 @@ describe('SubscriptionMixerPage', () => {
     expect(diagnosis).toHaveAttribute('data-source-sync-diagnosis-state', 'warning');
     expect(diagnosis).toHaveTextContent('有警告');
     expect(diagnosis).toHaveTextContent('按问题列表处理协议、过滤、去重或远端响应，再重新同步。');
+    const impact = within(drawer).getByRole('region', { name: '导入/转换影响' });
+    expect(impact).toHaveTextContent('4 个节点未能进入可交付库存。');
+    expect(impact).toHaveTextContent('先修复远端格式、协议兼容或过滤规则，再重新同步。');
     expect(drawer).toHaveTextContent('字段缺失或无法解析节点 3 个');
     expect(drawer).toHaveTextContent('检查远端订阅格式和必需字段。');
     expect(drawer).toHaveTextContent('检查其它来源的重复节点，必要时调整来源优先级或去重键。');
@@ -1547,6 +1550,8 @@ describe('SubscriptionMixerPage', () => {
     await user.click(within(drawer).getByRole('button', { name: '复制同步诊断' }));
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Source Sync Diagnosis: 有警告'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Import / Conversion Impact: 4 个节点未能进入可交付库存。'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Impact Next Action: 先修复远端格式、协议兼容或过滤规则，再重新同步。'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Raw: subscription_source.invalid_nodes:3'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Source URL: https://provider.example.com/hk.yaml'));
   });
