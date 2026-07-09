@@ -40,6 +40,7 @@ import {
   AGENT_INSTALL_PROFILE,
   type AgentRuntimeDeploymentProof,
   type Agent,
+  type AgentCredentialSummary,
   type AgentInstallCommand,
   type AgentInstallMetadata,
   type AgentUpgradeCommand,
@@ -104,6 +105,7 @@ const CUSTOMER_NODE_TRAFFIC_MULTIPLIERS: CustomerNodeTrafficMultiplier[] = [0.5,
 
 type NodesPageProps = {
   agents: Agent[];
+  agentCredentials?: AgentCredentialSummary[];
   focusIntent?: NodesFocusIntent;
   inbounds: XrayInbound[];
   language: AppLanguage;
@@ -660,6 +662,12 @@ const copy = {
     agentRecoveryTitle: 'Agent 恢复',
     agentRecoveryPollOnlyDescription: '',
     agentRecoverySampleGapDescription: '',
+    agentRecoveryCapabilityReady: '能力与凭据就绪',
+    agentRecoveryCapabilityPreviewOnly: '仅手动命令可用',
+    agentRecoveryRemoteUnsupported: '远程升级不可用：Agent 未上报 self-update 能力。',
+    agentRecoveryCommandUnavailable: '恢复命令不可用：目标 Agent 没有 active runtime credential。',
+    agentRecoveryPreviewUnavailable: '恢复命令不可用：控制面未提供命令预览接口。',
+    agentRecoveryCommandChannelMissing: 'Agent 未上报 command-channel，远程任务可能无法投递。',
     remoteUpgradeAgent: '远程升级 Agent',
     confirmRemoteUpgradeAgent: (name: string) => `确认远程升级 Agent ${name}？`,
     copyUpgradeCommand: '复制升级命令',
@@ -1216,6 +1224,12 @@ const copy = {
     agentRecoveryTitle: 'Agent Recovery',
     agentRecoveryPollOnlyDescription: '',
     agentRecoverySampleGapDescription: '',
+    agentRecoveryCapabilityReady: 'Capability and credential ready',
+    agentRecoveryCapabilityPreviewOnly: 'Manual command only',
+    agentRecoveryRemoteUnsupported: 'Remote upgrade unavailable: Agent has not advertised self-update.',
+    agentRecoveryCommandUnavailable: 'Recovery command unavailable: target Agent has no active runtime credential.',
+    agentRecoveryPreviewUnavailable: 'Recovery command unavailable: command preview API is not wired.',
+    agentRecoveryCommandChannelMissing: 'Agent has not advertised command-channel; remote tasks may not be delivered.',
     remoteUpgradeAgent: 'Remote Upgrade Agent',
     confirmRemoteUpgradeAgent: (name: string) => `Remote upgrade Agent ${name}?`,
     copyUpgradeCommand: 'Copy Upgrade Command',
@@ -1671,6 +1685,14 @@ const copy = {
 } as const;
 
 type NodesCopy = (typeof copy)[AppLanguage];
+
+type AgentRecoveryActionState = {
+  canCopyCommand: boolean;
+  canRemoteUpgrade: boolean;
+  commandBlockedReason?: string;
+  remoteBlockedReason?: string;
+  capabilitySummary: string;
+};
 
 const defaultInstallMetadata: AgentInstallMetadata = {
   installProfile: [...AGENT_INSTALL_PROFILE]
@@ -4304,7 +4326,7 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
 }: {
   agentRecovery?: {
     agent: Agent;
-    canRemoteUpgrade: boolean;
+    actionState: AgentRecoveryActionState;
     command?: AgentUpgradeCommand;
     error: boolean;
     busy: boolean;
@@ -4445,9 +4467,12 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
               <p className="mt-1 text-xs font-semibold leading-5 text-[#35405A] dark:text-white/65">
                 {t.customerRuntimeEvidenceAgentRecoveryHint(agentRecovery.agent.name)}
               </p>
+              <p className="mt-2 inline-flex border border-[#07111F]/18 bg-[#FFFDF5]/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#35405A] dark:border-[#E9FF6A]/20 dark:bg-white/[0.04] dark:text-white/60">
+                {agentRecovery.actionState.capabilitySummary}
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {onCopyAgentRecoveryCommand ? (
+              {agentRecovery.actionState.canCopyCommand && onCopyAgentRecoveryCommand ? (
                 <button
                   className="inline-flex items-center gap-2 border border-[#07111F]/25 bg-[#FFFDF5] px-3 py-2 text-xs font-black text-[#07111F] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#E9FF6A]/25 dark:bg-[#101827] dark:text-[#F4FFC5]"
                   disabled={agentRecovery.busy}
@@ -4458,7 +4483,7 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
                   {agentRecovery.busy ? t.submitting : t.customerRuntimeEvidenceCopyAgentRecoveryCommand}
                 </button>
               ) : null}
-              {agentRecovery.canRemoteUpgrade && onRemoteAgentRecovery ? (
+              {agentRecovery.actionState.canRemoteUpgrade && onRemoteAgentRecovery ? (
                 <button
                   className="inline-flex items-center gap-2 border border-[#1E3AFF]/35 bg-[#DCE1FF] px-3 py-2 text-xs font-black text-[#1E3AFF] transition hover:bg-[#DCE1FF]/75 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF]"
                   disabled={agentRecovery.busy}
@@ -4471,6 +4496,16 @@ function CustomerNodeRuntimeEvidenceDrawerContent({
               ) : null}
             </div>
           </div>
+          {agentRecovery.actionState.commandBlockedReason ? (
+            <p className="mt-2 text-[11px] font-semibold text-[#8A5A00] dark:text-[#FFD166]">
+              {agentRecovery.actionState.commandBlockedReason}
+            </p>
+          ) : null}
+          {agentRecovery.actionState.remoteBlockedReason ? (
+            <p className="mt-1 text-[11px] font-semibold text-[#8A5A00] dark:text-[#FFD166]">
+              {agentRecovery.actionState.remoteBlockedReason}
+            </p>
+          ) : null}
           {agentRecovery.error ? (
             <p className="mt-2 text-[11px] font-semibold text-[#B91C1C] dark:text-[#FFB4B4]">
               {t.customerRuntimeEvidenceAgentRecoveryError}
@@ -5545,6 +5580,60 @@ function getRuntimeEvidenceAgentRecoveryReason(evidence: CustomerNodeRuntimeEvid
   return `agent_result_missing_after_ack:${taskId}`;
 }
 
+function hasActiveRuntimeCredential(agent: Agent, agentCredentials: AgentCredentialSummary[]) {
+  const now = Date.now();
+
+  return agentCredentials.some(
+    (credential) =>
+      credential.agentId === agent.id &&
+      credential.purpose === 'runtime' &&
+      credential.status === 'active' &&
+      Date.parse(credential.expiresAt) > now
+  );
+}
+
+function createAgentRecoveryActionState({
+  agent,
+  agentCredentials,
+  canPreviewUpgradeCommand,
+  canRemoteUpgrade,
+  t
+}: {
+  agent: Agent;
+  agentCredentials: AgentCredentialSummary[];
+  canPreviewUpgradeCommand: boolean;
+  canRemoteUpgrade: boolean;
+  t: NodesCopy;
+}): AgentRecoveryActionState {
+  const hasRuntimeCredential = hasActiveRuntimeCredential(agent, agentCredentials);
+  const hasSelfUpdate = agent.capabilities.includes('self-update');
+  const hasCommandChannel = agent.capabilities.includes('command-channel');
+  const canCopyCommand = canPreviewUpgradeCommand && hasRuntimeCredential;
+  const remoteBlockedReason = !hasSelfUpdate
+    ? t.agentRecoveryRemoteUnsupported
+    : !canRemoteUpgrade
+      ? t.agentRecoveryPreviewUnavailable
+      : undefined;
+  const commandBlockedReason = !canPreviewUpgradeCommand
+    ? t.agentRecoveryPreviewUnavailable
+    : !hasRuntimeCredential
+      ? t.agentRecoveryCommandUnavailable
+      : undefined;
+  const capabilitySummary = hasSelfUpdate && canRemoteUpgrade
+    ? t.agentRecoveryCapabilityReady
+    : canCopyCommand
+      ? t.agentRecoveryCapabilityPreviewOnly
+      : commandBlockedReason ?? remoteBlockedReason ?? t.agentRecoveryCapabilityPreviewOnly;
+
+  return {
+    canCopyCommand,
+    canRemoteUpgrade: canRemoteUpgrade && hasSelfUpdate,
+    commandBlockedReason,
+    remoteBlockedReason: remoteBlockedReason ?? (!hasCommandChannel ? t.agentRecoveryCommandChannelMissing : undefined),
+    capabilitySummary
+  };
+}
+
 function runtimeServiceIssueCount(agent: Agent) {
   return (agent.telemetry.runtimeServices ?? []).filter(
     (service) => service.required && service.status !== 'active'
@@ -6043,6 +6132,7 @@ function createCustomerNodeSaveDiagnosticPackage(
 
 export function NodesPage({
   agents,
+  agentCredentials = [],
   focusIntent,
   inbounds,
   language,
@@ -6320,16 +6410,24 @@ export function NodesPage({
   const selectedRuntimeEvidenceRecoveryReason = selectedRuntimeEvidence
     ? getRuntimeEvidenceAgentRecoveryReason(selectedRuntimeEvidence)
     : undefined;
+  const selectedRuntimeEvidenceRecoveryActionState = selectedRuntimeEvidenceRecoveryAgent
+    ? createAgentRecoveryActionState({
+        agent: selectedRuntimeEvidenceRecoveryAgent,
+        agentCredentials,
+        canPreviewUpgradeCommand: Boolean(onPreviewAgentUpgradeCommand),
+        canRemoteUpgrade: Boolean(onRemoteAgentUpgrade),
+        t
+      })
+    : undefined;
   const selectedRuntimeEvidenceAgentRecovery =
     selectedRuntimeEvidence &&
     selectedRuntimeEvidenceRecoveryAgent &&
     selectedRuntimeEvidenceRecoveryReason &&
+    selectedRuntimeEvidenceRecoveryActionState &&
     isAckSilentRuntimeEvidence(selectedRuntimeEvidence)
       ? {
           agent: selectedRuntimeEvidenceRecoveryAgent,
-          canRemoteUpgrade: Boolean(
-            onRemoteAgentUpgrade && selectedRuntimeEvidenceRecoveryAgent.capabilities.includes('self-update')
-          ),
+          actionState: selectedRuntimeEvidenceRecoveryActionState,
           command: upgradeCommands[selectedRuntimeEvidenceRecoveryAgent.id],
           error: upgradeErrorAgentIds.includes(selectedRuntimeEvidenceRecoveryAgent.id),
           busy: upgradeBusyAgentIds.includes(selectedRuntimeEvidenceRecoveryAgent.id)
@@ -8090,6 +8188,13 @@ export function NodesPage({
                           <ManagedHostCard
                             key={agent.id}
                             agent={agent}
+                            recoveryActionState={createAgentRecoveryActionState({
+                              agent,
+                              agentCredentials,
+                              canPreviewUpgradeCommand: Boolean(onPreviewAgentUpgradeCommand),
+                              canRemoteUpgrade: Boolean(onRemoteAgentUpgrade),
+                              t
+                            })}
                             hostEdit={getHostEdit(agent)}
                             language={language}
                             t={t}
@@ -8101,7 +8206,9 @@ export function NodesPage({
                             onDelete={() => setDrawer({ type: 'deleteHost', agentId: agent.id })}
                             onDeploy={() => onDeployHostConfig(agent)}
                             onEdit={() => setDrawer({ type: 'editHost', agentId: agent.id })}
-                            onRemoteUpgrade={onRemoteAgentUpgrade ? () => remoteUpgradeAgentWithConfirmation(agent) : undefined}
+                            onRemoteUpgrade={
+                              onRemoteAgentUpgrade ? () => remoteUpgradeAgentWithConfirmation(agent) : undefined
+                            }
                           />
                         ))}
                       </div>
@@ -9152,7 +9259,7 @@ export function NodesPage({
                 : undefined
             }
             onRemoteAgentRecovery={
-              selectedRuntimeEvidenceAgentRecovery?.canRemoteUpgrade && selectedRuntimeEvidenceRecoveryReason
+              selectedRuntimeEvidenceAgentRecovery?.actionState.canRemoteUpgrade && selectedRuntimeEvidenceRecoveryReason
                 ? () => remoteUpgradeAgentWithConfirmation(selectedRuntimeEvidenceAgentRecovery.agent, selectedRuntimeEvidenceRecoveryReason)
                 : undefined
             }
@@ -10040,6 +10147,7 @@ function ManagedHostCard({
   onDeploy,
   onEdit,
   onRemoteUpgrade,
+  recoveryActionState,
   t,
   remoteUpgradeBusy,
   upgradeBusy,
@@ -10054,6 +10162,7 @@ function ManagedHostCard({
   onDeploy: () => void;
   onEdit: () => void;
   onRemoteUpgrade?: () => void;
+  recoveryActionState: AgentRecoveryActionState;
   t: NodesCopy;
   remoteUpgradeBusy: boolean;
   upgradeBusy: boolean;
@@ -10075,7 +10184,6 @@ function ManagedHostCard({
   const monthlyDetail = `${t.trafficModeCardLabels[hostEdit.trafficAccountingMode]} · ${formatResetDayCompact(hostEdit.monthlyResetDay, language)}`;
   const sampleGapDetected = agent.telemetry.sampleGapDetected ?? false;
   const shouldOfferRecovery = !telemetryReported || sampleGapDetected;
-  const canRemoteUpgrade = agent.capabilities.includes('self-update') && Boolean(onRemoteUpgrade);
   const sampleStatus =
     telemetryReported || sampleGapDetected ? formatSamplingStatus(agent, language, t) : t.waitingTelemetry;
   const SampleStatusIcon = sampleGapDetected ? AlertTriangle : Activity;
@@ -10319,8 +10427,11 @@ function ManagedHostCard({
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#07111F] dark:text-[#F4FFC5]">
                 {t.agentRecoveryTitle}
               </p>
+              <p className="mt-1 text-[11px] font-semibold text-[#35405A] dark:text-white/55">
+                {recoveryActionState.capabilitySummary}
+              </p>
             </div>
-            {canRemoteUpgrade ? (
+            {recoveryActionState.canRemoteUpgrade ? (
               <button
                 aria-label={t.remoteUpgradeAgent}
                 className="inline-flex flex-shrink-0 items-center gap-1.5 border border-[#1E3AFF]/35 bg-[#DCE1FF] px-2.5 py-1.5 text-[10px] font-bold text-[#1E3AFF] transition hover:bg-[#DCE1FF]/75 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#6B7CFF]/20 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF] dark:hover:bg-[#6B7CFF]/15"
@@ -10331,7 +10442,7 @@ function ManagedHostCard({
                 <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
                 {remoteUpgradeBusy ? t.submitting : t.remoteUpgradeAgent}
               </button>
-            ) : (
+            ) : recoveryActionState.canCopyCommand ? (
               <button
                 aria-label={t.copyUpgradeCommand}
                 className="inline-flex flex-shrink-0 items-center gap-1.5 border border-[#D9FF00] bg-[#D9FF00]/[0.18] px-2.5 py-1.5 text-[10px] font-bold text-[#07111F] transition hover:bg-[#D9FF00]/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#E9FF6A]/25 dark:bg-[#E9FF6A]/10 dark:text-[#F4FFC5] dark:hover:bg-[#E9FF6A]/15"
@@ -10342,8 +10453,18 @@ function ManagedHostCard({
                 <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
                 {upgradeBusy ? t.submitting : t.copyUpgradeCommand}
               </button>
-            )}
+            ) : null}
           </div>
+          {recoveryActionState.commandBlockedReason ? (
+            <p className="text-[11px] font-semibold text-[#8A5A00] dark:text-[#FFD166]">
+              {recoveryActionState.commandBlockedReason}
+            </p>
+          ) : null}
+          {recoveryActionState.remoteBlockedReason ? (
+            <p className="text-[11px] font-semibold text-[#8A5A00] dark:text-[#FFD166]">
+              {recoveryActionState.remoteBlockedReason}
+            </p>
+          ) : null}
           {upgradeError ? <p className="text-[11px] font-semibold text-[#B91C1C] dark:text-[#FFB4B4]">{t.upgradeCommandError}</p> : null}
           {upgradeCommand ? (
             <>

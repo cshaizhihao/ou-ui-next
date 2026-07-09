@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, vi } from 'vitest';
 import type {
   Agent,
+  AgentCredentialSummary,
   DeployTask,
   QuotaPolicy,
   RuntimeConfigRevision,
@@ -73,6 +74,24 @@ function createAgent(): Agent {
       packetLossSamplesPercent: [0],
       onlineDays: 1,
       reportedAt: '2026-06-04T04:00:00.000Z'
+    }
+  };
+}
+
+function createRuntimeCredential(agentId: string): AgentCredentialSummary {
+  return {
+    id: `cred-${agentId}`,
+    agentId,
+    tokenPrefix: 'oat_test',
+    status: 'active',
+    purpose: 'runtime',
+    issuedAt: '2026-06-01T00:00:00.000Z',
+    expiresAt: '2099-06-01T00:00:00.000Z',
+    issuedBy: 'admin',
+    sourceIp: '127.0.0.1',
+    requestId: `req-cred-${agentId}`,
+    metadata: {
+      installProfile: ['host-agent', 'xray', 'port-forwarding', 'telemetry', 'command-channel']
     }
   };
 }
@@ -582,6 +601,7 @@ describe('NodesPage', () => {
             }
           }
         ]}
+        agentCredentials={[createRuntimeCredential('agent-poll-only-01')]}
         inbounds={[]}
         language="zh"
         onDeleteCustomerNode={vi.fn()}
@@ -985,6 +1005,7 @@ describe('NodesPage', () => {
             }
           }
         ]}
+        agentCredentials={[createRuntimeCredential('agent-poll-only-01')]}
         inbounds={[]}
         language="zh"
         onDeleteCustomerNode={vi.fn()}
@@ -1476,6 +1497,7 @@ describe('NodesPage', () => {
             }
           }
         ]}
+        agentCredentials={[createRuntimeCredential('agent-poll-only-01')]}
         inbounds={[]}
         language="zh"
         onDeleteCustomerNode={vi.fn()}
@@ -1584,6 +1606,7 @@ describe('NodesPage', () => {
             }
           }
         ]}
+        agentCredentials={[createRuntimeCredential('agent-poll-only-01')]}
         inbounds={[]}
         language="zh"
         onDeleteCustomerNode={vi.fn()}
@@ -2038,6 +2061,7 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
+        agentCredentials={[createRuntimeCredential('agent-metered-01')]}
         inbounds={[
           createInbound(),
           createBetaInbound()
@@ -2445,6 +2469,7 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
+        agentCredentials={[createRuntimeCredential('agent-metered-01')]}
         inbounds={[
           createInbound({
             configVersion: 'cfg-task-xray-apply-01',
@@ -3594,6 +3619,7 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
+        agentCredentials={[createRuntimeCredential('agent-metered-01')]}
         inbounds={[
           createInbound({
             runtimeDeployment: {
@@ -3771,6 +3797,7 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
+        agentCredentials={[createRuntimeCredential('agent-metered-01')]}
         inbounds={[
           createInbound({
             status: 'error',
@@ -3880,6 +3907,7 @@ describe('NodesPage', () => {
     render(
       <NodesPage
         agents={[createAgent()]}
+        agentCredentials={[createRuntimeCredential('agent-metered-01')]}
         inbounds={[
           createInbound({
             status: 'error',

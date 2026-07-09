@@ -13,6 +13,12 @@ export default tseslint.config(
       '**/dist-server/**',
       '**/coverage',
       '**/coverage/**',
+      '**/.cache',
+      '**/.cache/**',
+      '**/.npm-cache',
+      '**/.npm-cache/**',
+      '**/.tmp',
+      '**/.tmp/**',
       '**/node_modules',
       '**/node_modules/**'
     ]

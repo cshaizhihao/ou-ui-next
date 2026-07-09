@@ -3251,6 +3251,7 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <NodesPage
             agents={agents}
+            agentCredentials={agentCredentials}
             focusIntent={nodesFocusIntent}
             inbounds={inbounds}
             language={language}
@@ -3283,6 +3284,7 @@ export function AppShell({ ready }: AppShellProps) {
         return (
           <NodesPage
             agents={agents}
+            agentCredentials={agentCredentials}
             focusIntent={nodesFocusIntent}
             inbounds={inbounds}
             language={language}
