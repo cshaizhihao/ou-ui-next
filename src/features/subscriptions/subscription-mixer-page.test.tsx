@@ -2569,6 +2569,15 @@ describe('SubscriptionMixerPage', () => {
       expect.stringContaining('Subscription-Userinfo: upload=0; download=137438953472; total=1099511627776; expire=1798761599')
     );
 
+    await user.click(within(drawer).getByRole('button', { name: '复制客户交付包' }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('OU UI Subscription Delivery Package'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('[Customer]'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('[Links]'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Status: Blocked'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Portal: http://localhost'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Clash: http://localhost'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Check: Not Run'));
+
     await user.click(within(drawer).getByRole('button', { name: '轮换公开路径' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Acme 香港 Premium 订阅'));
@@ -2704,6 +2713,16 @@ describe('SubscriptionMixerPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Subscription-Userinfo: upload=0; download=1; total=10; expire=1798761599'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Converted URIs: 2'));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Unconverted Nodes: 0'));
+
+    await user.click(within(deliveryCheck).getByRole('button', { name: '复制客户交付包' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('OU UI Subscription Delivery Package'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Status: Ready'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Portal: http://localhost'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Mihomo: http://localhost'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Check: Passed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Portal: HTTP 200 ok'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Converted URIs: 2'));
   });
 
   it('links delivery check warnings to inventory and source sync diagnosis', async () => {

@@ -470,6 +470,7 @@ const copy = {
     subscriptionDeliveryCheckSummaryPassed: 'Portal 和已选订阅输出均已响应。',
     subscriptionDeliveryCheckSummaryWarning: '订阅输出可访问，但存在格式转换或节点警告。',
     subscriptionDeliveryCheckSummaryFailed: '至少一个 Portal 或订阅输出请求失败。',
+    copySubscriptionDeliveryPackage: '复制客户交付包',
     subscriptionDeliveryRecovery: '交付排查',
     subscriptionDeliveryRecoveryReady: '当前交付诊断没有需要排查的节点或来源问题。',
     subscriptionDeliveryRecoveryNoNodes: '当前订阅规则没有命中可交付库存节点。',
@@ -811,6 +812,7 @@ const copy = {
     subscriptionDeliveryCheckSummaryPassed: 'Portal and selected subscription outputs responded successfully.',
     subscriptionDeliveryCheckSummaryWarning: 'Subscription outputs are reachable, but conversion or node warnings were returned.',
     subscriptionDeliveryCheckSummaryFailed: 'At least one portal or subscription output request failed.',
+    copySubscriptionDeliveryPackage: 'Copy Delivery Package',
     subscriptionDeliveryRecovery: 'Delivery Recovery',
     subscriptionDeliveryRecoveryReady: 'The delivery check has no node or source issues to investigate.',
     subscriptionDeliveryRecoveryNoNodes: 'The subscription rules did not match deliverable inventory nodes.',
@@ -2193,6 +2195,38 @@ function createSubscriptionDiagnosticsText(client: SubscriptionClientIdentity) {
     `Quota Reset: ${client.quotaResetAt ?? '-'}`,
     `Quota Reset Baseline Used: ${Math.max(Math.round(client.quotaResetBaselineUsedTrafficBytes ?? 0), 0)} bytes`,
     `Guardrail: ${createSubscriptionGuardrailStatus(client)}`
+  ].join('\n');
+}
+
+function createSubscriptionDeliveryPackageText(
+  client: SubscriptionClientIdentity,
+  result?: SubscriptionDeliveryCheckResult
+) {
+  const formats = readClientOutputFormats(client);
+  const linkLines = [
+    `Portal: ${createClientSubscriptionPortalUrl(client)}`,
+    ...formats.map((format) => `${getClientOutputFormatLabel(format, 'en')}: ${createClientSubscriptionUrl(client, format)}`)
+  ];
+  const checkText = result
+    ? createSubscriptionDeliveryCheckText(result)
+    : [
+        'Delivery Check: Not Run',
+        'Checked At: -',
+        'Summary: Run the executable delivery check before sending this package to a customer.'
+      ].join('\n');
+
+  return [
+    'OU UI Subscription Delivery Package',
+    `Generated At: ${new Date().toISOString()}`,
+    '',
+    '[Customer]',
+    createSubscriptionDiagnosticsText(client),
+    '',
+    '[Links]',
+    ...linkLines,
+    '',
+    '[Executable Check]',
+    checkText
   ].join('\n');
 }
 
@@ -4856,6 +4890,9 @@ export function SubscriptionMixerPage({
                   void copyToClipboard(createSubscriptionDeliveryCheckText(linkDrawerDeliveryCheck));
                 }
               }}
+              onCopyPackage={() => {
+                void copyToClipboard(createSubscriptionDeliveryPackageText(linkDrawerClient, linkDrawerDeliveryCheck));
+              }}
               onRun={() => {
                 void runSubscriptionDeliveryCheck(linkDrawerClient);
               }}
@@ -5649,12 +5686,14 @@ function SubscriptionDeliveryBriefPanel({
 function SubscriptionDeliveryCheckPanel({
   language,
   onCopy,
+  onCopyPackage,
   onRun,
   result,
   t
 }: {
   language: AppLanguage;
   onCopy: () => void;
+  onCopyPackage: () => void;
   onRun: () => void;
   result?: SubscriptionDeliveryCheckResult;
   t: (typeof copy)[AppLanguage];
@@ -5715,6 +5754,14 @@ function SubscriptionDeliveryCheckPanel({
         >
           <Copy className="h-3.5 w-3.5" />
           {t.copySubscriptionDeliveryCheck}
+        </button>
+        <button
+          className={compactNeutralActionButtonClass}
+          onClick={onCopyPackage}
+          type="button"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          {t.copySubscriptionDeliveryPackage}
         </button>
       </div>
       {result?.checkedAt ? (
