@@ -422,6 +422,7 @@ const copy = {
     copySubscriptionUsageHeader: '复制订阅用量头',
     subscriptionAccessStats: '访问统计',
     copySubscriptionDiagnostics: '复制订阅诊断',
+    copySubscriptionDeleteAudit: '复制删除审计',
     rotateAccessCredential: '轮换公开路径',
     confirmRotateAccessCredential: (name: string) => `确认轮换 ${name} 的公开路径？旧订阅地址将失效；不会生成新的 raw token。`,
     lastOnline: '上次在线',
@@ -772,6 +773,7 @@ const copy = {
     copySubscriptionUsageHeader: 'Copy Usage Header',
     subscriptionAccessStats: 'Access Statistics',
     copySubscriptionDiagnostics: 'Copy Subscription Diagnostics',
+    copySubscriptionDeleteAudit: 'Copy Delete Audit',
     rotateAccessCredential: 'Rotate Public Path',
     confirmRotateAccessCredential: (name: string) =>
       `Rotate public path for ${name}? Existing subscription URLs will stop working; no new raw token is generated.`,
@@ -2311,6 +2313,27 @@ function createSubscriptionDeliveryPackageText(
     '',
     '[Executable Check]',
     checkText
+  ].join('\n');
+}
+
+function createSubscriptionDeleteAuditText(client: SubscriptionClientIdentity) {
+  return [
+    'OU UI Subscription Delete Audit',
+    `Generated At: ${new Date().toISOString()}`,
+    `Action: subscription.delete`,
+    '',
+    '[Identity]',
+    createSubscriptionDiagnosticsText(client),
+    '',
+    '[Public Links]',
+    `Portal: ${createClientSubscriptionPortalUrl(client)}`,
+    ...createClientAllFormatSubscriptionLinks(client, 'en'),
+    '',
+    '[Delete Impact]',
+    `Generated Nodes Removed: ${client.generatedNodeCount}`,
+    `Access Token Preview: ${client.accessTokenPreview ?? '-'}`,
+    `Secure Path Preview: ${client.securePathPreview ?? '-'}`,
+    `Guardrail: ${createSubscriptionGuardrailStatus(client)}`
   ].join('\n');
 }
 
@@ -4084,6 +4107,9 @@ export function SubscriptionMixerPage({
                             </IconButton>
                             <IconButton label={t.viewMatchedNodes} onClick={() => openMatchedNodesDrawer(client)}>
                               <ListTree className="h-3.5 w-3.5" />
+                            </IconButton>
+                            <IconButton label={t.copySubscriptionDeleteAudit} onClick={() => copyToClipboard(createSubscriptionDeleteAuditText(client))}>
+                              <Copy className="h-3.5 w-3.5" />
                             </IconButton>
                             <IconButton label={t.edit} onClick={() => openClientDrawer(client)}>
                               <Pencil className="h-3.5 w-3.5" />

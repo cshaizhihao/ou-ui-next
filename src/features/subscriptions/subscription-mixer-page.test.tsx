@@ -3567,6 +3567,33 @@ describe('SubscriptionMixerPage', () => {
     expect(onDeleteClient).not.toHaveBeenCalledWith(expect.objectContaining({ subscriptionClientId: 'sub-client-acme-hkg' }));
   });
 
+  it('copies a delete audit package before deleting a subscription identity', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const onDeleteClient = vi.fn();
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    renderPage({ subscriptionClients: [subscriptionClient, backupSubscriptionClient], onDeleteClient });
+
+    await user.type(screen.getByRole('searchbox', { name: '搜索订阅身份' }), 'backup');
+    await user.click(screen.getByRole('button', { name: '复制删除审计' }));
+
+    expect(onDeleteClient).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('OU UI Subscription Delete Audit'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Action: subscription.delete'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Sub ID: sub_backup_sg_standard'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Status: Ready'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Guardrail: active'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Portal: http://localhost'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Generated Nodes Removed: 1'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Secure Path Preview: /secure-backup-sg'));
+  });
+
   it('preserves the existing access credential preview when editing a subscription identity', async () => {
     const user = userEvent.setup({ delay: null });
     const onSaveClient = vi.fn();
