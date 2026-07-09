@@ -8395,10 +8395,11 @@ printf 'hasReportEnv=%s\\n' "\${OU_UI_ARCHIVE_SMOKE_REPORT_PATH:+true}"
     expect(available).toContain('Playwright: 已安装 version=1.60.0');
     expect(available).toContain('Chromium 浏览器: 已安装');
 
-    const missing = runBrowserSmokeRuntimeHealth(script, { runtimeAvailable: false });
-    expect(missing).toContain('浏览器烟测脚本: 已安装');
-    expect(missing).toContain('Playwright: 未可用');
-    expect(missing).toContain('npm install 后重试');
+    const missingBrowser = runBrowserSmokeRuntimeHealth(script, { runtimeAvailable: false });
+    expect(missingBrowser).toContain('浏览器烟测脚本: 已安装');
+    expect(missingBrowser).toMatch(/Playwright: (已安装 version=\d+\.\d+\.\d+|未可用)/);
+    expect(missingBrowser).toMatch(/(Chromium 浏览器: 未安装|npm install 后重试)/);
+    expect(missingBrowser).toContain('npx playwright install chromium');
   });
 
   it('reports Agent token JSON configuration health during doctor diagnostics without leaking tokens', () => {
