@@ -2650,6 +2650,41 @@ describe('SubscriptionMixerPage', () => {
     expect(await within(drawer).findByRole('img', { name: 'Mihomo 订阅二维码' })).toBeInTheDocument();
   });
 
+  it('derives expired subscription guardrail state even when runtimeDisabledByPolicy is missing', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+    const expiredClient: SubscriptionClientIdentity = {
+      ...subscriptionClient,
+      expiresAt: '2020-01-01T00:00:00.000Z',
+      quotaExceeded: false,
+      runtimeDisabledByPolicy: false,
+      guardrailReason: 'ok'
+    };
+
+    vi.stubGlobal('navigator', {
+      clipboard: {
+        writeText
+      }
+    });
+
+    renderPage({ subscriptionClients: [expiredClient] });
+
+    await user.click(screen.getByRole('button', { name: '查看订阅链接' }));
+    const drawer = screen.getByLabelText('Acme 香港 Premium 订阅 订阅链接');
+    const deliveryBrief = within(drawer).getByRole('region', { name: '交付状态' });
+
+    expect(deliveryBrief).toHaveAttribute('data-subscription-delivery-state', 'blocked');
+    expect(deliveryBrief).toHaveTextContent('订阅身份已过期。');
+    expect(within(drawer).getByText('守护状态')).toBeInTheDocument();
+    expect(within(drawer).getByText('subscription_client_expired')).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: '复制订阅诊断' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Status: Blocked'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Delivery Reason: The subscription identity is expired.'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Guardrail: subscription_client_expired'));
+  });
+
   it('runs an executable subscription delivery check from the link drawer', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();

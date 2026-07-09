@@ -2010,8 +2010,16 @@ function createSubscriptionGuardrailStatus(client: SubscriptionClientIdentity) {
     return client.guardrailReason || 'runtime_disabled_by_policy';
   }
 
-  if (client.quotaExceeded) {
-    return client.guardrailReason || 'quota_exceeded';
+  if (isSubscriptionExpired(client)) {
+    return client.guardrailReason && client.guardrailReason !== 'ok'
+      ? client.guardrailReason
+      : 'subscription_client_expired';
+  }
+
+  if (isSubscriptionQuotaExceeded(client)) {
+    return client.guardrailReason && client.guardrailReason !== 'ok'
+      ? client.guardrailReason
+      : 'subscription_client_quota_exceeded';
   }
 
   return client.enabled ? 'active' : 'disabled';
