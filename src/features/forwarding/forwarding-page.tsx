@@ -273,6 +273,7 @@ const copy = {
     runtimeEvidenceGuardrail: (reason: string) => `守护 ${reason}`,
     runtimeEvidenceNoGuardrail: '守护正常',
     runtimeEvidenceNoService: '尚无运行时服务',
+    copyRuntimeEvidence: '复制运行证据',
     confirmBulkDelete: (count: string) => `确认删除 ${count} 条规则`,
     confirmBulkMigrateEntry: (count: string, agent: string) => `确认将 ${count} 条已选转发规则迁移到 ${agent}？`,
     confirmBulkRuntimeAction: (action: string, count: string) => `确认${action} ${count} 条转发规则？`,
@@ -505,6 +506,7 @@ const copy = {
     runtimeEvidenceGuardrail: (reason: string) => `Guardrail ${reason}`,
     runtimeEvidenceNoGuardrail: 'Guardrail clear',
     runtimeEvidenceNoService: 'No runtime service yet',
+    copyRuntimeEvidence: 'Copy Runtime Evidence',
     confirmBulkDelete: (count: string) => `Confirm Delete ${count} Rules`,
     confirmBulkMigrateEntry: (count: string, agent: string) =>
       `Migrate ${count} selected forwarding rule${count === '1' ? '' : 's'} to ${agent}?`,
@@ -1076,6 +1078,18 @@ function createForwardingRuntimeRecoveryText(
   ];
 
   return lines.join('\n');
+}
+
+function createForwardingRuntimeEvidenceText(
+  rule: ForwardingRuleView,
+  diagnosis: ForwardingRuntimeDiagnosis,
+  agents: Agent[],
+  t: (typeof copy)['zh' | 'en']
+) {
+  return createForwardingRuntimeRecoveryText(rule, diagnosis, agents, t).replace(
+    /^Forwarding Runtime Recovery:/,
+    'Forwarding Runtime Evidence:'
+  );
 }
 
 export function ForwardingPage({
@@ -1726,7 +1740,7 @@ export function ForwardingPage({
                             <span className="forwarding-rule-icon mt-1 border border-[#1E3AFF] bg-[#DCE1FF] p-2 text-[#1E3AFF] dark:border-[#6B7CFF]/30 dark:bg-primary/10 dark:text-primary">
                               <ArrowRightLeft className="h-4 w-4" />
                             </span>
-                            <ForwardingRuleIdentity language={language} rule={rule} t={t} />
+                            <ForwardingRuleIdentity agents={agents} language={language} rule={rule} t={t} />
                           </div>
                         </td>
                         <td className="px-3 py-2.5">
@@ -1815,7 +1829,7 @@ export function ForwardingPage({
                         onChange={() => toggleRuleSelection(rule.id)}
                         type="checkbox"
                       />
-                      <ForwardingRuleIdentity language={language} rule={rule} t={t} />
+                      <ForwardingRuleIdentity agents={agents} language={language} rule={rule} t={t} />
                     </div>
                     <div className="mt-3 grid gap-2">
                       {rule.bindings.map((binding) => (
@@ -2602,10 +2616,12 @@ function ForwardingBulkImpactPreview({
 
 function ForwardingRuntimeEvidenceCard({
   language,
+  onCopy,
   rule,
   t
 }: {
   language: AppLanguage;
+  onCopy: () => void;
   rule: ForwardingRuleView;
   t: (typeof copy)['zh' | 'en'];
 }) {
@@ -2693,15 +2709,25 @@ function ForwardingRuntimeEvidenceCard({
           +{formatNumber(runtimeServices.length - 3, language)}
         </p>
       ) : null}
+      <button
+        className="mt-2 inline-flex min-h-7 items-center justify-center gap-1.5 border border-[#07111F]/25 bg-[#FFFDF5]/82 px-2 text-[10px] font-black text-[#35405A] transition hover:bg-[#EAF3D1] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3AFF]/35 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70"
+        onClick={onCopy}
+        type="button"
+      >
+        <Copy className="h-3 w-3" />
+        {t.copyRuntimeEvidence}
+      </button>
     </div>
   );
 }
 
 function ForwardingRuleIdentity({
+  agents,
   language,
   rule,
   t
 }: {
+  agents: Agent[];
   language: AppLanguage;
   rule: ForwardingRuleView;
   t: (typeof copy)['zh' | 'en'];
@@ -2737,7 +2763,14 @@ function ForwardingRuleIdentity({
         </p>
       ) : null}
       <ForwardingRuntimeDiagnosisStrip diagnosis={diagnosis} ruleName={rule.name} t={t} />
-      <ForwardingRuntimeEvidenceCard language={language} rule={rule} t={t} />
+      <ForwardingRuntimeEvidenceCard
+        language={language}
+        onCopy={() => {
+          void copyToClipboard(createForwardingRuntimeEvidenceText(rule, diagnosis, agents, t));
+        }}
+        rule={rule}
+        t={t}
+      />
     </div>
   );
 }

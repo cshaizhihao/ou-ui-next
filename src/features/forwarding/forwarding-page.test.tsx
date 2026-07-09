@@ -891,6 +891,39 @@ describe('ForwardingPage', () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('ou-forward-forward-apply-failed-agent-hkg-01.service'));
   });
 
+  it('copies runtime evidence context for ready forwarding rules', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn();
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    });
+
+    render(
+      <ForwardingPage
+        agents={[createAgent('agent-hkg-01', 'HKG Entry')]}
+        language="en"
+        rules={[createRule()]}
+        onCreateForwarding={vi.fn()}
+        onDeleteForwarding={vi.fn()}
+        onRunTask={vi.fn()}
+      />
+    );
+
+    const row = getForwardingRuleRow('HKG HTTPS Forward');
+
+    await user.click(within(row).getByRole('button', { name: 'Copy Runtime Evidence' }));
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Forwarding Runtime Evidence: HKG HTTPS Forward'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('State: Ready'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Port Status: allocated'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('HKG Entry 0.0.0.0:443/tcp+udp -> 10.0.0.10:8443 [allocated]'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('ou-forward-forward-hkg-443-agent-hkg-01.service'));
+  });
+
   it('auto-allocates a high listen port and shows a copyable entry endpoint when the port is omitted', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn();
