@@ -11,13 +11,17 @@ const {
 } = require('./production-smoke.cjs');
 
 const defaultCredentialsFile = '/etc/ou-ui-next/credentials.env';
-const defaultTimeoutMs = 15_000;
+const defaultTimeoutMs = 45_000;
 const defaultWaitMs = 180_000;
 const defaultPollIntervalMs = 3_000;
 const defaultPortMin = 42_000;
 const defaultPortMax = 48_999;
 const defaultSnapshotRetryAttempts = 3;
 const defaultSnapshotRetryDelayMs = 1_000;
+const defaultSmokeClientTtlDays = 7;
+const defaultSmokeClientTtlMs = defaultSmokeClientTtlDays * 24 * 60 * 60 * 1000;
+const activeRuntimeTaskStatuses = new Set(['queued', 'running', 'retrying']);
+const blockingOutboxStatuses = new Set(['pending', 'leased', 'acknowledged']);
 const transientSnapshotHttpStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 function parseBoolean(value) {
@@ -140,6 +144,11 @@ function parseArgs(argv) {
 
     if (arg === '--skip-cleanup') {
       options.cleanup = false;
+      continue;
+    }
+
+    if (arg === '--allow-dirty-smoke-state') {
+      options.allowDirtySmokeState = true;
       continue;
     }
 
@@ -300,6 +309,10 @@ function resolveXrayApplySmokeConfig(env = process.env, argv = process.argv.slic
       args.cleanup === undefined
         ? parseBooleanDefaultTrue(env.OU_UI_XRAY_SMOKE_CLEANUP)
         : Boolean(args.cleanup),
+    allowDirtySmokeState:
+      args.allowDirtySmokeState === undefined
+        ? parseBoolean(env.OU_UI_XRAY_SMOKE_ALLOW_DIRTY_STATE)
+        : Boolean(args.allowDirtySmokeState),
     reportPath: args.reportPath ?? env.OU_UI_XRAY_SMOKE_REPORT_PATH
   };
 }
@@ -316,6 +329,64 @@ function hasCapability(item, capability) {
   return readArray(item?.capabilities).includes(capability);
 }
 
+function findRuntimeService(agent, moduleKind) {
+  return readArray(agent?.telemetry?.runtimeServices).find((service) => service?.moduleKind === moduleKind);
+}
+
+function isRuntimeServiceActive(agent, moduleKind) {
+  const service = findRuntimeService(agent, moduleKind);
+  return service?.status === 'active';
+}
+
+function isXrayAgentRuntimeApplyEligible(agent) {
+  if (!agent || !hasCapability(agent, 'xray')) {
+    return false;
+  }
+
+  if (agent?.telemetry?.runtimeDisabledByPolicy === true || agent?.telemetry?.hostExpired === true) {
+    return false;
+  }
+
+  if (agent.status === 'online') {
+    return true;
+  }
+
+  return (
+    agent.status === 'degraded' &&
+    isRuntimeServiceActive(agent, 'agent') &&
+    isRuntimeServiceActive(agent, 'xray')
+  );
+}
+
+function describeXrayAgentRuntimeApplyEligibility(agent) {
+  if (!agent) {
+    return 'missing';
+  }
+
+  if (!hasCapability(agent, 'xray')) {
+    return 'missing xray capability';
+  }
+
+  if (agent?.telemetry?.runtimeDisabledByPolicy === true || agent?.telemetry?.hostExpired === true) {
+    return `runtime disabled by policy (${agent?.telemetry?.guardrailReason ?? 'policy'})`;
+  }
+
+  if (isXrayAgentRuntimeApplyEligible(agent)) {
+    return agent.status === 'degraded'
+      ? 'degraded but command channel and Xray service are apply-eligible'
+      : 'online';
+  }
+
+  const agentService = findRuntimeService(agent, 'agent');
+  const xrayService = findRuntimeService(agent, 'xray');
+  const serviceSummary = [
+    agentService ? `agent service ${agentService.status}` : undefined,
+    xrayService ? `xray service ${xrayService.status}` : undefined
+  ].filter(Boolean).join(', ');
+
+  return `${agent.status ?? 'unknown'}${serviceSummary ? `; ${serviceSummary}` : ''}`;
+}
+
 function selectXrayAgent(snapshot, preferredAgentId) {
   const agents = readArray(snapshot?.agents);
   const xrayAgents = agents.filter((agent) => hasCapability(agent, 'xray'));
@@ -327,17 +398,28 @@ function selectXrayAgent(snapshot, preferredAgentId) {
       throw new Error(`Agent ${preferredAgentId} is missing or does not advertise xray capability.`);
     }
 
-    if (agent.status !== 'online') {
-      throw new Error(`Agent ${preferredAgentId} is not online; current status is ${agent.status ?? 'unknown'}.`);
+    if (!isXrayAgentRuntimeApplyEligible(agent)) {
+      throw new Error(
+        `Agent ${preferredAgentId} is not Xray apply-eligible; ${describeXrayAgentRuntimeApplyEligibility(agent)}.`
+      );
     }
 
     return agent;
   }
 
-  const onlineAgent = xrayAgents.find((agent) => agent?.status === 'online');
+  const onlineAgent = xrayAgents.find((agent) => agent?.status === 'online' && isXrayAgentRuntimeApplyEligible(agent));
 
   if (!onlineAgent) {
-    throw new Error('No online Agent with xray capability is available.');
+    const degradedEligibleAgent = xrayAgents.find(isXrayAgentRuntimeApplyEligible);
+
+    if (degradedEligibleAgent) {
+      return degradedEligibleAgent;
+    }
+
+    const summaries = xrayAgents.map((agent) => `${agent?.id ?? 'unknown'}: ${describeXrayAgentRuntimeApplyEligibility(agent)}`);
+    throw new Error(
+      `No Xray apply-eligible Agent is available.${summaries.length > 0 ? ` Candidates: ${summaries.join(' | ')}` : ''}`
+    );
   }
 
   return onlineAgent;
@@ -426,6 +508,140 @@ function allocateXrayListenPort(snapshot, agentId, options = {}) {
   throw new Error(`No free Xray smoke listen port in ${min}-${max} for Agent ${agentId}.`);
 }
 
+function isInboundRuntimeOperation(task) {
+  return typeof task?.operation === 'string' && task.operation.startsWith('inbound.');
+}
+
+function readTaskAgentId(task) {
+  return readObject(task?.metadata).agentId;
+}
+
+function isBlockingRuntimeTask(task, agentId) {
+  return (
+    isInboundRuntimeOperation(task) &&
+    task?.resourceType === 'inbound' &&
+    readTaskAgentId(task) === agentId &&
+    activeRuntimeTaskStatuses.has(task?.status)
+  );
+}
+
+function isBlockingCommandOutboxItem(item, agentId, activeTaskIds) {
+  return item?.agentId === agentId && activeTaskIds.has(item?.taskId) && blockingOutboxStatuses.has(item?.status);
+}
+
+function isXraySmokeInbound(inbound, targetPrefix = 'xray-live-smoke') {
+  const id = String(inbound?.id ?? '');
+  const label = String(inbound?.label ?? inbound?.targetLabel ?? '');
+  const subscriptionRule = String(inbound?.subscriptionRule ?? '');
+  const clients = readArray(inbound?.clients);
+
+  return (
+    id.startsWith(`${targetPrefix}-`) ||
+    id.startsWith('xray-live-smoke-') ||
+    label.startsWith('Xray Live Smoke') ||
+    subscriptionRule === 'runtime-smoke' ||
+    clients.some((client) => String(client?.subscriptionRule ?? '') === 'runtime-smoke')
+  );
+}
+
+function summarizeBlockingRuntimeTask(task) {
+  const metadata = readObject(task?.metadata);
+
+  return {
+    id: task?.id,
+    status: task?.status,
+    operation: task?.operation,
+    targetId: task?.targetId,
+    listenPort: metadata.listenPort,
+    summary: task?.summary,
+    failureReason: task?.failureReason
+  };
+}
+
+function summarizeSmokeInbound(inbound) {
+  return {
+    id: inbound?.id,
+    label: inbound?.label,
+    listenPort: inbound?.listenPort,
+    status: inbound?.status,
+    clientCount: readArray(inbound?.clients).length
+  };
+}
+
+function collectXraySmokeStateIssues(snapshot, agentId, options = {}) {
+  const targetPrefix = options.targetPrefix ?? 'xray-live-smoke';
+  const blockingTasks = readArray(snapshot?.tasks).filter((task) => isBlockingRuntimeTask(task, agentId));
+  const activeTaskIds = new Set(blockingTasks.map((task) => task?.id).filter(Boolean));
+  const blockingCommands = readArray(snapshot?.commandOutbox).filter((item) =>
+    isBlockingCommandOutboxItem(item, agentId, activeTaskIds)
+  );
+  const smokeInbounds = readArray(snapshot?.inbounds).filter(
+    (inbound) => inbound?.agentId === agentId && isXraySmokeInbound(inbound, targetPrefix)
+  );
+
+  return {
+    blockingTasks: blockingTasks.map(summarizeBlockingRuntimeTask),
+    blockingCommands: blockingCommands.map((item) => ({
+      taskId: item?.taskId,
+      commandId: item?.commandId,
+      status: item?.status,
+      attempts: item?.attempts,
+      updatedAt: item?.updatedAt
+    })),
+    smokeInbounds: smokeInbounds.map(summarizeSmokeInbound)
+  };
+}
+
+function formatXraySmokeStateIssues(issues) {
+  const sections = [];
+
+  if (issues.blockingTasks.length > 0) {
+    sections.push(
+      `active runtime tasks=${issues.blockingTasks
+        .slice(0, 8)
+        .map((task) => `${task.id}:${task.status}:${task.operation}:${task.listenPort ?? 'no-port'}`)
+        .join(', ')}`
+    );
+  }
+
+  if (issues.blockingCommands.length > 0) {
+    sections.push(
+      `active command outbox=${issues.blockingCommands
+        .slice(0, 8)
+        .map((item) => `${item.commandId}:${item.status}`)
+        .join(', ')}`
+    );
+  }
+
+  if (issues.smokeInbounds.length > 0) {
+    sections.push(
+      `existing smoke inbounds=${issues.smokeInbounds
+        .slice(0, 8)
+        .map((inbound) => `${inbound.id}:${inbound.listenPort ?? 'no-port'}:${inbound.status ?? 'unknown'}`)
+        .join(', ')}`
+    );
+  }
+
+  return sections.join(' | ');
+}
+
+function hasXraySmokeStateBlockers(issues) {
+  return issues.blockingTasks.length > 0 || issues.blockingCommands.length > 0 || issues.smokeInbounds.length > 0;
+}
+
+function assertCleanXraySmokeState(snapshot, agentId, options = {}) {
+  const issues = collectXraySmokeStateIssues(snapshot, agentId, options);
+
+  if (options.allowDirtySmokeState || !hasXraySmokeStateBlockers(issues)) {
+    return issues;
+  }
+
+  throw new Error(
+    `Xray smoke state is dirty for Agent ${agentId}; ${formatXraySmokeStateIssues(issues)}. ` +
+      'Clean up stale xray-live-smoke inbounds or rerun with --allow-dirty-smoke-state only for manual diagnosis.'
+  );
+}
+
 function createTargetSlug(prefix, listenPort) {
   return `${prefix}-${listenPort}-${randomUUID().slice(0, 8)}`.toLowerCase();
 }
@@ -436,7 +652,7 @@ function buildXrayInboundTaskInput(options) {
   const clientIdentity = options.clientIdentity ?? `smoke-${options.listenPort}-${randomUUID().slice(0, 8)}`;
   const clientEmail = options.clientEmail ?? `${clientIdentity}@example.test`;
   const expiresAt =
-    options.expiresAt ?? new Date((options.nowMs ?? Date.now()) + 24 * 60 * 60 * 1000).toISOString();
+    options.expiresAt ?? new Date((options.nowMs ?? Date.now()) + defaultSmokeClientTtlMs).toISOString();
 
   return {
     operation: 'inbound.create',
@@ -463,7 +679,7 @@ function buildXrayInboundTaskInput(options) {
       trafficMultiplier: 1,
       trafficLimitGb: 1,
       currentUsedTrafficGb: 0,
-      remainingDays: 1,
+      remainingDays: options.remainingDays ?? defaultSmokeClientTtlDays,
       expiresAt,
       subscriptionRule: 'runtime-smoke',
       enabled: true,
@@ -477,7 +693,7 @@ function buildXrayInboundTaskInput(options) {
           trafficMultiplier: 1,
           trafficLimitGb: 1,
           currentUsedTrafficGb: 0,
-          remainingDays: 1,
+          remainingDays: options.remainingDays ?? defaultSmokeClientTtlDays,
           expiresAt,
           subscriptionRule: 'runtime-smoke',
           enabled: true
@@ -652,20 +868,28 @@ function assertEnvelopeData(label, payload) {
 }
 
 async function requestJson(config, context, method, endpointPath, options = {}) {
-  const response = await fetchWithTimeout(
-    buildEndpointUrl(config.baseUrl, endpointPath),
-    {
-      method,
-      headers: {
-        Accept: 'application/json',
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(context.cookieHeader ? { Cookie: context.cookieHeader } : {}),
-        ...(options.headers ?? {})
+  let response;
+
+  try {
+    response = await fetchWithTimeout(
+      buildEndpointUrl(config.baseUrl, endpointPath),
+      {
+        method,
+        headers: {
+          Accept: 'application/json',
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(context.cookieHeader ? { Cookie: context.cookieHeader } : {}),
+          ...(options.headers ?? {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
       },
-      body: options.body ? JSON.stringify(options.body) : undefined
-    },
-    config.timeoutMs
-  );
+      config.timeoutMs
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${method} ${endpointPath} failed: ${message}`);
+  }
+
   const payload = await readResponsePayload(response);
 
   return { response, payload };
@@ -1312,6 +1536,15 @@ async function runXrayApplySmoke(config) {
 
     const initialSnapshot = await readSnapshot(config, context);
     const agent = selectXrayAgent(initialSnapshot, config.agentId);
+    const smokeStateIssues = assertCleanXraySmokeState(initialSnapshot, agent.id, {
+      allowDirtySmokeState: config.allowDirtySmokeState,
+      targetPrefix: config.targetPrefix
+    });
+
+    if (config.allowDirtySmokeState && hasXraySmokeStateBlockers(smokeStateIssues)) {
+      process.stdout.write(`WARN xray smoke dirty state ignored: ${formatXraySmokeStateIssues(smokeStateIssues)}\n`);
+    }
+
     const listenPort = allocateXrayListenPort(initialSnapshot, agent.id, {
       listenPort: config.listenPort,
       portMin: config.portMin,
@@ -1557,7 +1790,7 @@ Usage:
 Options:
   --base-url <url>             Panel base URL
   --credentials-file <path>    Read OU_UI_CONTROL_PLANE_OPERATOR_USERNAME/PASSWORD
-  --agent-id <id>              Require a specific online Agent with xray capability
+  --agent-id <id>              Require a specific Xray apply-eligible Agent
   --listen-port <port>         Use an explicit test Xray listen port
   --port-min <port>            Auto-allocation range start, default ${defaultPortMin}
   --port-max <port>            Auto-allocation range end, default ${defaultPortMax}
@@ -1567,6 +1800,7 @@ Options:
   --skip-client-actions        Disable client action phases when enabled by env
   --cleanup                    Delete the smoke inbound after verification, default on
   --skip-cleanup               Leave the smoke inbound in place for manual inspection
+  --allow-dirty-smoke-state    Continue when stale smoke inbounds or active Xray runtime tasks exist
   --timeout-ms <ms>            Per-request timeout, default ${defaultTimeoutMs}
   --wait-ms <ms>               Total Agent evidence wait, default ${defaultWaitMs}
   --poll-interval-ms <ms>      Snapshot polling interval, default ${defaultPollIntervalMs}
@@ -1597,11 +1831,13 @@ if (require.main === module) {
 
 module.exports = {
   allocateXrayListenPort,
+  assertCleanXraySmokeState,
   buildXrayClientAddActionRequest,
   buildXrayClientDeleteActionRequest,
   buildXrayInboundDeleteTaskInput,
   buildXrayInboundTaskInput,
   buildXrayInboundUpdateTaskInput,
+  collectXraySmokeStateIssues,
   collectReservedXrayPorts,
   createXraySmokeReport,
   createXrayClientActionTask,
@@ -1609,6 +1845,10 @@ module.exports = {
   createXrayApplyFailureDetails,
   createXraySmokeFailureDetails,
   extractXrayApplyEvidence,
+  formatXraySmokeStateIssues,
+  describeXrayAgentRuntimeApplyEligibility,
+  hasXraySmokeStateBlockers,
+  isXrayAgentRuntimeApplyEligible,
   isRetriableSnapshotReadError,
   parseArgs,
   resolveXrayApplySmokeConfig,

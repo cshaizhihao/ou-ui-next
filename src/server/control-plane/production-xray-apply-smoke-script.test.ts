@@ -86,6 +86,7 @@ type XrayApplySmokeScript = {
     baseUrl: URL;
     username: string;
     password: string;
+    timeoutMs: number;
     agentId?: string;
     listenPort?: number;
     portMin: number;
@@ -95,10 +96,37 @@ type XrayApplySmokeScript = {
     snapshotRetryAttempts: number;
     snapshotRetryDelayMs: number;
     cleanup: boolean;
+    allowDirtySmokeState: boolean;
     serverAddress: string;
     reportPath?: string;
   };
+  assertCleanXraySmokeState(
+    snapshot: Record<string, unknown>,
+    agentId: string,
+    options?: { allowDirtySmokeState?: boolean; targetPrefix?: string }
+  ): Record<string, unknown>;
+  collectXraySmokeStateIssues(
+    snapshot: Record<string, unknown>,
+    agentId: string,
+    options?: { targetPrefix?: string }
+  ): {
+    blockingTasks: Record<string, unknown>[];
+    blockingCommands: Record<string, unknown>[];
+    smokeInbounds: Record<string, unknown>[];
+  };
+  formatXraySmokeStateIssues(issues: {
+    blockingTasks: Record<string, unknown>[];
+    blockingCommands: Record<string, unknown>[];
+    smokeInbounds: Record<string, unknown>[];
+  }): string;
+  hasXraySmokeStateBlockers(issues: {
+    blockingTasks: Record<string, unknown>[];
+    blockingCommands: Record<string, unknown>[];
+    smokeInbounds: Record<string, unknown>[];
+  }): boolean;
   isRetriableSnapshotReadError(error: unknown): boolean;
+  isXrayAgentRuntimeApplyEligible(agent: Record<string, unknown>): boolean;
+  describeXrayAgentRuntimeApplyEligibility(agent: Record<string, unknown>): string;
   selectXrayAgent(snapshot: Record<string, unknown>, preferredAgentId?: string): Record<string, unknown>;
   summarizeXrayApplyEvidence(evidence: Record<string, unknown>): Record<string, unknown>;
   summarizeXrayReadModelState(snapshot: Record<string, unknown>, targetId: string): Record<string, unknown>;
@@ -601,15 +629,17 @@ describe('production Xray apply smoke script helpers', () => {
         OU_UI_XRAY_SMOKE_PORT_MIN: '42000',
         OU_UI_XRAY_SMOKE_PORT_MAX: '42100',
         OU_UI_XRAY_SMOKE_CLIENT_ACTIONS: 'true',
+        OU_UI_XRAY_SMOKE_ALLOW_DIRTY_STATE: 'false',
         OU_UI_XRAY_SMOKE_CLEANUP: 'false'
       },
-      ['--server-address', 'edge.example.com', '--report', '/tmp/xray-smoke.json', '--cleanup']
+      ['--server-address', 'edge.example.com', '--report', '/tmp/xray-smoke.json', '--cleanup', '--allow-dirty-smoke-state']
     );
 
     expect(config.baseUrl.toString()).toBe('https://panel.example/secure/');
     expect(config).toMatchObject({
       username: 'operator_001',
       password: 'operator-password',
+      timeoutMs: 45_000,
       agentId: 'agent-hkg-01',
       listenPort: 42424,
       waitMs: 120_000,
@@ -621,6 +651,7 @@ describe('production Xray apply smoke script helpers', () => {
       serverAddress: 'edge.example.com',
       clientActions: true,
       cleanup: true,
+      allowDirtySmokeState: true,
       reportPath: '/tmp/xray-smoke.json'
     });
     expect(
@@ -636,6 +667,7 @@ describe('production Xray apply smoke script helpers', () => {
         '--snapshot-retry-delay-ms',
         '250',
         '--client-actions',
+        '--allow-dirty-smoke-state',
         '--skip-cleanup'
       ])
     ).toMatchObject({
@@ -645,6 +677,7 @@ describe('production Xray apply smoke script helpers', () => {
       snapshotRetryAttempts: '5',
       snapshotRetryDelayMs: '250',
       clientActions: true,
+      allowDirtySmokeState: true,
       cleanup: false
     });
   });
@@ -659,6 +692,9 @@ describe('production Xray apply smoke script helpers', () => {
       true
     );
     expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('Request timed out after 45000ms.'))).toBe(true);
+    expect(
+      xraySmokeScript.isRetriableSnapshotReadError(new Error('GET /api/v1/snapshot failed: Request timed out after 45000ms.'))
+    ).toBe(true);
     expect(xraySmokeScript.isRetriableSnapshotReadError(new SyntaxError('Unexpected end of JSON input'))).toBe(true);
     expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('snapshot HTTP 401; expected 200 (unauthorized).'))).toBe(
       false
@@ -666,7 +702,7 @@ describe('production Xray apply smoke script helpers', () => {
     expect(xraySmokeScript.isRetriableSnapshotReadError(new Error('task status is failed'))).toBe(false);
   });
 
-  it('selects an online Xray Agent and allocates an unused listen port from runtime evidence', () => {
+  it('selects an Xray apply-eligible Agent and allocates an unused listen port from runtime evidence', () => {
     const snapshot = createVerifiedSnapshot();
 
     expect(xraySmokeScript.selectXrayAgent(snapshot)).toMatchObject({
@@ -707,7 +743,139 @@ describe('production Xray apply smoke script helpers', () => {
     expect(() =>
       xraySmokeScript.allocateXrayListenPort(snapshot, 'agent-hkg-01', { listenPort: 42000 })
     ).toThrow('already reserved');
-    expect(() => xraySmokeScript.selectXrayAgent(snapshot, 'agent-fra-01')).toThrow('not online');
+    expect(() => xraySmokeScript.selectXrayAgent(snapshot, 'agent-fra-01')).toThrow('not Xray apply-eligible');
+  });
+
+  it('blocks live Xray smoke when stale smoke state or active runtime commands would pollute evidence', () => {
+    const snapshot = {
+      agents: [
+        {
+          id: 'agent-hkg-01',
+          status: 'online',
+          capabilities: ['host-agent', 'xray']
+        }
+      ],
+      inbounds: [
+        {
+          id: 'xray-live-smoke-42003-stale',
+          agentId: 'agent-hkg-01',
+          label: 'Xray Live Smoke 42003',
+          listenPort: 42003,
+          status: 'enabled',
+          clients: [
+            {
+              id: 'client-stale',
+              subscriptionRule: 'runtime-smoke'
+            }
+          ]
+        }
+      ],
+      tasks: [
+        {
+          id: 'task-active-runtime',
+          status: 'queued',
+          operation: 'inbound.update',
+          resourceType: 'inbound',
+          targetId: 'xray-live-smoke-42004-active',
+          metadata: {
+            agentId: 'agent-hkg-01',
+            listenPort: 42004
+          }
+        }
+      ],
+      commandOutbox: [
+        {
+          taskId: 'task-active-runtime',
+          commandId: 'cmd-task-active-runtime',
+          agentId: 'agent-hkg-01',
+          status: 'pending',
+          attempts: 0
+        }
+      ]
+    };
+
+    const issues = xraySmokeScript.collectXraySmokeStateIssues(snapshot, 'agent-hkg-01');
+
+    expect(issues.blockingTasks).toHaveLength(1);
+    expect(issues.blockingCommands).toHaveLength(1);
+    expect(issues.smokeInbounds).toHaveLength(1);
+    expect(xraySmokeScript.hasXraySmokeStateBlockers(issues)).toBe(true);
+    expect(xraySmokeScript.formatXraySmokeStateIssues(issues)).toContain('task-active-runtime:queued');
+    expect(() => xraySmokeScript.assertCleanXraySmokeState(snapshot, 'agent-hkg-01')).toThrow('Xray smoke state is dirty');
+    expect(
+      xraySmokeScript.assertCleanXraySmokeState(snapshot, 'agent-hkg-01', {
+        allowDirtySmokeState: true
+      })
+    ).toMatchObject({
+      blockingTasks: [expect.objectContaining({ id: 'task-active-runtime' })],
+      smokeInbounds: [expect.objectContaining({ id: 'xray-live-smoke-42003-stale' })]
+    });
+  });
+
+  it('accepts a degraded Xray Agent only when command channel and Xray services are active', () => {
+    const degradedAgent = {
+      id: 'agent-degraded-01',
+      status: 'degraded',
+      capabilities: ['host-agent', 'xray'],
+      telemetry: {
+        sampleGapDetected: true,
+        runtimeServices: [
+          {
+            name: 'ou-ui-agent.service',
+            moduleKind: 'agent',
+            status: 'active',
+            required: true
+          },
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'active',
+            required: true
+          }
+        ]
+      }
+    };
+    const failedXrayAgent = {
+      ...degradedAgent,
+      id: 'agent-degraded-failed-xray',
+      telemetry: {
+        runtimeServices: [
+          {
+            name: 'ou-ui-agent.service',
+            moduleKind: 'agent',
+            status: 'active',
+            required: true
+          },
+          {
+            name: 'ou-ui-xray.service',
+            moduleKind: 'xray',
+            status: 'failed',
+            required: true
+          }
+        ]
+      }
+    };
+
+    expect(xraySmokeScript.isXrayAgentRuntimeApplyEligible(degradedAgent)).toBe(true);
+    expect(xraySmokeScript.describeXrayAgentRuntimeApplyEligibility(degradedAgent)).toContain('apply-eligible');
+    expect(
+      xraySmokeScript.selectXrayAgent({
+        agents: [degradedAgent],
+        inbounds: [],
+        tasks: []
+      })
+    ).toMatchObject({
+      id: 'agent-degraded-01',
+      status: 'degraded'
+    });
+    expect(xraySmokeScript.isXrayAgentRuntimeApplyEligible(failedXrayAgent)).toBe(false);
+    expect(() =>
+      xraySmokeScript.selectXrayAgent({
+        agents: [failedXrayAgent],
+        inbounds: [],
+        tasks: []
+      })
+    ).toThrow('xray service failed');
   });
 
   it('builds a real inbound.create task while keeping reports free of client credentials', () => {
@@ -738,6 +906,28 @@ describe('production Xray apply smoke script helpers', () => {
             clientIdentity: 'smoke-client',
             clientCredential: '11111111-1111-4111-8111-111111111111',
             enabled: true
+          })
+        ]
+      })
+    });
+  });
+
+  it('defaults live smoke clients to a multi-day TTL so failed runs do not auto-disable the next day', () => {
+    const taskInput = xraySmokeScript.buildXrayInboundTaskInput({
+      agentId: 'agent-hkg-01',
+      listenPort: 42003,
+      serverAddress: 'edge.example.com',
+      nowMs: Date.parse('2026-07-07T00:00:00.000Z')
+    });
+
+    expect(taskInput).toMatchObject({
+      metadata: expect.objectContaining({
+        remainingDays: 7,
+        expiresAt: '2026-07-14T00:00:00.000Z',
+        clients: [
+          expect.objectContaining({
+            remainingDays: 7,
+            expiresAt: '2026-07-14T00:00:00.000Z'
           })
         ]
       })

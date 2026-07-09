@@ -4378,6 +4378,66 @@ describe('NodesPage', () => {
     expect(within(readiness).getByText('command + preflight + snapshot')).toBeInTheDocument();
   });
 
+  it('allows customer-node save when a degraded Xray Agent still has active command and Xray services', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <NodesPage
+        agents={[
+          {
+            ...createAgent(),
+            status: 'degraded',
+            telemetry: {
+              ...createAgent().telemetry,
+              sampleGapDetected: true,
+              sampleGapSeconds: 246,
+              sampleGapReason: 'stale_telemetry_sample',
+              runtimeServices: [
+                {
+                  name: 'ou-ui-agent.service',
+                  moduleKind: 'agent',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                },
+                {
+                  name: 'ou-ui-xray.service',
+                  moduleKind: 'xray',
+                  status: 'active',
+                  enabled: true,
+                  required: true,
+                  checkedAt: '2026-06-04T04:00:00.000Z'
+                }
+              ]
+            }
+          }
+        ]}
+        inbounds={[]}
+        language="en"
+        workspaceMode="customerNodes"
+        onDeleteCustomerNode={vi.fn()}
+        onDeleteHost={vi.fn()}
+        onDeployHostConfig={vi.fn()}
+        onPreviewAgentInstallCommand={vi.fn()}
+        onSaveCustomerNode={vi.fn()}
+        onSaveHostConfig={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add Customer Node' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Customer Node' });
+    const savePreflight = within(dialog).getByRole('group', { name: 'Save Preflight' });
+    const readiness = within(dialog).getByRole('group', { name: 'Runtime Readiness' });
+
+    expect(savePreflight).toHaveAttribute('data-customer-runtime-preflight-summary-state', 'ready');
+    expect(readiness).toHaveAttribute('data-customer-runtime-readiness-state', 'ready');
+    expect(within(readiness).getByText(/command channel and Xray service are available/)).toBeInTheDocument();
+    expect(within(readiness).getByText('Degraded')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Save' })).not.toBeDisabled();
+  });
+
   it('blocks customer-node save when the selected Agent listener is owned by another Xray protocol', async () => {
     const user = userEvent.setup();
     const onSaveCustomerNode = vi.fn();

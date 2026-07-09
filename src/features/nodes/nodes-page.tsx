@@ -822,7 +822,8 @@ const copy = {
     customerRuntimeListenerGate: '监听端口',
     customerRuntimeSecurityGate: '安全材料',
     customerRuntimeEvidenceGate: '应用证据',
-    customerRuntimeAgentReady: (name: string) => `${name} 在线且声明 xray 能力。`,
+    customerRuntimeAgentReady: (name: string) => `${name} 可执行 Xray apply，并声明 xray 能力。`,
+    customerRuntimeAgentDegradedReady: (name: string, status: string) => `${name} 当前为 ${status}，但命令通道与 Xray 服务可用；保存会继续下发，并保留遥测告警。`,
     customerRuntimeAgentWaiting: (name: string, status: string) => `${name} 当前为 ${status}，保存后需要等待 Agent 恢复后才会产生完整证据。`,
     customerRuntimeAgentMissing: '请选择具备 xray 能力的 Agent。',
     customerRuntimeAgentUnsupported: (name: string) => `${name} 未声明 xray 能力，不能应用 Xray 入站任务。`,
@@ -1377,7 +1378,8 @@ const copy = {
     customerRuntimeListenerGate: 'Listener Binding',
     customerRuntimeSecurityGate: 'Security Material',
     customerRuntimeEvidenceGate: 'Runtime Evidence',
-    customerRuntimeAgentReady: (name: string) => `${name} is online and advertises xray.`,
+    customerRuntimeAgentReady: (name: string) => `${name} is Xray apply-eligible and advertises xray.`,
+    customerRuntimeAgentDegradedReady: (name: string, status: string) => `${name} is ${status}, but the command channel and Xray service are available; saving will still dispatch and keep the telemetry warning visible.`,
     customerRuntimeAgentWaiting: (name: string, status: string) => `${name} is ${status}; full evidence waits until the Agent recovers.`,
     customerRuntimeAgentMissing: 'Select an Agent that advertises xray before saving.',
     customerRuntimeAgentUnsupported: (name: string) => `${name} does not advertise xray and cannot apply Xray inbound tasks.`,
@@ -1820,6 +1822,31 @@ function agentSupportsXrayRuntime(agent: Agent) {
   return agent.capabilities.includes('xray');
 }
 
+function isAgentRuntimeServiceActive(agent: Agent, moduleKind: 'agent' | 'xray') {
+  const service = (agent.telemetry.runtimeServices ?? []).find((item) => item.moduleKind === moduleKind);
+  return service?.status === 'active';
+}
+
+function isAgentXrayApplyEligible(agent: Agent) {
+  if (!agentSupportsXrayRuntime(agent)) {
+    return false;
+  }
+
+  if (agent.telemetry.runtimeDisabledByPolicy === true || agent.telemetry.hostExpired === true) {
+    return false;
+  }
+
+  if (agent.status === 'online') {
+    return true;
+  }
+
+  return (
+    agent.status === 'degraded' &&
+    isAgentRuntimeServiceActive(agent, 'agent') &&
+    isAgentRuntimeServiceActive(agent, 'xray')
+  );
+}
+
 function createCustomerRuntimeReadiness({
   draft,
   editingNodeId,
@@ -1839,6 +1866,7 @@ function createCustomerRuntimeReadiness({
 }): CustomerRuntimeReadiness {
   const agentName = selectedAgentLabel || selectedAgent?.name || draft.agentId || '-';
   const selectedAgentSupportsXray = selectedAgent ? agentSupportsXrayRuntime(selectedAgent) : false;
+  const selectedAgentXrayApplyEligible = selectedAgent ? isAgentXrayApplyEligible(selectedAgent) : false;
   const agentItem: CustomerRuntimeReadinessItem = !selectedAgent
     ? {
         id: 'agent',
@@ -1859,7 +1887,7 @@ function createCustomerRuntimeReadiness({
           tone: 'blocked',
           value: selectedAgent.capabilities.join(', ') || '-'
         }
-      : selectedAgent.status !== 'online'
+      : !selectedAgentXrayApplyEligible
         ? {
             id: 'agent',
             detail: t.customerRuntimeAgentWaiting(agentName, t.statusLabels[selectedAgent.status]),
@@ -1871,11 +1899,14 @@ function createCustomerRuntimeReadiness({
           }
         : {
             id: 'agent',
-            detail: t.customerRuntimeAgentReady(agentName),
+            detail:
+              selectedAgent.status === 'degraded'
+                ? t.customerRuntimeAgentDegradedReady(agentName, t.statusLabels[selectedAgent.status])
+                : t.customerRuntimeAgentReady(agentName),
             icon: ServerCog,
             label: t.customerRuntimeAgentGate,
             state: 'ready',
-            tone: 'healthy',
+            tone: selectedAgent.status === 'degraded' ? 'command' : 'healthy',
             value: t.statusLabels[selectedAgent.status]
           };
 

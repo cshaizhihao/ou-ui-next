@@ -6,6 +6,9 @@ coverage/
 .env.local
 .env.production.local
 .vite/
+.cache/
+.tmp/
+.npm-cache/
 playwright-report/
 test-results/
 .worktrees/
