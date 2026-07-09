@@ -2703,6 +2703,15 @@ describe('NodesPage', () => {
 
   it('shows inbound clients in a drawer and submits per-client typed actions', async () => {
     const user = userEvent.setup();
+    const writeText = vi.fn(async (value: string) => {
+      void value;
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText
+      }
+    });
     const onApplyCustomerNodeClientAction = vi.fn(async (input: CustomerNodeClientActionMutation) => ({
       accepted: true,
       actionKind: input.action.kind,
@@ -2854,6 +2863,39 @@ describe('NodesPage', () => {
           })
         ]}
         workspaceMode="customerNodes"
+        subscriptionClients={[
+          {
+            id: 'sub-client-alice',
+            customerName: 'Alice',
+            ruleName: 'Alice subscription',
+            displayName: 'Alice subscription',
+            subId: 'premium-hk:client-alice',
+            email: 'alice@example.com',
+            enabled: true,
+            protocol: 'vless',
+            group: 'agent-metered-01',
+            trafficLimitBytes: 100 * GB,
+            usedTrafficBytes: 12 * GB,
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            ipLimit: 2,
+            requestLimitPerHour: 360,
+            sourceIds: [],
+            selectedTags: [],
+            includeFilter: '',
+            excludeFilter: '',
+            regionFilter: [],
+            routingRule: 'premium-hk:client-alice',
+            maxLatencyMs: 0,
+            sortStrategy: 'latency',
+            formats: ['plain', 'json', 'clash', 'mihomo', 'sing-box'],
+            outputFormats: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash'],
+            templateName: 'mihomo-compatible.yaml',
+            accessTokenPreview: 'ou_alicepreview',
+            securePathPreview: '/alice-secure-path',
+            generatedNodeCount: 1,
+            lastGeneratedAt: '2026-06-04T04:05:00.000Z'
+          }
+        ]}
         onApplyCustomerNodeClientAction={onApplyCustomerNodeClientAction}
         onDeleteCustomerNode={vi.fn()}
         onDeleteHost={vi.fn()}
@@ -2873,6 +2915,37 @@ describe('NodesPage', () => {
     expect(within(dialog).getByText('Subscription Generated')).toBeInTheDocument();
     expect(within(dialog).getByText('Task task-subscription-alice')).toBeInTheDocument();
     expect(within(dialog).getByText('No Subscription Task')).toBeInTheDocument();
+    expect(within(dialog).getByText('Identity Bound')).toBeInTheDocument();
+    expect(within(dialog).getByText('Preview Binding')).toBeInTheDocument();
+    expect(within(dialog).getByText('sub-client-alice')).toBeInTheDocument();
+    expect(within(dialog).getByText('/alice-secure-path')).toBeInTheDocument();
+    expect(within(dialog).getByText(/\/portal\/alice-secure-path\/premium-hk%3Aclient-alice/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getAllByRole('button', { name: 'Copy Delivery Links' })[0]);
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Clash:'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/sub/alice-secure-path/clash/premium-hk%3Aclient-alice'));
+
+    await user.click(within(dialog).getAllByRole('button', { name: 'Copy Delivery Diagnostics' })[0]);
+    const copiedDiagnostics = JSON.parse(writeText.mock.calls.at(-1)?.[0] ?? '{}');
+    expect(copiedDiagnostics).toMatchObject({
+      schemaVersion: 'ou-ui-next.customer-client-delivery-diagnostics.v1',
+      client: {
+        id: 'client-alice',
+        email: 'alice@example.com'
+      },
+      delivery: {
+        status: 'bound',
+        subscriptionClientId: 'sub-client-alice',
+        subId: 'premium-hk:client-alice',
+        securePathPreview: '/alice-secure-path'
+      },
+      subscriptionEvidence: {
+        state: 'generated',
+        taskId: 'task-subscription-alice'
+      }
+    });
+    expect(JSON.stringify(copiedDiagnostics)).not.toContain('password');
+    expect(JSON.stringify(copiedDiagnostics)).not.toContain('secret');
 
     await user.click(within(dialog).getAllByRole('button', { name: 'Disable Client' })[1]);
 

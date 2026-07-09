@@ -67,6 +67,7 @@ import {
 } from '../../domain/xray-port-allocation';
 import { cn } from '../../lib/cn';
 import { copyText } from '../../lib/copy';
+import type { SubscriptionClientIdentity } from '../../domain/subscription';
 import { formatBytes, formatDateTime, formatNumber, formatPercent } from '../shared/format';
 import {
   createCustomerNodeClientActionUpdate,
@@ -85,6 +86,10 @@ import {
 import type { CommandOutboxSummary } from '../../services/api/control-plane-api';
 import { SimpleNodeTableActions } from './simple-node-table-actions';
 import { SimpleNodeWizard } from './simple-node-wizard';
+import {
+  createCustomerNodeAllSubscriptionText,
+  createCustomerNodeClientSubscriptionMetadata
+} from './customer-node-subscription-binding';
 
 type Workspace = 'hosts' | 'customerNodes';
 type WorkspaceMode = Workspace | 'all';
@@ -104,6 +109,7 @@ type NodesPageProps = {
   language: AppLanguage;
   nodes?: ManagedNode[];
   quotaPolicies?: QuotaPolicy[];
+  subscriptionClients?: SubscriptionClientIdentity[];
   tasks?: DeployTask[];
   commandOutbox?: CommandOutboxSummary[];
   configRevisions?: RuntimeConfigRevision[];
@@ -501,6 +507,14 @@ type CustomerClientActionRuntimeEvidence = {
   steps: CustomerClientActionEvidenceStep[];
   diagnosticPackage: CustomerClientActionDiagnosticPackage;
 };
+type CustomerClientDeliveryStatus = 'bound' | 'preview' | 'blocked';
+type CustomerClientDeliveryBundle = {
+  status: CustomerClientDeliveryStatus;
+  metadata: ReturnType<typeof createCustomerNodeClientSubscriptionMetadata>;
+  existingSubscriptionClient?: SubscriptionClientIdentity;
+  blockedReasons: string[];
+  portalUrl: string;
+};
 
 type CustomerRuntimeReadinessState = 'ready' | 'waiting' | 'blocked';
 type CustomerRuntimeReadinessTone = 'healthy' | 'command' | 'waiting' | 'blocked';
@@ -730,6 +744,23 @@ const copy = {
     customerClientSubscriptionPending: '订阅任务进行中',
     customerClientSubscriptionFailed: '订阅任务失败',
     customerClientSubscriptionMissing: '未找到订阅任务',
+    customerClientDelivery: '订阅交付',
+    customerClientDeliveryBound: '身份已绑定',
+    customerClientDeliveryPreview: '可生成身份',
+    customerClientDeliveryBlocked: '交付需处理',
+    customerClientDeliverySubId: 'Sub ID',
+    customerClientDeliveryIdentity: '订阅身份',
+    customerClientDeliverySecurePath: '安全路径',
+    customerClientDeliveryFormats: '输出格式',
+    customerClientDeliveryPortal: '客户门户',
+    customerClientDeliveryCopyLinks: '复制全部订阅链接',
+    customerClientDeliveryCopyDiagnostics: '复制交付诊断',
+    customerClientDeliveryReasons: (reasons: string) => `原因：${reasons}`,
+    customerClientDeliveryReasonClientDisabled: '客户端停用',
+    customerClientDeliveryReasonQuotaExceeded: '流量超限',
+    customerClientDeliveryReasonExpired: '已到期',
+    customerClientDeliveryReasonPolicyDisabled: '运行时策略禁用',
+    customerClientDeliveryReasonSubscriptionDisabled: '订阅身份停用',
     customerClientEvidenceTask: (taskId: string) => `任务 ${taskId}`,
     customerNodeSaveFeedbackRegion: '客户节点保存反馈',
     customerNodeSaveCreateAction: '新增节点',
@@ -1268,6 +1299,23 @@ const copy = {
     customerClientSubscriptionPending: 'Subscription Task Running',
     customerClientSubscriptionFailed: 'Subscription Task Failed',
     customerClientSubscriptionMissing: 'No Subscription Task',
+    customerClientDelivery: 'Subscription Delivery',
+    customerClientDeliveryBound: 'Identity Bound',
+    customerClientDeliveryPreview: 'Preview Binding',
+    customerClientDeliveryBlocked: 'Needs Attention',
+    customerClientDeliverySubId: 'Sub ID',
+    customerClientDeliveryIdentity: 'Subscription Identity',
+    customerClientDeliverySecurePath: 'Secure Path',
+    customerClientDeliveryFormats: 'Output Formats',
+    customerClientDeliveryPortal: 'Customer Portal',
+    customerClientDeliveryCopyLinks: 'Copy Delivery Links',
+    customerClientDeliveryCopyDiagnostics: 'Copy Delivery Diagnostics',
+    customerClientDeliveryReasons: (reasons: string) => `Reasons: ${reasons}`,
+    customerClientDeliveryReasonClientDisabled: 'Client disabled',
+    customerClientDeliveryReasonQuotaExceeded: 'Quota exceeded',
+    customerClientDeliveryReasonExpired: 'Expired',
+    customerClientDeliveryReasonPolicyDisabled: 'Runtime policy disabled',
+    customerClientDeliveryReasonSubscriptionDisabled: 'Subscription identity disabled',
     customerClientEvidenceTask: (taskId: string) => `Task ${taskId}`,
     customerNodeSaveFeedbackRegion: 'Customer Node Save Feedback',
     customerNodeSaveCreateAction: 'Create Node',
@@ -3841,6 +3889,79 @@ function CustomerClientSubscriptionEvidenceRow({
   );
 }
 
+function CustomerClientDeliveryPanel({
+  client,
+  delivery,
+  inbound,
+  subscriptionEvidence,
+  t
+}: {
+  client: XrayClient;
+  delivery: CustomerClientDeliveryBundle;
+  inbound: RuntimeXrayInbound;
+  subscriptionEvidence: CustomerClientSubscriptionEvidence;
+  t: NodesCopy;
+}) {
+  const statusLabel = {
+    bound: t.customerClientDeliveryBound,
+    preview: t.customerClientDeliveryPreview,
+    blocked: t.customerClientDeliveryBlocked
+  } satisfies Record<CustomerClientDeliveryStatus, string>;
+  const statusClass = {
+    bound: 'border-[#00A878]/35 bg-[#00A878]/10 text-[#007D5E] dark:border-[#35E68E]/25 dark:bg-[#35E68E]/10 dark:text-[#9EF4C4]',
+    preview: 'border-[#1E3AFF]/28 bg-[#DCE1FF]/44 text-[#1E3AFF] dark:border-[#6B7CFF]/25 dark:bg-[#6B7CFF]/10 dark:text-[#DCE1FF]',
+    blocked: 'border-[#DC2626]/40 bg-[#DC2626]/10 text-[#B91C1C] dark:border-[#F87171]/25 dark:bg-[#DC2626]/14 dark:text-[#FCA5A5]'
+  } satisfies Record<CustomerClientDeliveryStatus, string>;
+  const diagnostics = createCustomerClientDeliveryDiagnostics({
+    inbound,
+    client,
+    delivery,
+    subscriptionEvidence
+  });
+
+  return (
+    <div
+      aria-label={`${t.customerClientDelivery} · ${client.email || client.id}`}
+      className="border border-[#07111F]/14 bg-white/55 p-3 dark:border-[#6B7CFF]/16 dark:bg-white/[0.025]"
+      data-customer-client-delivery-state={delivery.status}
+      role="region"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[#35405A] dark:text-white/55">
+          {t.customerClientDelivery}
+        </p>
+        <span className={cn('border px-2 py-1 text-[10px] font-black uppercase', statusClass[delivery.status])}>
+          {statusLabel[delivery.status]}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+        <CompactInfoField label={t.customerClientDeliveryIdentity} value={delivery.metadata.subscriptionClientId} />
+        <CompactInfoField label={t.customerClientDeliverySubId} value={delivery.metadata.subId} />
+        <CompactInfoField label={t.customerClientDeliveryFormats} value={delivery.metadata.outputFormats.join(' · ')} />
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+        <CompactInfoField label={t.customerClientDeliverySecurePath} value={delivery.metadata.securePathPreview} />
+        <CompactInfoField label={t.customerClientDeliveryPortal} value={delivery.portalUrl} />
+      </div>
+      {delivery.blockedReasons.length > 0 ? (
+        <p className="mt-2 border border-[#DC2626]/22 bg-[#DC2626]/8 px-2.5 py-2 text-[11px] font-bold text-[#B91C1C] dark:border-[#F87171]/22 dark:bg-[#DC2626]/12 dark:text-[#FCA5A5]">
+          {t.customerClientDeliveryReasons(delivery.blockedReasons.join(' · '))}
+        </p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <GhostButton
+          label={t.customerClientDeliveryCopyLinks}
+          onClick={() => copyText(createCustomerNodeAllSubscriptionText(delivery.metadata))}
+        />
+        <GhostButton
+          label={t.customerClientDeliveryCopyDiagnostics}
+          onClick={() => copyText(JSON.stringify(diagnostics, null, 2))}
+        />
+      </div>
+    </div>
+  );
+}
+
 function CustomerNodeSaveFeedbackBar({
   feedback,
   runtimeEvidence,
@@ -4799,6 +4920,170 @@ function resolveCustomerClientSubscriptionEvidence(
   };
 }
 
+function findCustomerClientSubscriptionIdentity(input: {
+  subscriptionClients: SubscriptionClientIdentity[];
+  inbound: RuntimeXrayInbound;
+  client: XrayClient;
+  fallbackMetadata: ReturnType<typeof createCustomerNodeClientSubscriptionMetadata>;
+}) {
+  const fallbackId = normalizeCustomerClientEvidenceKey(input.fallbackMetadata.subscriptionClientId);
+  const fallbackSubId = normalizeCustomerClientEvidenceKey(input.fallbackMetadata.subId);
+  const clientSubId = normalizeCustomerClientEvidenceKey(input.client.subId);
+  const clientEmail = normalizeCustomerClientEvidenceKey(input.client.email);
+  const protocol = normalizeCustomerClientEvidenceKey(input.inbound.protocol);
+  const expectedGroups = new Set(
+    [
+      input.fallbackMetadata.group,
+      input.inbound.agentId,
+      input.inbound.nodeId
+    ].map(normalizeCustomerClientEvidenceKey).filter(Boolean)
+  );
+
+  return input.subscriptionClients.find((subscriptionClient) => {
+    const subscriptionId = normalizeCustomerClientEvidenceKey(subscriptionClient.id);
+    const subscriptionSubId = normalizeCustomerClientEvidenceKey(subscriptionClient.subId);
+    const subscriptionEmail = normalizeCustomerClientEvidenceKey(subscriptionClient.email);
+    const subscriptionProtocol = normalizeCustomerClientEvidenceKey(subscriptionClient.protocol);
+    const subscriptionGroup = normalizeCustomerClientEvidenceKey(subscriptionClient.group);
+
+    if (fallbackId && subscriptionId === fallbackId) {
+      return true;
+    }
+
+    if (fallbackSubId && subscriptionSubId === fallbackSubId) {
+      return true;
+    }
+
+    if (clientSubId && subscriptionSubId === clientSubId) {
+      return true;
+    }
+
+    return (
+      clientEmail !== '' &&
+      subscriptionEmail === clientEmail &&
+      subscriptionProtocol === protocol &&
+      expectedGroups.has(subscriptionGroup)
+    );
+  });
+}
+
+function createCustomerClientDeliveryBundle(input: {
+  inbound: RuntimeXrayInbound;
+  client: XrayClient;
+  publicBaseUrl: string;
+  subscriptionClients: SubscriptionClientIdentity[];
+  t: NodesCopy;
+}): CustomerClientDeliveryBundle {
+  const fallbackMetadata = createCustomerNodeClientSubscriptionMetadata({
+    inbound: input.inbound,
+    client: input.client,
+    publicBaseUrl: input.publicBaseUrl
+  });
+  const existingSubscriptionClient = findCustomerClientSubscriptionIdentity({
+    subscriptionClients: input.subscriptionClients,
+    inbound: input.inbound,
+    client: input.client,
+    fallbackMetadata
+  });
+  const metadata = createCustomerNodeClientSubscriptionMetadata({
+    inbound: input.inbound,
+    client: input.client,
+    publicBaseUrl: input.publicBaseUrl,
+    existingSubscriptionClient
+  });
+  const blockedReasons = [
+    input.client.enabled === false ? input.t.customerClientDeliveryReasonClientDisabled : undefined,
+    input.client.quotaExceeded === true ? input.t.customerClientDeliveryReasonQuotaExceeded : undefined,
+    input.client.clientExpired === true ? input.t.customerClientDeliveryReasonExpired : undefined,
+    input.client.runtimeDisabledByPolicy === true ? input.t.customerClientDeliveryReasonPolicyDisabled : undefined,
+    existingSubscriptionClient?.enabled === false ? input.t.customerClientDeliveryReasonSubscriptionDisabled : undefined
+  ].filter(Boolean) as string[];
+  const portalUrl = `${input.publicBaseUrl}/portal${metadata.securePathPreview}/${encodeURIComponent(metadata.subId)}`;
+
+  return {
+    status: blockedReasons.length > 0 ? 'blocked' : existingSubscriptionClient ? 'bound' : 'preview',
+    metadata,
+    existingSubscriptionClient,
+    blockedReasons,
+    portalUrl
+  };
+}
+
+function createCustomerClientDeliveryDiagnostics(input: {
+  inbound: RuntimeXrayInbound;
+  client: XrayClient;
+  delivery: CustomerClientDeliveryBundle;
+  subscriptionEvidence: CustomerClientSubscriptionEvidence;
+}) {
+  const usedTrafficBytes = input.client.manualUsedTrafficBytes ?? input.client.usedTrafficBytes ?? 0;
+  const subscriptionUrlPreview = input.delivery.metadata.subscriptionUrlPreview;
+
+  return {
+    schemaVersion: 'ou-ui-next.customer-client-delivery-diagnostics.v1',
+    createdAt: new Date().toISOString(),
+    inbound: {
+      id: input.inbound.id,
+      label: input.inbound.label,
+      agentId: input.inbound.agentId,
+      nodeId: input.inbound.nodeId,
+      protocol: input.inbound.protocol,
+      listenPort: input.inbound.listenPort,
+      serverAddress: input.inbound.serverAddress
+    },
+    client: {
+      id: input.client.id,
+      email: input.client.email,
+      enabled: input.client.enabled,
+      subId: input.client.subId,
+      expiresAt: input.client.expiresAt,
+      ipLimit: input.client.ipLimit,
+      trafficLimitBytes: input.client.trafficLimitBytes,
+      usedTrafficBytes,
+      quotaExceeded: input.client.quotaExceeded,
+      clientExpired: input.client.clientExpired,
+      runtimeDisabledByPolicy: input.client.runtimeDisabledByPolicy,
+      guardrailReason: input.client.guardrailReason
+    },
+    delivery: {
+      status: input.delivery.status,
+      blockedReasons: input.delivery.blockedReasons,
+      portalUrl: input.delivery.portalUrl,
+      subscriptionClientId: input.delivery.metadata.subscriptionClientId,
+      subId: input.delivery.metadata.subId,
+      securePathPreview: input.delivery.metadata.securePathPreview,
+      outputFormats: input.delivery.metadata.outputFormats,
+      subscriptionUrlPreview: {
+        uri: subscriptionUrlPreview.uri,
+        v2ray: subscriptionUrlPreview.v2ray,
+        clash: subscriptionUrlPreview.clash,
+        mihomo: subscriptionUrlPreview.mihomo,
+        'sing-box': subscriptionUrlPreview['sing-box'],
+        shadowrocket: subscriptionUrlPreview.shadowrocket,
+        stash: subscriptionUrlPreview.stash
+      },
+      existingSubscriptionClient: input.delivery.existingSubscriptionClient
+        ? {
+            id: input.delivery.existingSubscriptionClient.id,
+            subId: input.delivery.existingSubscriptionClient.subId,
+            email: input.delivery.existingSubscriptionClient.email,
+            enabled: input.delivery.existingSubscriptionClient.enabled,
+            generatedNodeCount: input.delivery.existingSubscriptionClient.generatedNodeCount,
+            lastGeneratedAt: input.delivery.existingSubscriptionClient.lastGeneratedAt,
+            quotaExceeded: input.delivery.existingSubscriptionClient.quotaExceeded,
+            runtimeDisabledByPolicy: input.delivery.existingSubscriptionClient.runtimeDisabledByPolicy,
+            guardrailReason: input.delivery.existingSubscriptionClient.guardrailReason
+          }
+        : undefined
+    },
+    subscriptionEvidence: {
+      state: input.subscriptionEvidence.state,
+      taskId: input.subscriptionEvidence.task?.id,
+      operation: input.subscriptionEvidence.task?.operation,
+      status: input.subscriptionEvidence.task?.status
+    }
+  };
+}
+
 function createCustomerNodeMetadataFromRecord(node: CustomerNodeRecord): CustomerNodeConfigMetadata {
   return {
     nodeId: node.id,
@@ -5732,6 +6017,7 @@ export function NodesPage({
   language,
   nodes = [],
   quotaPolicies = [],
+  subscriptionClients = [],
   tasks = [],
   commandOutbox = [],
   configRevisions = [],
@@ -8680,6 +8966,13 @@ export function NodesPage({
                     const usedTrafficBytes = Math.max(client.manualUsedTrafficBytes ?? client.usedTrafficBytes ?? 0, 0);
                     const trafficLimitBytes = Math.max(client.trafficLimitBytes ?? 0, 0);
                     const subscriptionEvidence = resolveCustomerClientSubscriptionEvidence(customerClientsInbound, client, tasks);
+                    const delivery = createCustomerClientDeliveryBundle({
+                      inbound: customerClientsInbound,
+                      client,
+                      publicBaseUrl: createBrowserPublicBaseUrl(),
+                      subscriptionClients,
+                      t
+                    });
                     const disabledByPolicy =
                       client.runtimeDisabledByPolicy === true || client.quotaExceeded === true || client.clientExpired === true;
                     const runtimeState = !client.enabled
@@ -8711,6 +9004,15 @@ export function NodesPage({
                         </div>
                         <div className="mt-3">
                           <CustomerClientSubscriptionEvidenceRow evidence={subscriptionEvidence} t={t} />
+                        </div>
+                        <div className="mt-3">
+                          <CustomerClientDeliveryPanel
+                            client={client}
+                            delivery={delivery}
+                            inbound={customerClientsInbound}
+                            subscriptionEvidence={subscriptionEvidence}
+                            t={t}
+                          />
                         </div>
                         <div className="mt-3 flex flex-wrap justify-end gap-2">
                           <GhostButton label={t.copyCustomerClientLink} onClick={() => copyCustomerClientLink(customerClientsInbound, client)} />

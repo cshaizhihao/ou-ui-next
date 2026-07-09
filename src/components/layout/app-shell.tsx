@@ -3256,6 +3256,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             nodes={nodes}
             quotaPolicies={quotaPolicies}
+            subscriptionClients={subscriptionClients}
             tasks={tasks}
             commandOutbox={commandOutbox}
             configRevisions={configRevisions}
@@ -3287,6 +3288,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             nodes={nodes}
             quotaPolicies={quotaPolicies}
+            subscriptionClients={subscriptionClients}
             tasks={tasks}
             commandOutbox={commandOutbox}
             configRevisions={configRevisions}
