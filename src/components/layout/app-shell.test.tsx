@@ -438,7 +438,7 @@ describe('AppShell', () => {
     expect(screen.getByRole('region', { name: '控制面状态中心' })).toBeInTheDocument();
     expect(screen.getByText('Agent 在线')).toBeInTheDocument();
     expect(screen.getByText('Runtime Apply')).toBeInTheDocument();
-    expect(screen.getByText('失败任务')).toBeInTheDocument();
+    expect(screen.getAllByText('失败任务')[0]).toBeInTheDocument();
     expect(screen.getByText('配额风险')).toBeInTheDocument();
     expect(screen.queryByText('安装 Agent、查看遥测并应用运行时配置')).not.toBeInTheDocument();
     expect(screen.queryByText('创建客户节点、复制分享链接并重置流量')).not.toBeInTheDocument();

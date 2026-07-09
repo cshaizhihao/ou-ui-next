@@ -1148,6 +1148,11 @@ const shellCopy = {
     taskQueued: '执行记录已创建',
     taskQueuedDeferred: '执行记录已创建，刷新延后执行',
     taskMutationFailed: '变更提交失败',
+    taskFeedbackLabel: '操作反馈',
+    taskFeedbackPending: '提交中',
+    taskFeedbackSucceeded: '已入队',
+    taskFeedbackFailed: '失败',
+    taskFeedbackEvidenceHint: '后续状态以任务、Agent result、preflight 和 runtime snapshot 证据为准。',
     permissionDeniedHint: '当前账号没有执行此变更的权限。请在服务器运行 ou d 检查安装状态；如果是刚安装后看到旧数据，运行 ou r 重置控制面状态。',
     unauthorizedHint: '控制面认证未通过。请使用 ou c 查看最新面板地址、账号和密码，并确认没有直接访问后端端口。',
     taskNotFound: (taskId: string) => `未找到执行记录：${taskId}`,
@@ -1236,6 +1241,11 @@ const shellCopy = {
     taskQueued: 'Execution record created',
     taskQueuedDeferred: 'Execution record created; refresh deferred',
     taskMutationFailed: 'Change submission failed',
+    taskFeedbackLabel: 'Operation feedback',
+    taskFeedbackPending: 'Submitting',
+    taskFeedbackSucceeded: 'Queued',
+    taskFeedbackFailed: 'Failed',
+    taskFeedbackEvidenceHint: 'Follow task, Agent result, preflight, and runtime snapshot evidence for the final state.',
     permissionDeniedHint: 'The current operator is not allowed to run this change. Run ou d on the server to inspect the installation, or ou r if stale first-install data is visible.',
     unauthorizedHint: 'Control-plane authentication failed. Run ou c for the current panel URL and credentials, and avoid opening the backend port directly.',
     taskNotFound: (taskId: string) => `Execution record not found: ${taskId}`,
@@ -3609,19 +3619,36 @@ export function AppShell({ ready }: AppShellProps) {
           <div className="relative min-h-0 flex-1 overflow-y-auto p-8 max-md:px-3 max-md:pb-28 max-md:pt-3">
             {taskMutationState.status !== 'idle' ? (
               <div
+                aria-label={t.taskFeedbackLabel}
+                aria-live="polite"
+                data-task-mutation-feedback={taskMutationState.status}
                 role={taskMutationState.status === 'failed' ? 'alert' : 'status'}
                 className={
                   taskMutationState.status === 'failed'
-                    ? 'ou-tone-danger mb-4 border p-3 text-xs font-semibold shadow-[var(--ou-shadow-interactive)]'
-                    : 'surface-muted mb-4 border p-3 text-xs font-semibold text-[var(--ou-text-muted)] shadow-[var(--ou-shadow-interactive)]'
+                    ? 'ou-task-feedback ou-tone-danger mb-4 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 border p-3 text-xs font-semibold shadow-[var(--ou-shadow-interactive)]'
+                    : taskMutationState.status === 'pending'
+                      ? 'ou-task-feedback ou-tone-warning mb-4 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 border p-3 text-xs font-semibold shadow-[var(--ou-shadow-interactive)]'
+                      : 'ou-task-feedback ou-tone-success mb-4 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 border p-3 text-xs font-semibold shadow-[var(--ou-shadow-interactive)]'
                 }
               >
-                <span className="font-mono uppercase tracking-widest">
-                  {taskMutationState.status === 'failed' ? t.taskMutationFailed : taskMutationState.message}
+                <span className="ou-task-feedback-dot mt-1 h-2.5 w-2.5 rounded-full bg-current" />
+                <span className="min-w-0">
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="font-mono text-[10px] font-black uppercase tracking-[0.16em]">
+                      {taskMutationState.status === 'failed'
+                        ? t.taskFeedbackFailed
+                        : taskMutationState.status === 'pending'
+                          ? t.taskFeedbackPending
+                          : t.taskFeedbackSucceeded}
+                    </span>
+                    <span className="truncate text-[var(--ou-text)]">
+                      {taskMutationState.status === 'failed' ? taskMutationState.message ?? t.taskMutationFailed : taskMutationState.message}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--ou-text-muted)]">
+                    {t.taskFeedbackEvidenceHint}
+                  </span>
                 </span>
-                {taskMutationState.status === 'failed' && taskMutationState.message ? (
-                  <span className="ml-2">{taskMutationState.message}</span>
-                ) : null}
               </div>
             ) : null}
             <AppShellWorkspaceChrome

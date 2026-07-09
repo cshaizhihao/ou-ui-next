@@ -1,4 +1,4 @@
-import { Activity, Archive, Network, RadioTower } from 'lucide-react';
+import { Activity, AlertTriangle, Archive, Clock3, Network, RadioTower } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
 import { GlassCard } from '../../components/ui/glass-card';
@@ -163,6 +163,36 @@ const copy = {
     auditAlertRegion: '审计与告警',
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
+    operatorTriageTitle: '运维分诊',
+    operatorTriageSubtitle: '按风险、等待证据和交付面影响排序。',
+    triageOpenEvidence: '查看证据',
+    triageOpenHosts: '管理主机',
+    triageOpenForwarding: '检查转发',
+    triageNoAction: '当前无操作',
+    triageItems: {
+      failedTasks: '失败任务',
+      runtimeChanges: '运行中变更',
+      agentCoverage: 'Agent 覆盖',
+      nodeHealth: '节点健康',
+      forwarding: '端口转发',
+      subscriptionDelivery: '订阅交付'
+    },
+    triageMeta: {
+      failedTasks: (count: string) => `${count} 条需要恢复`,
+      runtimeChanges: (count: string) => `${count} 条等待 Agent evidence`,
+      agentCoverage: (online: string, total: string) => `${online}/${total} 在线`,
+      nodeHealth: (healthy: string, total: string) => `${healthy}/${total} 健康`,
+      forwarding: (active: string, total: string) => `${active}/${total} 启用`,
+      subscriptionDelivery: (count: string) => `${count} 个订阅包`
+    },
+    triageStateLabels: {
+      ready: '正常',
+      waiting: '等待',
+      attention: '注意',
+      blocked: '阻断'
+    },
+    triageEmptyTitle: '控制面暂无对象',
+    triageEmptyDescription: '先接入 Agent，再创建客户节点、转发规则或订阅交付。'
   },
   en: {
     cards: {
@@ -281,10 +311,51 @@ const copy = {
     auditAlertRegion: 'Audit & Alerts',
     controlPlaneOverviewAria: 'Master Control Plane Overview',
     controlPlaneLabel: 'Master Control Plane',
+    operatorTriageTitle: 'Operator Triage',
+    operatorTriageSubtitle: 'Sorted by risk, waiting evidence, and delivery impact.',
+    triageOpenEvidence: 'Review Evidence',
+    triageOpenHosts: 'Manage Hosts',
+    triageOpenForwarding: 'Inspect Forwarding',
+    triageNoAction: 'No action',
+    triageItems: {
+      failedTasks: 'Failed Tasks',
+      runtimeChanges: 'Running Changes',
+      agentCoverage: 'Agent Coverage',
+      nodeHealth: 'Node Health',
+      forwarding: 'Forwarding',
+      subscriptionDelivery: 'Subscription Delivery'
+    },
+    triageMeta: {
+      failedTasks: (count: string) => `${count} need recovery`,
+      runtimeChanges: (count: string) => `${count} waiting for Agent evidence`,
+      agentCoverage: (online: string, total: string) => `${online}/${total} online`,
+      nodeHealth: (healthy: string, total: string) => `${healthy}/${total} healthy`,
+      forwarding: (active: string, total: string) => `${active}/${total} enabled`,
+      subscriptionDelivery: (count: string) => `${count} bundles`
+    },
+    triageStateLabels: {
+      ready: 'Ready',
+      waiting: 'Waiting',
+      attention: 'Attention',
+      blocked: 'Blocked'
+    },
+    triageEmptyTitle: 'No control-plane objects yet',
+    triageEmptyDescription: 'Enroll an Agent, then create customer nodes, forwarding rules, or subscription delivery.'
   }
 } as const;
 type DashboardCopy = (typeof copy)[AppLanguage];
 type ConnectivityStageState = 'ready' | 'issues' | 'waiting';
+type OperatorTriageState = 'ready' | 'waiting' | 'attention' | 'blocked';
+type OperatorTriageItem = {
+  id: string;
+  label: string;
+  value: string;
+  meta: string;
+  state: OperatorTriageState;
+  icon: typeof AlertTriangle;
+  actionLabel?: string;
+  onAction?: () => void;
+};
 type ConnectivityStage = {
   id: 'host' | 'mounted-host' | 'node';
   cx: number;
@@ -341,16 +412,23 @@ const dashboardToneClasses = {
 export function DashboardPage({
   agents,
   nodes,
+  tasks = [],
+  systemAlerts = [],
   forwardingRules,
   subscriptions,
   language,
+  onOpenForwardingWorkspace,
   onOpenHostWorkspace,
+  onOpenReleaseEvidenceWorkspace,
   onRefresh
 }: DashboardPageProps) {
   const t = copy[language];
   const onlineAgents = agents.filter((agent) => agent.status === 'online').length;
   const healthyNodes = nodes.filter((node) => node.status === 'healthy').length;
   const activeForwarding = forwardingRules.filter((rule) => rule.enabled).length;
+  const failedTasks = tasks.filter((task) => task.status === 'failed').length;
+  const runningTasks = tasks.filter((task) => task.status === 'queued' || task.status === 'running' || task.status === 'retrying').length;
+  const activeAlerts = systemAlerts.filter((alert) => alert.status === 'active').length;
   const mountedHostCount = countMountedForwardingHosts(forwardingRules);
   const visibleHostProbes = agents.slice(0, 3);
   const connectivityActive = agents.length > 0 || nodes.length > 0 || activeForwarding > 0;
@@ -417,6 +495,23 @@ export function DashboardPage({
       tone: 'danger'
     }
   ];
+  const triageItems: OperatorTriageItem[] = createOperatorTriageItems({
+    activeAlerts,
+    activeForwarding,
+    agentsTotal: agents.length,
+    failedTasks,
+    healthyNodes,
+    language,
+    nodesTotal: nodes.length,
+    onlineAgents,
+    runningTasks,
+    subscriptionsTotal: subscriptions.length,
+    totalForwarding: forwardingRules.length,
+    t,
+    onOpenForwardingWorkspace,
+    onOpenHostWorkspace,
+    onOpenReleaseEvidenceWorkspace
+  });
 
   return (
     <ResponsivePage className="dashboard-cockpit dashboard-control-plane overflow-hidden max-md:overflow-visible">
@@ -551,6 +646,8 @@ export function DashboardPage({
         </section>
 
         <section aria-label={t.operationsRailRegion} className="grid min-w-0 gap-3">
+          <OperatorTriagePanel items={triageItems} language={language} t={t} />
+
           <section aria-label={t.hostTelemetryRegion} className="min-w-0">
             <GlassCard className="dashboard-control-plane-hosts flex min-h-0 flex-col overflow-hidden border-[var(--ou-border)] bg-[var(--ou-surface)] p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -576,6 +673,174 @@ export function DashboardPage({
         </section>
       </ResponsiveSection>
     </ResponsivePage>
+  );
+}
+
+function createOperatorTriageItems({
+  activeAlerts,
+  activeForwarding,
+  agentsTotal,
+  failedTasks,
+  healthyNodes,
+  language,
+  nodesTotal,
+  onlineAgents,
+  runningTasks,
+  subscriptionsTotal,
+  totalForwarding,
+  t,
+  onOpenForwardingWorkspace,
+  onOpenHostWorkspace,
+  onOpenReleaseEvidenceWorkspace
+}: {
+  activeAlerts: number;
+  activeForwarding: number;
+  agentsTotal: number;
+  failedTasks: number;
+  healthyNodes: number;
+  language: AppLanguage;
+  nodesTotal: number;
+  onlineAgents: number;
+  runningTasks: number;
+  subscriptionsTotal: number;
+  totalForwarding: number;
+  t: DashboardCopy;
+  onOpenForwardingWorkspace?: () => void;
+  onOpenHostWorkspace?: () => void;
+  onOpenReleaseEvidenceWorkspace?: () => void;
+}): OperatorTriageItem[] {
+  const number = (value: number) => formatNumber(value, language);
+  const hasAgentGap = agentsTotal === 0 || onlineAgents < agentsTotal;
+  const hasNodeGap = nodesTotal === 0 || healthyNodes < nodesTotal;
+
+  return [
+    {
+      id: 'failed-tasks',
+      icon: AlertTriangle,
+      label: t.triageItems.failedTasks,
+      value: number(failedTasks),
+      meta: t.triageMeta.failedTasks(number(failedTasks)),
+      state: failedTasks > 0 ? 'blocked' : activeAlerts > 0 ? 'attention' : 'ready',
+      actionLabel: t.triageOpenEvidence,
+      onAction: onOpenReleaseEvidenceWorkspace
+    },
+    {
+      id: 'runtime-changes',
+      icon: Clock3,
+      label: t.triageItems.runtimeChanges,
+      value: number(runningTasks),
+      meta: t.triageMeta.runtimeChanges(number(runningTasks)),
+      state: runningTasks > 0 ? 'waiting' : 'ready',
+      actionLabel: t.triageOpenEvidence,
+      onAction: onOpenReleaseEvidenceWorkspace
+    },
+    {
+      id: 'agent-coverage',
+      icon: Activity,
+      label: t.triageItems.agentCoverage,
+      value: `${onlineAgents}/${agentsTotal}`,
+      meta: t.triageMeta.agentCoverage(number(onlineAgents), number(agentsTotal)),
+      state: hasAgentGap ? 'attention' : 'ready',
+      actionLabel: t.triageOpenHosts,
+      onAction: onOpenHostWorkspace
+    },
+    {
+      id: 'node-health',
+      icon: RadioTower,
+      label: t.triageItems.nodeHealth,
+      value: `${healthyNodes}/${nodesTotal}`,
+      meta: t.triageMeta.nodeHealth(number(healthyNodes), number(nodesTotal)),
+      state: hasNodeGap ? 'attention' : 'ready',
+      actionLabel: t.triageOpenHosts,
+      onAction: onOpenHostWorkspace
+    },
+    {
+      id: 'forwarding',
+      icon: Network,
+      label: t.triageItems.forwarding,
+      value: `${activeForwarding}/${totalForwarding}`,
+      meta: t.triageMeta.forwarding(number(activeForwarding), number(totalForwarding)),
+      state: totalForwarding === 0 ? 'waiting' : activeForwarding < totalForwarding ? 'attention' : 'ready',
+      actionLabel: t.triageOpenForwarding,
+      onAction: onOpenForwardingWorkspace
+    },
+    {
+      id: 'subscription-delivery',
+      icon: Archive,
+      label: t.triageItems.subscriptionDelivery,
+      value: number(subscriptionsTotal),
+      meta: t.triageMeta.subscriptionDelivery(number(subscriptionsTotal)),
+      state: subscriptionsTotal === 0 ? 'waiting' : 'ready'
+    }
+  ];
+}
+
+function OperatorTriagePanel({ items, language, t }: { items: OperatorTriageItem[]; language: AppLanguage; t: DashboardCopy }) {
+  const hasAnyObject = items.some((item) => item.value !== '0' && item.value !== '0/0');
+
+  return (
+    <section aria-label={t.operatorTriageTitle} className="dashboard-operator-triage rounded-lg border border-[var(--ou-border)] bg-[var(--ou-surface)] p-3 shadow-[var(--ou-shadow)]">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold text-[var(--ou-text)]">{t.operatorTriageTitle}</h4>
+          <p className="mt-1 text-xs font-semibold leading-5 text-[var(--ou-text-muted)]">{t.operatorTriageSubtitle}</p>
+        </div>
+        <span className="ou-chip rounded-full border px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.14em]">
+          V2.1
+        </span>
+      </div>
+
+      {!hasAnyObject ? (
+        <div className="ou-empty-state rounded-lg border border-dashed border-[var(--ou-border)] bg-[var(--ou-surface-muted)] p-3">
+          <p className="text-sm font-semibold text-[var(--ou-text)]">{t.triageEmptyTitle}</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-[var(--ou-text-muted)]">{t.triageEmptyDescription}</p>
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          {items.map((item) => {
+            const Icon = item.icon;
+            const actionLabel = item.actionLabel ?? t.triageNoAction;
+
+            return (
+              <article
+                className="dashboard-triage-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-[var(--ou-border)] bg-[var(--ou-surface-subtle)] p-2.5"
+                data-triage-state={item.state}
+                key={item.id}
+              >
+                <span className="dashboard-triage-icon grid h-9 w-9 place-items-center rounded-md border" data-triage-state={item.state}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className="truncate text-xs font-semibold text-[var(--ou-text)]">{item.label}</p>
+                    <span className="dashboard-triage-state rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em]" data-triage-state={item.state}>
+                      {t.triageStateLabels[item.state]}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--ou-text-muted)]">
+                    {item.meta}
+                  </p>
+                </div>
+                <div className="flex min-w-0 flex-col items-end gap-1">
+                  <span className="font-mono text-base font-semibold leading-none text-[var(--ou-text)]">{item.value}</span>
+                  <button
+                    className="ou-mini-button min-h-8 rounded-md border px-2 text-[10px] font-bold text-[var(--ou-text)] disabled:cursor-not-allowed disabled:opacity-45"
+                    disabled={!item.onAction}
+                    onClick={item.onAction}
+                    type="button"
+                  >
+                    {actionLabel}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--ou-text-subtle)]">
+        {language === 'zh' ? '按真实 read model 派生，不使用演示状态' : 'Derived from live read models, no demo-only state'}
+      </p>
+    </section>
   );
 }
 

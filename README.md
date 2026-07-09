@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>V2.0.0</strong>
+  <strong>V2.1.0</strong>
   ·
   <a href="README.en.md">English</a>
   ·
@@ -26,7 +26,7 @@
 
 OU-UI Next 是一个生产导向的 Master / Agent 网关运维控制面板。它把浏览器面板、HTTP Control Plane、持久化状态、任务审计、Agent command channel、Xray runtime、Forwarding runtime 和 Subscription delivery 串成一个可验证的闭环。
 
-V2.0.0 的目标不是继续堆页面，而是把“看起来像面板”的原型推进到“操作员可以判断状态、执行变更、追踪证据、发现失败并恢复”的控制台。
+V2.0.0 立住了运行时闭环和能力边界。V2.1.0 继续把体验向“操作员每天能顺手使用”的方向推进：Dashboard 变成分诊入口，所有提交反馈都解释证据链，主要工作台的空状态更统一。
 
 当前版本的核心原则：
 
@@ -35,7 +35,7 @@ V2.0.0 的目标不是继续堆页面，而是把“看起来像面板”的原�
 - **Xray / Forwarding / Subscription 共享客户与配额语义**：到期、限额、禁用、流量倍率和订阅输出不能各说各话。
 - **UI 是运维工作台，不是静态展示页**：关键路径必须有状态、下一步动作、复制诊断包和可恢复路径。
 
-## V2.0.0 亮点
+## V2.1.0 亮点
 
 | 方向 | 变化 |
 | --- | --- |
@@ -43,8 +43,8 @@ V2.0.0 的目标不是继续堆页面，而是把“看起来像面板”的原�
 | Agent evidence | Xray create/update/delete/client-action 进入 command lifecycle、config revision、preflight、snapshot、Agent result 和 release evidence 链路 |
 | Forwarding / Tunnel | TCP/UDP/tcp+udp 转发、GOST/socat runtime、nftables 计数、端口冲突检查、计费流量 guardrail、规则级 runtime diagnosis |
 | Subscription | Clash/Mihomo、sing-box、Shadowrocket、Stash、v2ray/URI 输出；公开订阅、最小客户门户、QR、token hash gate、导入/转换诊断、交付包和删除审计包 |
-| UI / UX | 采用更清晰的信息架构、状态中心、contextual action、inline diagnostics、runtime evidence drawer 和可复制诊断包，减少“点了像成功”的假反馈 |
-| 发布准备 | `package.json` 已更新为 `2.0.0`，`V2.0.0` tag 已存在；README 与路线文档按已实现 / Preview / Roadmap 重新收口 |
+| UI / UX | V2.1.0 新增 Dashboard 运维分诊、全局 evidence-style 操作反馈条、统一空状态样式；继续保留状态中心、contextual action、inline diagnostics、runtime evidence drawer 和可复制诊断包 |
+| 发布准备 | `package.json` 已更新为 `2.1.0`；`V2.0.0` tag 是上一版运行时基线，V2.1.0 当前不自动创建 tag |
 
 ## 功能矩阵
 
@@ -123,7 +123,7 @@ npm test
 npm run build
 ```
 
-本仓库用于实时评审的 `4174` 面板可以用本地部署脚本重启。脚本默认使用 `diagnostics/local-deploy/control-plane.sqlite`，不会切到空内存库；默认账号密码为 `admin/admin`，需要修改时设置 `OU_UI_LOCAL_4174_USERNAME` 和 `OU_UI_LOCAL_4174_PASSWORD`。
+本仓库用于实时评审的 `4174` 面板可以用本地部署脚本重启。脚本默认使用 `diagnostics/local-deploy/control-plane.sqlite`，不会切到空内存库；默认账号密码为 `admin/admin`，需要修改时设置 `OU_UI_LOCAL_4174_USERNAME` 和 `OU_UI_LOCAL_4174_PASSWORD`。本地评审部署默认给 backend transient unit 设置 `CPUQuota=30%`，给 static proxy 设置 `CPUQuota=15%`，并在启动前按 scope 压缩历史 traffic rollup，只保留最近样本，避免长时间评审库把 VPS CPU 打满；该压缩只影响本地诊断流量历史，不会删除 Agent、节点、任务、订阅或转发配置。
 
 ```bash
 npm run build
@@ -265,6 +265,10 @@ Control Plane 负责保存意图、任务、审计链、read model 和 release e
 | `OU_UI_LOCAL_4174_USERNAME` | 本地 4174 部署的登录用户名 |
 | `OU_UI_LOCAL_4174_PASSWORD` | 本地 4174 部署的登录密码 |
 | `OU_UI_LOCAL_4174_PUBLIC_URL` | 4174 公网 smoke 使用的外部 URL |
+| `OU_UI_LOCAL_4174_BACKEND_CPU_QUOTA` | 本地 4174 backend systemd CPUQuota，默认 `30%` |
+| `OU_UI_LOCAL_4174_STATIC_CPU_QUOTA` | 本地 4174 static proxy CPUQuota，默认 `15%` |
+| `OU_UI_LOCAL_4174_COMPACT_ROLLUPS_ON_START` | 是否在启动前压缩本地评审 traffic rollup，默认 `true` |
+| `OU_UI_LOCAL_4174_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE` | 本地评审每个 scope 保留的 traffic rollup 数，默认 `200` |
 
 ## 部署与验收
 

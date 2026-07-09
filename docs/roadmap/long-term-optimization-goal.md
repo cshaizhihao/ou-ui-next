@@ -4,11 +4,11 @@ This document is the durable execution contract for the long-running OU-UI Next 
 
 ## Current Baseline
 
-The current baseline is `V2.0.0` on `main`.
+The current baseline is `V2.1.0` on `main`.
 
 Known completed V2.0.0 foundation work:
 
-- `package.json` version is `2.0.0`.
+- `package.json` reached `2.0.0` for the runtime-foundation release and is now `2.1.0` for the UI/UX operations-experience cut.
 - The main README was rewritten and keeps the existing logo at `src/assets/cat-logo.png`.
 - Xray runtime artifacts support `metadata.clients[]` and compile them into multi-client inbound settings, `clientPolicies[]`, and per-client share URIs.
 - The Agent runtime profile reader expands `clientPolicies[]` so telemetry and guardrail evaluation can run per client.
@@ -164,6 +164,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Round 12 adds pre-delete subscription audit evidence so destructive subscription identity removal has a copyable support/audit artifact before confirmation.
 - Round 13 rewrites the public README as a release-readable V2.0.0 capability boundary document, preserving the existing logo while separating implemented, Preview, Agent-blocked, and Roadmap features.
 - Round 14 closes the construction sequence with release-candidate hardening: full verification, local 4174 deployment, browser smoke, Playwright cleanup, commit, and push.
+- V2.1.0 UI/UX execution adds an operator triage layer to the Dashboard, a structured global mutation feedback strip, and shared tokenized empty-state styling across Nodes, Subscriptions, Forwarding, Tasks, and Audit. The 12 V2.1 rounds are recorded in `docs/roadmap/v2.1-ui-ux-audit.md`.
 - Task release evidence now derives a step-level next runtime action for command, Agent result, config revision, preflight, and snapshot states, shows that action in the runtime verification strip, and includes the same structured action hints in copied task context and failure evidence packages.
 - Customer-node selection now opens a sticky contextual action bar with single-node client management, runtime evidence, links, edit, quota, renewal, enable/disable actions and multi-node typed bulk actions, reducing the need to hunt through row-end controls or expand the advanced bulk panel for common workflows.
 - Customer-node runtime evidence now derives a structured next runtime action from the real command / Agent result / config revision / preflight / snapshot chain, displays it in the evidence drawer, and includes it in safe copied diagnostic packages so waiting or failed Xray applies show the operator where to inspect next.

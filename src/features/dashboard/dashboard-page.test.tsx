@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
-import type { Agent, ManagedNode } from '../../domain';
+import type { Agent, DeployTask, ManagedNode, SystemAlert } from '../../domain';
 import type { ForwardingRuleView } from '../forwarding/forwarding-page';
 import type { SubscriptionBundle } from '../subscriptions/subscription-mixer-page';
 import { DashboardPage } from './dashboard-page';
@@ -117,9 +117,52 @@ function createForwardingRule(): ForwardingRuleView {
   };
 }
 
+function createTask(overrides: Partial<DeployTask> = {}): DeployTask {
+  return {
+    id: 'task-runtime-01',
+    operation: 'inbound.update',
+    resourceType: 'inbound',
+    resourceId: 'inbound-01',
+    status: 'failed',
+    targetId: 'agent-hkg-01',
+    targetLabel: '香港入口主机',
+    summary: '更新客户节点',
+    createdAt: '2026-06-05T10:00:00.000Z',
+    updatedAt: '2026-06-05T10:01:00.000Z',
+    actor: 'admin',
+    requestedBy: 'admin',
+    requestId: 'req-runtime-01',
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: true,
+    attempts: 1,
+    steps: [],
+    failureReason: 'xray preflight failed',
+    ...overrides
+  };
+}
+
+function createAlert(overrides: Partial<SystemAlert> = {}): SystemAlert {
+  return {
+    id: 'alert-agent-offline',
+    kind: 'agent.offline',
+    severity: 'critical',
+    status: 'active',
+    title: 'Agent offline',
+    message: 'Agent stopped reporting heartbeat.',
+    resourceType: 'agent',
+    resourceId: 'agent-hkg-01',
+    resourceLabel: '香港入口主机',
+    observedAt: '2026-06-05T10:02:00.000Z',
+    dedupeKey: 'agent.offline:agent-hkg-01',
+    ...overrides
+  };
+}
+
 function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}) {
   const onRefresh = vi.fn();
   const onOpenHostWorkspace = vi.fn();
+  const onOpenForwardingWorkspace = vi.fn();
+  const onOpenReleaseEvidenceWorkspace = vi.fn();
 
   const props: Parameters<typeof DashboardPage>[0] = {
     agents: [createAgent()],
@@ -130,13 +173,17 @@ function renderPage(overrides: Partial<Parameters<typeof DashboardPage>[0]> = {}
     trafficRollupCompactions: [],
     language: 'zh',
     onRefresh,
+    onOpenForwardingWorkspace,
     onOpenHostWorkspace,
+    onOpenReleaseEvidenceWorkspace,
     ...overrides
   };
 
   return {
     onRefresh,
+    onOpenForwardingWorkspace,
     onOpenHostWorkspace,
+    onOpenReleaseEvidenceWorkspace,
     ...render(<DashboardPage {...props} />)
   };
 }
@@ -159,8 +206,8 @@ describe('DashboardPage', () => {
     expect(operationsRail).toBeInTheDocument();
     expect(screen.getByText('主机接入')).toBeInTheDocument();
     expect(screen.getByText('客户节点')).toBeInTheDocument();
-    expect(screen.getByText('端口转发')).toBeInTheDocument();
-    expect(screen.getByText('订阅交付')).toBeInTheDocument();
+    expect(screen.getAllByText('端口转发')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('订阅交付')[0]).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Release Evidence' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Audit & Alerts' })).not.toBeInTheDocument();
     expect(screen.queryByText('Response Actions')).not.toBeInTheDocument();
@@ -224,9 +271,51 @@ describe('DashboardPage', () => {
     const { onRefresh, onOpenHostWorkspace } = renderPage();
 
     await screen.getByRole('button', { name: '刷新视图' }).click();
-    await screen.getByRole('button', { name: '管理主机' }).click();
+    await within(screen.getByRole('region', { name: '主机遥测' })).getByRole('button', { name: '管理主机' }).click();
 
     expect(onRefresh).toHaveBeenCalledTimes(1);
     expect(onOpenHostWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces v2.1 operator triage with actionable runtime evidence paths', async () => {
+    const { onOpenForwardingWorkspace, onOpenHostWorkspace, onOpenReleaseEvidenceWorkspace } = renderPage({
+      agents: [{ ...createAgent(), status: 'degraded' }],
+      nodes: [{ ...createNode(), status: 'warning' }],
+      tasks: [createTask(), createTask({ id: 'task-runtime-02', status: 'running' })],
+      systemAlerts: [createAlert()]
+    });
+
+    const triage = screen.getByRole('region', { name: '运维分诊' });
+
+    expect(within(triage).getByText('失败任务')).toBeInTheDocument();
+    expect(within(triage).getByText('运行中变更')).toBeInTheDocument();
+    expect(within(triage).getByText('Agent 覆盖')).toBeInTheDocument();
+    expect(within(triage).getByText('节点健康')).toBeInTheDocument();
+    expect(within(triage).getByText('端口转发')).toBeInTheDocument();
+    expect(triage.querySelector('[data-triage-state="blocked"]')).toBeInTheDocument();
+    expect(triage.querySelector('[data-triage-state="waiting"]')).toBeInTheDocument();
+    expect(triage.querySelector('[data-triage-state="attention"]')).toBeInTheDocument();
+
+    await within(triage).getAllByRole('button', { name: '查看证据' })[0].click();
+    await within(triage).getAllByRole('button', { name: '管理主机' })[0].click();
+    await within(triage).getByRole('button', { name: '检查转发' }).click();
+
+    expect(onOpenReleaseEvidenceWorkspace).toHaveBeenCalledTimes(1);
+    expect(onOpenHostWorkspace).toHaveBeenCalledTimes(1);
+    expect(onOpenForwardingWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a concrete empty state when the control plane has no operational objects', () => {
+    renderPage({
+      agents: [],
+      nodes: [],
+      forwardingRules: [],
+      subscriptions: []
+    });
+
+    const triage = screen.getByRole('region', { name: '运维分诊' });
+
+    expect(within(triage).getByText('控制面暂无对象')).toBeInTheDocument();
+    expect(within(triage).getByText('先接入 Agent，再创建客户节点、转发规则或订阅交付。')).toBeInTheDocument();
   });
 });

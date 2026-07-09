@@ -2,8 +2,9 @@
 
 const { spawnSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
-const { chmodSync, existsSync, mkdirSync, writeFileSync } = require('node:fs');
+const { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } = require('node:fs');
 const { dirname, join, resolve } = require('node:path');
+const Database = require('better-sqlite3');
 const { assertRootHtml, buildEndpointUrl, createCookieHeader } = require('./production-smoke.cjs');
 
 const backendUnitName = 'ou-ui-next-backend-4174';
@@ -140,6 +141,22 @@ function readPositiveInteger(value, fallback, label) {
   return parsed;
 }
 
+function readSystemdCpuQuota(value, fallback, label) {
+  const resolved = value === undefined || value === null || value === '' ? fallback : String(value);
+
+  if (!/^\d+(?:\.\d+)?%$/.test(resolved)) {
+    throw new Error(`${label} 必须是 systemd CPUQuota 百分比，例如 30%。`);
+  }
+
+  const amount = Number(resolved.slice(0, -1));
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`${label} 必须大于 0%。`);
+  }
+
+  return resolved;
+}
+
 function normalizeHttpUrl(value, label) {
   const url = new URL(value);
 
@@ -175,8 +192,16 @@ function resolveLocalDeployConfig(env = process.env, cwd = process.cwd(), argv =
     backendEnvFile: resolve(stateDir, 'local-4174-backend.env'),
     backendHost: env.OU_UI_LOCAL_4174_BACKEND_HOST ?? '127.0.0.1',
     backendPort,
+    backendCpuQuota: readSystemdCpuQuota(
+      env.OU_UI_LOCAL_4174_BACKEND_CPU_QUOTA,
+      '30%',
+      'OU_UI_LOCAL_4174_BACKEND_CPU_QUOTA'
+    ),
     backendUrl: new URL(`http://127.0.0.1:${backendPort}`),
     command: args.command ?? 'restart',
+    compactRollupsOnStart: env.OU_UI_LOCAL_4174_COMPACT_ROLLUPS_ON_START === undefined
+      ? true
+      : parseBoolean(env.OU_UI_LOCAL_4174_COMPACT_ROLLUPS_ON_START),
     help: false,
     localUrl: new URL(`http://127.0.0.1:${staticPort}/`),
     nodePath: env.OU_UI_LOCAL_4174_NODE_PATH ?? process.execPath,
@@ -192,10 +217,20 @@ function resolveLocalDeployConfig(env = process.env, cwd = process.cwd(), argv =
     sqliteFile: resolve(appDir, args.sqliteFile ?? env.OU_UI_LOCAL_4174_SQLITE_FILE ?? join(stateDir, 'control-plane.sqlite')),
     stateDir,
     staticHost: env.OU_UI_LOCAL_4174_STATIC_HOST ?? '0.0.0.0',
+    staticCpuQuota: readSystemdCpuQuota(
+      env.OU_UI_LOCAL_4174_STATIC_CPU_QUOTA,
+      '15%',
+      'OU_UI_LOCAL_4174_STATIC_CPU_QUOTA'
+    ),
     staticPort,
     staticProxyEntry: resolve(appDir, 'scripts/static-panel-proxy.cjs'),
     staticRoot: resolve(appDir, env.OU_UI_LOCAL_4174_STATIC_ROOT ?? 'dist'),
     timeoutMs: readPositiveInteger(args.timeoutMs ?? env.OU_UI_LOCAL_4174_TIMEOUT_MS, defaultTimeoutMs, 'OU_UI_LOCAL_4174_TIMEOUT_MS'),
+    trafficRollupMaxRecordsPerScope: readPositiveInteger(
+      env.OU_UI_LOCAL_4174_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE ?? env.OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE,
+      200,
+      'OU_UI_LOCAL_4174_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE'
+    ),
     username: args.username ?? env.OU_UI_LOCAL_4174_USERNAME ?? env.OU_UI_CONTROL_PLANE_OPERATOR_USERNAME ?? 'admin'
   };
 }
@@ -218,8 +253,18 @@ function getBackendEnvPairs(config) {
     ['OU_UI_CONTROL_PLANE_OPERATOR_GROUP_ID', 'owner'],
     ['OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_LIMIT', '100'],
     ['OU_UI_CONTROL_PLANE_OPERATOR_AUTH_FAILURE_WINDOW_MS', '60000'],
+    ['OU_UI_CONTROL_PLANE_AGENT_AUTH_SUCCESS_CACHE_TTL_MS', '15000'],
+    ['OU_UI_CONTROL_PLANE_AGENT_CREDENTIAL_LAST_USED_PERSIST_INTERVAL_MS', '300000'],
     ['OU_UI_CONTROL_PLANE_AGENT_ROUTINE_LOG_SAMPLE_EVERY', '60'],
-    ['OU_UI_AGENT_LOG_CHUNK_PERSIST_EVERY', '10']
+    ['OU_UI_COMMAND_TIMEOUT_SWEEP_INTERVAL_MS', '90000'],
+    ['OU_UI_COMMAND_TIMEOUT_SWEEP_MAX_COMMANDS', '100'],
+    ['OU_UI_AGENT_EVENT_HIGH_FREQUENCY_PERSIST_EVERY', '30'],
+    ['OU_UI_SQLITE_HIGH_FREQUENCY_AGENT_EVENTS_PER_TYPE', '10'],
+    ['OU_UI_AGENT_LOG_RETENTION_DAYS', '3'],
+    ['OU_UI_AGENT_LOG_MAX_EVENTS_PER_AGENT', '1200'],
+    ['OU_UI_AGENT_LOG_CHUNK_PERSIST_EVERY', '20'],
+    ['OU_UI_TRAFFIC_ROLLUP_RETENTION_DAYS', '14'],
+    ['OU_UI_TRAFFIC_ROLLUP_MAX_RECORDS_PER_SCOPE', String(config.trafficRollupMaxRecordsPerScope ?? 200)]
   ];
 }
 
@@ -229,6 +274,7 @@ function createBackendSystemdRunArgs(config) {
     '--collect',
     `--working-directory=${config.appDir}`,
     '--property=Nice=19',
+    `--property=CPUQuota=${config.backendCpuQuota ?? '30%'}`,
     `--property=EnvironmentFile=${config.backendEnvFile}`,
     config.nodePath,
     config.backendEntry
@@ -248,10 +294,195 @@ function createStaticSystemdRunArgs(config) {
     '--collect',
     `--working-directory=${config.appDir}`,
     '--property=Nice=19',
+    `--property=CPUQuota=${config.staticCpuQuota ?? '15%'}`,
     ...envPairs.map(([key, value]) => toSetenv(key, value)),
     config.nodePath,
     config.staticProxyEntry
   ];
+}
+
+function readTimestampMs(value) {
+  const parsed = Date.parse(String(value ?? ''));
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function createTrafficRollupScope(rollup) {
+  return `${rollup?.dimension ?? ''}:${rollup?.agentId ?? ''}:${rollup?.subjectId ?? ''}`;
+}
+
+function compactTrafficRollupsForLocalReview(trafficRollups, maxRecordsPerScope) {
+  if (!Array.isArray(trafficRollups) || trafficRollups.length === 0) {
+    return [];
+  }
+
+  const grouped = new Map();
+
+  for (const rollup of trafficRollups) {
+    const scope = createTrafficRollupScope(rollup);
+    const current = grouped.get(scope) ?? [];
+    current.push(rollup);
+    grouped.set(scope, current);
+  }
+
+  const retainedIds = new Set();
+
+  for (const rollups of grouped.values()) {
+    rollups
+      .sort((left, right) => {
+        const observedDelta = readTimestampMs(right?.observedAt) - readTimestampMs(left?.observedAt);
+        return observedDelta || String(left?.id ?? '').localeCompare(String(right?.id ?? ''));
+      })
+      .slice(0, maxRecordsPerScope)
+      .forEach((rollup) => {
+        if (rollup?.id) {
+          retainedIds.add(rollup.id);
+        }
+      });
+  }
+
+  return trafficRollups.filter((rollup) => rollup?.id && retainedIds.has(rollup.id));
+}
+
+function backupPathForCompaction(sqliteFile) {
+  return `${sqliteFile}.pre-v2.1-rollup-compact-${new Date().toISOString().replace(/[:.]/g, '-')}.bak`;
+}
+
+function writeTrafficRollupIndexRows(database, trafficRollups, updatedAt) {
+  const insertRow = database.prepare(`
+    INSERT INTO control_plane_entity_index (
+      entity_type,
+      entity_id,
+      parent_id,
+      status,
+      label,
+      updated_at,
+      payload
+    )
+    VALUES (
+      @entityType,
+      @entityId,
+      @parentId,
+      @status,
+      @label,
+      @updatedAt,
+      @payload
+    )
+  `);
+
+  database.prepare("DELETE FROM control_plane_entity_index WHERE entity_type = 'traffic-rollup'").run();
+
+  for (const rollup of trafficRollups) {
+    insertRow.run({
+      entityType: 'traffic-rollup',
+      entityId: rollup.id,
+      parentId: rollup.subjectId ?? '',
+      status: rollup.dimension ?? '',
+      label: rollup.subjectLabel ?? '',
+      updatedAt: rollup.observedAt ?? updatedAt,
+      payload: JSON.stringify({
+        agentId: rollup.agentId,
+        periodKey: rollup.periodKey,
+        meteredBytes: rollup.meteredBytes,
+        source: rollup.source
+      })
+    });
+  }
+}
+
+function vacuumLocalReviewSqliteIfFragmented(database) {
+  const freelistCount = Number(database.pragma('freelist_count', { simple: true }) ?? 0);
+  const pageCount = Number(database.pragma('page_count', { simple: true }) ?? 0);
+
+  if (!Number.isFinite(freelistCount) || !Number.isFinite(pageCount) || pageCount <= 0) {
+    return false;
+  }
+
+  if (freelistCount / pageCount < 0.2) {
+    return false;
+  }
+
+  database.exec('VACUUM');
+  database.pragma('wal_checkpoint(TRUNCATE)');
+  return true;
+}
+
+function compactLocalReviewSqliteState(config) {
+  if (!config.compactRollupsOnStart || !existsSync(config.sqliteFile)) {
+    return { changed: false, reason: config.compactRollupsOnStart ? 'missing-sqlite' : 'disabled', vacuumed: false };
+  }
+
+  const database = new Database(config.sqliteFile, { fileMustExist: true });
+  let backupFile;
+
+  try {
+    database.pragma('wal_checkpoint(TRUNCATE)');
+    const row = database.prepare('SELECT payload FROM control_plane_state WHERE id = 1').get();
+
+    if (!row || typeof row.payload !== 'string') {
+      return { changed: false, reason: 'missing-state-row', vacuumed: false };
+    }
+
+    const state = JSON.parse(row.payload);
+    const trafficRollups = Array.isArray(state.trafficRollups) ? state.trafficRollups : [];
+    const nextTrafficRollups = compactTrafficRollupsForLocalReview(
+      trafficRollups,
+      config.trafficRollupMaxRecordsPerScope
+    );
+
+    if (nextTrafficRollups.length === trafficRollups.length) {
+      const vacuumed = vacuumLocalReviewSqliteIfFragmented(database);
+      return {
+        changed: false,
+        reason: 'already-compact',
+        retained: nextTrafficRollups.length,
+        removed: 0,
+        vacuumed
+      };
+    }
+
+    backupFile = backupPathForCompaction(config.sqliteFile);
+    copyFileSync(config.sqliteFile, backupFile);
+
+    const updatedAt = new Date().toISOString();
+    const rawRevision = database.prepare("SELECT value FROM control_plane_meta WHERE key = 'state_revision'").get()?.value;
+    const nextRevision = String((/^\d+$/.test(String(rawRevision ?? '')) ? Number(rawRevision) : 0) + 1);
+
+    database.exec('BEGIN IMMEDIATE');
+    try {
+      database
+        .prepare('UPDATE control_plane_state SET payload = @payload, updated_at = @updatedAt WHERE id = 1')
+        .run({
+          payload: JSON.stringify({ ...state, trafficRollups: nextTrafficRollups }),
+          updatedAt
+        });
+      database
+        .prepare(
+          `INSERT INTO control_plane_meta (key, value)
+           VALUES ('state_revision', @value)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+        )
+        .run({ value: nextRevision });
+      writeTrafficRollupIndexRows(database, nextTrafficRollups, updatedAt);
+      database.exec('COMMIT');
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
+
+    database.pragma('wal_checkpoint(TRUNCATE)');
+    const vacuumed = vacuumLocalReviewSqliteIfFragmented(database);
+    database.pragma('optimize');
+
+    return {
+      backupFile,
+      changed: true,
+      retained: nextTrafficRollups.length,
+      removed: trafficRollups.length - nextTrafficRollups.length,
+      vacuumed
+    };
+  } finally {
+    database.close();
+  }
 }
 
 function buildSmokeTargets(config) {
@@ -318,6 +549,15 @@ function stopUnits() {
 function startUnits(config) {
   ensureBuildArtifacts(config);
   mkdirSync(dirname(config.sqliteFile), { recursive: true });
+  const compaction = compactLocalReviewSqliteState(config);
+  if (compaction.changed) {
+    process.stdout.write(
+      `Compacted local 4174 traffic rollups removed=${compaction.removed} retained=${compaction.retained} backup=${compaction.backupFile}\n`
+    );
+  }
+  if (compaction.vacuumed) {
+    process.stdout.write('Vacuumed local 4174 sqlite store after rollup compaction.\n');
+  }
   writeBackendEnvFile(config);
   runCommand('systemd-run', createBackendSystemdRunArgs(config));
   runCommand('systemd-run', createStaticSystemdRunArgs(config));
@@ -517,6 +757,7 @@ Options:
   --username <name>       登录用户名，默认 admin
 
 Password is read from OU_UI_LOCAL_4174_PASSWORD and defaults to admin. There is intentionally no --password flag.
+The backend transient unit defaults to CPUQuota=30% and compacts local review traffic rollups on start.
 `);
 }
 
@@ -538,6 +779,8 @@ module.exports = {
   createBackendSystemdRunArgs,
   createStaticSystemdRunArgs,
   examplePublicUrl,
+  compactLocalReviewSqliteState,
+  compactTrafficRollupsForLocalReview,
   getBackendEnvPairs,
   parseArgs,
   resolveLocalDeployConfig,
