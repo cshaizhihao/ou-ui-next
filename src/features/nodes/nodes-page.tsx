@@ -33,6 +33,10 @@ import {
 import type { AppLanguage } from '../../app/app-store';
 import { ConfigDrawer } from '../../components/ui/config-drawer';
 import { ResponsivePage, ResponsiveSection } from '../../components/layout/responsive-page';
+import {
+  OperatorWorkbenchPanel,
+  type OperatorWorkbenchItem
+} from '../../components/layout/operator-workbench-panel';
 import { GlowButton } from '../../components/ui/glow-button';
 import type { XrayClientAction } from '../../services/api/xray-client-action-tasks';
 import {
@@ -693,6 +697,29 @@ const copy = {
     customerNodesTitle: '客户节点配置',
     customerNodesHint: '',
     customerNodeCockpit: 'Xray 客户节点工作台',
+    operatorWorkbenchTitle: 'Xray 运维分诊',
+    operatorWorkbenchSubtitle: '从真实 inbound、client、订阅绑定、策略风险和 Agent runtime evidence 判断下一步操作。',
+    operatorWorkbenchCopy: '复制分诊包',
+    operatorWorkbenchRuntimeFailures: '运行时失败',
+    operatorWorkbenchPolicyRisk: '策略风险',
+    operatorWorkbenchSharedInbounds: '共享入站',
+    operatorWorkbenchDeliveryGaps: '交付缺口',
+    operatorWorkbenchOpenFailure: '打开失败证据',
+    operatorWorkbenchFocusRisk: '定位风险节点',
+    operatorWorkbenchManageClients: '查看客户端',
+    operatorWorkbenchOpenCustomerNodes: '打开节点列表',
+    operatorWorkbenchCount: (count: string, total: string) => `${count}/${total}`,
+    operatorWorkbenchRuntimeDescription: (name: string) =>
+      name ? `优先处理失败 runtime evidence：${name}` : '没有失败的 Xray runtime evidence。',
+    operatorWorkbenchPolicyDescription: (name: string) =>
+      name ? `配额、过期或 runtime policy 需要处理：${name}` : '没有发现配额、过期或运行策略风险。',
+    operatorWorkbenchSharedDescription: (count: string) =>
+      `${count} 个 inbound 包含多个 runtime client，编辑时必须保留 peer client。`,
+    operatorWorkbenchDeliveryDescription: (count: string) =>
+      `${count} 个节点未绑定自动订阅规则，需要确认是否为手动交付。`,
+    operatorWorkbenchRuntimeMeta: (verified: string, waiting: string, failed: string) =>
+      `${verified} verified / ${waiting} waiting / ${failed} failed`,
+    operatorWorkbenchPolicyMeta: (risk: string, expiring: string) => `${risk} risk / ${expiring} expiring`,
     customerNodeCockpitRuntime: '运行时',
     customerNodeCockpitClients: '客户端',
     customerNodeCockpitDelivery: '订阅交付',
@@ -1255,6 +1282,30 @@ const copy = {
     customerNodesTitle: 'Customer Node Config',
     customerNodesHint: '',
     customerNodeCockpit: 'Xray Customer Node Cockpit',
+    operatorWorkbenchTitle: 'Xray Operations Triage',
+    operatorWorkbenchSubtitle:
+      'Triage next actions from real inbounds, clients, subscription bindings, policy risk, and Agent runtime evidence.',
+    operatorWorkbenchCopy: 'Copy Triage Package',
+    operatorWorkbenchRuntimeFailures: 'Runtime Failures',
+    operatorWorkbenchPolicyRisk: 'Policy Risk',
+    operatorWorkbenchSharedInbounds: 'Shared Inbounds',
+    operatorWorkbenchDeliveryGaps: 'Delivery Gaps',
+    operatorWorkbenchOpenFailure: 'Open Failed Evidence',
+    operatorWorkbenchFocusRisk: 'Focus Risk Node',
+    operatorWorkbenchManageClients: 'Inspect Clients',
+    operatorWorkbenchOpenCustomerNodes: 'Open Node List',
+    operatorWorkbenchCount: (count: string, total: string) => `${count}/${total}`,
+    operatorWorkbenchRuntimeDescription: (name: string) =>
+      name ? `Prioritize failed runtime evidence: ${name}` : 'No failed Xray runtime evidence was found.',
+    operatorWorkbenchPolicyDescription: (name: string) =>
+      name ? `Quota, expiry, or runtime policy requires action: ${name}` : 'No quota, expiry, or runtime-policy risk was found.',
+    operatorWorkbenchSharedDescription: (count: string) =>
+      `${count} inbounds contain multiple runtime clients. Edits must preserve peer clients.`,
+    operatorWorkbenchDeliveryDescription: (count: string) =>
+      `${count} nodes are not bound to automatic subscription rules; confirm whether manual delivery is intentional.`,
+    operatorWorkbenchRuntimeMeta: (verified: string, waiting: string, failed: string) =>
+      `${verified} verified / ${waiting} waiting / ${failed} failed`,
+    operatorWorkbenchPolicyMeta: (risk: string, expiring: string) => `${risk} risk / ${expiring} expiring`,
     customerNodeCockpitRuntime: 'Runtime',
     customerNodeCockpitClients: 'Clients',
     customerNodeCockpitDelivery: 'Subscription Delivery',
@@ -4789,6 +4840,161 @@ function createCustomerNodeCockpitSummary({
   };
 }
 
+function createCustomerNodeOperatorWorkbenchItems({
+  language,
+  onFocusRiskNode,
+  onManageSharedInbound,
+  onOpenCustomerNodes,
+  onOpenFailedEvidence,
+  summary,
+  t
+}: {
+  language: AppLanguage;
+  onFocusRiskNode?: () => void;
+  onManageSharedInbound?: () => void;
+  onOpenCustomerNodes: () => void;
+  onOpenFailedEvidence?: () => void;
+  summary: CustomerNodeCockpitSummary;
+  t: NodesCopy;
+}): OperatorWorkbenchItem[] {
+  const totalNodes = formatNumber(summary.totalNodes, language);
+  const failedCount = formatNumber(summary.evidenceStates.failed, language);
+  const waitingCount = formatNumber(summary.evidenceStates.waiting, language);
+  const verifiedCount = formatNumber(summary.evidenceStates.verified, language);
+  const riskCount = formatNumber(summary.guardrailRiskNodes, language);
+  const expiringCount = formatNumber(summary.expiringNodes, language);
+  const sharedCount = formatNumber(summary.multiClientInbounds, language);
+  const manualCount = formatNumber(summary.manualSubscriptionNodes, language);
+
+  return [
+    {
+      id: 'xray-runtime-failures',
+      label: t.operatorWorkbenchRuntimeFailures,
+      value: t.operatorWorkbenchCount(failedCount, totalNodes),
+      state: summary.evidenceStates.failed > 0 ? 'blocked' : summary.evidenceStates.waiting > 0 ? 'waiting' : 'ready',
+      description: t.operatorWorkbenchRuntimeDescription(summary.firstFailedNode?.nodeName ?? ''),
+      meta: t.operatorWorkbenchRuntimeMeta(verifiedCount, waitingCount, failedCount),
+      actionLabel: summary.firstFailedNode ? t.operatorWorkbenchOpenFailure : t.operatorWorkbenchOpenCustomerNodes,
+      onAction: summary.firstFailedNode && onOpenFailedEvidence ? onOpenFailedEvidence : onOpenCustomerNodes
+    },
+    {
+      id: 'xray-policy-risk',
+      label: t.operatorWorkbenchPolicyRisk,
+      value: t.operatorWorkbenchCount(riskCount, totalNodes),
+      state: summary.guardrailRiskNodes > 0 ? 'blocked' : summary.expiringNodes > 0 ? 'attention' : 'ready',
+      description: t.operatorWorkbenchPolicyDescription(summary.firstRiskNode?.nodeName ?? ''),
+      meta: t.operatorWorkbenchPolicyMeta(riskCount, expiringCount),
+      actionLabel: summary.firstRiskNode ? t.operatorWorkbenchFocusRisk : t.operatorWorkbenchOpenCustomerNodes,
+      onAction: summary.firstRiskNode && onFocusRiskNode ? onFocusRiskNode : onOpenCustomerNodes
+    },
+    {
+      id: 'xray-shared-inbounds',
+      label: t.operatorWorkbenchSharedInbounds,
+      value: t.operatorWorkbenchCount(sharedCount, totalNodes),
+      state: summary.multiClientInbounds > 0 ? 'attention' : 'ready',
+      description: t.operatorWorkbenchSharedDescription(sharedCount),
+      meta: t.customerNodeCockpitClientCount(formatNumber(summary.totalClients, language)),
+      actionLabel: summary.multiClientInbounds > 0 ? t.operatorWorkbenchManageClients : t.operatorWorkbenchOpenCustomerNodes,
+      onAction: summary.multiClientInbounds > 0 && onManageSharedInbound ? onManageSharedInbound : onOpenCustomerNodes
+    },
+    {
+      id: 'xray-delivery-gaps',
+      label: t.operatorWorkbenchDeliveryGaps,
+      value: t.operatorWorkbenchCount(manualCount, totalNodes),
+      state: summary.manualSubscriptionNodes > 0 ? 'waiting' : 'ready',
+      description: t.operatorWorkbenchDeliveryDescription(manualCount),
+      meta: t.customerNodeCockpitDeliverySummary(
+        formatNumber(summary.subscriptionBoundNodes, language),
+        formatNumber(summary.manualSubscriptionNodes, language)
+      ),
+      actionLabel: t.operatorWorkbenchOpenCustomerNodes,
+      onAction: onOpenCustomerNodes
+    }
+  ];
+}
+
+function createCustomerNodeOperatorWorkbenchDiagnostics({
+  inboundsById,
+  language,
+  nodes,
+  runtimeEvidenceByNodeId,
+  summary
+}: {
+  inboundsById: Map<string, RuntimeXrayInbound>;
+  language: AppLanguage;
+  nodes: CustomerNodeRecord[];
+  runtimeEvidenceByNodeId: Map<string, CustomerNodeRuntimeEvidenceBundle>;
+  summary: CustomerNodeCockpitSummary;
+}) {
+  return JSON.stringify(
+    {
+      schemaVersion: 'ou-ui-next.xray-operator-workbench.v1',
+      generatedAt: new Date().toISOString(),
+      language,
+      counts: {
+        totalNodes: summary.totalNodes,
+        filteredNodes: summary.filteredNodes,
+        totalClients: summary.totalClients,
+        enabledNodes: summary.enabledNodes,
+        disabledNodes: summary.disabledNodes,
+        multiClientInbounds: summary.multiClientInbounds,
+        subscriptionBoundNodes: summary.subscriptionBoundNodes,
+        manualSubscriptionNodes: summary.manualSubscriptionNodes,
+        expiringNodes: summary.expiringNodes,
+        guardrailRiskNodes: summary.guardrailRiskNodes,
+        evidenceStates: summary.evidenceStates,
+        protocolCounts: summary.protocolCounts
+      },
+      firstFailedNode: summary.firstFailedNode
+        ? {
+            id: summary.firstFailedNode.id,
+            nodeName: summary.firstFailedNode.nodeName,
+            agentId: summary.firstFailedNode.agentId,
+            protocol: summary.firstFailedNode.protocol,
+            listenPort: summary.firstFailedNode.listenPort,
+            evidenceStage: runtimeEvidenceByNodeId.get(summary.firstFailedNode.id)?.evidenceStage,
+            runtimeEvidenceState: runtimeEvidenceByNodeId.get(summary.firstFailedNode.id)?.state
+          }
+        : undefined,
+      firstRiskNode: summary.firstRiskNode
+        ? {
+            id: summary.firstRiskNode.id,
+            nodeName: summary.firstRiskNode.nodeName,
+            agentId: summary.firstRiskNode.agentId,
+            protocol: summary.firstRiskNode.protocol,
+            listenPort: summary.firstRiskNode.listenPort,
+            guardrailReason: summary.firstRiskNode.guardrailReason,
+            quotaExceeded: summary.firstRiskNode.quotaExceeded,
+            clientExpired: summary.firstRiskNode.clientExpired,
+            runtimeDisabledByPolicy: summary.firstRiskNode.runtimeDisabledByPolicy
+          }
+        : undefined,
+      sharedInbounds: nodes
+        .filter((node) => (inboundsById.get(node.id)?.clients.length ?? 1) > 1)
+        .map((node) => ({
+          id: node.id,
+          nodeName: node.nodeName,
+          agentId: node.agentId,
+          protocol: node.protocol,
+          listenPort: node.listenPort,
+          clientCount: inboundsById.get(node.id)?.clients.length ?? 1
+        })),
+      deliveryGaps: nodes
+        .filter((node) => !node.subscriptionRule || node.subscriptionRule === 'manual')
+        .map((node) => ({
+          id: node.id,
+          nodeName: node.nodeName,
+          agentId: node.agentId,
+          protocol: node.protocol,
+          listenPort: node.listenPort,
+          subscriptionRule: node.subscriptionRule || 'manual'
+        }))
+    },
+    null,
+    2
+  );
+}
+
 function createCustomerDraftFromNode(node: CustomerNodeRecord): CustomerDraft {
   return {
     agentId: node.agentId,
@@ -7873,6 +8079,33 @@ export function NodesPage({
     }
   }
 
+  const firstSharedCustomerNode = visibleCustomerNodes.find((node) => {
+    const inbound = runtimeInboundsById.get(node.id);
+
+    return (inbound?.clients.length ?? 1) > 1;
+  });
+  const customerNodeOperatorWorkbenchItems = createCustomerNodeOperatorWorkbenchItems({
+    language,
+    onFocusRiskNode: customerNodeCockpitSummary.firstRiskNode ? focusCustomerNodeCockpitRisk : undefined,
+    onManageSharedInbound: firstSharedCustomerNode ? () => openCustomerClientsDrawer(firstSharedCustomerNode) : undefined,
+    onOpenCustomerNodes: clearCustomerNodeCockpitFilters,
+    onOpenFailedEvidence: customerNodeCockpitSummary.firstFailedNode ? openFirstCustomerNodeFailureEvidence : undefined,
+    summary: customerNodeCockpitSummary,
+    t
+  });
+
+  function copyCustomerNodeOperatorWorkbenchDiagnostics() {
+    void copyText(
+      createCustomerNodeOperatorWorkbenchDiagnostics({
+        inboundsById: runtimeInboundsById,
+        language,
+        nodes: visibleCustomerNodes,
+        runtimeEvidenceByNodeId,
+        summary: customerNodeCockpitSummary
+      })
+    );
+  }
+
   return (
     <ResponsivePage>
       <section aria-label={t.operationalOverview} className="stagger-1 space-y-3">
@@ -8251,6 +8484,18 @@ export function NodesPage({
                 customerNodeCockpitSummary.firstFailedNode ? openFirstCustomerNodeFailureEvidence : undefined
               }
             />
+          ) : null}
+
+          {visibleCustomerNodes.length > 0 ? (
+            <div className="border-b border-[#07111F]/16 bg-[var(--ou-surface)] p-3 dark:border-[#6B7CFF]/18">
+              <OperatorWorkbenchPanel
+                copyLabel={t.operatorWorkbenchCopy}
+                items={customerNodeOperatorWorkbenchItems}
+                onCopyDiagnostics={copyCustomerNodeOperatorWorkbenchDiagnostics}
+                subtitle={t.operatorWorkbenchSubtitle}
+                title={t.operatorWorkbenchTitle}
+              />
+            </div>
           ) : null}
 
           {visibleCustomerNodes.length > 0 ? (

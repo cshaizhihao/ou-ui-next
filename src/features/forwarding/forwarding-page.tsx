@@ -20,6 +20,10 @@ import {
   WorkspaceCockpit,
   WorkspaceCockpitScroller
 } from '../../components/layout/responsive-page';
+import {
+  OperatorWorkbenchPanel,
+  type OperatorWorkbenchItem
+} from '../../components/layout/operator-workbench-panel';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
 import {
@@ -192,6 +196,26 @@ const copy = {
   zh: {
     title: '端口转发',
     subtitle: '转发规则、入口绑定、配额和运行时状态。',
+    operatorWorkbenchTitle: '转发运维分诊',
+    operatorWorkbenchSubtitle: '从规则诊断、端口绑定、运行时证据和 Agent capability 判断当前最该处理的转发风险。',
+    operatorWorkbenchCopy: '复制分诊包',
+    operatorWorkbenchRuntimeIssues: '运行时异常',
+    operatorWorkbenchWaiting: '等待应用',
+    operatorWorkbenchPortConflicts: '端口冲突',
+    operatorWorkbenchBlockedControls: '阻断控制项',
+    operatorWorkbenchOpenRules: '打开规则',
+    operatorWorkbenchShowConflicts: '查看冲突',
+    operatorWorkbenchShowBlocked: '查看阻断项',
+    operatorWorkbenchCount: (count: string, total: string) => `${count}/${total}`,
+    operatorWorkbenchRuntimeDescription: (preview: string) =>
+      preview ? `需要恢复或重新应用的规则：${preview}` : '没有发现失败、阻断或降级的转发规则。',
+    operatorWorkbenchWaitingDescription: (preview: string) =>
+      preview ? `等待部署、释放或运行时证据刷新的规则：${preview}` : '没有等待中的转发规则。',
+    operatorWorkbenchConflictDescription: (preview: string) =>
+      preview ? `这些规则存在端口绑定冲突：${preview}` : '当前规则没有端口冲突。',
+    operatorWorkbenchBlockedDescription: (preview: string) =>
+      preview ? `Agent runtime 暂不支持的控制项仍被保留为诊断：${preview}` : '没有被 Agent runtime 阻断的高级控制项。',
+    operatorWorkbenchBlockedMeta: (controls: string) => `blocked controls: ${controls}`,
     forwardingCockpit: '端口转发 cockpit',
     forwardingRulesWorkspace: '转发规则工作区',
     operationalOverview: '运营概览',
@@ -425,6 +449,27 @@ const copy = {
   en: {
     title: 'Port Forwarding',
     subtitle: 'Forward rules, entry bindings, quota, and runtime state.',
+    operatorWorkbenchTitle: 'Forwarding Operations Triage',
+    operatorWorkbenchSubtitle:
+      'Triage forwarding risk from rule diagnosis, port bindings, runtime evidence, and Agent capability boundaries.',
+    operatorWorkbenchCopy: 'Copy Triage Package',
+    operatorWorkbenchRuntimeIssues: 'Runtime Issues',
+    operatorWorkbenchWaiting: 'Waiting Apply',
+    operatorWorkbenchPortConflicts: 'Port Conflicts',
+    operatorWorkbenchBlockedControls: 'Blocked Controls',
+    operatorWorkbenchOpenRules: 'Open Rules',
+    operatorWorkbenchShowConflicts: 'Show Conflicts',
+    operatorWorkbenchShowBlocked: 'Show Blocked Controls',
+    operatorWorkbenchCount: (count: string, total: string) => `${count}/${total}`,
+    operatorWorkbenchRuntimeDescription: (preview: string) =>
+      preview ? `Rules requiring recovery or redeploy: ${preview}` : 'No failed, blocked, or degraded forwarding rules were found.',
+    operatorWorkbenchWaitingDescription: (preview: string) =>
+      preview ? `Rules waiting for deploy, release, or runtime evidence refresh: ${preview}` : 'No forwarding rules are waiting.',
+    operatorWorkbenchConflictDescription: (preview: string) =>
+      preview ? `Rules with conflicting port bindings: ${preview}` : 'No port conflicts are present.',
+    operatorWorkbenchBlockedDescription: (preview: string) =>
+      preview ? `Agent-runtime unsupported controls preserved as diagnostics: ${preview}` : 'No advanced controls are blocked by Agent runtime.',
+    operatorWorkbenchBlockedMeta: (controls: string) => `blocked controls: ${controls}`,
     forwardingCockpit: 'Port forwarding cockpit',
     forwardingRulesWorkspace: 'Forwarding rules workspace',
     operationalOverview: 'Operational Overview',
@@ -985,6 +1030,145 @@ function createForwardingRuntimeReadinessMetrics(
   ];
 }
 
+function previewForwardingRuleNames(rules: ForwardingRuleView[], limit = 3) {
+  const labels = rules.map((rule) => rule.name).slice(0, limit);
+  const rest = rules.length - labels.length;
+
+  return rest > 0 ? `${labels.join(', ')} +${rest}` : labels.join(', ');
+}
+
+function forwardingRuleHasPortConflict(rule: ForwardingRuleView) {
+  return rule.portStatus === 'conflict' || rule.bindings.some((binding) => binding.status === 'conflict');
+}
+
+function createForwardingOperatorWorkbenchItems({
+  language,
+  onOpenRules,
+  onShowBlockedControls,
+  onShowConflicts,
+  rules,
+  t
+}: {
+  language: AppLanguage;
+  onOpenRules: () => void;
+  onShowBlockedControls: () => void;
+  onShowConflicts: () => void;
+  rules: ForwardingRuleView[];
+  t: (typeof copy)['zh' | 'en'];
+}): OperatorWorkbenchItem[] {
+  const ruleDiagnoses = rules.map((rule) => ({
+    rule,
+    diagnosis: createForwardingRuntimeDiagnosis(rule),
+    blockedControls: collectBlockedForwardingRuntimeControls(rule)
+  }));
+  const runtimeIssues = ruleDiagnoses.filter(({ diagnosis }) =>
+    ['blocked', 'failed', 'degraded'].includes(diagnosis.state)
+  );
+  const waitingRules = ruleDiagnoses.filter(
+    ({ diagnosis, rule }) => diagnosis.state === 'waiting' || rule.portStatus === 'deploying' || rule.portStatus === 'releasing'
+  );
+  const conflictRules = rules.filter(forwardingRuleHasPortConflict);
+  const blockedControlRules = ruleDiagnoses.filter(
+    ({ blockedControls, diagnosis }) => blockedControls.length > 0 || diagnosis.blockedControls.length > 0
+  );
+  const blockedControlSet = new Set(
+    blockedControlRules.flatMap(({ blockedControls, diagnosis }) => [...blockedControls, ...diagnosis.blockedControls])
+  );
+  const blockedControlLabel = Array.from(blockedControlSet).join(', ') || '-';
+
+  return [
+    {
+      id: 'forwarding-runtime-issues',
+      label: t.operatorWorkbenchRuntimeIssues,
+      value: t.operatorWorkbenchCount(formatNumber(runtimeIssues.length, language), formatNumber(rules.length, language)),
+      state: runtimeIssues.length > 0 ? 'blocked' : 'ready',
+      description: t.operatorWorkbenchRuntimeDescription(previewForwardingRuleNames(runtimeIssues.map((item) => item.rule))),
+      meta: runtimeIssues[0]
+        ? t.runtimeDiagnosisStateLabels[runtimeIssues[0].diagnosis.state]
+        : t.runtimeDiagnosisStateLabels.ready,
+      actionLabel: t.operatorWorkbenchOpenRules,
+      onAction: onOpenRules
+    },
+    {
+      id: 'forwarding-waiting',
+      label: t.operatorWorkbenchWaiting,
+      value: t.operatorWorkbenchCount(formatNumber(waitingRules.length, language), formatNumber(rules.length, language)),
+      state: waitingRules.length > 0 ? 'waiting' : 'ready',
+      description: t.operatorWorkbenchWaitingDescription(previewForwardingRuleNames(waitingRules.map((item) => item.rule))),
+      meta: t.runtimeReadinessWaiting,
+      actionLabel: t.operatorWorkbenchOpenRules,
+      onAction: onOpenRules
+    },
+    {
+      id: 'forwarding-port-conflicts',
+      label: t.operatorWorkbenchPortConflicts,
+      value: t.operatorWorkbenchCount(formatNumber(conflictRules.length, language), formatNumber(rules.length, language)),
+      state: conflictRules.length > 0 ? 'blocked' : 'ready',
+      description: t.operatorWorkbenchConflictDescription(previewForwardingRuleNames(conflictRules)),
+      meta: 'listenAddress / listenPort / protocol',
+      actionLabel: t.operatorWorkbenchShowConflicts,
+      onAction: onShowConflicts
+    },
+    {
+      id: 'forwarding-blocked-controls',
+      label: t.operatorWorkbenchBlockedControls,
+      value: t.operatorWorkbenchCount(formatNumber(blockedControlRules.length, language), formatNumber(rules.length, language)),
+      state: blockedControlRules.length > 0 ? 'attention' : 'ready',
+      description: t.operatorWorkbenchBlockedDescription(previewForwardingRuleNames(blockedControlRules.map((item) => item.rule))),
+      meta: t.operatorWorkbenchBlockedMeta(blockedControlLabel),
+      actionLabel: t.operatorWorkbenchShowBlocked,
+      onAction: onShowBlockedControls
+    }
+  ];
+}
+
+function createForwardingOperatorWorkbenchDiagnostics({
+  language,
+  rules
+}: {
+  language: AppLanguage;
+  rules: ForwardingRuleView[];
+}) {
+  const ruleDiagnostics = rules.map((rule) => {
+    const diagnosis = createForwardingRuntimeDiagnosis(rule);
+    const blockedControls = collectBlockedForwardingRuntimeControls(rule);
+
+    return {
+      id: rule.id,
+      name: rule.name,
+      ownerName: rule.ownerName,
+      enabled: rule.enabled,
+      portStatus: rule.portStatus,
+      bindingCount: rule.bindingCount,
+      diagnosisState: diagnosis.state,
+      diagnosisReasons: diagnosis.reasons,
+      blockedControls: Array.from(new Set([...blockedControls, ...diagnosis.blockedControls])),
+      nextActions: diagnosis.nextActions
+    };
+  });
+
+  return JSON.stringify(
+    {
+      schemaVersion: 'ou-ui-next.forwarding-operator-workbench.v1',
+      generatedAt: new Date().toISOString(),
+      language,
+      counts: {
+        rules: rules.length,
+        runtimeIssues: ruleDiagnostics.filter((item) => ['blocked', 'failed', 'degraded'].includes(item.diagnosisState)).length,
+        waiting: ruleDiagnostics.filter((item) => item.diagnosisState === 'waiting').length,
+        portConflicts: rules.filter(forwardingRuleHasPortConflict).length,
+        blockedControlRules: ruleDiagnostics.filter((item) => item.blockedControls.length > 0).length
+      },
+      runtimeIssues: ruleDiagnostics.filter((item) => ['blocked', 'failed', 'degraded'].includes(item.diagnosisState)),
+      waiting: ruleDiagnostics.filter((item) => item.diagnosisState === 'waiting'),
+      portConflicts: ruleDiagnostics.filter((item) => rules.some((rule) => rule.id === item.id && forwardingRuleHasPortConflict(rule))),
+      blockedControlRules: ruleDiagnostics.filter((item) => item.blockedControls.length > 0)
+    },
+    null,
+    2
+  );
+}
+
 function createDraftFromRule(rule: ForwardingRuleView): ForwardDraft {
   return {
     name: rule.name,
@@ -1467,15 +1651,50 @@ export function ForwardingPage({
     setBulkDeleteConfirming(false);
   }
 
+  const forwardingOperatorWorkbenchItems = useMemo(
+    () =>
+      createForwardingOperatorWorkbenchItems({
+        language,
+        onOpenRules: () => {
+          setRuleSearch('');
+          setRuleStatusFilter('');
+        },
+        onShowBlockedControls: () => {
+          setRuleSearch('');
+          setRuleStatusFilter('');
+        },
+        onShowConflicts: () => {
+          setRuleSearch('');
+          setRuleStatusFilter('conflict');
+        },
+        rules: visibleRules,
+        t
+      }),
+    [language, t, visibleRules]
+  );
+
+  function copyForwardingOperatorWorkbenchDiagnostics() {
+    void copyToClipboard(createForwardingOperatorWorkbenchDiagnostics({ language, rules: visibleRules }));
+  }
+
   return (
     <ResponsivePage>
       <ResponsiveSection className="stagger-1">
         <h3 className="text-base font-bold text-[#07111F] dark:text-white">{t.title}</h3>
       </ResponsiveSection>
 
+      <OperatorWorkbenchPanel
+        className="stagger-2"
+        copyLabel={t.operatorWorkbenchCopy}
+        items={forwardingOperatorWorkbenchItems}
+        onCopyDiagnostics={copyForwardingOperatorWorkbenchDiagnostics}
+        subtitle={t.operatorWorkbenchSubtitle}
+        title={t.operatorWorkbenchTitle}
+      />
+
       <WorkspaceCockpit
         aria-label={t.forwardingCockpit}
-        className="forwarding-ops-cockpit stagger-2 xl:h-[calc(100dvh-8.5rem)] xl:overflow-hidden"
+        className="forwarding-ops-cockpit stagger-3 xl:h-[calc(100dvh-8.5rem)] xl:overflow-hidden"
       >
         <div className="forwarding-cockpit-grid grid min-h-0 grid-cols-1 xl:h-full xl:grid-cols-[18rem_minmax(0,1fr)]">
         <aside

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>V2.1.0</strong>
+  <strong>V2.7.0</strong>
   ·
   <a href="README.en.md">English</a>
   ·
@@ -26,7 +26,7 @@
 
 OU-UI Next 是一个生产导向的 Master / Agent 网关运维控制面板。它把浏览器面板、HTTP Control Plane、持久化状态、任务审计、Agent command channel、Xray runtime、Forwarding runtime 和 Subscription delivery 串成一个可验证的闭环。
 
-V2.0.0 立住了运行时闭环和能力边界。V2.1.0 继续把体验向“操作员每天能顺手使用”的方向推进：Dashboard 变成分诊入口，所有提交反馈都解释证据链，主要工作台的空状态更统一。
+V2.0.0 立住了运行时闭环和能力边界。V2.1.0 把 Dashboard、提交反馈和空状态推进到“操作员每天能顺手使用”的方向。V2.7.0 继续把核心工作台从分散表格推进到可分诊、可复制、可跳转的运维入口：Xray 客户节点、Subscription delivery 和 Forwarding runtime 现在都能从真实状态生成 Operator Workbench。
 
 当前版本的核心原则：
 
@@ -35,7 +35,7 @@ V2.0.0 立住了运行时闭环和能力边界。V2.1.0 继续把体验向“操
 - **Xray / Forwarding / Subscription 共享客户与配额语义**：到期、限额、禁用、流量倍率和订阅输出不能各说各话。
 - **UI 是运维工作台，不是静态展示页**：关键路径必须有状态、下一步动作、复制诊断包和可恢复路径。
 
-## V2.1.0 亮点
+## V2.7.0 亮点
 
 | 方向 | 变化 |
 | --- | --- |
@@ -43,8 +43,8 @@ V2.0.0 立住了运行时闭环和能力边界。V2.1.0 继续把体验向“操
 | Agent evidence | Xray create/update/delete/client-action 进入 command lifecycle、config revision、preflight、snapshot、Agent result 和 release evidence 链路 |
 | Forwarding / Tunnel | TCP/UDP/tcp+udp 转发、GOST/socat runtime、nftables 计数、端口冲突检查、计费流量 guardrail、规则级 runtime diagnosis |
 | Subscription | Clash/Mihomo、sing-box、Shadowrocket、Stash、v2ray/URI 输出；公开订阅、最小客户门户、QR、token hash gate、导入/转换诊断、交付包和删除审计包 |
-| UI / UX | V2.1.0 新增 Dashboard 运维分诊、全局 evidence-style 操作反馈条、统一空状态样式；继续保留状态中心、contextual action、inline diagnostics、runtime evidence drawer 和可复制诊断包 |
-| 发布准备 | `package.json` 已更新为 `2.1.0`；`V2.0.0` tag 是上一版运行时基线，V2.1.0 当前不自动创建 tag |
+| UI / UX | V2.7.0 新增共享 Operator Workbench：Xray、Subscription、Forwarding 都从真实 summary/diagnosis/evidence 生成分诊项、跳转动作和安全诊断复制包；继续保留 Dashboard 分诊、状态中心、contextual action、inline diagnostics 和 runtime evidence drawer |
+| 发布准备 | `package.json` 已更新为 `2.7.0`；`V2.0.0` tag 是上一版运行时基线，V2.7.0 当前不自动创建 tag |
 
 ## 功能矩阵
 
@@ -60,6 +60,7 @@ V2.0.0 立住了运行时闭环和能力边界。V2.1.0 继续把体验向“操
 | Forwarding runtime | 已实现 | TCP/UDP/tcp+udp、GOST/socat、GOST 规则级限速、nftables 计数、端口冲突拒绝、quota guardrail、runtime diagnosis |
 | Forwarding 高级控制 | Blocked by Agent runtime | `ipRateLimitMbps`、`maxConnections`、`maxConnectionsPerIp`、`proxyProtocol` 会作为 blocked diagnostics 保留，不作为已落地能力宣称 |
 | Subscription mixer | 已实现 | 订阅身份、订阅源、导出 profile、公开输出、链接/QR、诊断、token preview / secure path 轮换 |
+| Operator Workbench | 已实现 | Xray、Subscription、Forwarding 顶层分诊面板从真实 read model / runtime diagnosis / sync diagnosis 生成状态、动作和脱敏诊断包 |
 | 用户订阅门户 | Preview | `/portal/{securePath}/{subId}` 提供最小客户门户；完整用户门户、设备绑定、泄露撤销仍在 Roadmap |
 | SQLite 状态 | 已实现 | JSON-state SQLite 仓储 + schema v2 领域索引，适合单 Master 部署和当前安装器闭环 |
 | 强 schema / HA | Roadmap | 完整关系模型、增量查询、多 Master/HA 还未完成 |

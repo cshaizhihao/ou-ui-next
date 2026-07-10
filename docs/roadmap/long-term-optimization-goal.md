@@ -4,11 +4,11 @@ This document is the durable execution contract for the long-running OU-UI Next 
 
 ## Current Baseline
 
-The current baseline is `V2.1.0` on `main`.
+The current baseline is `V2.7.0` on `main`.
 
 Known completed V2.0.0 foundation work:
 
-- `package.json` reached `2.0.0` for the runtime-foundation release and is now `2.1.0` for the UI/UX operations-experience cut.
+- `package.json` reached `2.0.0` for the runtime-foundation release, `2.1.0` for the first UI/UX operations-experience cut, and `2.7.0` for the Operator Workbench triage cut.
 - The main README was rewritten and keeps the existing logo at `src/assets/cat-logo.png`.
 - Xray runtime artifacts support `metadata.clients[]` and compile them into multi-client inbound settings, `clientPolicies[]`, and per-client share URIs.
 - The Agent runtime profile reader expands `clientPolicies[]` so telemetry and guardrail evaluation can run per client.
@@ -175,6 +175,7 @@ Post-V2.0.0 progress already landed on `main`:
 - Customer-node single-selection context now includes an operations brief with delivery link previews/actions, runtime next-action diagnostics, and entitlement usage/quota/expiry summaries sourced from existing link material, runtime evidence, and read models, reducing drawer hopping for common inspect/copy/diagnose workflows.
 - Round 4 adds an `Xray Customer Node Cockpit` entry band to the customer-node workspace, summarizing inbound counts, multi-client density, subscription delivery, protocol mix, runtime evidence, and policy/expiry risk from current read models and runtime evidence instead of demo state.
 - The customer-node cockpit now provides direct failed-evidence, policy-risk focus, and clear-filter recovery actions, routing operators into the existing runtime evidence drawer and contextual action bar without claiming new Agent runtime capabilities.
+- V2.2-V2.7 adds a shared Operator Workbench layer for Xray customer nodes, Subscription delivery, and Forwarding operations. These panels derive state from existing cockpit summaries, delivery briefs, source sync diagnostics, inventory matches, forwarding runtime diagnosis, port conflict evidence, and Agent-runtime blocked controls. They add safe copyable diagnostic packages without adding fake runtime capabilities. The record is stored in `docs/roadmap/v2.2-v2.7-operator-workbench.md`.
 
 This baseline is not the end state. It is the first runtime-foundation cut. The remaining goal is to make OU-UI Next a real, production-oriented self-hosted Master / Agent gateway control panel rather than a broad UI shell with partial runtime depth.
 

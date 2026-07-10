@@ -19,6 +19,10 @@ import {
   WorkspaceCockpit,
   WorkspaceCockpitScroller
 } from '../../components/layout/responsive-page';
+import {
+  OperatorWorkbenchPanel,
+  type OperatorWorkbenchItem
+} from '../../components/layout/operator-workbench-panel';
 import { EditableCardFrame, EditableCardStage } from '../../components/layout/editable-card-frame';
 import { GlassToggle } from '../../components/ui/glass-toggle';
 import { GlowButton } from '../../components/ui/glow-button';
@@ -360,6 +364,28 @@ const copy = {
     clientCount: '订阅身份',
     inventoryCount: '节点库存',
     exportCount: '导出文件',
+    operatorWorkbenchTitle: '订阅交付分诊',
+    operatorWorkbenchSubtitle: '从真实订阅身份、来源同步、库存命中和公开输出结果判断当前最该处理的交付风险。',
+    operatorWorkbenchCopy: '复制分诊包',
+    operatorWorkbenchBlockedClients: '阻断身份',
+    operatorWorkbenchWarningClients: '需关注身份',
+    operatorWorkbenchSourceIssues: '来源同步问题',
+    operatorWorkbenchInventoryGaps: '库存命中缺口',
+    operatorWorkbenchOpenClients: '打开订阅身份',
+    operatorWorkbenchOpenSources: '打开来源',
+    operatorWorkbenchOpenInventory: '打开库存',
+    operatorWorkbenchCount: (count: string, total: string) => `${count}/${total}`,
+    operatorWorkbenchBlockedDescription: (preview: string) =>
+      preview ? `这些身份因停用、过期、额度或运行策略阻断：${preview}` : '没有被交付策略阻断的订阅身份。',
+    operatorWorkbenchWarningDescription: (preview: string) =>
+      preview ? `这些身份需要先检查节点或输出格式：${preview}` : '订阅身份交付检查没有发现警告。',
+    operatorWorkbenchSourceDescription: (preview: string) =>
+      preview ? `同步失败、暂停或警告来源：${preview}` : '外部订阅源没有同步警告。',
+    operatorWorkbenchInventoryDescription: (preview: string) =>
+      preview ? `规则没有命中可交付库存：${preview}` : '订阅身份均有库存或已生成节点证据。',
+    operatorWorkbenchSourceMeta: (failed: string, warning: string, paused: string) =>
+      `${failed} failed / ${warning} warning / ${paused} paused`,
+    operatorWorkbenchInventoryMeta: (nodes: string, identities: string) => `${nodes} inventory nodes / ${identities} identities`,
     clientTitle: '客户订阅规则',
     clientHint: '',
     customerName: '客户名称',
@@ -711,6 +737,29 @@ const copy = {
     clientCount: 'Identities',
     inventoryCount: 'Node Inventory',
     exportCount: 'Export Files',
+    operatorWorkbenchTitle: 'Subscription Delivery Triage',
+    operatorWorkbenchSubtitle:
+      'Triage delivery risk from real identities, source sync state, inventory matches, and public output readiness.',
+    operatorWorkbenchCopy: 'Copy Triage Package',
+    operatorWorkbenchBlockedClients: 'Blocked Identities',
+    operatorWorkbenchWarningClients: 'Identities Needing Review',
+    operatorWorkbenchSourceIssues: 'Source Sync Issues',
+    operatorWorkbenchInventoryGaps: 'Inventory Match Gaps',
+    operatorWorkbenchOpenClients: 'Open Identities',
+    operatorWorkbenchOpenSources: 'Open Sources',
+    operatorWorkbenchOpenInventory: 'Open Inventory',
+    operatorWorkbenchCount: (count: string, total: string) => `${count}/${total}`,
+    operatorWorkbenchBlockedDescription: (preview: string) =>
+      preview ? `Blocked by disabled state, expiry, quota, or runtime policy: ${preview}` : 'No identities are blocked by delivery policy.',
+    operatorWorkbenchWarningDescription: (preview: string) =>
+      preview ? `Check nodes or public output formats before delivery: ${preview}` : 'No delivery warnings were found on identities.',
+    operatorWorkbenchSourceDescription: (preview: string) =>
+      preview ? `Sources with failed, paused, or warning sync state: ${preview}` : 'External sources have no sync warnings.',
+    operatorWorkbenchInventoryDescription: (preview: string) =>
+      preview ? `Rules without deliverable inventory matches: ${preview}` : 'Identities have inventory or generated-node evidence.',
+    operatorWorkbenchSourceMeta: (failed: string, warning: string, paused: string) =>
+      `${failed} failed / ${warning} warning / ${paused} paused`,
+    operatorWorkbenchInventoryMeta: (nodes: string, identities: string) => `${nodes} inventory nodes / ${identities} identities`,
     clientTitle: 'Client Subscription Rules',
     clientHint: '',
     customerName: 'Customer Name',
@@ -2110,6 +2159,167 @@ function createSubscriptionDeliveryBrief(
     requestLimitValue: `${formatNumber(requestLimit, language)} req/h`,
     portalUrl: createClientSubscriptionPortalUrl(client)
   };
+}
+
+function previewLabels(labels: string[], limit = 3) {
+  const visible = labels.slice(0, limit);
+  const rest = labels.length - visible.length;
+
+  return rest > 0 ? `${visible.join(', ')} +${rest}` : visible.join(', ');
+}
+
+function createSubscriptionOperatorWorkbenchItems({
+  clients,
+  inventoryNodes,
+  language,
+  onOpenClients,
+  onOpenInventory,
+  onOpenSources,
+  sources,
+  t
+}: {
+  clients: SubscriptionClientIdentity[];
+  inventoryNodes: SubscriptionInventoryNode[];
+  language: AppLanguage;
+  onOpenClients: () => void;
+  onOpenInventory: () => void;
+  onOpenSources: () => void;
+  sources: SubscriptionSource[];
+  t: (typeof copy)[AppLanguage];
+}): OperatorWorkbenchItem[] {
+  const deliveryBriefs = clients.map((client) => ({
+    client,
+    brief: createSubscriptionDeliveryBrief(client, language, t)
+  }));
+  const blockedClients = deliveryBriefs.filter((item) => item.brief.state === 'blocked');
+  const warningClients = deliveryBriefs.filter((item) => item.brief.state === 'warning');
+  const sourceDiagnoses = sources.map((source) => ({
+    source,
+    diagnosis: createSourceSyncDiagnosis(source, language, t)
+  }));
+  const failedSources = sourceDiagnoses.filter((item) => item.diagnosis.state === 'failed');
+  const warningSources = sourceDiagnoses.filter((item) => item.diagnosis.state === 'warning');
+  const pausedSources = sourceDiagnoses.filter((item) => item.diagnosis.state === 'paused');
+  const issueSources = sourceDiagnoses.filter((item) => item.diagnosis.state !== 'ready');
+  const inventoryGapClients = clients.filter(
+    (client) => client.generatedNodeCount <= 0 && findClientMatchingInventoryNodes(inventoryNodes, client).length === 0
+  );
+
+  return [
+    {
+      id: 'subscription-blocked-clients',
+      label: t.operatorWorkbenchBlockedClients,
+      value: t.operatorWorkbenchCount(formatNumber(blockedClients.length, language), formatNumber(clients.length, language)),
+      state: blockedClients.length > 0 ? 'blocked' : 'ready',
+      description: t.operatorWorkbenchBlockedDescription(previewLabels(blockedClients.map((item) => item.client.displayName))),
+      meta: blockedClients[0]?.brief.reasonText ?? t.subscriptionDeliveryReasonReady,
+      actionLabel: t.operatorWorkbenchOpenClients,
+      onAction: onOpenClients
+    },
+    {
+      id: 'subscription-warning-clients',
+      label: t.operatorWorkbenchWarningClients,
+      value: t.operatorWorkbenchCount(formatNumber(warningClients.length, language), formatNumber(clients.length, language)),
+      state: warningClients.length > 0 ? 'attention' : 'ready',
+      description: t.operatorWorkbenchWarningDescription(previewLabels(warningClients.map((item) => item.client.displayName))),
+      meta: warningClients[0]?.brief.reasonText ?? t.subscriptionDeliveryReasonReady,
+      actionLabel: t.operatorWorkbenchOpenClients,
+      onAction: onOpenClients
+    },
+    {
+      id: 'subscription-source-issues',
+      label: t.operatorWorkbenchSourceIssues,
+      value: t.operatorWorkbenchCount(formatNumber(issueSources.length, language), formatNumber(sources.length, language)),
+      state: failedSources.length > 0 ? 'blocked' : issueSources.length > 0 ? 'attention' : 'ready',
+      description: t.operatorWorkbenchSourceDescription(previewLabels(issueSources.map((item) => item.source.name))),
+      meta: t.operatorWorkbenchSourceMeta(
+        formatNumber(failedSources.length, language),
+        formatNumber(warningSources.length, language),
+        formatNumber(pausedSources.length, language)
+      ),
+      actionLabel: t.operatorWorkbenchOpenSources,
+      onAction: onOpenSources
+    },
+    {
+      id: 'subscription-inventory-gaps',
+      label: t.operatorWorkbenchInventoryGaps,
+      value: t.operatorWorkbenchCount(formatNumber(inventoryGapClients.length, language), formatNumber(clients.length, language)),
+      state: inventoryGapClients.length > 0 ? 'waiting' : 'ready',
+      description: t.operatorWorkbenchInventoryDescription(previewLabels(inventoryGapClients.map((client) => client.displayName))),
+      meta: t.operatorWorkbenchInventoryMeta(formatNumber(inventoryNodes.length, language), formatNumber(clients.length, language)),
+      actionLabel: t.operatorWorkbenchOpenInventory,
+      onAction: onOpenInventory
+    }
+  ];
+}
+
+function createSubscriptionOperatorWorkbenchDiagnostics({
+  clients,
+  inventoryNodes,
+  language,
+  sources,
+  t
+}: {
+  clients: SubscriptionClientIdentity[];
+  inventoryNodes: SubscriptionInventoryNode[];
+  language: AppLanguage;
+  sources: SubscriptionSource[];
+  t: (typeof copy)[AppLanguage];
+}) {
+  const deliveryBriefs = clients.map((client) => ({
+    id: client.id,
+    displayName: client.displayName,
+    state: createSubscriptionDeliveryBrief(client, language, t).state,
+    reason: createSubscriptionDeliveryBrief(client, language, t).reasonText,
+    generatedNodeCount: client.generatedNodeCount,
+    enabled: client.enabled,
+    guardrailStatus: createSubscriptionGuardrailStatus(client)
+  }));
+  const sourceDiagnoses = sources.map((source) => {
+    const diagnosis = createSourceSyncDiagnosis(source, language, t);
+
+    return {
+      id: source.id,
+      name: source.name,
+      status: source.status,
+      diagnosisState: diagnosis.state,
+      warningCount: diagnosis.warnings.length,
+      budgetWarningCount: diagnosis.budgetWarnings.length,
+      nodeCount: source.nodeCount
+    };
+  });
+  const inventoryGapClients = clients.filter(
+    (client) => client.generatedNodeCount <= 0 && findClientMatchingInventoryNodes(inventoryNodes, client).length === 0
+  );
+
+  return JSON.stringify(
+    {
+      schemaVersion: 'ou-ui-next.subscription-operator-workbench.v1',
+      generatedAt: new Date().toISOString(),
+      language,
+      counts: {
+        identities: clients.length,
+        inventoryNodes: inventoryNodes.length,
+        sources: sources.length,
+        blockedIdentities: deliveryBriefs.filter((item) => item.state === 'blocked').length,
+        warningIdentities: deliveryBriefs.filter((item) => item.state === 'warning').length,
+        sourceIssues: sourceDiagnoses.filter((item) => item.diagnosisState !== 'ready').length,
+        inventoryGaps: inventoryGapClients.length
+      },
+      blockedIdentities: deliveryBriefs.filter((item) => item.state === 'blocked'),
+      warningIdentities: deliveryBriefs.filter((item) => item.state === 'warning'),
+      sourceIssues: sourceDiagnoses.filter((item) => item.diagnosisState !== 'ready'),
+      inventoryGaps: inventoryGapClients.map((client) => ({
+        id: client.id,
+        displayName: client.displayName,
+        subId: client.subId,
+        generatedNodeCount: client.generatedNodeCount,
+        sourceIds: client.sourceIds
+      }))
+    },
+    null,
+    2
+  );
 }
 
 function createSubscriptionDeliveryCheckTargets(
@@ -3837,6 +4047,33 @@ export function SubscriptionMixerPage({
     setSelectedSourceIds((current) => current.filter((id) => id !== source.id));
   }
 
+  const subscriptionOperatorWorkbenchItems = useMemo(
+    () =>
+      createSubscriptionOperatorWorkbenchItems({
+        clients,
+        inventoryNodes,
+        language,
+        onOpenClients: () => setActiveWorkspace('clients'),
+        onOpenInventory: () => setActiveWorkspace('inventory'),
+        onOpenSources: () => setActiveWorkspace('sources'),
+        sources,
+        t
+      }),
+    [clients, inventoryNodes, language, sources, t]
+  );
+
+  function copySubscriptionOperatorWorkbenchDiagnostics() {
+    void copyToClipboard(
+      createSubscriptionOperatorWorkbenchDiagnostics({
+        clients,
+        inventoryNodes,
+        language,
+        sources,
+        t
+      })
+    );
+  }
+
   return (
     <ResponsivePage>
       <ResponsiveSection className="stagger-1">
@@ -3861,7 +4098,16 @@ export function SubscriptionMixerPage({
         </div>
       </ResponsiveSection>
 
-      <WorkspaceCockpit aria-label="订阅工作台" className="subscription-workbench subscription-ops-cockpit stagger-2">
+      <OperatorWorkbenchPanel
+        className="stagger-2"
+        copyLabel={t.operatorWorkbenchCopy}
+        items={subscriptionOperatorWorkbenchItems}
+        onCopyDiagnostics={copySubscriptionOperatorWorkbenchDiagnostics}
+        subtitle={t.operatorWorkbenchSubtitle}
+        title={t.operatorWorkbenchTitle}
+      />
+
+      <WorkspaceCockpit aria-label="订阅工作台" className="subscription-workbench subscription-ops-cockpit stagger-3">
         <div className="subscription-workbench-grid grid min-h-0 grid-cols-1 gap-0">
           <WorkspaceCockpitScroller aria-label={t.inventoryTab} className="subscription-workbench-inventory subscription-ops-workspace min-h-0 max-md:pb-0">
             <div className="space-y-3 p-3">

@@ -190,6 +190,10 @@ describe('ForwardingPage', () => {
     );
 
     expect(screen.getByText('Operational Overview')).toBeInTheDocument();
+    const triage = screen.getByRole('region', { name: 'Forwarding Operations Triage' });
+    expect(triage).toHaveAttribute('data-operator-workbench-panel');
+    expect(within(triage).getByText('Runtime Issues')).toBeInTheDocument();
+    expect(within(triage).getByRole('button', { name: 'Copy Triage Package' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Total rules' })).toHaveTextContent('2');
     expect(screen.getByRole('group', { name: 'Enabled rules' })).toHaveTextContent('1');
     expect(screen.getByRole('group', { name: 'Entry bindings' })).toHaveTextContent('3');

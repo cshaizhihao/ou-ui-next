@@ -274,9 +274,13 @@ describe('SubscriptionMixerPage', () => {
     const cockpit = screen.getByRole('region', { name: '订阅工作台' });
     const inventory = within(cockpit).getByRole('region', { name: '节点库存' });
     const cockpitGrid = cockpit.querySelector('.subscription-workbench-grid');
+    const deliveryTriage = screen.getByRole('region', { name: '订阅交付分诊' });
 
     expect(cockpit).toHaveClass('subscription-workbench');
     expect(cockpitGrid).toHaveClass('subscription-workbench-grid');
+    expect(deliveryTriage).toHaveAttribute('data-operator-workbench-panel');
+    expect(within(deliveryTriage).getByText('来源同步问题')).toBeInTheDocument();
+    expect(within(deliveryTriage).getByRole('button', { name: '复制分诊包' })).toBeInTheDocument();
     expect(inventory).toHaveClass('subscription-workbench-inventory');
     expect(within(cockpit).queryByRole('region', { name: '外部订阅源' })).not.toBeInTheDocument();
     expect(within(cockpit).queryByRole('region', { name: '代理组' })).not.toBeInTheDocument();

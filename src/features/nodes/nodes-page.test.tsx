@@ -471,6 +471,10 @@ describe('NodesPage', () => {
     expect(within(cockpit).getByText('1 bound · 1 manual')).toBeInTheDocument();
     expect(within(cockpit).getByText('1 verified · 0 waiting · 1 failed')).toBeInTheDocument();
     expect(within(cockpit).getByText('1 risk · 1 expiring')).toBeInTheDocument();
+    const triage = screen.getByRole('region', { name: 'Xray Operations Triage' });
+    expect(triage).toHaveAttribute('data-operator-workbench-panel');
+    expect(within(triage).getByText('Runtime Failures')).toBeInTheDocument();
+    expect(within(triage).getByRole('button', { name: 'Copy Triage Package' })).toBeInTheDocument();
 
     await user.click(within(cockpit).getByRole('button', { name: 'Open Failed Evidence' }));
     expect(screen.getByRole('dialog', { name: 'Customer Node Runtime Evidence' })).toBeInTheDocument();

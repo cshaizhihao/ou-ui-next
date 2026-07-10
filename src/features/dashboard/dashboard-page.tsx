@@ -786,7 +786,7 @@ function OperatorTriagePanel({ items, language, t }: { items: OperatorTriageItem
           <p className="mt-1 text-xs font-semibold leading-5 text-[var(--ou-text-muted)]">{t.operatorTriageSubtitle}</p>
         </div>
         <span className="ou-chip rounded-full border px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-[0.14em]">
-          V2.1
+          V2.7
         </span>
       </div>
 
