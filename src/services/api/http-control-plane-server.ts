@@ -30,6 +30,7 @@ import type {
   ControlPlaneApi,
   ControlPlaneSnapshotReadModel,
   ControlPlaneRuntimeObservabilityMetricsInput,
+  ListQuery,
   MutationContext
 } from './control-plane-api';
 import {
@@ -1813,16 +1814,135 @@ function sendJson(response: ServerResponse, status: number, body: unknown, heade
   response.end(payload);
 }
 
-function sendData(response: ServerResponse, requestId: string, data: unknown, status = 200, taskId?: string) {
-  sendJson(response, status, {
-    data: redactHttpResponseSecrets(data),
-    requestId,
-    ...(taskId ? { taskId } : {})
-  });
+function sendData(
+  response: ServerResponse,
+  requestId: string,
+  data: unknown,
+  status = 200,
+  taskId?: string,
+  headers: Record<string, string | number> = {}
+) {
+  sendJson(
+    response,
+    status,
+    {
+      data: redactHttpResponseSecrets(data),
+      requestId,
+      ...(taskId ? { taskId } : {})
+    },
+    headers
+  );
 }
 
 function sendOperatorData(response: ServerResponse, requestId: string, data: unknown, status = 200, taskId?: string) {
   sendData(response, requestId, redactOperatorReadSecrets(data), status, taskId);
+}
+
+function readListQuery(url: URL): Required<Pick<ListQuery, 'page' | 'pageSize'>> & Pick<ListQuery, 'search'> {
+  const rawPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+  const rawPageSize = Number.parseInt(url.searchParams.get('pageSize') ?? '50', 10);
+  const search = url.searchParams.get('search')?.trim();
+
+  return {
+    page: Number.isFinite(rawPage) ? Math.max(1, rawPage) : 1,
+    pageSize: Number.isFinite(rawPageSize) ? Math.min(200, Math.max(1, rawPageSize)) : 50,
+    ...(search ? { search: search.slice(0, 160) } : {})
+  };
+}
+
+function paginateOperatorList(data: unknown, query: ReturnType<typeof readListQuery>) {
+  if (!Array.isArray(data)) {
+    return { data, page: query.page, pageSize: query.pageSize, total: 1 };
+  }
+
+  const normalizedSearch = query.search?.toLocaleLowerCase();
+  const filtered = normalizedSearch
+    ? data.filter((item) => JSON.stringify(item).toLocaleLowerCase().includes(normalizedSearch))
+    : data;
+  const start = (query.page - 1) * query.pageSize;
+
+  return {
+    data: filtered.slice(start, start + query.pageSize),
+    page: query.page,
+    pageSize: query.pageSize,
+    total: filtered.length
+  };
+}
+
+function sendOperatorListData(
+  response: ServerResponse,
+  requestId: string,
+  pathname: string,
+  data: unknown,
+  identity: OperatorReadIdentity | undefined,
+  query: ReturnType<typeof readListQuery>
+) {
+  const canPageBeforeRedaction = canReadAllOperatorResources(identity) && Array.isArray(data) && !query.search;
+  const scoped = canPageBeforeRedaction ? data : filterOperatorReadResponse(pathname, data, identity);
+  const page = paginateOperatorList(scoped, query);
+  const responseData = canPageBeforeRedaction
+    ? filterOperatorReadResponse(pathname, page.data, identity)
+    : page.data;
+  sendData(response, requestId, responseData, 200, undefined, {
+    'X-Page': page.page,
+    'X-Page-Size': page.pageSize,
+    'X-Total-Count': page.total
+  });
+}
+
+const snapshotSectionKeys = new Set<keyof ControlPlaneSnapshotReadModel>([
+  'agents',
+  'customers',
+  'nodes',
+  'inbounds',
+  'subscriptionSources',
+  'subscriptionInventoryNodes',
+  'subscriptionBundles',
+  'subscriptionClients',
+  'subscriptionExportProfiles',
+  'proxyProviders',
+  'subscriptionExportFiles',
+  'forwardRules',
+  'quotaPolicies',
+  'rateLimitPolicies',
+  'permissionGrants',
+  'routingPolicies',
+  'tuningProfiles',
+  'tasks',
+  'commandOutbox',
+  'configRevisions',
+  'preflightPlans',
+  'runtimeSnapshots',
+  'trafficRollups',
+  'trafficRollupCompactions',
+  'systemAlerts',
+  'agentCredentials',
+  'agentSessions',
+  'agentLogChunks',
+  'agentLogArchives',
+  'telegramBotSettings',
+  'telegramBindings',
+  'telegramNotificationPolicies',
+  'telegramNotificationDeliveries',
+  'auditLogs'
+]);
+
+function selectSnapshotSections(snapshot: ControlPlaneSnapshotReadModel, url: URL) {
+  const requested = (url.searchParams.get('sections') ?? '')
+    .split(',')
+    .map((section) => section.trim())
+    .filter((section): section is keyof ControlPlaneSnapshotReadModel => snapshotSectionKeys.has(section as keyof ControlPlaneSnapshotReadModel));
+
+  if (requested.length === 0) {
+    return { data: snapshot, sections: 'all' };
+  }
+
+  const selected: Partial<ControlPlaneSnapshotReadModel> = { apiBoundary: snapshot.apiBoundary };
+  for (const section of requested) {
+    selected[section] = snapshot[section] as never;
+  }
+
+  return { data: selected, sections: requested.join(',') };
 }
 
 function sendError(response: ServerResponse, requestId: string, error: HttpError) {
@@ -3258,7 +3378,15 @@ async function routeRequest(
       : undefined;
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
-    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.getSnapshot(), operatorReadIdentity));
+    const scopedSnapshot = filterOperatorReadResponse(
+      url.pathname,
+      await api.getSnapshot(),
+      operatorReadIdentity
+    ) as ControlPlaneSnapshotReadModel;
+    const selectedSnapshot = selectSnapshotSections(scopedSnapshot, url);
+    sendData(response, requestId, selectedSnapshot.data, 200, undefined, {
+      'X-Snapshot-Sections': selectedSnapshot.sections
+    });
     return;
   }
 
@@ -3312,13 +3440,20 @@ async function routeRequest(
     );
 
     if (readList) {
-      sendData(response, requestId, filterOperatorReadResponse(url.pathname, readList, operatorReadIdentity));
+      sendOperatorListData(response, requestId, url.pathname, readList, operatorReadIdentity, readListQuery(url));
       return;
     }
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/tasks') {
-    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listTasks(), operatorReadIdentity));
+    sendOperatorListData(
+      response,
+      requestId,
+      url.pathname,
+      await api.listTasks(),
+      operatorReadIdentity,
+      readListQuery(url)
+    );
     return;
   }
 

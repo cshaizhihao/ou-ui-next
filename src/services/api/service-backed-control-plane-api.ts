@@ -1477,12 +1477,7 @@ function createPersistedSystemAlertRecord(
     lastChangedAt:
       !existing
       || reactivated
-      || existing.severity !== alert.severity
-      || existing.message !== alert.message
-      || existing.title !== alert.title
-      || existing.observedAt !== alert.observedAt
-      || existing.resourceLabel !== alert.resourceLabel
-      || createStableSha256LikeHash(existing.metadata ?? {}) !== createStableSha256LikeHash(alert.metadata ?? {})
+      || hasMeaningfulSystemAlertChange(existing, alert)
         ? now
         : existing.lastChangedAt,
     resolvedAt: undefined
@@ -1663,14 +1658,10 @@ function createSystemAlertNotificationMetadataFingerprint(
   return createStableSha256LikeHash(stableMetadata);
 }
 
-function shouldNotifyActiveSystemAlertUpdate(
-  existing: PersistedSystemAlertRecord | undefined,
-  nextRecord: PersistedSystemAlertRecord
+function hasMeaningfulSystemAlertChange(
+  existing: PersistedSystemAlertRecord,
+  nextRecord: Pick<PersistedSystemAlertRecord, 'severity' | 'message' | 'title' | 'resourceLabel' | 'metadata'>
 ) {
-  if (!existing || existing.status === 'resolved') {
-    return true;
-  }
-
   return (
     existing.severity !== nextRecord.severity
     || existing.message !== nextRecord.message
@@ -1679,6 +1670,31 @@ function shouldNotifyActiveSystemAlertUpdate(
     || createSystemAlertNotificationMetadataFingerprint(existing.metadata)
       !== createSystemAlertNotificationMetadataFingerprint(nextRecord.metadata)
   );
+}
+
+function createSystemAlertPersistenceFingerprint(record: PersistedSystemAlertRecord) {
+  const persisted = Object.fromEntries(
+    Object.entries(record).filter(([key]) => key !== 'observedAt' && key !== 'metadata')
+  );
+  const stableMetadata = Object.fromEntries(
+    Object.entries(record.metadata ?? {}).filter(([key]) => !volatileSystemAlertNotificationMetadataKeys.has(key))
+  );
+
+  return createStableSha256LikeHash({
+    ...persisted,
+    metadata: stableMetadata
+  });
+}
+
+function shouldNotifyActiveSystemAlertUpdate(
+  existing: PersistedSystemAlertRecord | undefined,
+  nextRecord: PersistedSystemAlertRecord
+) {
+  if (!existing || existing.status === 'resolved') {
+    return true;
+  }
+
+  return hasMeaningfulSystemAlertChange(existing, nextRecord);
 }
 
 function reconcileSystemAlertRecords(
@@ -1696,7 +1712,7 @@ function reconcileSystemAlertRecords(
     const existing = persistedByDedupeKey.get(alert.dedupeKey);
     const nextRecord = createPersistedSystemAlertRecord(alert, now, existing);
 
-    if (!existing || createStableSha256LikeHash(existing) !== createStableSha256LikeHash(nextRecord)) {
+    if (!existing || createSystemAlertPersistenceFingerprint(existing) !== createSystemAlertPersistenceFingerprint(nextRecord)) {
       changed = true;
     }
 
@@ -7359,7 +7375,11 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listTasks() {
-      return (await repository.listTasks()).map(createOperatorTaskReadModel);
+      if (!readModelsHydrated) {
+        await hydrateReadModelsFromPersistedTasks();
+      }
+
+      return clone(readModelTasks).map(createOperatorTaskReadModel);
     },
 
     async listCommandOutbox() {
@@ -7880,7 +7900,12 @@ export function createServiceBackedControlPlaneApi({
         const result = await service.receiveAgentEvent(event);
 
         if (result) {
-          upsertReadModelTask(result);
+          if (event.type === 'result') {
+            updateReadModelTasks(sortTasksForReadModelReplay(await repository.listTasks()));
+            bumpSnapshotReadModelRevision();
+          } else {
+            upsertReadModelTask(result);
+          }
           forwardRulesReadModel = applyForwardRuleTask(await listForwardRuleReadModel(), result);
         }
 

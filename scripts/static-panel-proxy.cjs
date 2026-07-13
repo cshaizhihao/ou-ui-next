@@ -3,6 +3,7 @@
 const { createReadStream, existsSync, statSync } = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
+const { createGzip } = require('node:zlib');
 
 const defaultProxyPrefixes = ['/api/', '/agent/', '/events/', '/sub/', '/portal/', '/telegram/'];
 const defaultProxyExact = new Set(['/metrics']);
@@ -65,8 +66,26 @@ function proxyRequest(req, res, backend) {
     host: backend.host
   };
   const upstream = http.request(target, { method: req.method, headers }, (upstreamRes) => {
-    res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
-    upstreamRes.pipe(res);
+    const contentType = String(upstreamRes.headers['content-type'] || '');
+    const acceptsGzip = /(?:^|,)\s*gzip\s*(?:,|$)/i.test(String(req.headers['accept-encoding'] || ''));
+    const shouldCompress =
+      acceptsGzip &&
+      !upstreamRes.headers['content-encoding'] &&
+      !contentType.includes('text/event-stream') &&
+      /(?:application\/json|text\/|javascript|svg\+xml)/i.test(contentType);
+
+    if (!shouldCompress) {
+      res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+      upstreamRes.pipe(res);
+      return;
+    }
+
+    const responseHeaders = { ...upstreamRes.headers };
+    delete responseHeaders['content-length'];
+    responseHeaders['content-encoding'] = 'gzip';
+    responseHeaders.vary = responseHeaders.vary ? `${responseHeaders.vary}, Accept-Encoding` : 'Accept-Encoding';
+    res.writeHead(upstreamRes.statusCode || 502, responseHeaders);
+    upstreamRes.pipe(createGzip({ level: 1 })).pipe(res);
   });
 
   upstream.on('error', (error) => {

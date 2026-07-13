@@ -324,9 +324,11 @@ export function createRepositoryBackedOperatorSessionStore(
   repository: ControlPlaneRepository,
   now: () => string = () => new Date().toISOString()
 ): OperatorSessionStore {
+  const recordCache = new Map<string, OperatorSessionRecord>();
+
   return {
     async issue(input) {
-      return repository.transaction(async (transaction) => {
+      const result = await repository.transaction(async (transaction) => {
         const issuedAt = input.issuedAt ?? now();
         const record: OperatorSessionRecord = {
           id: input.sessionId,
@@ -343,20 +345,32 @@ export function createRepositoryBackedOperatorSessionStore(
         };
         await transaction.upsertOperatorSession(record);
         await appendLedgerAuditLog(transaction, createOperatorSessionIssuedAudit(record));
-        return createOperatorSessionSummary(record, issuedAt);
+        return { record, summary: createOperatorSessionSummary(record, issuedAt) };
       });
+      recordCache.set(result.record.id, result.record);
+      return result.summary;
     },
 
     async get(sessionId, context) {
-      return repository.transaction(async (transaction) => {
-        const currentAt = now();
+      const currentAt = now();
+      const cached = recordCache.get(sessionId);
+      if (cached && resolveOperatorSessionStatus(cached, currentAt) === cached.status) {
+        return createOperatorSessionSummary(cached, currentAt);
+      }
+
+      const result = await repository.transaction(async (transaction) => {
         const record = await transaction.findOperatorSession(sessionId);
         if (!record) {
           return undefined;
         }
         const normalized = await expireRecordIfNeeded(transaction, record, currentAt, context);
-        return createOperatorSessionSummary(normalized, currentAt);
+        return { record: normalized, summary: createOperatorSessionSummary(normalized, currentAt) };
       });
+      if (!result) {
+        return undefined;
+      }
+      recordCache.set(result.record.id, result.record);
+      return result.summary;
     },
 
     async list(context) {
@@ -367,6 +381,7 @@ export function createRepositoryBackedOperatorSessionStore(
 
         for (const record of records) {
           const normalized = await expireRecordIfNeeded(transaction, record, currentAt, context);
+          recordCache.set(normalized.id, normalized);
           summaries.push(createOperatorSessionSummary(normalized, currentAt));
         }
 
@@ -375,7 +390,7 @@ export function createRepositoryBackedOperatorSessionStore(
     },
 
     async revoke(sessionId, input) {
-      return repository.transaction(async (transaction) => {
+      const result = await repository.transaction(async (transaction) => {
         const currentAt = now();
         const record = await transaction.findOperatorSession(sessionId);
         if (!record) {
@@ -383,7 +398,7 @@ export function createRepositoryBackedOperatorSessionStore(
         }
         const normalized = await expireRecordIfNeeded(transaction, record, currentAt, input);
         if (normalized.status !== 'active') {
-          return createOperatorSessionSummary(normalized, currentAt);
+          return { record: normalized, summary: createOperatorSessionSummary(normalized, currentAt) };
         }
 
         const before = createOperatorSessionSummary(normalized, currentAt);
@@ -397,8 +412,13 @@ export function createRepositoryBackedOperatorSessionStore(
         await transaction.upsertOperatorSession(revoked);
         const after = createOperatorSessionSummary(revoked, currentAt);
         await appendLedgerAuditLog(transaction, createOperatorSessionRevokedAudit(before, after, input, currentAt));
-        return after;
+        return { record: revoked, summary: after };
       });
+      if (!result) {
+        return undefined;
+      }
+      recordCache.set(result.record.id, result.record);
+      return result.summary;
     }
   };
 }

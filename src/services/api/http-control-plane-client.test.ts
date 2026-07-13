@@ -79,6 +79,23 @@ function expectAsciiHeaderValue(value: string | null) {
 }
 
 describe('HTTP control-plane client', () => {
+  it('forwards list pagination and search parameters', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [], requestId: 'req-list-query' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    const api = createHttpControlPlaneClient({ baseUrl: 'https://panel.example', fetcher });
+
+    await api.listTasks({ page: 2, pageSize: 25, search: 'edge alpha' });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://panel.example/api/v1/tasks?page=2&pageSize=25&search=edge+alpha',
+      expect.any(Object)
+    );
+  });
+
   it('sends CSRF headers for operator mutations without adding them to Agent registration', async () => {
     const fetcher = vi
       .fn()

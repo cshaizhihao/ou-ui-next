@@ -91,6 +91,32 @@ describe('operator session store', () => {
     );
   });
 
+  it('serves active sessions from the hot cache after they are issued', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const transactionSpy = vi.spyOn(repository, 'transaction');
+    const store = createRepositoryBackedOperatorSessionStore(repository, () => '2026-06-05T00:00:00.000Z');
+
+    await store.issue({
+      sessionId: 'operator-session-cached-001',
+      username: 'operator_001',
+      actor: 'operator:alice',
+      expiresAt: '2026-06-05T08:00:00.000Z',
+      sourceIp: '203.0.113.10',
+      requestId: 'req-operator-session-cached'
+    });
+
+    expect(transactionSpy).toHaveBeenCalledTimes(1);
+    await expect(store.get('operator-session-cached-001')).resolves.toMatchObject({
+      id: 'operator-session-cached-001',
+      status: 'active'
+    });
+    await expect(store.get('operator-session-cached-001')).resolves.toMatchObject({
+      id: 'operator-session-cached-001',
+      status: 'active'
+    });
+    expect(transactionSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('marks expired operator sessions when they are read back from the repository', async () => {
     let now = '2026-06-05T00:00:00.000Z';
     const repository = createInMemoryControlPlaneRepository();

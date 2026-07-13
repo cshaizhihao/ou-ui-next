@@ -64,6 +64,7 @@ import type {
   CommandOutboxItem,
   ControlPlaneApi,
   ControlPlaneSnapshotReadModel,
+  ListQuery,
   MutationContext,
   ObservabilityMetrics,
   TrafficRollupCompactionExportQuery,
@@ -75,6 +76,15 @@ import type {
   TrafficRollupRetentionPolicyReadModel,
   TrafficRollupRetentionPolicyUpdateInput
 } from './control-plane-api';
+
+function createListPath(path: string, query?: ListQuery) {
+  const params = new URLSearchParams();
+  if (query?.page !== undefined) params.set('page', String(query.page));
+  if (query?.pageSize !== undefined) params.set('pageSize', String(query.pageSize));
+  if (query?.search) params.set('search', query.search);
+  const queryString = params.toString();
+  return queryString ? `${path}?${queryString}` : path;
+}
 
 type HttpControlPlaneClientOptions = {
   baseUrl: string;
@@ -386,24 +396,32 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
         body: input,
         context
       }),
-    listAgents: () => request<Agent[]>('/api/v1/agents'),
-    listCustomers: () => request<CustomerReadModel[]>('/api/v1/customers'),
-    listNodes: () => request<ManagedNode[]>('/api/v1/nodes'),
-    listInbounds: () => request<XrayInbound[]>('/api/v1/inbounds'),
-    listSubscriptionSources: () => request<SubscriptionSource[]>('/api/v1/subscription-sources'),
-    listSubscriptionInventoryNodes: () => request<SubscriptionInventoryNode[]>('/api/v1/subscription-nodes'),
-    listSubscriptionBundles: () => request<SubscriptionBundle[]>('/api/v1/subscription-bundles'),
-    listSubscriptionClients: () => request<SubscriptionClientIdentity[]>('/api/v1/subscription-clients'),
-    listSubscriptionExportProfiles: () => request<SubscriptionExportProfile[]>('/api/v1/subscription-export-profiles'),
-    listProxyProviders: () => request<ProxyProviderConfig[]>('/api/v1/proxy-providers'),
-    listSubscriptionExportFiles: () => request<SubscriptionExportFile[]>('/api/v1/subscription-export-files'),
-    listForwardRules: () => request<ForwardRule[]>('/api/v1/forward-rules'),
-    listQuotaPolicies: () => request<QuotaPolicy[]>('/api/v1/quota-policies'),
-    listRateLimitPolicies: () => request<RateLimitPolicy[]>('/api/v1/rate-limit-policies'),
-    listPermissionGrants: () => request<PermissionGrant[]>('/api/v1/permission-grants'),
-    listRoutingPolicies: () => request<RoutingPolicy[]>('/api/v1/routing-policies'),
-    listTuningProfiles: () => request<TuningProfile[]>('/api/v1/tuning-profiles'),
-    listTasks: () => request<DeployTask[]>('/api/v1/tasks'),
+    listAgents: (query) => request<Agent[]>(createListPath('/api/v1/agents', query)),
+    listCustomers: (query) => request<CustomerReadModel[]>(createListPath('/api/v1/customers', query)),
+    listNodes: (query) => request<ManagedNode[]>(createListPath('/api/v1/nodes', query)),
+    listInbounds: (query) => request<XrayInbound[]>(createListPath('/api/v1/inbounds', query)),
+    listSubscriptionSources: (query) =>
+      request<SubscriptionSource[]>(createListPath('/api/v1/subscription-sources', query)),
+    listSubscriptionInventoryNodes: (query) =>
+      request<SubscriptionInventoryNode[]>(createListPath('/api/v1/subscription-nodes', query)),
+    listSubscriptionBundles: (query) =>
+      request<SubscriptionBundle[]>(createListPath('/api/v1/subscription-bundles', query)),
+    listSubscriptionClients: (query) =>
+      request<SubscriptionClientIdentity[]>(createListPath('/api/v1/subscription-clients', query)),
+    listSubscriptionExportProfiles: (query) =>
+      request<SubscriptionExportProfile[]>(createListPath('/api/v1/subscription-export-profiles', query)),
+    listProxyProviders: (query) => request<ProxyProviderConfig[]>(createListPath('/api/v1/proxy-providers', query)),
+    listSubscriptionExportFiles: (query) =>
+      request<SubscriptionExportFile[]>(createListPath('/api/v1/subscription-export-files', query)),
+    listForwardRules: (query) => request<ForwardRule[]>(createListPath('/api/v1/forward-rules', query)),
+    listQuotaPolicies: (query) => request<QuotaPolicy[]>(createListPath('/api/v1/quota-policies', query)),
+    listRateLimitPolicies: (query) =>
+      request<RateLimitPolicy[]>(createListPath('/api/v1/rate-limit-policies', query)),
+    listPermissionGrants: (query) =>
+      request<PermissionGrant[]>(createListPath('/api/v1/permission-grants', query)),
+    listRoutingPolicies: (query) => request<RoutingPolicy[]>(createListPath('/api/v1/routing-policies', query)),
+    listTuningProfiles: (query) => request<TuningProfile[]>(createListPath('/api/v1/tuning-profiles', query)),
+    listTasks: (query) => request<DeployTask[]>(createListPath('/api/v1/tasks', query)),
     listCommandOutbox: async () => {
       if (clientOptions.defaultAgentId) {
         return request<{ commands: CommandOutboxItem[]; nextPollAfterMs: number }>('/agent/v1/poll', {

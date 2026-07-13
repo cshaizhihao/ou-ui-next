@@ -592,7 +592,7 @@ describe('HTTP control-plane server', () => {
     const listTrafficRollups = vi.spyOn(api, 'listTrafficRollups');
 
     await withServerApi(api, async (baseUrl) => {
-      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot`);
+      const snapshotResponse = await fetch(`${baseUrl}/api/v1/snapshot?sections=agents,tasks`);
       const snapshotEnvelope = await snapshotResponse.json();
 
       expect(snapshotResponse.status).toBe(200);
@@ -601,10 +601,47 @@ describe('HTTP control-plane server', () => {
           version: 'v1'
         })
       });
+      expect(snapshotEnvelope.data.agents).toEqual(expect.any(Array));
+      expect(snapshotEnvelope.data.tasks).toEqual(expect.any(Array));
+      expect(snapshotEnvelope.data).not.toHaveProperty('auditLogs');
+      expect(snapshotResponse.headers.get('x-snapshot-sections')).toBe('agents,tasks');
     });
 
     expect(getSnapshot).toHaveBeenCalledTimes(1);
     expect(listTrafficRollups).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies page, pageSize, search, and pagination headers to list routes', async () => {
+    await withServer(async (baseUrl) => {
+      for (const [index, label] of ['Alpha Edge', 'Beta Edge', 'Gamma Edge'].entries()) {
+        const response = await fetch(`${baseUrl}/api/v1/tasks`, {
+          method: 'POST',
+          headers: mutationHeaders({
+            'X-Request-Id': `req-http-page-${index}`,
+            'Idempotency-Key': `idem-http-page-${index}`
+          }),
+          body: JSON.stringify({
+            operation: 'config.compile',
+            targetId: `target-page-${index}`,
+            targetLabel: label,
+            summary: `Compile ${label}`
+          })
+        });
+        expect(response.status).toBe(201);
+      }
+
+      const firstPage = await fetch(`${baseUrl}/api/v1/tasks?page=1&pageSize=1&search=edge`);
+      const secondPage = await fetch(`${baseUrl}/api/v1/tasks?page=2&pageSize=1&search=edge`);
+      const firstEnvelope = await firstPage.json();
+      const secondEnvelope = await secondPage.json();
+
+      expect(firstEnvelope.data).toHaveLength(1);
+      expect(secondEnvelope.data).toHaveLength(1);
+      expect(firstEnvelope.data[0].id).not.toBe(secondEnvelope.data[0].id);
+      expect(firstPage.headers.get('x-page')).toBe('1');
+      expect(firstPage.headers.get('x-page-size')).toBe('1');
+      expect(Number(firstPage.headers.get('x-total-count'))).toBeGreaterThanOrEqual(3);
+    });
   });
 
   it('creates typed Xray client action tasks through the REST adapter', async () => {
