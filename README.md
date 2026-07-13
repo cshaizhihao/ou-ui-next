@@ -310,6 +310,8 @@ npm run smoke:xray-client-action -- --agent-id agent-id --report /var/lib/ou-ui-
 OU-UI Next 的安全边界：
 
 - Operator session 使用 HttpOnly cookie，后端 operator token 不应进入前端 bundle。
+- Operator 读取按 `actor`、`operatorGroupId` 与 `resourceGroupId` 约束；非 owner 身份只接收其资源组关联的任务、审计与运行证据。
+- Operator JSON、SSE、快照和任务回执会递归移除客户端凭据、Reality 私钥、Token Hash 与一次性原始秘密；Agent runtime payload 使用独立受控通道。
 - Agent install token 与 runtime credential 分离，审计只记录脱敏摘要。
 - Agent event 必须同时匹配 `commandId`、`taskId` 和 `agentId`。
 - 订阅源、告警 webhook、外部归档 webhook 默认拦截 localhost、私网、链路本地和组播目标。

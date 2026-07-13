@@ -66,6 +66,7 @@ import {
   resolveMonthlyBillingPeriodKey,
   telegramSubscriptionFormats
 } from '../../domain';
+import { createOperatorTaskReadModel } from '../../domain/operator-read-model';
 import { calculateForwardingBilledBytes } from '../../domain/forwarding';
 import type {
   AgentCredentialRecord,
@@ -6115,7 +6116,7 @@ export function createServiceBackedControlPlaneApi({
         permissionGrants,
         routingPolicies,
         tuningProfiles,
-        tasks: clone(tasks),
+        tasks: tasks.map(createOperatorTaskReadModel),
         commandOutbox: commandOutbox.map(summarizeCommandOutboxItem),
         configRevisions: configRevisions.map(summarizeRuntimeConfigRevisionForSnapshot),
         preflightPlans,
@@ -7358,7 +7359,7 @@ export function createServiceBackedControlPlaneApi({
     },
 
     async listTasks() {
-      return repository.listTasks();
+      return (await repository.listTasks()).map(createOperatorTaskReadModel);
     },
 
     async listCommandOutbox() {

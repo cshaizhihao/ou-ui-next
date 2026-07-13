@@ -1,4 +1,5 @@
 import { scryptSync } from 'node:crypto';
+import type { DeployTask } from '../../domain';
 import { createMockApi } from '../mock/mock-api';
 import {
   createHttpControlPlaneServer,
@@ -11,6 +12,33 @@ function createTestScryptPasswordHash(password: string) {
   const key = scryptSync(password, salt, 32);
 
   return `scrypt:v1:${salt.toString('hex')}:${key.toString('hex')}`;
+}
+
+function createScopedReadTask(id: string, actor: string, resourceGroupId: string): DeployTask {
+  return {
+    id,
+    operation: 'inbound.create',
+    resourceType: 'inbound',
+    resourceId: `inbound-${id}`,
+    status: 'queued',
+    targetId: `inbound-${id}`,
+    targetLabel: id,
+    summary: id,
+    createdAt: '2026-07-13T00:00:00.000Z',
+    updatedAt: '2026-07-13T00:00:00.000Z',
+    actor,
+    requestedBy: actor,
+    resourceGroupId,
+    requestId: `request-${id}`,
+    sourceIp: '127.0.0.1',
+    rollbackAvailable: false,
+    attempts: 0,
+    steps: [],
+    metadata: {
+      clientCredential: `${id}-secret`,
+      safeEvidence: `${id}-safe`
+    }
+  };
 }
 
 async function withAuthenticatedServer<T>(
@@ -602,6 +630,71 @@ describe('HTTP control-plane authentication boundary', () => {
       );
       expect(JSON.stringify(operatorDenials)).not.toContain('operator-token-001');
     });
+  });
+
+  it('scopes task JSON and SSE reads by authenticated resource group and redacts runtime credentials', async () => {
+    const api = createMockApi({ seedInventory: true });
+    const tasks = [
+      createScopedReadTask('task-blue', 'operator:blue', 'group-blue'),
+      createScopedReadTask('task-red', 'operator:red', 'group-red')
+    ];
+    const server = createHttpControlPlaneServer(
+      {
+        ...api,
+        async listTasks() {
+          return tasks;
+        },
+        async listAuditLogs() {
+          return [];
+        }
+      },
+      {
+        auth: {
+          operatorTokens: {
+            'operator-token-blue': {
+              actor: 'operator:blue',
+              operatorGroupId: 'operators-blue',
+              resourceGroupId: 'group-blue'
+            },
+            'operator-token-red': {
+              actor: 'operator:red',
+              operatorGroupId: 'operators-red',
+              resourceGroupId: 'group-red'
+            }
+          }
+        }
+      }
+    );
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Scoped-read test server did not bind to a TCP port');
+    }
+
+    try {
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const blueResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        headers: { Authorization: 'Bearer operator-token-blue' }
+      });
+      const redResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+        headers: { Authorization: 'Bearer operator-token-red' }
+      });
+      const blueEnvelope = await blueResponse.json();
+      const redEnvelope = await redResponse.json();
+      const blueEvents = await fetch(`${baseUrl}/events/v1/tasks?once=1`, {
+        headers: { Authorization: 'Bearer operator-token-blue', Accept: 'text/event-stream' }
+      }).then((response) => response.text());
+
+      expect(blueEnvelope.data.map((task: DeployTask) => task.id)).toEqual(['task-blue']);
+      expect(redEnvelope.data.map((task: DeployTask) => task.id)).toEqual(['task-red']);
+      expect(JSON.stringify(blueEnvelope)).not.toContain('clientCredential');
+      expect(blueEvents).toContain('task-blue');
+      expect(blueEvents).not.toContain('task-red');
+      expect(blueEvents).not.toContain('clientCredential');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
   });
 
   it('keeps the original operator auth response when denied-audit writes fail and exposes the failure count', async () => {

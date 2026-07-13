@@ -655,6 +655,7 @@ describe('HTTP control-plane server', () => {
       });
 
       expect(createInboundResponse.status).toBe(201);
+      expect(JSON.stringify(await createInboundResponse.clone().json())).not.toContain('clientCredential');
 
       const actionResponse = await fetch(`${baseUrl}/api/v1/xray-client-actions`, {
         method: 'POST',

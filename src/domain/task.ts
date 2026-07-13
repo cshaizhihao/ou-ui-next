@@ -77,6 +77,8 @@ export type DeployTask = {
   updatedAt: string;
   actor: string;
   requestedBy: string;
+  operatorGroupId?: string;
+  resourceGroupId?: string;
   requestId: string;
   idempotencyKey?: string;
   sourceIp: string;

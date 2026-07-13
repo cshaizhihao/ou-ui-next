@@ -15,12 +15,20 @@ import {
   type TrafficRollupDimension
 } from '../../domain';
 import {
+  canReadAllOperatorResources,
+  filterOperatorAuditLogs,
+  filterOperatorTasks,
+  redactOperatorReadSecrets,
+  type OperatorReadIdentity
+} from '../../domain/operator-read-model';
+import {
   createInMemoryOperatorSessionStore,
   type OperatorSessionObservationContext,
   type OperatorSessionStore
 } from '../../server/control-plane/operator-session-store';
 import type {
   ControlPlaneApi,
+  ControlPlaneSnapshotReadModel,
   ControlPlaneRuntimeObservabilityMetricsInput,
   MutationContext
 } from './control-plane-api';
@@ -1160,13 +1168,129 @@ async function requireOperatorForProtectedRead(
   operatorSessionStore?: OperatorSessionStore
 ) {
   if (operatorProtectedReadRoutes.has(pathname)) {
-    await authenticateOperator(request, auth, operatorSessionStore);
-    return;
+    return authenticateOperator(request, auth, operatorSessionStore);
   }
 
   if (getTaskIdFromPath(pathname)) {
-    await authenticateOperator(request, auth, operatorSessionStore);
+    return authenticateOperator(request, auth, operatorSessionStore);
   }
+
+  return undefined;
+}
+
+function readOperatorVisibleResourceIds(tasks: DeployTask[]) {
+  const ids = new Set<string>();
+  const metadataKeys = [
+    'agentId',
+    'clientId',
+    'inboundId',
+    'nodeId',
+    'profileId',
+    'ruleId',
+    'sourceId',
+    'subscriptionClientId',
+    'tunnelId'
+  ];
+
+  for (const task of tasks) {
+    ids.add(task.id);
+    ids.add(task.resourceId);
+    ids.add(task.targetId);
+
+    for (const key of metadataKeys) {
+      const value = task.metadata?.[key];
+      if (typeof value === 'string' && value) {
+        ids.add(value);
+      }
+    }
+
+    const agentIds = task.metadata?.agentIds;
+    if (Array.isArray(agentIds)) {
+      agentIds.forEach((value) => typeof value === 'string' && value && ids.add(value));
+    }
+  }
+
+  return ids;
+}
+
+function operatorResourceMatches(value: unknown, visibleIds: Set<string>): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const directKeys = ['id', 'agentId', 'clientId', 'inboundId', 'nodeId', 'profileId', 'resourceId', 'sourceId', 'targetId', 'taskId', 'tunnelId'];
+
+  if (directKeys.some((key) => typeof record[key] === 'string' && visibleIds.has(record[key] as string))) {
+    return true;
+  }
+
+  return Array.isArray(record.ports) && record.ports.some((port): boolean => operatorResourceMatches(port, visibleIds));
+}
+
+function filterOperatorSnapshot(
+  snapshot: ControlPlaneSnapshotReadModel,
+  identity: OperatorReadIdentity | undefined
+): ControlPlaneSnapshotReadModel {
+  if (canReadAllOperatorResources(identity)) {
+    return snapshot;
+  }
+
+  const tasks = filterOperatorTasks(snapshot.tasks, identity);
+  const visibleIds = readOperatorVisibleResourceIds(tasks);
+  const visibleTaskIds = new Set(tasks.map((task) => task.id));
+  const filterByResource = <T>(items: T[]) => items.filter((item) => operatorResourceMatches(item, visibleIds));
+  const filterByTask = <T>(items: T[]) =>
+    items.filter((item) => {
+      const taskId = item && typeof item === 'object' ? (item as Record<string, unknown>).taskId : undefined;
+      return typeof taskId === 'string' && visibleTaskIds.has(taskId);
+    });
+
+  return {
+    ...snapshot,
+    agents: filterByResource(snapshot.agents),
+    customers: filterByResource(snapshot.customers),
+    nodes: filterByResource(snapshot.nodes),
+    inbounds: filterByResource(snapshot.inbounds),
+    subscriptionSources: filterByResource(snapshot.subscriptionSources),
+    subscriptionInventoryNodes: filterByResource(snapshot.subscriptionInventoryNodes),
+    subscriptionBundles: filterByResource(snapshot.subscriptionBundles),
+    subscriptionClients: filterByResource(snapshot.subscriptionClients),
+    subscriptionExportProfiles: filterByResource(snapshot.subscriptionExportProfiles),
+    proxyProviders: filterByResource(snapshot.proxyProviders),
+    subscriptionExportFiles: filterByResource(snapshot.subscriptionExportFiles),
+    forwardRules: filterByResource(snapshot.forwardRules),
+    quotaPolicies: filterByResource(snapshot.quotaPolicies),
+    tasks,
+    commandOutbox: filterByTask(snapshot.commandOutbox),
+    configRevisions: filterByTask(snapshot.configRevisions),
+    preflightPlans: filterByTask(snapshot.preflightPlans),
+    runtimeSnapshots: filterByTask(snapshot.runtimeSnapshots),
+    auditLogs: filterOperatorAuditLogs(snapshot.auditLogs, identity),
+    permissionGrants: snapshot.permissionGrants.filter(
+      (grant) => grant.resourceId === identity?.resourceGroupId || grant.subjectId === identity?.operatorGroupId
+    )
+  };
+}
+
+function filterOperatorReadResponse(pathname: string, data: unknown, identity: OperatorReadIdentity | undefined) {
+  if (pathname === '/api/v1/snapshot' && data && typeof data === 'object') {
+    return redactOperatorReadSecrets(filterOperatorSnapshot(data as ControlPlaneSnapshotReadModel, identity));
+  }
+
+  if (pathname === '/api/v1/tasks' && Array.isArray(data)) {
+    return redactOperatorReadSecrets(filterOperatorTasks(data as DeployTask[], identity));
+  }
+
+  if (pathname === '/api/v1/audit-logs' && Array.isArray(data)) {
+    return redactOperatorReadSecrets(filterOperatorAuditLogs(data as AuditLog[], identity));
+  }
+
+  if (!canReadAllOperatorResources(identity) && Array.isArray(data)) {
+    return redactOperatorReadSecrets(data.filter((item) => operatorResourceMatches(item, new Set())));
+  }
+
+  return redactOperatorReadSecrets(data);
 }
 
 async function createMutationContext(
@@ -1695,6 +1819,10 @@ function sendData(response: ServerResponse, requestId: string, data: unknown, st
     requestId,
     ...(taskId ? { taskId } : {})
   });
+}
+
+function sendOperatorData(response: ServerResponse, requestId: string, data: unknown, status = 200, taskId?: string) {
+  sendData(response, requestId, redactOperatorReadSecrets(data), status, taskId);
 }
 
 function sendError(response: ServerResponse, requestId: string, error: HttpError) {
@@ -2572,8 +2700,14 @@ function createSystemAlertSnapshotSseEvent(alerts: SystemAlert[], generatedAt = 
   };
 }
 
-async function listTaskSseEvents(api: ControlPlaneApi, query: TaskEventQuery) {
-  const [tasks, auditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
+async function listTaskSseEvents(
+  api: ControlPlaneApi,
+  query: TaskEventQuery,
+  identity?: OperatorReadIdentity
+) {
+  const [allTasks, allAuditLogs] = await Promise.all([api.listTasks(), api.listAuditLogs()]);
+  const tasks = filterOperatorTasks(allTasks, identity);
+  const auditLogs = filterOperatorAuditLogs(allAuditLogs, identity);
   const tasksById = new Map(tasks.map((task) => [task.id, task] as const));
   const matchedTaskStatusAudits = auditLogs.filter((auditLog) => {
     if (!auditLog.taskId || !readTaskStatusFromAuditLog(auditLog)) {
@@ -2626,9 +2760,14 @@ async function sendSystemAlertEventStream(
   response: ServerResponse,
   requestId: string,
   query: SystemAlertEventQuery,
-  runtimeMetrics?: HttpRuntimeMetrics
+  runtimeMetrics?: HttpRuntimeMetrics,
+  identity?: OperatorReadIdentity
 ) {
-  const initialAlerts = filterSystemAlertsForEventQuery(await listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics), query);
+  const readVisibleAlerts = async () => {
+    const alerts = await listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics);
+    return canReadAllOperatorResources(identity) ? alerts : [];
+  };
+  const initialAlerts = filterSystemAlertsForEventQuery(await readVisibleAlerts(), query);
   const initialEvent = createSystemAlertSnapshotSseEvent(initialAlerts);
   let lastEventId = query.cursor;
   let lastSnapshotId = query.cursor;
@@ -2671,7 +2810,7 @@ async function sendSystemAlertEventStream(
     polling = true;
 
     try {
-      const alerts = filterSystemAlertsForEventQuery(await listSystemAlertsWithRuntimeMetrics(api, runtimeMetrics), query);
+      const alerts = filterSystemAlertsForEventQuery(await readVisibleAlerts(), query);
       const event = createSystemAlertSnapshotSseEvent(alerts);
 
       if (event.id !== lastSnapshotId && !response.destroyed) {
@@ -2710,7 +2849,8 @@ async function sendTaskEventStream(
   api: ControlPlaneApi,
   response: ServerResponse,
   requestId: string,
-  query: TaskEventQuery
+  query: TaskEventQuery,
+  identity?: OperatorReadIdentity
 ) {
   response.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -2719,7 +2859,7 @@ async function sendTaskEventStream(
     'X-Accel-Buffering': 'no'
   });
 
-  const matchedEvents = await listTaskSseEvents(api, query);
+  const matchedEvents = await listTaskSseEvents(api, query, identity);
 
   for (const event of matchedEvents) {
     writeTaskSseEvent(response, event);
@@ -2757,10 +2897,14 @@ async function sendTaskEventStream(
 
     polling = true;
 
-    void listTaskSseEvents(api, {
-      ...query,
-      ...(lastEventId ? { cursor: lastEventId } : {})
-    })
+    void listTaskSseEvents(
+      api,
+      {
+        ...query,
+        ...(lastEventId ? { cursor: lastEventId } : {})
+      },
+      identity
+    )
       .then((events) => {
         for (const event of events) {
           writeTaskSseEvent(response, event);
@@ -3090,69 +3234,71 @@ async function routeRequest(
   }
 
   if (method === 'GET' && url.pathname === '/events/v1/tasks') {
-    await authenticateOperator(request, options.auth, options.operatorSessionStore);
-    await sendTaskEventStream(api, response, requestId, readTaskEventQuery(url, request.headers));
+    const identity = await authenticateOperator(request, options.auth, options.operatorSessionStore);
+    await sendTaskEventStream(api, response, requestId, readTaskEventQuery(url, request.headers), identity);
     return;
   }
 
   if (method === 'GET' && url.pathname === '/events/v1/system-alerts') {
-    await authenticateOperator(request, options.auth, options.operatorSessionStore);
+    const identity = await authenticateOperator(request, options.auth, options.operatorSessionStore);
     await sendSystemAlertEventStream(
       api,
       response,
       requestId,
       readSystemAlertEventQuery(url, request.headers),
-      options.runtimeMetrics
+      options.runtimeMetrics,
+      identity
     );
     return;
   }
 
-  if (method === 'GET') {
-    await requireOperatorForProtectedRead(request, url.pathname, options.auth, options.operatorSessionStore);
-  }
+  const operatorReadIdentity =
+    method === 'GET'
+      ? await requireOperatorForProtectedRead(request, url.pathname, options.auth, options.operatorSessionStore)
+      : undefined;
 
   if (method === 'GET' && url.pathname === '/api/v1/snapshot') {
-    sendData(response, requestId, await api.getSnapshot());
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.getSnapshot(), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks:export') {
-    sendData(response, requestId, await api.exportAgentLogChunks(readAgentLogChunkQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.exportAgentLogChunks(readAgentLogChunkQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-archives:export') {
-    sendData(response, requestId, await api.exportAgentLogArchives(readAgentLogArchiveQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.exportAgentLogArchives(readAgentLogArchiveQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/traffic-rollups:export') {
-    sendData(response, requestId, await api.exportTrafficRollups(readTrafficRollupQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.exportTrafficRollups(readTrafficRollupQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/traffic-rollup-compactions:export') {
-    sendData(response, requestId, await api.exportTrafficRollupCompactions(readTrafficRollupCompactionQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.exportTrafficRollupCompactions(readTrafficRollupCompactionQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-chunks') {
-    sendData(response, requestId, await api.listAgentLogChunks(readAgentLogChunkQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listAgentLogChunks(readAgentLogChunkQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/agent-log-archives') {
-    sendData(response, requestId, await api.listAgentLogArchives(readAgentLogArchiveQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listAgentLogArchives(readAgentLogArchiveQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/traffic-rollups') {
-    sendData(response, requestId, await api.listTrafficRollups(readTrafficRollupQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listTrafficRollups(readTrafficRollupQuery(url)), operatorReadIdentity));
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/traffic-rollup-compactions') {
-    sendData(response, requestId, await api.listTrafficRollupCompactions(readTrafficRollupCompactionQuery(url)));
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listTrafficRollupCompactions(readTrafficRollupCompactionQuery(url)), operatorReadIdentity));
     return;
   }
 
@@ -3166,13 +3312,13 @@ async function routeRequest(
     );
 
     if (readList) {
-      sendData(response, requestId, readList);
+      sendData(response, requestId, filterOperatorReadResponse(url.pathname, readList, operatorReadIdentity));
       return;
     }
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/tasks') {
-    sendData(response, requestId, await api.listTasks());
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listTasks(), operatorReadIdentity));
     return;
   }
 
@@ -3272,7 +3418,7 @@ async function routeRequest(
     const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
     const task = await api.resetQuotaPolicy(quotaPolicyResetId, context);
     logTaskEvent(options, request, 'task.created', task, context);
-    sendData(response, context.requestId, task, 202, task.id);
+    sendOperatorData(response, context.requestId, task, 202, task.id);
     return;
   }
 
@@ -3307,7 +3453,7 @@ async function routeRequest(
     const input = parseXrayClientActionRequest(await readJsonBody(request));
     const task = await api.applyXrayClientAction(input, context);
     logTaskEvent(options, request, 'task.created', task, context);
-    sendData(response, context.requestId, task, 202, task.id);
+    sendOperatorData(response, context.requestId, task, 202, task.id);
     return;
   }
 
@@ -3316,7 +3462,7 @@ async function routeRequest(
     const input = normalizeCreateTaskSubscriptionAccessToken(parseCreateTaskRequest(await readJsonBody(request)));
     const task = await api.createTask(input, context);
     logTaskEvent(options, request, 'task.created', task, context);
-    sendData(response, context.requestId, task, 201, task.id);
+    sendOperatorData(response, context.requestId, task, 201, task.id);
     return;
   }
 
@@ -3500,7 +3646,7 @@ async function routeRequest(
       commandType: command.type,
       outboxStatus: outboxItem.status
     });
-    sendData(response, context.requestId, outboxItem, 202, command.taskId);
+    sendOperatorData(response, context.requestId, outboxItem, 202, command.taskId);
     return;
   }
 
@@ -3578,13 +3724,13 @@ async function routeRequest(
   const taskId = getTaskIdFromPath(url.pathname);
 
   if (method === 'GET' && taskId) {
-    const task = (await api.listTasks()).find((item) => item.id === taskId);
+    const task = filterOperatorTasks(await api.listTasks(), operatorReadIdentity).find((item) => item.id === taskId);
 
     if (!task) {
       throw createHttpError(404, 'not_found', `Task not found: ${taskId}`);
     }
 
-    sendData(response, requestId, task);
+    sendData(response, requestId, redactOperatorReadSecrets(task));
     return;
   }
 
@@ -3595,12 +3741,12 @@ async function routeRequest(
     const body = parseTransitionTaskRequest(await readJsonBody(request));
     const task = await api.transitionTask(transitionTaskId, body.status, context);
     logTaskEvent(options, request, 'task.transitioned', task, context);
-    sendData(response, context.requestId, task);
+    sendOperatorData(response, context.requestId, task);
     return;
   }
 
   if (method === 'GET' && url.pathname === '/api/v1/audit-logs') {
-    sendData(response, requestId, await api.listAuditLogs());
+    sendData(response, requestId, filterOperatorReadResponse(url.pathname, await api.listAuditLogs(), operatorReadIdentity));
     return;
   }
 
