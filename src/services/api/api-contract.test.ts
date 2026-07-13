@@ -13,6 +13,7 @@ import {
   parseAgentLogRetentionPolicyUpdateRequest,
   parseCreateTaskRequest,
   parseTrafficRollupRetentionPolicyUpdateRequest,
+  parseXrayClientSubscriptionOperationRequest,
   parseXrayClientActionRequest,
   trafficRollupRetentionPolicyUpdateRequestSchema,
   transitionTaskRequestSchema
@@ -1810,6 +1811,41 @@ describe('v1 API runtime contract', () => {
         }
       })
     ).toThrow(/greater than or equal to 0/);
+  });
+
+  it('validates Xray client and subscription operations as correlated task pairs', () => {
+    expect(
+      parseXrayClientSubscriptionOperationRequest({
+        id: 'operation-xray-subscription-001',
+        kind: 'xray-client.subscription-binding',
+        targetId: 'customer-node-hkg-01',
+        targetLabel: 'Customer node HKG',
+        clientAction: {
+          inboundId: 'customer-node-hkg-01',
+          action: {
+            kind: 'add-client',
+            clientIdentity: 'client-b',
+            clientEmail: 'new-client@example.com'
+          }
+        },
+        secondary: {
+          operation: 'subscription.generate',
+          resourceType: 'subscription',
+          targetId: 'subscription-client-b',
+          targetLabel: 'Client B subscription',
+          summary: 'Generate Client B subscription'
+        }
+      })
+    ).toMatchObject({
+      id: 'operation-xray-subscription-001',
+      kind: 'xray-client.subscription-binding',
+      clientAction: {
+        action: { kind: 'add-client' }
+      },
+      secondary: {
+        operation: 'subscription.generate'
+      }
+    });
   });
 
   it('rejects active Xray Reality runtime metadata without required key material', () => {

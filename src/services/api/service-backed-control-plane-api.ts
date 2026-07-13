@@ -11,6 +11,7 @@ import type {
   AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
+  CreateTaskOperationInput,
   CreateTaskInput,
   CustomerReadModel,
   DeployTask,
@@ -42,6 +43,10 @@ import type {
   TelegramSubscriptionFormat,
   TelegramWebhookHandleResult,
   TelegramWebhookUpdate,
+  TaskOperationFailure,
+  TaskOperationKind,
+  TaskOperationReceipt,
+  TaskOperationStage,
   TuningProfile,
   XrayInbound
 } from '../../domain';
@@ -112,7 +117,8 @@ import type {
   TelegramNotificationScheduleScanSkipReason,
   TrafficRollupRetentionPolicyReadModel,
   TrafficRollupRetentionPolicyValues,
-  TrafficRollupRetentionPolicyUpdateInput
+  TrafficRollupRetentionPolicyUpdateInput,
+  XrayClientSubscriptionOperationInput
 } from './control-plane-api';
 import {
   createAgentLogExport,
@@ -131,7 +137,7 @@ import {
 import { createQuotaPoliciesFromReadModels } from './quota-policies';
 import { deriveForwardQuotaEnforcementTaskIntents } from './forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from './xray-guardrail-enforcement-tasks';
-import { createXrayClientActionTaskPlan } from './xray-client-action-tasks';
+import { createXrayClientActionTaskPlan, createXrayInboundRestoreTaskInput } from './xray-client-action-tasks';
 import { findXrayInboundPortConflictDenial } from './xray-inbound-port-conflicts';
 import {
   applyQuotaResetStateToAgentEvent,
@@ -6006,6 +6012,196 @@ export function createServiceBackedControlPlaneApi({
     };
   }
 
+  function createTaskOperationFailure(stage: TaskOperationStage, error: unknown): TaskOperationFailure {
+    const rawMessage = error instanceof Error ? error.message : 'The operation stage failed without an error message.';
+    const message = rawMessage
+      .replace(/((?:token|password|secret|credential|private\s*key)\s*[:=]\s*)\S+/gi, '$1[redacted]')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 500);
+    const code =
+      error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+        ? error.code.slice(0, 160)
+        : 'operation.stage_failed';
+
+    return {
+      stage,
+      code,
+      message: message || 'The operation stage failed.'
+    };
+  }
+
+  function createTaskOperationReceipt(input: {
+    id: string;
+    kind: TaskOperationKind;
+    targetId: string;
+    targetLabel: string;
+    status: TaskOperationReceipt['status'];
+    primaryTask?: DeployTask;
+    secondaryTask?: DeployTask;
+    compensationTask?: DeployTask;
+    failure?: TaskOperationFailure;
+  }): TaskOperationReceipt {
+    const evidence = [input.primaryTask, input.secondaryTask, input.compensationTask].filter(
+      (task): task is DeployTask => Boolean(task)
+    );
+    const now = readModelNow();
+    const createdAt = evidence.map((task) => task.createdAt).sort()[0] ?? now;
+    const updatedAt = evidence.map((task) => task.updatedAt).sort().at(-1) ?? now;
+
+    return {
+      id: input.id,
+      kind: input.kind,
+      targetId: input.targetId,
+      targetLabel: input.targetLabel,
+      status: input.status,
+      createdAt,
+      updatedAt,
+      primaryTask: input.primaryTask,
+      secondaryTask: input.secondaryTask,
+      compensationTask: input.compensationTask,
+      failure: input.failure
+    };
+  }
+
+  function createOperationTaskInput(
+    input: CreateTaskInput,
+    operationId: string,
+    operationStage: TaskOperationStage,
+    options: {
+      compensation?: CreateTaskInput;
+      failure?: TaskOperationFailure;
+    } = {}
+  ): CreateTaskInput {
+    return {
+      ...input,
+      operationId,
+      operationStage,
+      operationFailure: options.failure,
+      operationCompensation:
+        operationStage === 'primary' && options.compensation
+          ? {
+              operation: options.compensation.operation,
+              resourceType: options.compensation.resourceType,
+              targetId: options.compensation.targetId,
+              targetLabel: options.compensation.targetLabel,
+              summary: options.compensation.summary,
+              metadata: options.compensation.metadata,
+              permissionChange: options.compensation.permissionChange,
+              riskConfirmation: options.compensation.riskConfirmation
+            }
+          : undefined
+    };
+  }
+
+  function createOperationMutationContext(
+    context: MutationContext | undefined,
+    operationId: string,
+    stage: TaskOperationStage
+  ) {
+    const resolved = resolveMutationContext(context);
+    return {
+      ...resolved,
+      idempotencyKey: `${operationId}:${stage}`.slice(0, 200)
+    };
+  }
+
+  async function executeStagedTaskOperation(input: {
+    id: string;
+    kind: TaskOperationKind;
+    targetId: string;
+    targetLabel: string;
+    primary: CreateTaskInput;
+    secondary: CreateTaskInput;
+    compensation?: CreateTaskInput;
+  }, context?: MutationContext): Promise<TaskOperationReceipt> {
+    const operationTasks = (await repository.listTasks()).filter((task) => task.operationId === input.id);
+    let primaryTask = operationTasks.find((task) => task.operationStage === 'primary');
+    const existingSecondaryTask = operationTasks.find((task) => task.operationStage === 'secondary');
+    const existingCompensationTask = operationTasks.find((task) => task.operationStage === 'compensation');
+
+    if (existingCompensationTask) {
+      return createTaskOperationReceipt({
+        ...input,
+        status: 'compensation_queued',
+        primaryTask,
+        compensationTask: existingCompensationTask,
+        failure: existingCompensationTask.operationFailure
+      });
+    }
+
+    if (existingSecondaryTask) {
+      return createTaskOperationReceipt({
+        ...input,
+        status: 'accepted',
+        primaryTask,
+        secondaryTask: existingSecondaryTask
+      });
+    }
+
+    const compensation = input.compensation ?? primaryTask?.operationCompensation;
+
+    if (!primaryTask) {
+      try {
+        primaryTask = await api.createTask(
+          createOperationTaskInput(input.primary, input.id, 'primary', { compensation }),
+          createOperationMutationContext(context, input.id, 'primary')
+        );
+      } catch (error) {
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: createTaskOperationFailure('primary', error)
+        });
+      }
+    }
+
+    try {
+      const secondaryTask = await api.createTask(
+        createOperationTaskInput(input.secondary, input.id, 'secondary'),
+        createOperationMutationContext(context, input.id, 'secondary')
+      );
+      return createTaskOperationReceipt({
+        ...input,
+        status: 'accepted',
+        primaryTask,
+        secondaryTask
+      });
+    } catch (error) {
+      const secondaryFailure = createTaskOperationFailure('secondary', error);
+
+      if (!compensation) {
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'partial_failure',
+          primaryTask,
+          failure: secondaryFailure
+        });
+      }
+
+      try {
+        const compensationTask = await api.createTask(
+          createOperationTaskInput(compensation, input.id, 'compensation', { failure: secondaryFailure }),
+          createOperationMutationContext(context, input.id, 'compensation')
+        );
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'compensation_queued',
+          primaryTask,
+          compensationTask,
+          failure: secondaryFailure
+        });
+      } catch (compensationError) {
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'partial_failure',
+          primaryTask,
+          failure: createTaskOperationFailure('compensation', compensationError)
+        });
+      }
+    }
+  }
+
   const api: ControlPlaneApi = {
     async getSnapshot() {
       const now = readModelNow();
@@ -7555,6 +7751,97 @@ export function createServiceBackedControlPlaneApi({
         ...mutationContext,
         idempotencyKey: mutationContext.idempotencyKey ?? plan.idempotencyKey
       });
+    },
+
+    async executeTaskOperation(input: CreateTaskOperationInput, context?: MutationContext) {
+      return executeStagedTaskOperation(input, context);
+    },
+
+    async executeXrayClientSubscriptionOperation(
+      input: XrayClientSubscriptionOperationInput,
+      context?: MutationContext
+    ) {
+      if (input.clientAction.action.kind !== 'add-client' && input.clientAction.action.kind !== 'delete-client') {
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: {
+            stage: 'primary',
+            code: 'operation.unsupported_client_action',
+            message: 'Subscription binding operations only support add-client and delete-client actions.'
+          }
+        });
+      }
+
+      const existingPrimary = (await repository.listTasks()).find(
+        (task) => task.operationId === input.id && task.operationStage === 'primary'
+      );
+
+      if (existingPrimary) {
+        return executeStagedTaskOperation(
+          {
+            ...input,
+            primary: {
+              operation: existingPrimary.operation,
+              resourceType: existingPrimary.resourceType,
+              targetId: existingPrimary.targetId,
+              targetLabel: existingPrimary.targetLabel,
+              summary: existingPrimary.summary,
+              metadata: existingPrimary.metadata,
+              operationCompensation: existingPrimary.operationCompensation
+            },
+            compensation: existingPrimary.operationCompensation
+          },
+          context
+        );
+      }
+
+      await hydrateReadModelsFromPersistedTasks();
+      const observedAtMs = Date.parse(input.clientAction.observedAt ?? '');
+      const observedAt = Number.isNaN(observedAtMs) ? readModelNow() : new Date(observedAtMs).toISOString();
+      const liveInbounds = applyXrayTrafficWindowToReadModel(inbounds, observedAt);
+      const inbound = liveInbounds.find((item) => item.id === input.clientAction.inboundId);
+
+      if (!inbound || inbound.id !== input.targetId) {
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: {
+            stage: 'primary',
+            code: 'xray.inbound_not_found',
+            message: `Xray inbound not found: ${input.clientAction.inboundId}`
+          }
+        });
+      }
+
+      try {
+        const primaryPlan = createXrayClientActionTaskPlan({
+          inbound,
+          request: input.clientAction,
+          observedAt
+        });
+        const compensation = createXrayInboundRestoreTaskInput({
+          inbound,
+          observedAt,
+          recreate: primaryPlan.input.operation === 'inbound.delete',
+          reason: `Restore ${inbound.id} because the subscription binding stage failed.`
+        });
+
+        return executeStagedTaskOperation(
+          {
+            ...input,
+            primary: primaryPlan.input,
+            compensation
+          },
+          context
+        );
+      } catch (error) {
+        return createTaskOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: createTaskOperationFailure('primary', error)
+        });
+      }
     },
 
     async createTask(input: CreateTaskInput, context?: MutationContext) {

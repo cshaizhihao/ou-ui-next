@@ -860,6 +860,71 @@ describe('service-backed control plane read model hydration', () => {
     });
   });
 
+  it('persists operation stages and queues compensation when the secondary task is rejected', async () => {
+    const repository = createInMemoryControlPlaneRepository();
+    const api = createServiceBackedControlPlaneApi({
+      repository,
+      service: createControlPlaneService({ repository, now: createControlPlaneTestClock() })
+    });
+    const input = {
+      id: 'operation-customer-node-compensation-001',
+      kind: 'customer-node.upsert' as const,
+      targetId: 'customer-node-operation-001',
+      targetLabel: 'Operation customer node',
+      primary: {
+        operation: 'subscription.export' as const,
+        resourceType: 'subscription' as const,
+        targetId: 'subscription-operation-001',
+        targetLabel: 'Operation subscription',
+        summary: 'Queue subscription export'
+      },
+      secondary: {
+        operation: 'inbound.delete' as const,
+        resourceType: 'inbound' as const,
+        targetId: 'inbound-operation-without-confirmation',
+        targetLabel: 'Inbound without confirmation',
+        summary: 'Delete inbound without high-risk confirmation'
+      },
+      compensation: {
+        operation: 'subscription.export' as const,
+        resourceType: 'subscription' as const,
+        targetId: 'subscription-operation-recovery-001',
+        targetLabel: 'Operation recovery export',
+        summary: 'Compensate failed customer node operation'
+      }
+    };
+
+    const receipt = await api.executeTaskOperation(input, mutationContext('operation-compensation'));
+
+    expect(receipt).toMatchObject({
+      id: input.id,
+      status: 'compensation_queued',
+      primaryTask: {
+        operationId: input.id,
+        operationStage: 'primary'
+      },
+      compensationTask: {
+        operationId: input.id,
+        operationStage: 'compensation',
+        operationFailure: {
+          stage: 'secondary'
+        }
+      },
+      failure: {
+        stage: 'secondary'
+      }
+    });
+    expect(receipt.secondaryTask).toBeUndefined();
+
+    const replayed = await api.executeTaskOperation(input, mutationContext('operation-compensation-replay'));
+    expect(replayed).toMatchObject({
+      status: 'compensation_queued',
+      primaryTask: { id: receipt.primaryTask?.id },
+      compensationTask: { id: receipt.compensationTask?.id }
+    });
+    expect((await repository.listTasks()).filter((task) => task.operationId === input.id)).toHaveLength(2);
+  });
+
   it('rejects Xray inbound tasks that reuse an Agent listener with a different protocol', async () => {
     const repository = createInMemoryControlPlaneRepository();
     const api = createServiceBackedControlPlaneApi({

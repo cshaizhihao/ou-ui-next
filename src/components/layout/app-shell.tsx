@@ -47,6 +47,7 @@ import type {
   NodesFocusIntent
 } from '../../features/nodes/nodes-page';
 import {
+  createCustomerNodeDeleteTaskInput,
   createCustomerNodeInboundIdempotencyKey,
   createCustomerNodeInboundTaskInput
 } from '../../features/nodes/customer-node-task-inputs';
@@ -2032,46 +2033,102 @@ export function AppShell({ ready }: AppShellProps) {
         create: t.createCustomerNodeSummary,
         update: t.updateCustomerNodeSummary
       });
-
-      const inboundTask = await runTask(
-        inboundInput,
-        {
-          idempotencyKey: createCustomerNodeInboundIdempotencyKey(metadata, operation)
-        }
+      const subscriptionInput = createSubscriptionClientGenerateTaskInput(subscriptionMetadata, action, {
+        create: t.createSubscriptionClientSummary,
+        update: t.updateSubscriptionClientSummary
+      });
+      const primaryKey = createCustomerNodeInboundIdempotencyKey(metadata, operation);
+      const secondaryKey = createSubscriptionClientGenerateIdempotencyKey(subscriptionMetadata, action);
+      const operationId = createBoundedMutationKey(
+        `operation:customer-node:${action}:${primaryKey}:${secondaryKey}`,
+        160
       );
 
-      if (!inboundTask) {
+      if (taskMutationInFlightRef.current) {
+        setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
         return {
           accepted: false,
           action,
-          targetNodeId: metadata.nodeId,
+          targetNodeId: inboundInput.targetId,
           targetLabel: metadata.customerNodeName
         };
       }
 
-      const subscriptionTask = await runTask(
-        createSubscriptionClientGenerateTaskInput(subscriptionMetadata, action, {
-          create: t.createSubscriptionClientSummary,
-          update: t.updateSubscriptionClientSummary
-        }),
-        {
-          idempotencyKey: createSubscriptionClientGenerateIdempotencyKey(subscriptionMetadata, action)
-        }
-      );
+      taskMutationInFlightRef.current = true;
+      setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
 
-      return {
-        accepted: true,
-        action,
-        runtimeTaskId: inboundTask.id,
-        subscriptionTaskId: subscriptionTask?.id,
-        targetNodeId: metadata.nodeId,
-        targetLabel: metadata.customerNodeName
-      };
+      try {
+        const receipt = await api.executeTaskOperation(
+          {
+            id: operationId,
+            kind: 'customer-node.upsert',
+            targetId: inboundInput.targetId,
+            targetLabel: metadata.customerNodeName,
+            primary: inboundInput,
+            secondary: subscriptionInput,
+            ...(action === 'create'
+              ? {
+                  compensation: createCustomerNodeDeleteTaskInput(
+                    { ...metadata, nodeId: inboundInput.targetId },
+                    t.deleteCustomerNodeSummary
+                  )
+                }
+              : {})
+          },
+          createUiRequestContext('customer-node.operation', inboundInput.targetId, runtimeConfig, operationId)
+        );
+
+        const accepted = receipt.status === 'accepted';
+        let refreshDeferred = false;
+        try {
+          await snapshot.refetch();
+        } catch {
+          refreshDeferred = true;
+        }
+        setTaskMutationState({
+          status: accepted ? 'succeeded' : 'failed',
+          message: accepted
+            ? refreshDeferred
+              ? t.taskQueuedDeferred
+              : t.taskQueued
+            : receipt.failure?.message ?? t.taskMutationFailed
+        });
+
+        return {
+          accepted,
+          action,
+          runtimeTaskId: receipt.primaryTask?.id,
+          subscriptionTaskId: receipt.secondaryTask?.id,
+          targetNodeId: inboundInput.targetId,
+          targetLabel: metadata.customerNodeName
+        };
+      } catch (error) {
+        setTaskMutationState({
+          status: 'failed',
+          message: formatTaskMutationError(error, language, t.taskMutationFailed)
+        });
+        return {
+          accepted: false,
+          action,
+          targetNodeId: inboundInput.targetId,
+          targetLabel: metadata.customerNodeName
+        };
+      } finally {
+        taskMutationInFlightRef.current = false;
+      }
     },
     [
-      runTask,
+      api,
+      language,
+      runtimeConfig,
+      snapshot,
       t.createCustomerNodeSummary,
       t.createSubscriptionClientSummary,
+      t.deleteCustomerNodeSummary,
+      t.taskMutationFailed,
+      t.taskMutationPending,
+      t.taskQueued,
+      t.taskQueuedDeferred,
       t.updateCustomerNodeSummary,
       t.updateSubscriptionClientSummary
     ]
@@ -2087,6 +2144,7 @@ export function AppShell({ ready }: AppShellProps) {
       taskMutationInFlightRef.current = true;
       setTaskMutationState({ status: 'pending', message: t.taskMutationPending });
       let actionResult: CustomerNodeClientActionResult | undefined;
+      let operationFailureMessage: string | undefined;
 
       try {
         const xrayClientActionInbound =
@@ -2142,73 +2200,81 @@ export function AppShell({ ready }: AppShellProps) {
               })()
             : undefined;
 
-        const runtimeTask = await api.applyXrayClientAction(input, {
-          ...createUiRequestContext('xray.client.action', input.inboundId, runtimeConfig),
-          idempotencyKey: undefined
-        });
-        actionResult = {
-          accepted: true,
-          actionKind: input.action.kind,
-          runtimeTaskId: runtimeTask.id,
-          targetClientId:
-            input.clientId ||
-            (input.action.kind === 'add-client' ? input.action.clientIdentity : undefined) ||
-            deletedClient?.id,
-          targetClientEmail:
-            input.clientEmail ||
-            (input.action.kind === 'add-client' ? input.action.clientEmail : undefined) ||
-            deletedClient?.email
-        };
-
-        if (addedClientSubscriptionMetadata) {
-          const subscriptionInput = createSubscriptionClientGenerateTaskInput(
+        const subscriptionInput = addedClientSubscriptionMetadata
+          ? createSubscriptionClientGenerateTaskInput(
             addedClientSubscriptionMetadata,
             'create',
             {
               create: t.createSubscriptionClientSummary,
               update: t.updateSubscriptionClientSummary
             }
-          );
+          )
+          : deletedClientSubscriptionMetadata && deletedClient
+            ? createSubscriptionClientDeleteTaskInput(
+                deletedClientSubscriptionMetadata,
+                t.deleteSubscriptionClientSummary,
+                {
+                  ...(input.reason === 'operator-delete-customer-node'
+                    ? { deletedWithCustomerNodeId: input.inboundId }
+                    : {}),
+                  deletedWithXrayInboundId: input.inboundId,
+                  deletedWithXrayClientId: deletedClient.id,
+                  deletedWithXrayClientEmail: deletedClient.email,
+                  deletedWithXrayClientAction: true
+                }
+              )
+            : undefined;
 
-          const subscriptionTask = await api.createTask(
-            subscriptionInput,
-            createUiMutationContext(
-              subscriptionInput,
-              createSubscriptionClientGenerateIdempotencyKey(addedClientSubscriptionMetadata, 'create'),
-              runtimeConfig
-            )
+        if (subscriptionInput && xrayClientActionInbound) {
+          const targetClientKey =
+            input.clientId ||
+            input.clientEmail ||
+            (input.action.kind === 'add-client' ? input.action.clientIdentity || input.action.clientEmail : undefined) ||
+            deletedClient?.id ||
+            'client';
+          const operationId = createBoundedMutationKey(
+            `operation:xray-client-subscription:${input.action.kind}:${input.inboundId}:${targetClientKey}`,
+            160
           );
-          actionResult.subscriptionTaskId = subscriptionTask.id;
-        }
-
-        if (deletedClientSubscriptionMetadata && deletedClient) {
-          const deleteInput = createSubscriptionClientDeleteTaskInput(
-            deletedClientSubscriptionMetadata,
-            t.deleteSubscriptionClientSummary,
+          const receipt = await api.executeXrayClientSubscriptionOperation(
             {
-              ...(input.reason === 'operator-delete-customer-node'
-                ? { deletedWithCustomerNodeId: input.inboundId }
-                : {}),
-              deletedWithXrayInboundId: input.inboundId,
-              deletedWithXrayClientId: deletedClient.id,
-              deletedWithXrayClientEmail: deletedClient.email,
-              deletedWithXrayClientAction: true
-            }
+              id: operationId,
+              kind: 'xray-client.subscription-binding',
+              targetId: input.inboundId,
+              targetLabel: xrayClientActionInbound.label,
+              clientAction: input,
+              secondary: subscriptionInput
+            },
+            createUiRequestContext('xray-client.subscription-operation', input.inboundId, runtimeConfig, operationId)
           );
-          const deleteScope =
-            input.reason === 'operator-delete-customer-node'
-              ? `customer-node:${input.inboundId}`
-              : `xray-client:${input.inboundId}:${deletedClientSubscriptionMetadata.subId}`;
 
-          const subscriptionTask = await api.createTask(
-            deleteInput,
-            createUiMutationContext(
-              deleteInput,
-              createSubscriptionClientDeleteIdempotencyKey(deletedClientSubscriptionMetadata, deleteScope),
-              runtimeConfig
-            )
-          );
-          actionResult.subscriptionTaskId = subscriptionTask.id;
+          actionResult = {
+            accepted: receipt.status === 'accepted',
+            actionKind: input.action.kind,
+            runtimeTaskId: receipt.primaryTask?.id,
+            subscriptionTaskId: receipt.secondaryTask?.id,
+            targetClientId:
+              input.clientId ||
+              (input.action.kind === 'add-client' ? input.action.clientIdentity : undefined) ||
+              deletedClient?.id,
+            targetClientEmail:
+              input.clientEmail ||
+              (input.action.kind === 'add-client' ? input.action.clientEmail : undefined) ||
+              deletedClient?.email
+          };
+          operationFailureMessage = receipt.failure?.message;
+        } else {
+          const runtimeTask = await api.applyXrayClientAction(input, {
+            ...createUiRequestContext('xray.client.action', input.inboundId, runtimeConfig),
+            idempotencyKey: undefined
+          });
+          actionResult = {
+            accepted: true,
+            actionKind: input.action.kind,
+            runtimeTaskId: runtimeTask.id,
+            targetClientId: input.clientId,
+            targetClientEmail: input.clientEmail
+          };
         }
       } catch (error) {
         setTaskMutationState({
@@ -2219,12 +2285,18 @@ export function AppShell({ ready }: AppShellProps) {
         return false;
       }
 
-      setTaskMutationState({ status: 'succeeded', message: t.taskQueued });
+      const operationAccepted = actionResult?.accepted !== false;
+      setTaskMutationState({
+        status: operationAccepted ? 'succeeded' : 'failed',
+        message: operationAccepted ? t.taskQueued : operationFailureMessage ?? t.taskMutationFailed
+      });
 
       try {
         await snapshot.refetch();
       } catch {
-        setTaskMutationState({ status: 'succeeded', message: t.taskQueuedDeferred });
+        if (operationAccepted) {
+          setTaskMutationState({ status: 'succeeded', message: t.taskQueuedDeferred });
+        }
       } finally {
         taskMutationInFlightRef.current = false;
       }
@@ -2352,7 +2424,7 @@ export function AppShell({ ready }: AppShellProps) {
 
           if (result.status === 'failed') {
             setTaskMutationState({ status: 'failed', message: t.subscriptionSyncFailed });
-            return true;
+            return false;
           }
 
           setTaskMutationState({ status: 'succeeded', message: t.subscriptionSyncSucceeded(result.nodeCount) });
@@ -2362,7 +2434,7 @@ export function AppShell({ ready }: AppShellProps) {
             status: 'failed',
             message: formatTaskMutationError(error, language, t.subscriptionSyncFailed)
           });
-          return true;
+          return false;
         }
       })();
     },

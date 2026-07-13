@@ -19,6 +19,7 @@ import type {
   AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
+  CreateTaskOperationInput,
   CreateTaskInput,
   CustomerReadModel,
   DeployTask,
@@ -65,6 +66,7 @@ import type {
   TelegramTestNotificationInput,
   TelegramWebhookHandleResult,
   TelegramWebhookUpdate,
+  TaskOperationReceipt,
   TrafficRollup,
   TrafficRollupCompaction,
   TrafficRollupDimension,
@@ -112,6 +114,15 @@ export type ListQuery = {
   page?: number;
   pageSize?: number;
   search?: string;
+};
+
+export type XrayClientSubscriptionOperationInput = {
+  id: string;
+  kind: 'xray-client.subscription-binding';
+  targetId: string;
+  targetLabel: string;
+  clientAction: XrayClientActionRequest;
+  secondary: CreateTaskInput;
 };
 
 export type AgentLogChunkQuery = ListQuery & {
@@ -1870,6 +1881,11 @@ export interface ControlPlaneApi {
   ): Promise<AgentRuntimeCredential>;
   resetQuotaPolicy(policyId: string, context?: MutationContext): Promise<DeployTask>;
   applyXrayClientAction(input: XrayClientActionRequest, context?: MutationContext): Promise<DeployTask>;
+  executeTaskOperation(input: CreateTaskOperationInput, context?: MutationContext): Promise<TaskOperationReceipt>;
+  executeXrayClientSubscriptionOperation(
+    input: XrayClientSubscriptionOperationInput,
+    context?: MutationContext
+  ): Promise<TaskOperationReceipt>;
   createTask(input: CreateTaskInput, context?: MutationContext): Promise<DeployTask>;
   syncSubscriptionSource(sourceId: string, context?: MutationContext): Promise<SubscriptionSourceSyncResult>;
   transitionTask(taskId: string, status: DeployTaskStatus, context?: MutationContext): Promise<DeployTask>;

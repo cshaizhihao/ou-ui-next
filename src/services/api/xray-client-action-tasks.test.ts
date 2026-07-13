@@ -1,7 +1,7 @@
 import type { XrayClient, XrayInbound } from '../../domain/protocol';
 import type { DeployTask } from '../../domain/task';
 import { applyXrayInboundTask } from '../../domain/task-read-models';
-import { createXrayClientActionTaskPlan } from './xray-client-action-tasks';
+import { createXrayClientActionTaskPlan, createXrayInboundRestoreTaskInput } from './xray-client-action-tasks';
 
 const GB = 1024 ** 3;
 const observedAt = '2026-06-04T12:00:00.000Z';
@@ -394,5 +394,27 @@ describe('xray client action tasks', () => {
         guardrailReason: 'xray_client_deleted'
       })
     ]);
+  });
+
+  it('builds a complete inbound restore task for saga compensation', () => {
+    const input = createXrayInboundRestoreTaskInput({
+      inbound: createInbound(),
+      observedAt,
+      recreate: false,
+      reason: 'subscription stage failed'
+    });
+
+    expect(input).toMatchObject({
+      operation: 'inbound.update',
+      targetId: 'inbound-shared',
+      summary: 'Restore Xray inbound after operation failure: Acme Shared Inbound',
+      metadata: expect.objectContaining({
+        clients: [
+          expect.objectContaining({ clientIdentity: 'client-alice', clientCredential: 'client-secret' }),
+          expect.objectContaining({ clientIdentity: 'client-bob', clientCredential: 'client-secret' })
+        ]
+      })
+    });
+    expect(input.riskConfirmation).toBeUndefined();
   });
 });

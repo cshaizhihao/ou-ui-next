@@ -1111,6 +1111,49 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
         default:
           $ref: '#/components/responses/ErrorResponse'
+  /api/v1/operations:
+    post:
+      tags:
+        - Tasks
+      operationId: executeTaskOperation
+      summary: Execute a correlated multi-stage operation with explicit compensation evidence
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/XCsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/Actor'
+        - $ref: '#/components/parameters/OperatorGroupId'
+        - $ref: '#/components/parameters/ResourceGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/TaskOperationRequest'
+                - $ref: '#/components/schemas/XrayClientSubscriptionOperationRequest'
+      responses:
+        '202':
+          description: Operation stages accepted, rejected, or queued for compensation. Runtime success remains task-driven.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ResponseEnvelope'
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TaskOperationReceipt'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ErrorResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
   /api/v1/subscription-sources:
     get:
       tags:
@@ -5815,12 +5858,142 @@ components:
           type: string
           minLength: 1
           maxLength: 240
+        operationId:
+          type: string
+          minLength: 1
+          maxLength: 160
+        operationStage:
+          $ref: '#/components/schemas/TaskOperationStage'
+        operationFailure:
+          $ref: '#/components/schemas/TaskOperationFailure'
+        operationCompensation:
+          allOf:
+            - $ref: '#/components/schemas/CreateTaskRequest'
+          description: Durable recovery task plan. Nested compensation plans are not executed.
         metadata:
           $ref: '#/components/schemas/TaskMetadata'
         permissionChange:
           $ref: '#/components/schemas/PermissionChangeInput'
         riskConfirmation:
           $ref: '#/components/schemas/RiskConfirmationInput'
+      additionalProperties: false
+    TaskOperationStage:
+      type: string
+      enum:
+        - primary
+        - secondary
+        - compensation
+    TaskOperationFailure:
+      type: object
+      required:
+        - stage
+        - code
+        - message
+      properties:
+        stage:
+          $ref: '#/components/schemas/TaskOperationStage'
+        code:
+          type: string
+          maxLength: 160
+        message:
+          type: string
+          maxLength: 500
+      additionalProperties: false
+    TaskOperationRequest:
+      type: object
+      required:
+        - id
+        - kind
+        - targetId
+        - targetLabel
+        - primary
+        - secondary
+      properties:
+        id:
+          type: string
+          maxLength: 160
+        kind:
+          type: string
+          const: customer-node.upsert
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        primary:
+          $ref: '#/components/schemas/CreateTaskRequest'
+        secondary:
+          $ref: '#/components/schemas/CreateTaskRequest'
+        compensation:
+          $ref: '#/components/schemas/CreateTaskRequest'
+      additionalProperties: false
+    XrayClientSubscriptionOperationRequest:
+      type: object
+      required:
+        - id
+        - kind
+        - targetId
+        - targetLabel
+        - clientAction
+        - secondary
+      properties:
+        id:
+          type: string
+          maxLength: 160
+        kind:
+          type: string
+          const: xray-client.subscription-binding
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        clientAction:
+          $ref: '#/components/schemas/XrayClientActionRequest'
+        secondary:
+          $ref: '#/components/schemas/CreateTaskRequest'
+      additionalProperties: false
+    TaskOperationReceipt:
+      type: object
+      required:
+        - id
+        - kind
+        - targetId
+        - targetLabel
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - customer-node.upsert
+            - xray-client.subscription-binding
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        status:
+          type: string
+          enum:
+            - accepted
+            - failed
+            - partial_failure
+            - compensation_queued
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        primaryTask:
+          $ref: '#/components/schemas/DeployTask'
+        secondaryTask:
+          $ref: '#/components/schemas/DeployTask'
+        compensationTask:
+          $ref: '#/components/schemas/DeployTask'
+        failure:
+          $ref: '#/components/schemas/TaskOperationFailure'
       additionalProperties: false
     AgentInstallCommandRequest:
       type: object
@@ -6347,6 +6520,15 @@ components:
           $ref: '#/components/schemas/RequestId'
         idempotencyKey:
           type: string
+        operationId:
+          type: string
+          maxLength: 160
+        operationStage:
+          $ref: '#/components/schemas/TaskOperationStage'
+        operationFailure:
+          $ref: '#/components/schemas/TaskOperationFailure'
+        operationCompensation:
+          $ref: '#/components/schemas/CreateTaskRequest'
         sourceIp:
           type: string
         rollbackAvailable:

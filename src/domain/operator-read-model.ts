@@ -41,10 +41,7 @@ export function redactOperatorReadSecrets(value: unknown): unknown {
 }
 
 export function createOperatorTaskReadModel(task: DeployTask): DeployTask {
-  return {
-    ...task,
-    ...(task.metadata ? { metadata: redactOperatorReadSecrets(task.metadata) as Record<string, unknown> } : {})
-  };
+  return redactOperatorReadSecrets(task) as DeployTask;
 }
 
 export function canReadAllOperatorResources(identity: OperatorReadIdentity | undefined) {

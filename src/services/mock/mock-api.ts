@@ -7,6 +7,7 @@ import type {
   AgentUpgradeCommandRequest,
   AgentSessionSummary,
   AuditLog,
+  CreateTaskOperationInput,
   CreateTaskInput,
   DeployTask,
   DeployTaskStatus,
@@ -28,6 +29,9 @@ import type {
   SubscriptionInventoryNode,
   SubscriptionSource,
   SubscriptionSourceSyncResult,
+  TaskOperationFailure,
+  TaskOperationKind,
+  TaskOperationReceipt,
   TelegramBindingChallenge,
   TelegramBindingReadModel,
   TelegramBotSettings,
@@ -74,7 +78,8 @@ import type {
   OperatorRequestDeniedAuditInput,
   TrafficRollupRetentionPolicyReadModel,
   TrafficRollupRetentionPolicyValues,
-  TrafficRollupRetentionPolicyUpdateInput
+  TrafficRollupRetentionPolicyUpdateInput,
+  XrayClientSubscriptionOperationInput
 } from '../api/control-plane-api';
 import {
   agentCommandEnvelopeSchema,
@@ -118,7 +123,7 @@ import {
 } from '../api/forwarding-telemetry-read-model';
 import { deriveForwardQuotaEnforcementTaskIntents } from '../api/forward-quota-enforcement-tasks';
 import { deriveXrayGuardrailTaskIntents } from '../api/xray-guardrail-enforcement-tasks';
-import { createXrayClientActionTaskPlan } from '../api/xray-client-action-tasks';
+import { createXrayClientActionTaskPlan, createXrayInboundRestoreTaskInput } from '../api/xray-client-action-tasks';
 import { findXrayInboundPortConflictDenial } from '../api/xray-inbound-port-conflicts';
 import { createQuotaPoliciesFromReadModels } from '../api/quota-policies';
 import {
@@ -3004,6 +3009,130 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       .sort((left, right) => right.customerBinding.createdAt.localeCompare(left.customerBinding.createdAt));
   }
 
+  function createMockOperationFailure(stage: TaskOperationFailure['stage'], error: unknown): TaskOperationFailure {
+    return {
+      stage,
+      code:
+        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : 'operation.stage_failed',
+      message: (error instanceof Error ? error.message : 'The operation stage failed.').slice(0, 500)
+    };
+  }
+
+  function createMockOperationReceipt(input: {
+    id: string;
+    kind: TaskOperationKind;
+    targetId: string;
+    targetLabel: string;
+    status: TaskOperationReceipt['status'];
+    primaryTask?: DeployTask;
+    secondaryTask?: DeployTask;
+    compensationTask?: DeployTask;
+    failure?: TaskOperationFailure;
+  }): TaskOperationReceipt {
+    const evidence = [input.primaryTask, input.secondaryTask, input.compensationTask].filter(
+      (task): task is DeployTask => Boolean(task)
+    );
+    const now = readModelNow();
+    return {
+      ...input,
+      createdAt: evidence.map((task) => task.createdAt).sort()[0] ?? now,
+      updatedAt: evidence.map((task) => task.updatedAt).sort().at(-1) ?? now
+    };
+  }
+
+  async function executeMockTaskOperation(input: {
+    id: string;
+    kind: TaskOperationKind;
+    targetId: string;
+    targetLabel: string;
+    primary: CreateTaskInput;
+    secondary: CreateTaskInput;
+    compensation?: CreateTaskInput;
+  }, context?: MutationContext) {
+    let primaryTask = state.tasks.find((task) => task.operationId === input.id && task.operationStage === 'primary');
+    const secondaryTask = state.tasks.find((task) => task.operationId === input.id && task.operationStage === 'secondary');
+    const compensationTask = state.tasks.find((task) => task.operationId === input.id && task.operationStage === 'compensation');
+
+    if (compensationTask) {
+      return createMockOperationReceipt({
+        ...input,
+        status: 'compensation_queued',
+        primaryTask,
+        compensationTask,
+        failure: compensationTask.operationFailure
+      });
+    }
+    if (secondaryTask) {
+      return createMockOperationReceipt({ ...input, status: 'accepted', primaryTask, secondaryTask });
+    }
+
+    const compensation = input.compensation ?? primaryTask?.operationCompensation;
+    const stageContext = (stage: 'primary' | 'secondary' | 'compensation') => ({
+      ...resolveMutationContext(context, state.sequence),
+      idempotencyKey: `${input.id}:${stage}`.slice(0, 200)
+    });
+
+    if (!primaryTask) {
+      try {
+        primaryTask = await api.createTask(
+          {
+            ...input.primary,
+            operationId: input.id,
+            operationStage: 'primary',
+            operationCompensation: compensation
+          },
+          stageContext('primary')
+        );
+      } catch (error) {
+        return createMockOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: createMockOperationFailure('primary', error)
+        });
+      }
+    }
+
+    try {
+      const nextSecondaryTask = await api.createTask(
+        { ...input.secondary, operationId: input.id, operationStage: 'secondary' },
+        stageContext('secondary')
+      );
+      return createMockOperationReceipt({ ...input, status: 'accepted', primaryTask, secondaryTask: nextSecondaryTask });
+    } catch (error) {
+      const failure = createMockOperationFailure('secondary', error);
+      if (!compensation) {
+        return createMockOperationReceipt({ ...input, status: 'partial_failure', primaryTask, failure });
+      }
+      try {
+        const nextCompensationTask = await api.createTask(
+          {
+            ...compensation,
+            operationId: input.id,
+            operationStage: 'compensation',
+            operationFailure: failure
+          },
+          stageContext('compensation')
+        );
+        return createMockOperationReceipt({
+          ...input,
+          status: 'compensation_queued',
+          primaryTask,
+          compensationTask: nextCompensationTask,
+          failure
+        });
+      } catch (compensationError) {
+        return createMockOperationReceipt({
+          ...input,
+          status: 'partial_failure',
+          primaryTask,
+          failure: createMockOperationFailure('compensation', compensationError)
+        });
+      }
+    }
+  }
+
   const api: ControlPlaneApi = {
     async getSnapshot() {
       const [
@@ -4387,6 +4516,54 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
       });
     },
 
+    async executeTaskOperation(input: CreateTaskOperationInput, context?: MutationContext) {
+      return executeMockTaskOperation(input, context);
+    },
+
+    async executeXrayClientSubscriptionOperation(
+      input: XrayClientSubscriptionOperationInput,
+      context?: MutationContext
+    ) {
+      const observedAtMs = Date.parse(input.clientAction.observedAt ?? '');
+      const observedAt = Number.isNaN(observedAtMs) ? readModelNow() : new Date(observedAtMs).toISOString();
+      const inbound = applyXrayTrafficWindowToReadModel(state.inbounds, observedAt).find(
+        (item) => item.id === input.clientAction.inboundId
+      );
+
+      if (!inbound || inbound.id !== input.targetId) {
+        return createMockOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: {
+            stage: 'primary',
+            code: 'xray.inbound_not_found',
+            message: `Xray inbound not found: ${input.clientAction.inboundId}`
+          }
+        });
+      }
+
+      try {
+        const primaryPlan = createXrayClientActionTaskPlan({
+          inbound,
+          request: input.clientAction,
+          observedAt
+        });
+        const compensation = createXrayInboundRestoreTaskInput({
+          inbound,
+          observedAt,
+          recreate: primaryPlan.input.operation === 'inbound.delete',
+          reason: `Restore ${inbound.id} because the subscription binding stage failed.`
+        });
+        return executeMockTaskOperation({ ...input, primary: primaryPlan.input, compensation }, context);
+      } catch (error) {
+        return createMockOperationReceipt({
+          ...input,
+          status: 'failed',
+          failure: createMockOperationFailure('primary', error)
+        });
+      }
+    },
+
     async createTask(input: CreateTaskInput, context?: MutationContext) {
       const beforeForwardRules = listLiveForwardRulesForQuotaEnforcement();
       const beforeInbounds = listLiveInboundsForGuardrailEnforcement();
@@ -4524,6 +4701,10 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         requestedBy: mutationContext.actor,
         requestId: mutationContext.requestId,
         idempotencyKey: mutationContext.idempotencyKey,
+        operationId: taskInput.operationId,
+        operationStage: taskInput.operationStage,
+        operationFailure: taskInput.operationFailure,
+        operationCompensation: taskInput.operationCompensation,
         sourceIp: mutationContext.sourceIp,
         rollbackAvailable: false,
         attempts: 0,

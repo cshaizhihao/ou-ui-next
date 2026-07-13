@@ -437,6 +437,32 @@ export const createTaskRequestSchema = z
     targetId: z.string().trim().min(1),
     targetLabel: z.string().trim().min(1),
     summary: z.string().trim().min(1).max(240),
+    operationId: z.string().trim().min(1).max(160).optional(),
+    operationStage: z.enum(['primary', 'secondary', 'compensation']).optional(),
+    operationFailure: z
+      .object({
+        stage: z.enum(['primary', 'secondary', 'compensation']),
+        code: z.string().trim().min(1).max(160),
+        message: z.string().trim().min(1).max(500)
+      })
+      .optional(),
+    operationCompensation: z
+      .object({
+        operation: z.enum(deployTaskOperations),
+        resourceType: z.enum(deployResourceTypes).optional(),
+        targetId: z.string().trim().min(1),
+        targetLabel: z.string().trim().min(1),
+        summary: z.string().trim().min(1).max(240),
+        metadata: taskMetadataSchema.optional(),
+        riskConfirmation: z
+          .object({
+            operation: z.enum(deployTaskOperations),
+            targetId: z.string().trim().min(1),
+            reason: z.string().trim().min(1).max(500).optional()
+          })
+          .optional()
+      })
+      .optional(),
     metadata: taskMetadataSchema.optional(),
     permissionChange: z
       .object({
@@ -666,6 +692,25 @@ export const xrayClientActionRequestSchema = z
       });
     }
   });
+
+export const taskOperationRequestSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  kind: z.literal('customer-node.upsert'),
+  targetId: z.string().trim().min(1).max(200),
+  targetLabel: z.string().trim().min(1).max(240),
+  primary: createTaskRequestSchema,
+  secondary: createTaskRequestSchema,
+  compensation: createTaskRequestSchema.optional()
+});
+
+export const xrayClientSubscriptionOperationRequestSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  kind: z.literal('xray-client.subscription-binding'),
+  targetId: z.string().trim().min(1).max(200),
+  targetLabel: z.string().trim().min(1).max(240),
+  clientAction: xrayClientActionRequestSchema,
+  secondary: createTaskRequestSchema
+});
 
 export const transitionTaskRequestSchema = z.object({
   status: z.enum(deployTaskStatuses)
@@ -1021,6 +1066,10 @@ export const operatorSessionRevokeRequestSchema = z.object({
 
 export type CreateTaskRequestDto = z.infer<typeof createTaskRequestSchema>;
 export type XrayClientActionRequestDto = z.infer<typeof xrayClientActionRequestSchema>;
+export type TaskOperationRequestDto = z.infer<typeof taskOperationRequestSchema>;
+export type XrayClientSubscriptionOperationRequestDto = z.infer<
+  typeof xrayClientSubscriptionOperationRequestSchema
+>;
 export type VerifyAuditLogChainRequestDto = z.infer<typeof verifyAuditLogChainRequestSchema>;
 export type AgentLogRetentionPolicyUpdateRequestDto = z.infer<typeof agentLogRetentionPolicyUpdateRequestSchema>;
 export type TrafficRollupRetentionPolicyUpdateRequestDto = z.infer<
@@ -1075,6 +1124,42 @@ export function parseXrayClientActionRequest(value: unknown): XrayClientActionRe
       details: {
         issues
       }
+    });
+  }
+
+  return result.data;
+}
+
+export function parseTaskOperationRequest(value: unknown): TaskOperationRequestDto {
+  const result = taskOperationRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message
+    }));
+    throw Object.assign(new Error('Invalid task operation request.'), {
+      code: 'validation_error',
+      details: { issues }
+    });
+  }
+
+  return result.data;
+}
+
+export function parseXrayClientSubscriptionOperationRequest(
+  value: unknown
+): XrayClientSubscriptionOperationRequestDto {
+  const result = xrayClientSubscriptionOperationRequestSchema.safeParse(value);
+
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message
+    }));
+    throw Object.assign(new Error('Invalid Xray client subscription operation request.'), {
+      code: 'validation_error',
+      details: { issues }
     });
   }
 

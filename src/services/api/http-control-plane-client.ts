@@ -35,6 +35,7 @@ import type {
   SubscriptionSource,
   SubscriptionSourceSyncResult,
   SystemAlert,
+  TaskOperationReceipt,
   TelegramBindingChallenge,
   TelegramBindingChallengeCreateResult,
   TelegramBindingReadModel,
@@ -575,6 +576,18 @@ export function createHttpControlPlaneClient(options: HttpControlPlaneClientOpti
       }),
     applyXrayClientAction: (input, context?: MutationContext) =>
       request<DeployTask>('/api/v1/xray-client-actions', {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    executeTaskOperation: (input, context?: MutationContext) =>
+      request<TaskOperationReceipt>('/api/v1/operations', {
+        method: 'POST',
+        body: input,
+        context
+      }),
+    executeXrayClientSubscriptionOperation: (input, context?: MutationContext) =>
+      request<TaskOperationReceipt>('/api/v1/operations', {
         method: 'POST',
         body: input,
         context

@@ -231,6 +231,14 @@ export type {
   TelegramWebhookUpdate
 } from './telegram';
 export type {
+  CreateTaskOperationInput,
+  TaskOperationFailure,
+  TaskOperationKind,
+  TaskOperationReceipt,
+  TaskOperationStage,
+  TaskOperationStatus
+} from './operation';
+export type {
   AgentRuntimeDeploymentProof,
   CreateTaskMetadata,
   CreateTaskInput,
@@ -238,7 +246,8 @@ export type {
   DeployTask,
   DeployTaskOperation,
   DeployTaskStatus,
-  DeployTaskStep
+  DeployTaskStep,
+  TaskOperationCompensationPlan
 } from './task';
 export {
   hasAgentRuntimeDeploymentProof,

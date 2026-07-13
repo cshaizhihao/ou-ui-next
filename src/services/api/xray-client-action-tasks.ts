@@ -746,3 +746,39 @@ export function createXrayClientActionTaskPlan(input: {
     }
   };
 }
+
+export function createXrayInboundRestoreTaskInput(input: {
+  inbound: XrayInbound;
+  observedAt: string;
+  recreate: boolean;
+  reason: string;
+}): CreateTaskInput {
+  const referenceClient = input.inbound.clients[0];
+
+  if (!referenceClient) {
+    throw new Error(`Xray inbound ${input.inbound.id} has no client configuration to restore.`);
+  }
+
+  const restorePlan = createXrayClientActionTaskPlan({
+    inbound: input.inbound,
+    observedAt: input.observedAt,
+    request: {
+      inboundId: input.inbound.id,
+      clientId: referenceClient.id,
+      clientEmail: referenceClient.email,
+      action: {
+        kind: 'set-enabled',
+        enabled: referenceClient.enabled
+      },
+      reason: input.reason
+    }
+  });
+  const operation = input.recreate ? 'inbound.create' : 'inbound.update';
+
+  return {
+    ...restorePlan.input,
+    operation,
+    summary: `Restore Xray inbound after operation failure: ${input.inbound.label}`,
+    riskConfirmation: undefined
+  };
+}

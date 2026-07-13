@@ -181,6 +181,53 @@ async function readStreamUntil(
 }
 
 describe('HTTP control-plane server', () => {
+  it('returns a staged operation receipt instead of flattening a task pair into one success', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/v1/operations`, {
+        method: 'POST',
+        headers: mutationHeaders({
+          'X-Request-Id': 'req-http-operation-001',
+          'Idempotency-Key': 'idem-http-operation-001'
+        }),
+        body: JSON.stringify({
+          id: 'operation-http-customer-node-001',
+          kind: 'customer-node.upsert',
+          targetId: 'customer-node-http-operation-001',
+          targetLabel: 'HTTP operation customer node',
+          primary: {
+            operation: 'subscription.export',
+            resourceType: 'subscription',
+            targetId: 'subscription-http-primary',
+            targetLabel: 'Primary subscription',
+            summary: 'Queue primary subscription export'
+          },
+          secondary: {
+            operation: 'subscription.export',
+            resourceType: 'subscription',
+            targetId: 'subscription-http-secondary',
+            targetLabel: 'Secondary subscription',
+            summary: 'Queue secondary subscription export'
+          }
+        })
+      });
+      const body = await response.json();
+
+      expect(response.status).toBe(202);
+      expect(body.data).toMatchObject({
+        id: 'operation-http-customer-node-001',
+        status: 'accepted',
+        primaryTask: {
+          operationId: 'operation-http-customer-node-001',
+          operationStage: 'primary'
+        },
+        secondaryTask: {
+          operationId: 'operation-http-customer-node-001',
+          operationStage: 'secondary'
+        }
+      });
+    });
+  });
+
   it('emits structured request, task, and Agent poll logs without sensitive payloads', async () => {
     await withLoggedServer(async (baseUrl, logs) => {
       const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';

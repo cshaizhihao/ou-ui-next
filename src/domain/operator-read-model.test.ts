@@ -25,6 +25,16 @@ function createTask(id: string, actor: string, resourceGroupId: string): DeployT
     rollbackAvailable: false,
     attempts: 0,
     steps: [],
+    operationCompensation: {
+      operation: 'inbound.update',
+      targetId: `inbound-${id}`,
+      targetLabel: id,
+      summary: 'Restore inbound',
+      metadata: {
+        clientCredential: 'compensation-secret',
+        safeRecoveryEvidence: 'kept'
+      }
+    },
     metadata: {
       clientCredential: 'client-secret',
       clients: [{ clientEmail: 'alice@example.com', clientCredential: 'nested-secret' }],
@@ -43,6 +53,8 @@ describe('operator read models', () => {
       safeEvidence: 'kept'
     });
     expect(JSON.stringify(redactOperatorReadSecrets(task))).not.toContain('client-secret');
+    expect(task.operationCompensation?.metadata).toEqual({ safeRecoveryEvidence: 'kept' });
+    expect(JSON.stringify(task)).not.toContain('compensation-secret');
     expect(JSON.stringify(task)).not.toContain('reality-secret');
   });
 

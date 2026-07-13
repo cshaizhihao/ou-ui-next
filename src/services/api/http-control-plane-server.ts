@@ -45,11 +45,13 @@ import {
   parseAgentRegistrationRequest,
   parseAgentRuntimeCredentialRotateRequest,
   parseCreateTaskRequest,
+  parseTaskOperationRequest,
   parseOperatorSessionLoginRequest,
   parseOperatorSessionRevokeRequest,
   parseTrafficRollupRetentionPolicyUpdateRequest,
   parseVerifyAuditLogChainRequest,
   parseTransitionTaskRequest,
+  parseXrayClientSubscriptionOperationRequest,
   parseXrayClientActionRequest
 } from './api-contract';
 import {
@@ -3589,6 +3591,36 @@ async function routeRequest(
     const task = await api.applyXrayClientAction(input, context);
     logTaskEvent(options, request, 'task.created', task, context);
     sendOperatorData(response, context.requestId, task, 202, task.id);
+    return;
+  }
+
+  if (method === 'POST' && url.pathname === '/api/v1/operations') {
+    const context = await createMutationContext(request, options.auth, options.operatorSessionStore);
+    const body = await readJsonBody(request);
+    const kind = body && typeof body === 'object' && 'kind' in body ? body.kind : undefined;
+    const receipt =
+      kind === 'xray-client.subscription-binding'
+        ? await api.executeXrayClientSubscriptionOperation(
+            parseXrayClientSubscriptionOperationRequest(body),
+            context
+          )
+        : await api.executeTaskOperation(parseTaskOperationRequest(body), context);
+
+    for (const task of [receipt.primaryTask, receipt.secondaryTask, receipt.compensationTask]) {
+      if (task) {
+        logTaskEvent(options, request, 'task.created', task, context);
+      }
+    }
+
+    logRequestEvent(options, request, {
+      event: 'task_operation.accepted',
+      requestId: context.requestId,
+      operationId: receipt.id,
+      operationKind: receipt.kind,
+      operationStatus: receipt.status,
+      failureStage: receipt.failure?.stage
+    });
+    sendOperatorData(response, context.requestId, receipt, 202, receipt.primaryTask?.id);
     return;
   }
 

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { AgentCredentialSummary, AuditLog, XrayInbound } from '../../domain';
+import type { AgentCredentialSummary, AuditLog, TaskOperationReceipt, XrayInbound } from '../../domain';
 import type { RuntimeConfigRevision, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import { useAppStore } from '../../app/app-store';
@@ -41,6 +41,32 @@ const rollbackReadyTask: DeployTask = {
   progressPercent: 100,
   steps: []
 };
+
+function createAcceptedOperationReceipt(
+  kind: TaskOperationReceipt['kind'] = 'customer-node.upsert'
+): TaskOperationReceipt {
+  return {
+    id: `operation-test-${kind}`,
+    kind,
+    targetId: rollbackReadyTask.targetId,
+    targetLabel: rollbackReadyTask.targetLabel,
+    status: 'accepted',
+    createdAt: rollbackReadyTask.createdAt,
+    updatedAt: rollbackReadyTask.updatedAt,
+    primaryTask: {
+      ...rollbackReadyTask,
+      id: 'task-operation-primary',
+      operationId: `operation-test-${kind}`,
+      operationStage: 'primary'
+    },
+    secondaryTask: {
+      ...rollbackReadyTask,
+      id: 'task-operation-secondary',
+      operationId: `operation-test-${kind}`,
+      operationStage: 'secondary'
+    }
+  };
+}
 
 const rollbackConfigRevision: RuntimeConfigRevision = {
   id: 'cfg-rollback-source',
@@ -1526,8 +1552,9 @@ describe('AppShell', () => {
     const confirm = vi.fn(() => true);
     const api = {
       ...createMockApi({ seedInventory: true }),
-      applyXrayClientAction: vi.fn().mockResolvedValue(rollbackReadyTask),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeXrayClientSubscriptionOperation: vi
+        .fn()
+        .mockResolvedValue(createAcceptedOperationReceipt('xray-client.subscription-binding'))
     };
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
@@ -1537,43 +1564,27 @@ describe('AppShell', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Primary VLESS Gateway'));
     await waitFor(() => {
-      expect(api.applyXrayClientAction).toHaveBeenCalledWith(
+      expect(api.executeXrayClientSubscriptionOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          inboundId: 'inbound-vless-hkg-443',
-          clientId: 'client-ops-hkg',
-          clientEmail: 'ops-hkg',
-          action: {
-            kind: 'delete-client'
-          },
-          reason: 'operator-delete-customer-node'
-        }),
-        expect.objectContaining({
-          requestId: 'ui:xray.client.action:inbound-vless-hkg-443',
-          idempotencyKey: undefined
-        })
-      );
-    });
-    expect(api.createTask).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        operation: 'inbound.delete'
-      }),
-      expect.anything()
-    );
-
-    await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
-        expect.objectContaining({
-          operation: 'subscription.delete',
-          resourceType: 'subscription',
-          targetId: 'sub-client-ops-hkg-manual',
-          metadata: expect.objectContaining({
-            subscriptionClientId: 'sub-client-ops-hkg-manual',
-            deletedWithCustomerNodeId: 'inbound-vless-hkg-443'
+          kind: 'xray-client.subscription-binding',
+          targetId: 'inbound-vless-hkg-443',
+          clientAction: expect.objectContaining({
+            inboundId: 'inbound-vless-hkg-443',
+            clientId: 'client-ops-hkg',
+            clientEmail: 'ops-hkg',
+            action: { kind: 'delete-client' },
+            reason: 'operator-delete-customer-node'
+          }),
+          secondary: expect.objectContaining({
+            operation: 'subscription.delete',
+            targetId: 'sub-client-ops-hkg-manual',
+            metadata: expect.objectContaining({
+              deletedWithCustomerNodeId: 'inbound-vless-hkg-443'
+            })
           })
         }),
         expect.objectContaining({
-          idempotencyKey:
-            'ui:subscription.delete.customer-node:inbound-vless-hkg-443:sub-client-ops-hkg-manual'
+          requestId: expect.stringContaining('operation:xray-client-subscription:delete-client')
         })
       );
     });
@@ -1583,8 +1594,9 @@ describe('AppShell', () => {
     const user = userEvent.setup();
     const api = {
       ...createMockApi({ seedInventory: true }),
-      applyXrayClientAction: vi.fn().mockResolvedValue(rollbackReadyTask),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeXrayClientSubscriptionOperation: vi
+        .fn()
+        .mockResolvedValue(createAcceptedOperationReceipt('xray-client.subscription-binding'))
     };
     renderShell(api);
 
@@ -1603,50 +1615,41 @@ describe('AppShell', () => {
     await user.click(within(dialog).getByRole('button', { name: '添加客户端' }));
 
     await waitFor(() => {
-      expect(api.applyXrayClientAction).toHaveBeenCalledWith(
+      expect(api.executeXrayClientSubscriptionOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          inboundId: 'inbound-vless-hkg-443',
-          action: expect.objectContaining({
-            kind: 'add-client',
-            clientEmail: 'carol@example.com',
-            trafficLimitGb: 50,
-            remainingDays: 45,
-            ipLimit: 1,
-            subscriptionRule: 'premium-hk:carol'
+          kind: 'xray-client.subscription-binding',
+          targetId: 'inbound-vless-hkg-443',
+          clientAction: expect.objectContaining({
+            inboundId: 'inbound-vless-hkg-443',
+            action: expect.objectContaining({
+              kind: 'add-client',
+              clientEmail: 'carol@example.com',
+              trafficLimitGb: 50,
+              remainingDays: 45,
+              ipLimit: 1,
+              subscriptionRule: 'premium-hk:carol'
+            }),
+            reason: 'customer-node-client:add'
           }),
-          reason: 'customer-node-client:add'
-        }),
-        expect.objectContaining({
-          requestId: 'ui:xray.client.action:inbound-vless-hkg-443',
-          idempotencyKey: undefined
-        })
-      );
-    });
-
-    await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
-        expect.objectContaining({
-          operation: 'subscription.generate',
-          resourceType: 'subscription',
-          targetId: 'sub-client-carol-example-com-premium-hk-carol',
-          metadata: expect.objectContaining({
-            subscriptionClientId: 'sub-client-carol-example-com-premium-hk-carol',
-            customerName: 'carol@example.com',
-            subId: 'premium-hk:carol',
-            email: 'carol@example.com',
-            protocol: 'vless',
-            group: 'node-hkg-edge-01',
-            trafficLimitGb: 50,
-            remainingDays: 45,
-            ipLimit: 1,
-            outputFormats: expect.arrayContaining(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash'])
+          secondary: expect.objectContaining({
+            operation: 'subscription.generate',
+            resourceType: 'subscription',
+            targetId: 'sub-client-carol-example-com-premium-hk-carol',
+            metadata: expect.objectContaining({
+              subscriptionClientId: 'sub-client-carol-example-com-premium-hk-carol',
+              customerName: 'carol@example.com',
+              subId: 'premium-hk:carol',
+              email: 'carol@example.com',
+              protocol: 'vless',
+              group: 'node-hkg-edge-01',
+              trafficLimitGb: 50,
+              remainingDays: 45,
+              ipLimit: 1,
+              outputFormats: expect.arrayContaining(['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash'])
+            })
           })
         }),
-        expect.objectContaining({
-          idempotencyKey: expect.stringContaining(
-            'ui:subscription.generate:sub-client-carol-example-com-premium-hk-carol'
-          )
-        })
+        expect.any(Object)
       );
     });
   });
@@ -1695,8 +1698,9 @@ describe('AppShell', () => {
           outputFormats: ['uri', 'v2ray', 'clash', 'mihomo', 'sing-box', 'shadowrocket', 'stash']
         }
       ]),
-      applyXrayClientAction: vi.fn().mockResolvedValue(rollbackReadyTask),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeXrayClientSubscriptionOperation: vi
+        .fn()
+        .mockResolvedValue(createAcceptedOperationReceipt('xray-client.subscription-binding'))
     };
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
@@ -1709,43 +1713,31 @@ describe('AppShell', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('carol@example.com'));
     await waitFor(() => {
-      expect(api.applyXrayClientAction).toHaveBeenCalledWith(
+      expect(api.executeXrayClientSubscriptionOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          inboundId: 'inbound-vless-hkg-443',
-          clientId: 'client-carol',
-          clientEmail: 'carol@example.com',
-          action: {
-            kind: 'delete-client'
-          },
-          reason: 'customer-node-client:delete'
-        }),
-        expect.objectContaining({
-          requestId: 'ui:xray.client.action:inbound-vless-hkg-443',
-          idempotencyKey: undefined
-        })
-      );
-    });
-
-    await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
-        expect.objectContaining({
-          operation: 'subscription.delete',
-          resourceType: 'subscription',
-          targetId: 'sub-client-carol-existing',
-          metadata: expect.objectContaining({
-            subscriptionClientId: 'sub-client-carol-existing',
-            subId: 'premium-hk:carol',
-            deletedWithXrayInboundId: 'inbound-vless-hkg-443',
-            deletedWithXrayClientId: 'client-carol',
-            deletedWithXrayClientEmail: 'carol@example.com',
-            deletedWithXrayClientAction: true
+          kind: 'xray-client.subscription-binding',
+          clientAction: expect.objectContaining({
+            inboundId: 'inbound-vless-hkg-443',
+            clientId: 'client-carol',
+            clientEmail: 'carol@example.com',
+            action: { kind: 'delete-client' },
+            reason: 'customer-node-client:delete'
+          }),
+          secondary: expect.objectContaining({
+            operation: 'subscription.delete',
+            resourceType: 'subscription',
+            targetId: 'sub-client-carol-existing',
+            metadata: expect.objectContaining({
+              subscriptionClientId: 'sub-client-carol-existing',
+              subId: 'premium-hk:carol',
+              deletedWithXrayInboundId: 'inbound-vless-hkg-443',
+              deletedWithXrayClientId: 'client-carol',
+              deletedWithXrayClientEmail: 'carol@example.com',
+              deletedWithXrayClientAction: true
+            })
           })
         }),
-        expect.objectContaining({
-          idempotencyKey: expect.stringContaining(
-            'ui:subscription.delete:xray-client:inbound-vless-hkg-443:premium-hk:carol:sub-client-carol-existing'
-          )
-        })
+        expect.any(Object)
       );
     });
   });
@@ -1802,7 +1794,7 @@ describe('AppShell', () => {
     const confirm = vi.fn(() => true);
     const api = {
       ...createMockApi({ seedInventory: true }),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeTaskOperation: vi.fn().mockResolvedValue(createAcceptedOperationReceipt())
     };
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
@@ -1813,26 +1805,29 @@ describe('AppShell', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('停用 ops-hkg'));
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.executeTaskOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'inbound.update',
-          resourceType: 'inbound',
-          targetId: 'inbound-vless-hkg-443',
-          targetLabel: 'Primary VLESS Gateway',
-          metadata: expect.objectContaining({
-            customerNodeName: 'Primary VLESS Gateway',
-            clientEmail: 'ops-hkg',
-            enabled: false,
-            clients: [
-              expect.objectContaining({
-                clientEmail: 'ops-hkg',
-                enabled: false
-              })
-            ]
+          kind: 'customer-node.upsert',
+          primary: expect.objectContaining({
+            operation: 'inbound.update',
+            resourceType: 'inbound',
+            targetId: 'inbound-vless-hkg-443',
+            targetLabel: 'Primary VLESS Gateway',
+            metadata: expect.objectContaining({
+              customerNodeName: 'Primary VLESS Gateway',
+              clientEmail: 'ops-hkg',
+              enabled: false,
+              clients: [
+                expect.objectContaining({
+                  clientEmail: 'ops-hkg',
+                  enabled: false
+                })
+              ]
+            })
           })
         }),
         expect.objectContaining({
-          idempotencyKey: expect.stringContaining('ui:inbound.update:agent-hkg-01:inbound-vless-hkg-443:443:vless:ops-hkg')
+          idempotencyKey: expect.stringContaining('operation:customer-node:update')
         })
       );
     });
@@ -1865,7 +1860,7 @@ describe('AppShell', () => {
     const api = {
       ...createMockApi({ seedInventory: true }),
       listInbounds: vi.fn().mockResolvedValue(sharedInbounds),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeTaskOperation: vi.fn().mockResolvedValue(createAcceptedOperationReceipt())
     };
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
@@ -1875,16 +1870,19 @@ describe('AppShell', () => {
     await user.click(await screen.findByRole('button', { name: '停用 ops-hkg' }));
 
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.executeTaskOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'inbound.update',
-          targetId: 'inbound-vless-hkg-443'
+          primary: expect.objectContaining({
+            operation: 'inbound.update',
+            targetId: 'inbound-vless-hkg-443'
+          })
         }),
         expect.anything()
       );
     });
 
-    const [input] = api.createTask.mock.calls.find(([request]) => request.operation === 'inbound.update') ?? [];
+    const operationInput = api.executeTaskOperation.mock.calls[0]?.[0];
+    const input = operationInput?.primary;
 
     expect(input?.metadata).toMatchObject({
       enabled: true,
@@ -1908,7 +1906,7 @@ describe('AppShell', () => {
     const confirm = vi.fn(() => true);
     const api = {
       ...createMockApi({ seedInventory: true }),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeTaskOperation: vi.fn().mockResolvedValue(createAcceptedOperationReceipt())
     };
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
@@ -1919,23 +1917,25 @@ describe('AppShell', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('停用 ops-hkg'));
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.executeTaskOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'inbound.update',
-          targetId: 'inbound-vless-hkg-443',
-          metadata: expect.objectContaining({
-            clientEmail: 'ops-hkg',
-            enabled: false,
-            clients: [
-              expect.objectContaining({
-                clientEmail: 'ops-hkg',
-                enabled: false
-              })
-            ]
+          primary: expect.objectContaining({
+            operation: 'inbound.update',
+            targetId: 'inbound-vless-hkg-443',
+            metadata: expect.objectContaining({
+              clientEmail: 'ops-hkg',
+              enabled: false,
+              clients: [
+                expect.objectContaining({
+                  clientEmail: 'ops-hkg',
+                  enabled: false
+                })
+              ]
+            })
           })
         }),
         expect.objectContaining({
-          idempotencyKey: expect.stringContaining('ui:inbound.update:agent-hkg-01:inbound-vless-hkg-443:443:vless:ops-hkg')
+          idempotencyKey: expect.stringContaining('operation:customer-node:update')
         })
       );
     });
@@ -1963,7 +1963,7 @@ describe('AppShell', () => {
     const api = {
       ...createMockApi({ seedInventory: true }),
       listInbounds: vi.fn().mockResolvedValue(disabledInbounds),
-      createTask: vi.fn().mockResolvedValue(rollbackReadyTask)
+      executeTaskOperation: vi.fn().mockResolvedValue(createAcceptedOperationReceipt())
     };
     vi.stubGlobal('confirm', confirm);
     renderShell(api);
@@ -1974,23 +1974,25 @@ describe('AppShell', () => {
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('启用 ops-hkg'));
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.executeTaskOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'inbound.update',
-          targetId: 'inbound-vless-hkg-443',
-          metadata: expect.objectContaining({
-            clientEmail: 'ops-hkg',
-            enabled: true,
-            clients: [
-              expect.objectContaining({
-                clientEmail: 'ops-hkg',
-                enabled: true
-              })
-            ]
+          primary: expect.objectContaining({
+            operation: 'inbound.update',
+            targetId: 'inbound-vless-hkg-443',
+            metadata: expect.objectContaining({
+              clientEmail: 'ops-hkg',
+              enabled: true,
+              clients: [
+                expect.objectContaining({
+                  clientEmail: 'ops-hkg',
+                  enabled: true
+                })
+              ]
+            })
           })
         }),
         expect.objectContaining({
-          idempotencyKey: expect.stringContaining('ui:inbound.update:agent-hkg-01:inbound-vless-hkg-443:443:vless:ops-hkg')
+          idempotencyKey: expect.stringContaining('operation:customer-node:update')
         })
       );
     });
@@ -2923,9 +2925,11 @@ describe('AppShell', () => {
     };
     const api = {
       ...createMockApi({ seedInventory: true }),
-      createTask: vi.fn()
-        .mockResolvedValueOnce(acceptedInboundTask)
-        .mockResolvedValueOnce(acceptedSubscriptionTask)
+      executeTaskOperation: vi.fn().mockResolvedValue({
+        ...createAcceptedOperationReceipt(),
+        primaryTask: acceptedInboundTask,
+        secondaryTask: acceptedSubscriptionTask
+      })
     };
     renderShell(api);
 
@@ -2943,58 +2947,67 @@ describe('AppShell', () => {
     await user.click(screen.getByRole('button', { name: '保存' }));
 
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.executeTaskOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'inbound.create',
-          resourceType: 'inbound',
-          targetLabel: '客户专属 VLESS 入口',
-          metadata: expect.objectContaining({
-            customerNodeName: '客户专属 VLESS 入口',
-            serverAddress: 'edge.customer.example.com',
-            xrayProtocol: 'vless',
-            listenPort: expect.any(Number),
-            expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
-            subscriptionRule: 'region:hk AND tier:premium',
-            clients: [
-              expect.objectContaining({
-                clientEmail: 'Acme',
-                subscriptionRule: 'region:hk AND tier:premium',
-                enabled: true
-              })
-            ]
+          kind: 'customer-node.upsert',
+          primary: expect.objectContaining({
+            operation: 'inbound.create',
+            resourceType: 'inbound',
+            targetLabel: '客户专属 VLESS 入口',
+            metadata: expect.objectContaining({
+              customerNodeName: '客户专属 VLESS 入口',
+              serverAddress: 'edge.customer.example.com',
+              xrayProtocol: 'vless',
+              listenPort: expect.any(Number),
+              expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+              subscriptionRule: 'region:hk AND tier:premium',
+              clients: [
+                expect.objectContaining({
+                  clientEmail: 'Acme',
+                  subscriptionRule: 'region:hk AND tier:premium',
+                  enabled: true
+                })
+              ]
+            })
+          }),
+          compensation: expect.objectContaining({
+            operation: 'inbound.delete'
           })
         }),
         expect.any(Object)
       );
     });
-    const createRequest = api.createTask.mock.calls.find(([request]) => request.operation === 'inbound.create')?.[0];
+    const operationRequest = api.executeTaskOperation.mock.calls[0]?.[0];
+    const createRequest = operationRequest?.primary;
     expect(createRequest?.metadata?.listenPort).toBeGreaterThanOrEqual(20_000);
     expect(createRequest?.metadata?.listenPort).toBeLessThanOrEqual(60_999);
     expect(createRequest?.metadata?.listenPort).not.toBe(443);
     await waitFor(() => {
-      expect(api.createTask).toHaveBeenCalledWith(
+      expect(api.executeTaskOperation).toHaveBeenCalledWith(
         expect.objectContaining({
-          operation: 'subscription.generate',
-          resourceType: 'subscription',
-          targetLabel: 'Acme subscription',
-          metadata: expect.objectContaining({
-            customerName: 'Acme',
-            subId: 'region:hk AND tier:premium',
-            protocol: 'vless',
-            routingRule: 'region:hk AND tier:premium',
-            securePathPreview: expect.stringMatching(/^\/[a-z0-9]{24}$/),
-            subscriptionUrlPreview: expect.objectContaining({
-              clash: expect.stringContaining('/sub/'),
-              shadowrocket: expect.stringContaining('/shadowrocket/'),
-              stash: expect.stringContaining('/stash/')
-            }),
-            outputFormats: expect.arrayContaining(['clash', 'mihomo', 'uri', 'shadowrocket', 'stash'])
+          secondary: expect.objectContaining({
+            operation: 'subscription.generate',
+            resourceType: 'subscription',
+            targetLabel: 'Acme subscription',
+            metadata: expect.objectContaining({
+              customerName: 'Acme',
+              subId: 'region:hk AND tier:premium',
+              protocol: 'vless',
+              routingRule: 'region:hk AND tier:premium',
+              securePathPreview: expect.stringMatching(/^\/[a-z0-9]{24}$/),
+              subscriptionUrlPreview: expect.objectContaining({
+                clash: expect.stringContaining('/sub/'),
+                shadowrocket: expect.stringContaining('/shadowrocket/'),
+                stash: expect.stringContaining('/stash/')
+              }),
+              outputFormats: expect.arrayContaining(['clash', 'mihomo', 'uri', 'shadowrocket', 'stash'])
+            })
           })
         }),
         expect.any(Object)
       );
     });
-    expect(api.createTask).toHaveBeenCalledTimes(2);
+    expect(api.executeTaskOperation).toHaveBeenCalledTimes(1);
     const saveFeedback = await screen.findByRole('region', { name: '客户节点保存反馈' });
 
     expect(within(saveFeedback).getByText('新增节点 已接收 · 客户专属 VLESS 入口')).toBeInTheDocument();

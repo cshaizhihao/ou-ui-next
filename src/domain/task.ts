@@ -1,4 +1,5 @@
 import type { PermissionGrant, ResourcePermission } from './permission';
+import type { TaskOperationFailure, TaskOperationStage } from './operation';
 
 export type DeployTaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'retrying' | 'rolled_back' | 'canceled';
 
@@ -81,6 +82,10 @@ export type DeployTask = {
   resourceGroupId?: string;
   requestId: string;
   idempotencyKey?: string;
+  operationId?: string;
+  operationStage?: TaskOperationStage;
+  operationFailure?: TaskOperationFailure;
+  operationCompensation?: TaskOperationCompensationPlan;
   sourceIp: string;
   rollbackAvailable: boolean;
   attempts: number;
@@ -107,12 +112,27 @@ export type RiskConfirmationInput = {
   reason?: string;
 };
 
+export type TaskOperationCompensationPlan = {
+  operation: DeployTaskOperation;
+  resourceType?: DeployResourceType;
+  targetId: string;
+  targetLabel: string;
+  summary: string;
+  metadata?: CreateTaskMetadata;
+  permissionChange?: PermissionChangeInput;
+  riskConfirmation?: RiskConfirmationInput;
+};
+
 export type CreateTaskInput = {
   operation: DeployTaskOperation;
   resourceType?: DeployResourceType;
   targetId: string;
   targetLabel: string;
   summary: string;
+  operationId?: string;
+  operationStage?: TaskOperationStage;
+  operationFailure?: TaskOperationFailure;
+  operationCompensation?: TaskOperationCompensationPlan;
   metadata?: CreateTaskMetadata;
   permissionChange?: PermissionChangeInput;
   riskConfirmation?: RiskConfirmationInput;

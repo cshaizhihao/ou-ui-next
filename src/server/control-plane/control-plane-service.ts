@@ -2463,6 +2463,15 @@ export function createControlPlaneService({
       resourceGroupId: sourceTask.resourceGroupId,
       requestId: context.requestId,
       idempotencyKey: context.idempotencyKey,
+      operationId: sourceTask.operationId,
+      operationStage: sourceTask.operationId ? 'compensation' : undefined,
+      operationFailure: sourceTask.operationId
+        ? {
+            stage: sourceTask.operationStage ?? 'primary',
+            code: 'runtime.health_check_failed',
+            message: rollbackReason.slice(0, 500)
+          }
+        : undefined,
       sourceIp: context.sourceIp,
       rollbackAvailable: false,
       attempts: 0,
@@ -4100,6 +4109,10 @@ export function createControlPlaneService({
           resourceGroupId: mutationContext.resourceGroupId,
           requestId: mutationContext.requestId,
           idempotencyKey: mutationContext.idempotencyKey,
+          operationId: executableTaskInput.operationId,
+          operationStage: executableTaskInput.operationStage,
+          operationFailure: executableTaskInput.operationFailure,
+          operationCompensation: executableTaskInput.operationCompensation,
           sourceIp: mutationContext.sourceIp,
           rollbackAvailable: false,
           attempts: 0,
