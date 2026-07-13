@@ -18,6 +18,10 @@ export const ForwardingPage = lazy(() =>
 
 export const NodesPage = lazy(() => appShellPageLoaders.nodes().then((module) => ({ default: module.NodesPage })));
 
+export const RecoveryCenterPage = lazy(() =>
+  appShellPageLoaders.recovery().then((module) => ({ default: module.RecoveryCenterPage }))
+);
+
 export const RoutingPage = lazy(() => appShellPageLoaders.routing().then((module) => ({ default: module.RoutingPage })));
 
 export const SubscriptionMixerPage = lazy(() =>

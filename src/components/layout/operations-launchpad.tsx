@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, Boxes, ChevronDown, ClipboardCheck, Network, Route, Search, ServerCog, Settings } from 'lucide-react';
+import { Activity, Boxes, ChevronDown, ClipboardCheck, LifeBuoy, Network, Route, Search, ServerCog } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import type { PageId } from '../../app/navigation';
 import { cn } from '../../lib/cn';
@@ -40,7 +40,7 @@ const copy = {
       forwarding: '配置端口转发',
       subscriptions: '生成订阅',
       evidence: '查看任务证据',
-      settings: '进入设置'
+      recovery: '打开恢复中心'
     },
     metricLabels: {
       hosts: (count: number) => `${count} 台主机`,
@@ -63,7 +63,7 @@ const copy = {
       forwarding: 'Configure Forwarding',
       subscriptions: 'Generate Subscriptions',
       evidence: 'Review Evidence',
-      settings: 'Open Settings'
+      recovery: 'Open Recovery Center'
     },
     metricLabels: {
       hosts: (count: number) => `${count} hosts`,
@@ -146,10 +146,10 @@ export function OperationsLaunchpad({
       tone: 'primary'
     },
     {
-      id: 'settings',
-      icon: Settings,
-      label: t.actions.settings,
-      pageId: 'adminAccounts',
+      id: 'recovery',
+      icon: LifeBuoy,
+      label: t.actions.recovery,
+      pageId: 'recovery',
       metric: t.metricLabels.alerts(alertsCount),
       tone: alertsCount > 0 ? 'danger' : 'success'
     }

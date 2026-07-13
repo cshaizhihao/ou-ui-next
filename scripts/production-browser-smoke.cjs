@@ -519,6 +519,7 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
 
     const advancedPages = config.viewportPreset === 'mobile'
       ? [
+          { label: '恢复中心', heading: /恢复中心|Recovery Center/i, mobile: true },
           { label: '客户', heading: /客户管理|Customer Management/i, mobile: true },
           { label: '分流策略', heading: /分流策略|Routing Policy/i, mobile: true },
           { label: '调优', heading: /系统调优|System Tuning/i, mobile: true },
@@ -528,6 +529,7 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
           { label: '审计', heading: /审计日志|Audit Log/i, mobile: true }
         ]
       : [
+          { label: '恢复中心', heading: /恢复中心|Recovery Center/i },
           { label: '客户', heading: /客户管理|Customer Management/i },
           { label: '端口转发', heading: /端口转发|Port Forwarding/i },
           { label: '订阅', heading: /订阅管理|Subscription Management/i },
@@ -543,10 +545,13 @@ async function runProductionBrowserSmokeChecks(config, report, pageErrors) {
       await runBrowserCheck(config, page, report, `navigate ${pageEntry.label}`, async () => {
         if (pageEntry.mobile) {
           await openMobileGovernancePage(page, pageEntry.label, config.timeoutMs, pageEntry.heading);
-          return;
+        } else {
+          await clickNavigation(page, pageEntry.label, config.timeoutMs, pageEntry.heading);
         }
 
-        await clickNavigation(page, pageEntry.label, config.timeoutMs, pageEntry.heading);
+        if (pageEntry.label === '恢复中心') {
+          await waitForVisible(page.locator('[data-recovery-center-page="ready"]'), config.timeoutMs, '恢复中心队列');
+        }
       });
     }
 

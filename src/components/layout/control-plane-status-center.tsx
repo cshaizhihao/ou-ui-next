@@ -93,7 +93,7 @@ export function ControlPlaneStatusCenter({
       label: t.onlineAgents,
       value: `${agentsOnlineCount}/${agentsTotalCount}`,
       meta: t.agentsMeta(agentsOnlineCount, agentsTotalCount),
-      pageId: 'nodes',
+      pageId: agentsTotalCount > 0 && agentsOnlineCount === agentsTotalCount ? 'nodes' : 'recovery',
       tone: agentsTotalCount > 0 && agentsOnlineCount === agentsTotalCount ? 'success' : 'warning'
     },
     {
@@ -102,7 +102,7 @@ export function ControlPlaneStatusCenter({
       label: t.runtimeApply,
       value: String(runtimeApplyingCount),
       meta: t.runtimeMeta(runtimeApplyingCount),
-      pageId: 'tasks',
+      pageId: runtimeApplyingCount > 0 ? 'recovery' : 'tasks',
       tone: runtimeApplyingCount > 0 ? 'warning' : 'success'
     },
     {
@@ -111,7 +111,7 @@ export function ControlPlaneStatusCenter({
       label: t.failedTasks,
       value: String(failedTasksCount),
       meta: t.failedMeta(failedTasksCount),
-      pageId: 'tasks',
+      pageId: failedTasksCount > 0 ? 'recovery' : 'tasks',
       tone: failedTasksCount > 0 ? 'danger' : 'success'
     },
     {
@@ -120,7 +120,7 @@ export function ControlPlaneStatusCenter({
       label: t.quotaRisk,
       value: String(quotaRiskCount),
       meta: t.quotaMeta(quotaRiskCount, alertsCount),
-      pageId: 'customerNodes',
+      pageId: quotaRiskCount > 0 || alertsCount > 0 ? 'recovery' : 'customerNodes',
       tone: quotaRiskCount > 0 ? 'danger' : alertsCount > 0 ? 'warning' : 'success'
     }
   ];

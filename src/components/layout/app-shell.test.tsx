@@ -460,7 +460,7 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: /配置端口转发/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /生成订阅/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /查看任务证据/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /进入设置/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /打开恢复中心/ })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '控制面状态中心' })).toBeInTheDocument();
     expect(screen.getByText('Agent 在线')).toBeInTheDocument();
     expect(screen.getByText('Runtime Apply')).toBeInTheDocument();
@@ -494,6 +494,21 @@ describe('AppShell', () => {
     expect(launchpadShell).toHaveAttribute('data-state', 'expanded');
     expect(document.querySelector('.ou-launchpad-panel')).toBeInTheDocument();
     expect(screen.getByText('接入服务器').closest('button')).toHaveClass('min-h-[68px]', 'p-2.5');
+  });
+
+  it('deep-links recovery evidence and follows browser history', async () => {
+    const user = userEvent.setup();
+    renderShell(createMockApi({ seedInventory: true }));
+
+    await clickNavigation(user, '恢复中心');
+    expect(await screen.findByRole('heading', { name: '恢复中心' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/recovery');
+
+    act(() => {
+      window.history.pushState(null, '', '/#/subscriptions');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(await screen.findByRole('heading', { name: '订阅管理' })).toBeInTheDocument();
   });
 
   it('routes dashboard first-screen response actions into the compact dashboard cockpit', async () => {

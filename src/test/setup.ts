@@ -6,5 +6,6 @@ afterEach(() => {
   cleanup();
   if (typeof document !== 'undefined') {
     document.documentElement.classList.remove('dark');
+    window.history.replaceState(null, '', '/');
   }
 });

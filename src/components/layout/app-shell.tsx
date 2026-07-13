@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getNavigationItem, getNavigationItems, type PageId } from '../../app/navigation';
+import { usePageRouter } from '../../app/page-router';
 import { useAppStore, type AppLanguage } from '../../app/app-store';
 import { resolveAppRuntimeConfig } from '../../app/runtime-config';
 import {
@@ -118,6 +119,7 @@ import {
   DashboardPage,
   ForwardingPage,
   NodesPage,
+  RecoveryCenterPage,
   RoutingPage,
   SubscriptionMixerPage,
   TasksPage,
@@ -156,7 +158,7 @@ const EMPTY_COMMAND_OUTBOX: ControlPlaneSnapshot['commandOutbox'] = [];
 const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
-const EMPTY_RUNTIME_CONVERGENCE: ControlPlaneSnapshot['runtimeConvergence'] = [];
+const EMPTY_RUNTIME_CONVERGENCE: NonNullable<ControlPlaneSnapshot['runtimeConvergence']> = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_TRAFFIC_ROLLUP_COMPACTIONS: ControlPlaneSnapshot['trafficRollupCompactions'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
@@ -1349,7 +1351,7 @@ export function AppShell({ ready }: AppShellProps) {
   const t = shellCopy[language];
   const setLanguage = useAppStore((state) => state.setLanguage);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
-  const [activePage, setActivePage] = useState<PageId>('dashboard');
+  const { activePage, navigate: routeToPage } = usePageRouter();
   const [customerFocusIntent, setCustomerFocusIntent] = useState<CustomerFocusIntent>();
   const [deployDrawerOpen, setDeployDrawerOpen] = useState(false);
   const [deployTargetAgentId, setDeployTargetAgentId] = useState<string>();
@@ -1570,14 +1572,14 @@ export function AppShell({ ready }: AppShellProps) {
   }, [restoreDeployFocus]);
 
   const navigateToPage = useCallback((pageId: PageId) => {
-    setActivePage(pageId);
+    routeToPage(pageId);
     setCustomerFocusIntent(undefined);
     setForwardingFocusIntent(undefined);
     setNodesFocusIntent(undefined);
     setSubscriptionFocusIntent(undefined);
     setDeployDrawerOpen(false);
     deployReturnFocusRef.current = null;
-  }, []);
+  }, [routeToPage]);
 
   useEffect(() => {
     function handleQuickActionShortcut(event: KeyboardEvent) {
@@ -1649,9 +1651,9 @@ export function AppShell({ ready }: AppShellProps) {
       }
     }
 
-    setActivePage(item.pageId);
+    routeToPage(item.pageId);
     setQuickActionsOpen(false);
-  }, []);
+  }, [routeToPage]);
 
   const handleLogout = useCallback(async () => {
     if (runtimeConfig.controlPlaneMode !== 'http') {
@@ -2561,7 +2563,7 @@ export function AppShell({ ready }: AppShellProps) {
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
           void copyText(createCustomerNodeAllSubscriptionText(subscriptionMetadata));
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           break;
         }
@@ -2578,7 +2580,7 @@ export function AppShell({ ready }: AppShellProps) {
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           const subscriptionMetadata = createCustomerNodeSubscriptionMetadata(metadata, createBrowserPublicBaseUrl());
           void copyText(subscriptionMetadata.subscriptionUrlPreview.clash);
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           break;
         }
@@ -2594,7 +2596,7 @@ export function AppShell({ ready }: AppShellProps) {
 
           const metadata = createCustomerNodeMetadataFromInbound(inbound, client, agents, nodes, client.enabled);
           void copyText(createCustomerNodeShareLink(metadata));
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           break;
         }
@@ -2612,7 +2614,7 @@ export function AppShell({ ready }: AppShellProps) {
           const confirmed =
             typeof window === 'undefined' || window.confirm(t.confirmSetCustomerNodeEnabled(command.label, client.email));
 
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
 
           if (!confirmed) {
@@ -2638,7 +2640,7 @@ export function AppShell({ ready }: AppShellProps) {
 
           const confirmed = typeof window === 'undefined' || window.confirm(t.confirmResetQuota(policy.name));
 
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
 
           if (!confirmed) {
@@ -2649,12 +2651,12 @@ export function AppShell({ ready }: AppShellProps) {
           break;
         }
         case 'forward.apply':
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           handleRunForwarding(command.targetId, 'apply');
           break;
         case 'forward.pause':
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           if (
             typeof window !== 'undefined' &&
@@ -2665,7 +2667,7 @@ export function AppShell({ ready }: AppShellProps) {
           handleRunForwarding(command.targetId, 'pause');
           break;
         case 'forward.resume':
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           if (
             typeof window !== 'undefined' &&
@@ -2686,7 +2688,7 @@ export function AppShell({ ready }: AppShellProps) {
           const confirmed =
             typeof window === 'undefined' || window.confirm(t.confirmSyncSubscriptionSource(source.name));
 
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
 
           if (!confirmed) {
@@ -2704,7 +2706,7 @@ export function AppShell({ ready }: AppShellProps) {
           }
 
           void copyText(command.value);
-          setActivePage(item.pageId);
+          routeToPage(item.pageId);
           setQuickActionsOpen(false);
           break;
       }
@@ -2718,6 +2720,7 @@ export function AppShell({ ready }: AppShellProps) {
       language,
       nodes,
       quotaPolicies,
+      routeToPage,
       runQuotaResetTask,
       subscriptionSources,
       t
@@ -3538,6 +3541,18 @@ export function AppShell({ ready }: AppShellProps) {
         );
       case 'audit':
         return <AuditPage auditLogs={auditLogs} language={language} onVerifyAuditLogs={handleVerifyAuditLogs} />;
+      case 'recovery':
+        return (
+          <RecoveryCenterPage
+            agents={agents}
+            language={language}
+            runtimeConvergence={runtimeConvergence}
+            systemAlerts={systemAlerts}
+            tasks={tasks}
+            onRefresh={() => void refreshControlPlane()}
+            onSelectPage={navigateToPage}
+          />
+        );
       case 'dashboard':
       default:
         return (
@@ -3634,6 +3649,7 @@ export function AppShell({ ready }: AppShellProps) {
     language,
     nodes,
     nodesFocusIntent,
+    navigateToPage,
     operatorSessionId,
     operatorSessions,
     operatorSessionsQuery.error,

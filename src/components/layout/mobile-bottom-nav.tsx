@@ -10,6 +10,7 @@ import {
   Search,
   ServerCog,
   ShieldCheck,
+  LifeBuoy,
   UserCog,
   UsersRound
 } from 'lucide-react';
@@ -38,6 +39,7 @@ const mobileIcons = {
   forwarding: ArrowLeftRight
 } satisfies Record<MobilePageId, typeof LayoutDashboard>;
 const governancePageIds = [
+  'recovery',
   'customers',
   'subscriptions',
   'routing',
@@ -49,6 +51,7 @@ const governancePageIds = [
 ] as const;
 type GovernancePageId = (typeof governancePageIds)[number];
 const governanceIcons = {
+  recovery: LifeBuoy,
   customers: UsersRound,
   subscriptions: Route,
   routing: Route,

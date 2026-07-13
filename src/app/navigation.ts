@@ -2,6 +2,7 @@ import type { AppLanguage } from './app-store';
 
 export type PageId =
   | 'dashboard'
+  | 'recovery'
   | 'customers'
   | 'customerNodes'
   | 'nodes'
@@ -37,6 +38,7 @@ export type NavigationEntry = NavigationLeaf | NavigationGroup;
 
 export const navigationItems: NavigationItem[] = [
   { id: 'dashboard', label: '概览', description: '运行状态' },
+  { id: 'recovery', label: '恢复中心', description: '失败、漂移与补偿队列' },
   { id: 'customers', label: '客户', description: '客户目录与归属' },
   { id: 'customerNodes', label: '节点', description: 'VLESS 与客户节点' },
   { id: 'nodes', label: '服务器', description: '接入与遥测' },
@@ -52,6 +54,7 @@ export const navigationItems: NavigationItem[] = [
 
 export const englishNavigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Overview', description: 'Control plane overview' },
+  { id: 'recovery', label: 'Recovery', description: 'Failures, drift, and compensation' },
   { id: 'customers', label: 'Customers', description: 'Customer directory and ownership' },
   { id: 'customerNodes', label: 'Nodes', description: 'VLESS and customer nodes' },
   { id: 'nodes', label: 'Servers', description: 'Enrollment and telemetry' },
@@ -96,6 +99,7 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
         description: '主机、节点、转发、订阅',
         children: [
           createLeaf(items, 'dashboard'),
+          createLeaf(items, 'recovery'),
           createLeaf(items, 'nodes'),
           createLeaf(items, 'customerNodes'),
           createLeaf(items, 'forwarding'),
@@ -136,6 +140,7 @@ export function getNavigationGroups(language: AppLanguage = 'zh'): NavigationGro
       description: 'Hosts, nodes, forwarding, subscriptions',
       children: [
         createLeaf(items, 'dashboard'),
+        createLeaf(items, 'recovery'),
         createLeaf(items, 'nodes'),
         createLeaf(items, 'customerNodes'),
         createLeaf(items, 'forwarding'),

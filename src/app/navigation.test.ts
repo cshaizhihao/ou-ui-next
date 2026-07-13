@@ -22,7 +22,7 @@ describe('navigation groups', () => {
     const deliveryIds = flattenEntryPageIds(delivery?.children ?? []);
     const evidenceIds = flattenEntryPageIds(evidence?.children ?? []);
 
-    expect(operationsIds).toEqual(expect.arrayContaining(['dashboard', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
+    expect(operationsIds).toEqual(expect.arrayContaining(['dashboard', 'recovery', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
     expect(operationsIds).not.toContain('permissions');
     expect(operationsIds).not.toContain('tasks');
     expect(operationsIds).not.toContain('audit');
@@ -42,7 +42,7 @@ describe('navigation groups', () => {
     const deliveryIds = flattenEntryPageIds(delivery?.children ?? []);
     const evidenceIds = flattenEntryPageIds(evidence?.children ?? []);
 
-    expect(operationsIds).toEqual(expect.arrayContaining(['dashboard', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
+    expect(operationsIds).toEqual(expect.arrayContaining(['dashboard', 'recovery', 'nodes', 'customerNodes', 'forwarding', 'subscriptions']));
     expect(operationsIds).not.toContain('permissions');
     expect(operationsIds).not.toContain('tasks');
     expect(operationsIds).not.toContain('audit');

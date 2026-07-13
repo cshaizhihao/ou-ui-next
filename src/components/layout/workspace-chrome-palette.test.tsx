@@ -125,7 +125,7 @@ describe('workspace chrome operations palette', () => {
     expect(screen.getByText('4')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('失败任务').closest('button')!);
-    expect(onSelectPage).toHaveBeenCalledWith('tasks');
+    expect(onSelectPage).toHaveBeenCalledWith('recovery');
   });
 
   it('uses semantic wayfinding on the sidebar active path and master-node status block', () => {
