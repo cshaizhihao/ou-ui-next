@@ -13,6 +13,8 @@ export function useControlPlaneSnapshot(enabled: boolean) {
     queryKey: controlPlaneSnapshotQueryKey,
     enabled,
     retry: false,
+    refetchInterval: enabled ? 60_000 : false,
+    refetchIntervalInBackground: false,
     queryFn: () => api.getSnapshot()
   });
 }

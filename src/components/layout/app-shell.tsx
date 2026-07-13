@@ -107,6 +107,7 @@ import type {
   TrafficRollupRetentionPolicyUpdateInput
 } from '../../services/api/control-plane-api';
 import { useControlPlaneSnapshot, type ControlPlaneSnapshot } from '../../services/api/use-control-plane-snapshot';
+import { useControlPlaneLiveEvents } from '../../services/api/use-control-plane-live-events';
 import { useApi } from '../../services/api/use-api';
 import { useOperatorSessions } from '../../services/api/use-operator-sessions';
 import { ActionOverlay } from './action-overlay';
@@ -155,6 +156,7 @@ const EMPTY_COMMAND_OUTBOX: ControlPlaneSnapshot['commandOutbox'] = [];
 const EMPTY_CONFIG_REVISIONS: ControlPlaneSnapshot['configRevisions'] = [];
 const EMPTY_PREFLIGHT_PLANS: ControlPlaneSnapshot['preflightPlans'] = [];
 const EMPTY_RUNTIME_SNAPSHOTS: ControlPlaneSnapshot['runtimeSnapshots'] = [];
+const EMPTY_RUNTIME_CONVERGENCE: ControlPlaneSnapshot['runtimeConvergence'] = [];
 const EMPTY_TRAFFIC_ROLLUPS: ControlPlaneSnapshot['trafficRollups'] = [];
 const EMPTY_TRAFFIC_ROLLUP_COMPACTIONS: ControlPlaneSnapshot['trafficRollupCompactions'] = [];
 const EMPTY_SYSTEM_ALERTS: ControlPlaneSnapshot['systemAlerts'] = [];
@@ -1368,6 +1370,7 @@ export function AppShell({ ready }: AppShellProps) {
 
   const activeNav = getNavigationItem(activePage, language);
   const snapshot = useControlPlaneSnapshot(ready);
+  const liveEventState = useControlPlaneLiveEvents(ready, runtimeConfig.controlPlaneBaseUrl);
   const operatorSessionsQuery = useOperatorSessions(ready && activePage === 'adminAccounts');
   const agents = snapshot.data?.agents ?? EMPTY_AGENTS;
   const customers = snapshot.data?.customers ?? EMPTY_CUSTOMERS;
@@ -1389,6 +1392,7 @@ export function AppShell({ ready }: AppShellProps) {
   const configRevisions = snapshot.data?.configRevisions ?? EMPTY_CONFIG_REVISIONS;
   const preflightPlans = snapshot.data?.preflightPlans ?? EMPTY_PREFLIGHT_PLANS;
   const runtimeSnapshots = snapshot.data?.runtimeSnapshots ?? EMPTY_RUNTIME_SNAPSHOTS;
+  const runtimeConvergence = snapshot.data?.runtimeConvergence ?? EMPTY_RUNTIME_CONVERGENCE;
   const trafficRollups = snapshot.data?.trafficRollups ?? EMPTY_TRAFFIC_ROLLUPS;
   const trafficRollupCompactions = snapshot.data?.trafficRollupCompactions ?? EMPTY_TRAFFIC_ROLLUP_COMPACTIONS;
   const systemAlerts = snapshot.data?.systemAlerts ?? EMPTY_SYSTEM_ALERTS;
@@ -3523,6 +3527,7 @@ export function AppShell({ ready }: AppShellProps) {
             language={language}
             preflightPlans={preflightPlans}
             runtimeSnapshots={runtimeSnapshots}
+            runtimeConvergence={runtimeConvergence}
             taskMutationBusy={taskMutationBusy}
             onExportAgentLogArchives={handleExportAgentLogArchives}
             onExportAgentLogs={handleExportAgentLogs}
@@ -3641,6 +3646,7 @@ export function AppShell({ ready }: AppShellProps) {
     refreshControlPlane,
     routingPolicies,
     runtimeConfig,
+    runtimeConvergence,
     runtimeSnapshots,
     systemAlerts,
     telegramBindings,
@@ -3731,6 +3737,7 @@ export function AppShell({ ready }: AppShellProps) {
               failedTasksCount={failedTasksCount}
               forwardingRulesCount={forwardingRules.length}
               language={language}
+              liveEventState={liveEventState}
               loading={snapshot.isLoading}
               nodesCount={nodes.length}
               quotaRiskCount={quotaRiskCount}

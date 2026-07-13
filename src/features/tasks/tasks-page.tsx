@@ -16,7 +16,8 @@ import type {
   ForwardingRuntimeDiagnosisState,
   XrayRuntimeDiagnosisAction,
   XrayRuntimeDiagnosisReason,
-  XrayRuntimeDiagnosisState
+  XrayRuntimeDiagnosisState,
+  RuntimeConvergenceReadModel
 } from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
@@ -27,6 +28,7 @@ import type {
   CommandOutboxSummary
 } from '../../services/api/control-plane-api';
 import { copyText as copyToClipboard } from '../../lib/copy';
+import { cn } from '../../lib/cn';
 import { formatDateTime, formatNumber } from '../shared/format';
 
 type TasksPageProps = {
@@ -41,6 +43,7 @@ type TasksPageProps = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  runtimeConvergence?: RuntimeConvergenceReadModel[];
   language?: AppLanguage;
   taskMutationBusy?: boolean;
   onExportAgentLogs?: () => void;
@@ -3408,6 +3411,7 @@ export function TasksPage({
   configRevisions,
   preflightPlans,
   runtimeSnapshots,
+  runtimeConvergence = [],
   language = 'zh',
   taskMutationBusy = false,
   onExportAgentLogArchives,
@@ -3456,6 +3460,19 @@ export function TasksPage({
     language
   );
   const agentEvidenceSummary = t.agentEvidenceSummary(agentLogChunks.length, agentLogArchives.length, language);
+  const convergenceByTaskId = useMemo(
+    () => new Map(runtimeConvergence.map((item) => [item.taskId, item] as const)),
+    [runtimeConvergence]
+  );
+  const convergenceSummary = useMemo(() => {
+    const verified = runtimeConvergence.filter((item) => item.verification.state === 'verified').length;
+    const attention = runtimeConvergence.filter((item) =>
+      ['failed', 'drifted'].includes(item.verification.state)
+    ).length;
+    return language === 'zh'
+      ? `${verified} 已验证 · ${attention} 需处理`
+      : `${verified} verified · ${attention} needs action`;
+  }, [language, runtimeConvergence]);
   const latestExecutionStatus = latestTask ? t.status[latestTask.status] : t.status.not_generated;
   const activeTaskCount = tasks.filter((item) => ['queued', 'running', 'retrying'].includes(item.status)).length;
   const failureTaskCount = tasks.filter((item) => hasTaskFailureEvidence(item)).length;
@@ -3666,6 +3683,10 @@ export function TasksPage({
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   <EvidenceSummaryTile label={t.releaseEvidence} value={releaseEvidenceSummary} />
                   <EvidenceSummaryTile label={t.agentEvidence} value={agentEvidenceSummary} />
+                  <EvidenceSummaryTile
+                    label={language === 'zh' ? 'Runtime 收敛' : 'Runtime convergence'}
+                    value={convergenceSummary}
+                  />
                 </div>
                 {t.overviewHint ? (
                   <p className="mt-3 text-[11px] leading-5 text-slate-500 dark:text-white/45">{t.overviewHint}</p>
@@ -3795,8 +3816,28 @@ export function TasksPage({
                 </div>
 
                 <div className="space-y-2">
-                  {releaseBundles.map((bundle) => (
-                    <article
+                  {releaseBundles.map((bundle) => {
+                    const convergence = convergenceByTaskId.get(bundle.task.id);
+                    const convergenceLabel = convergence
+                      ? language === 'zh'
+                        ? {
+                            pending: '等待证据',
+                            verified: 'Agent 已验证',
+                            failed: '运行失败',
+                            drifted: '证据漂移',
+                            rolled_back: '已回滚'
+                          }[convergence.verification.state]
+                        : {
+                            pending: 'Evidence pending',
+                            verified: 'Agent verified',
+                            failed: 'Runtime failed',
+                            drifted: 'Evidence drift',
+                            rolled_back: 'Rolled back'
+                          }[convergence.verification.state]
+                      : undefined;
+
+                    return (
+                      <article
                       aria-label={bundle.task.summary}
                       key={bundle.task.id}
                       className="tasks-release-row border border-slate-200 bg-white/70 p-3 transition hover:border-[#1E3AFF]/25 hover:shadow-[0_10px_26px_-24px_rgba(30,58,255,0.24)] dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-primary/25"
@@ -3818,8 +3859,25 @@ export function TasksPage({
                     </p>
                   </div>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
-                  {t.status[bundle.task.status]}
+                <span className="flex flex-wrap items-center justify-end gap-1.5">
+                  {convergence ? (
+                    <span
+                      className={cn(
+                        'rounded-full border px-2.5 py-1 text-[10px] font-semibold',
+                        convergence.verification.state === 'verified'
+                          ? 'ou-tone-success'
+                          : convergence.verification.state === 'failed' || convergence.verification.state === 'drifted'
+                            ? 'ou-tone-danger'
+                            : 'ou-tone-warning'
+                      )}
+                      data-runtime-verification={convergence.verification.state}
+                    >
+                      {convergenceLabel}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-white/10 dark:text-white/70">
+                    {t.status[bundle.task.status]}
+                  </span>
                 </span>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-white/50">
@@ -3861,7 +3919,8 @@ export function TasksPage({
               </div>
               <RuntimeReleaseTimeline bundle={bundle} language={language} />
                     </article>
-                  ))}
+                    );
+                  })}
                   {tasks.length === 0 ? (
                     <TasksEmptyState
                       className="tasks-release-empty-state"

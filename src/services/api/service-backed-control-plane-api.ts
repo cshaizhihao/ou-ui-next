@@ -58,6 +58,7 @@ import {
   applySubscriptionSourceTask,
   applyXrayInboundTask,
   createCustomersFromReadModels,
+  createRuntimeConvergenceReadModels,
   createSubscriptionClientFromTask,
   createSubscriptionBundlesFromInventory,
   countCrossSourceSubscriptionInventoryDuplicates,
@@ -6308,6 +6309,13 @@ export function createServiceBackedControlPlaneApi({
         createAgentSessionSummary(session, findRuntimeCredentialForSession(agentCredentials, session))
       );
       const agentLogChunks = selectAgentLogChunks(rawAgentEvents, { limit: 200 });
+      const runtimeConvergence = createRuntimeConvergenceReadModels({
+        tasks,
+        commandOutbox,
+        configRevisions,
+        preflightPlans,
+        runtimeSnapshots
+      });
 
       const snapshot: ControlPlaneSnapshotReadModel = {
         apiBoundary: clone(v1ApiBoundary),
@@ -6333,6 +6341,7 @@ export function createServiceBackedControlPlaneApi({
         configRevisions: configRevisions.map(summarizeRuntimeConfigRevisionForSnapshot),
         preflightPlans,
         runtimeSnapshots,
+        runtimeConvergence,
         trafficRollups,
         trafficRollupCompactions,
         systemAlerts,
@@ -6360,6 +6369,11 @@ export function createServiceBackedControlPlaneApi({
       }
 
       return snapshot;
+    },
+
+    async getChangeToken() {
+      const stateVersion = await repository.readStateVersion();
+      return `${stateVersion.revision}:${snapshotReadModelRevision}`;
     },
 
     async getApiBoundary() {

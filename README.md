@@ -54,6 +54,7 @@ V2.0.0 立住了运行时闭环和能力边界。V2.1.0 把 Dashboard、提交�
 | HTTP Control Plane | 已实现 | `/api/v1` REST、SSE、Agent command/event、任务、审计、指标、CSRF/session、OpenAPI 和 smoke 流程 |
 | 查询与传输 | 已实现 | 资源列表支持 `page`、`pageSize`、`search` 和分页响应头；snapshot 支持按 sections 获取，4174 同源代理对 JSON/text 响应启用低 CPU gzip |
 | 跨资源 Operation Saga | 已实现 | 客户节点与 Xray Client/Subscription 绑定使用一等 `operationId`、阶段任务、幂等恢复和补偿队列；`accepted` 仅表示阶段任务已入队，运行时成功仍以 Agent evidence 为准 |
+| Runtime 收敛与实时事件 | 已实现 | Runtime 任务统一输出 Desired / Observed / Verified / Drift 状态；浏览器通过带凭据 SSE 接收任务变化并节流刷新，60 秒低频同步仅作为断线兜底 |
 | Agent 注册与命令通道 | 已实现 | install token、runtime credential、command outbox、ACK/result/log_chunk、telemetry 上报 |
 | Xray runtime apply | 已实现 | Agent 写入 Xray runtime profile，执行 config preflight，生成 snapshot，重启 runtime service，并回传 result evidence |
 | Xray 多 client inbound | 已实现 | Control Plane artifact 支持多 client，UI/API/read model/runtime artifact 保留 quota、expiry、guardrail、traffic multiplier 证据 |

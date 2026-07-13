@@ -4655,6 +4655,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RuntimeSnapshot'
+        runtimeConvergence:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuntimeConvergence'
         trafficRollups:
           type: array
           items:
@@ -4932,6 +4936,114 @@ components:
         state:
           type: object
           additionalProperties: true
+      additionalProperties: false
+    RuntimeConvergence:
+      type: object
+      required:
+        - id
+        - taskId
+        - operation
+        - resourceType
+        - targetId
+        - targetLabel
+        - desired
+        - observed
+        - verification
+      properties:
+        id:
+          type: string
+        taskId:
+          $ref: '#/components/schemas/TaskId'
+        operationId:
+          type: string
+        operationStage:
+          $ref: '#/components/schemas/TaskOperationStage'
+        operation:
+          $ref: '#/components/schemas/DeployTaskOperation'
+        resourceType:
+          $ref: '#/components/schemas/DeployResourceType'
+        targetId:
+          type: string
+        targetLabel:
+          type: string
+        desired:
+          type: object
+          required:
+            - state
+            - requestedAt
+            - configRevisionIds
+          properties:
+            state:
+              type: string
+              enum: [applied, absent, paused, restored]
+            requestedAt:
+              type: string
+              format: date-time
+            configRevisionIds:
+              type: array
+              items:
+                type: string
+        observed:
+          type: object
+          required:
+            - state
+            - commandStatuses
+            - agentIds
+            - configRevisionStatuses
+            - preflightStatuses
+            - snapshotStatuses
+            - observedAt
+          properties:
+            state:
+              type: string
+              enum: [waiting, dispatched, acknowledged, applied, failed]
+            commandStatuses:
+              type: array
+              items:
+                type: string
+            agentIds:
+              type: array
+              items:
+                type: string
+            configRevisionStatuses:
+              type: array
+              items:
+                type: string
+            preflightStatuses:
+              type: array
+              items:
+                type: string
+            snapshotStatuses:
+              type: array
+              items:
+                type: string
+            observedAt:
+              type: string
+              format: date-time
+        verification:
+          type: object
+          required:
+            - state
+            - source
+            - reasons
+            - nextAction
+          properties:
+            state:
+              type: string
+              enum: [pending, verified, failed, drifted, rolled_back]
+            source:
+              type: string
+              enum: [agent-result, control-plane]
+            verifiedAt:
+              type: string
+              format: date-time
+            reasons:
+              type: array
+              items:
+                type: string
+            nextAction:
+              type: string
+              enum: [wait, inspect_failure, verify_agent_result, none]
       additionalProperties: false
     ResourceSummary:
       type: object

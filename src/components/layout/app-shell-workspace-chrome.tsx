@@ -1,6 +1,7 @@
 import type { AppLanguage } from '../../app/app-store';
 import type { PageId } from '../../app/navigation';
 import { ControlPlaneStatusCenter } from './control-plane-status-center';
+import type { ControlPlaneLiveEventState } from '../../services/api/use-control-plane-live-events';
 import { OperationsLaunchpad } from './operations-launchpad';
 import { ControlPlaneSkeleton } from './control-plane-skeleton';
 
@@ -12,6 +13,7 @@ type AppShellWorkspaceChromeProps = {
   failedTasksCount: number;
   forwardingRulesCount: number;
   language: AppLanguage;
+  liveEventState: ControlPlaneLiveEventState;
   loading: boolean;
   nodesCount: number;
   quotaRiskCount: number;
@@ -31,6 +33,7 @@ export function AppShellWorkspaceChrome({
   failedTasksCount,
   forwardingRulesCount,
   language,
+  liveEventState,
   loading,
   nodesCount,
   quotaRiskCount,
@@ -70,6 +73,7 @@ export function AppShellWorkspaceChrome({
         alertsCount={alertsCount}
         failedTasksCount={failedTasksCount}
         language={language}
+        liveEventState={liveEventState}
         quotaRiskCount={quotaRiskCount}
         runtimeApplyingCount={runtimeApplyingCount}
         onPrefetchPage={onPrefetchPage}

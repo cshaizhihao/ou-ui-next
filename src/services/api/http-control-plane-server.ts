@@ -1915,6 +1915,7 @@ const snapshotSectionKeys = new Set<keyof ControlPlaneSnapshotReadModel>([
   'configRevisions',
   'preflightPlans',
   'runtimeSnapshots',
+  'runtimeConvergence',
   'trafficRollups',
   'trafficRollupCompactions',
   'systemAlerts',
@@ -2990,6 +2991,7 @@ async function sendTaskEventStream(
   const taskCount = matchedEvents.filter((event) => event.event === 'task.status.changed').length;
   const auditCount = matchedEvents.filter((event) => event.event === 'audit.summary').length;
   let lastEventId = matchedEvents.at(-1)?.id ?? query.cursor;
+  let lastChangeToken = await api.getChangeToken?.();
 
   sendSseEvent(response, 'stream.ready', `ready:${requestId}`, {
     requestId,
@@ -3019,15 +3021,32 @@ async function sendTaskEventStream(
 
     polling = true;
 
-    void listTaskSseEvents(
-      api,
-      {
-        ...query,
-        ...(lastEventId ? { cursor: lastEventId } : {})
-      },
-      identity
-    )
-      .then((events) => {
+    const eventsPromise = api.getChangeToken
+      ? api.getChangeToken().then((changeToken) => {
+          if (changeToken === lastChangeToken) {
+            return [];
+          }
+          lastChangeToken = changeToken;
+          return listTaskSseEvents(
+            api,
+            {
+              ...query,
+              ...(lastEventId ? { cursor: lastEventId } : {})
+            },
+            identity
+          );
+        })
+      : listTaskSseEvents(
+          api,
+          {
+            ...query,
+            ...(lastEventId ? { cursor: lastEventId } : {})
+          },
+          identity
+        );
+
+    void eventsPromise
+      .then((events = []) => {
         for (const event of events) {
           writeTaskSseEvent(response, event);
         }

@@ -2,6 +2,7 @@ import { AlertTriangle, ClipboardList, Gauge, ServerCog } from 'lucide-react';
 import type { AppLanguage } from '../../app/app-store';
 import type { PageId } from '../../app/navigation';
 import { cn } from '../../lib/cn';
+import type { ControlPlaneLiveEventState } from '../../services/api/use-control-plane-live-events';
 
 type ControlPlaneStatusCenterProps = {
   agentsOnlineCount: number;
@@ -10,6 +11,7 @@ type ControlPlaneStatusCenterProps = {
   failedTasksCount: number;
   quotaRiskCount: number;
   alertsCount: number;
+  liveEventState?: ControlPlaneLiveEventState;
   language: AppLanguage;
   onPrefetchPage?: (pageId: PageId) => void;
   onSelectPage: (pageId: PageId) => void;
@@ -33,6 +35,11 @@ const copy = {
     runtimeApply: 'Runtime Apply',
     failedTasks: '失败任务',
     quotaRisk: '配额风险',
+    live: '实时',
+    connecting: '连接中',
+    reconnecting: '重连中',
+    unavailable: '定时同步',
+    disabled: '已暂停',
     agentsMeta: (online: number, total: number) => `${online}/${total} 可用`,
     runtimeMeta: (count: number) => (count > 0 ? '执行中' : '无挂起'),
     failedMeta: (count: number) => (count > 0 ? '需要处理' : '证据正常'),
@@ -45,6 +52,11 @@ const copy = {
     runtimeApply: 'Runtime Apply',
     failedTasks: 'Failed Tasks',
     quotaRisk: 'Quota Risk',
+    live: 'Live',
+    connecting: 'Connecting',
+    reconnecting: 'Reconnecting',
+    unavailable: 'Timed sync',
+    disabled: 'Paused',
     agentsMeta: (online: number, total: number) => `${online}/${total} available`,
     runtimeMeta: (count: number) => (count > 0 ? 'running' : 'none pending'),
     failedMeta: (count: number) => (count > 0 ? 'needs action' : 'evidence ok'),
@@ -66,11 +78,14 @@ export function ControlPlaneStatusCenter({
   failedTasksCount,
   quotaRiskCount,
   alertsCount,
+  liveEventState = 'unavailable',
   language,
   onPrefetchPage,
   onSelectPage
 }: ControlPlaneStatusCenterProps) {
   const t = copy[language];
+  const liveLabel = t[liveEventState];
+  const liveTone = liveEventState === 'live' ? 'ou-tone-success' : liveEventState === 'unavailable' ? 'ou-tone-primary' : 'ou-tone-warning';
   const statusItems: StatusItem[] = [
     {
       id: 'agents-online',
@@ -114,8 +129,17 @@ export function ControlPlaneStatusCenter({
     <section aria-label={t.ariaLabel} className="surface-shell ou-card-enter mb-5 overflow-hidden p-2.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold tracking-tight text-[var(--ou-text)]">{t.title}</h3>
-        <span className="ou-chip ou-tone-warning rounded-full border px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.14em] shadow-sm">
-          {alertsCount}
+        <span className="flex items-center gap-1.5">
+          <span
+            aria-live="polite"
+            className={cn('ou-chip rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-sm', liveTone)}
+            data-live-event-state={liveEventState}
+          >
+            {liveLabel}
+          </span>
+          <span className="ou-chip ou-tone-warning rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold shadow-sm">
+            {alertsCount}
+          </span>
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

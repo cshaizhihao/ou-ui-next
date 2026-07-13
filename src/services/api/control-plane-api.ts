@@ -36,6 +36,7 @@ import type {
   RateLimitPolicy,
   RoutingPolicy,
   RuntimeConfigRevision,
+  RuntimeConvergenceReadModel,
   RuntimeModuleKind,
   RuntimePreflightPlan,
   RuntimeSnapshot,
@@ -292,6 +293,7 @@ export type ControlPlaneSnapshotReadModel = {
   configRevisions: RuntimeConfigRevision[];
   preflightPlans: RuntimePreflightPlan[];
   runtimeSnapshots: RuntimeSnapshot[];
+  runtimeConvergence?: RuntimeConvergenceReadModel[];
   trafficRollups: TrafficRollup[];
   trafficRollupCompactions: TrafficRollupCompaction[];
   systemAlerts: SystemAlert[];
@@ -1756,6 +1758,7 @@ export function createObservabilityMetrics(input: ObservabilityMetricsInput): Ob
 
 export interface ControlPlaneApi {
   getSnapshot(): Promise<ControlPlaneSnapshotReadModel>;
+  getChangeToken?(): Promise<string>;
   getApiBoundary(): Promise<ApiBoundaryDescriptor>;
   getObservabilityMetrics(
     externalAlerts?: SystemAlert[],

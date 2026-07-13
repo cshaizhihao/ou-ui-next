@@ -238,6 +238,13 @@ export type {
   TaskOperationStage,
   TaskOperationStatus
 } from './operation';
+export { createRuntimeConvergenceReadModels } from './runtime-convergence';
+export type {
+  RuntimeConvergenceReadModel,
+  RuntimeDesiredState,
+  RuntimeObservedState,
+  RuntimeVerificationState
+} from './runtime-convergence';
 export type {
   AgentRuntimeDeploymentProof,
   CreateTaskMetadata,

@@ -517,6 +517,9 @@ describe('OpenAPI v1 contract', () => {
       'partial_failure',
       'compensation_queued'
     ]);
+    expect(document.components.schemas.ControlPlaneSnapshot.properties?.runtimeConvergence.items?.$ref).toBe(
+      '#/components/schemas/RuntimeConvergence'
+    );
     expect(document.paths['/api/v1/subscription-sources/{sourceId}/sync'].post.parameters?.map((parameter) => parameter.$ref)).toEqual(
       expect.arrayContaining([
         '#/components/parameters/XRequestId',

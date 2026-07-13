@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TasksPage } from './tasks-page';
-import type { AgentLogArchive } from '../../domain';
+import type { AgentLogArchive, RuntimeConvergenceReadModel } from '../../domain';
 import type { RuntimeConfigRevision, RuntimePreflightPlan, RuntimeSnapshot } from '../../domain/runtime-release';
 import type { DeployTask } from '../../domain/task';
 import type { AgentLogChunk, CommandOutboxSummary } from '../../services/api/control-plane-api';
@@ -290,6 +290,36 @@ const agentLogArchive: AgentLogArchive = {
   source: 'retention-prune'
 };
 
+const runtimeConvergence: RuntimeConvergenceReadModel = {
+  id: `runtime-convergence:${task.id}`,
+  taskId: task.id,
+  operation: task.operation,
+  resourceType: task.resourceType,
+  targetId: task.targetId,
+  targetLabel: task.targetLabel,
+  desired: {
+    state: 'applied',
+    requestedAt: task.createdAt,
+    configRevisionIds: [configRevision.id]
+  },
+  observed: {
+    state: 'applied',
+    commandStatuses: ['completed'],
+    agentIds: ['agent-hkg-01'],
+    configRevisionStatuses: ['applied'],
+    preflightStatuses: ['passed'],
+    snapshotStatuses: ['verified'],
+    observedAt: '2026-06-02T00:00:10.000Z'
+  },
+  verification: {
+    state: 'verified',
+    source: 'agent-result',
+    verifiedAt: '2026-06-02T00:00:10.000Z',
+    reasons: [],
+    nextAction: 'none'
+  }
+};
+
 describe('TasksPage', () => {
   it('frames execution records as an operational release control surface', () => {
     render(
@@ -301,6 +331,7 @@ describe('TasksPage', () => {
         configRevisions={[configRevision]}
         preflightPlans={[currentPreflightPlan]}
         runtimeSnapshots={[currentRuntimeSnapshot]}
+        runtimeConvergence={[runtimeConvergence]}
         language="en"
         onRollbackTask={vi.fn()}
         onRefresh={vi.fn()}
@@ -315,6 +346,8 @@ describe('TasksPage', () => {
     expect(commandEvidence).toHaveTextContent('apply · agent-hkg-01 · cmd-forward-apply-001');
     expect(commandEvidence).toHaveTextContent('ACK');
     expect(commandEvidence).toHaveTextContent('Result');
+    expect(screen.getByText('Agent verified')).toHaveAttribute('data-runtime-verification', 'verified');
+    expect(screen.getByText('1 verified · 0 needs action')).toBeInTheDocument();
     expect(
       within(overview).queryByText(
         'Track Master dispatch, Agent acknowledgement, preflight, snapshots, and rollback state for every high-risk change.'

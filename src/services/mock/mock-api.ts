@@ -55,6 +55,7 @@ import {
   composeAgentInstallCommand,
   composeAgentUpgradeCommand,
   createCustomersFromReadModels,
+  createRuntimeConvergenceReadModels,
   createSubscriptionBundlesFromInventory,
   countCrossSourceSubscriptionInventoryDuplicates,
   createProxyProvidersFromSources,
@@ -3235,6 +3236,13 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         configRevisions: configRevisions.map(summarizeRuntimeConfigRevisionForSnapshot),
         preflightPlans,
         runtimeSnapshots,
+        runtimeConvergence: createRuntimeConvergenceReadModels({
+          tasks,
+          commandOutbox: state.commandOutbox,
+          configRevisions,
+          preflightPlans,
+          runtimeSnapshots
+        }),
         trafficRollups,
         trafficRollupCompactions,
         systemAlerts,
@@ -3250,6 +3258,11 @@ export function createMockApi(options: CreateMockApiOptions = {}): ControlPlaneA
         telegramNotificationDeliveries,
         auditLogs
       };
+    },
+
+    async getChangeToken() {
+      const latestTask = state.tasks.map((task) => `${task.id}:${task.updatedAt}:${task.status}`).sort().at(-1) ?? 'none';
+      return `mock:${state.sequence}:${latestTask}`;
     },
 
     async getApiBoundary() {
